@@ -2,10 +2,13 @@ import { useState, useEffect } from "react";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import SharedNavbar from "@/components/SharedNavbar";
-import { Calendar, Shield } from "lucide-react";
+import CountdownTimer from "@/components/CountdownTimer";
+import { Calendar, Shield, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 const SchedulePage = () => {
   const [shows, setShows] = useState<Show[]>([]);
