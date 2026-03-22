@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { LogIn, Eye, EyeOff } from "lucide-react";
+import { LogIn, Eye, EyeOff, Shield } from "lucide-react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -21,7 +22,6 @@ const Login = () => {
     if (error) {
       toast.error("Login gagal: " + error.message);
     } else {
-      // Check if user is admin
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
@@ -40,16 +40,29 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8 opacity-0 animate-fade-in-up">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <LogIn className="w-5 h-5 text-primary" />
+        <motion.div
+          className="text-center mb-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="w-16 h-16 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center mx-auto mb-4 shadow-[0_0_16px_hsl(var(--primary)/0.3)]">
+            <Shield className="w-7 h-7 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ lineHeight: "1.1" }}>RealTime48</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ lineHeight: "1.1" }}>
+            Real<span className="text-primary">Time48</span>
+          </h1>
           <p className="text-muted-foreground text-sm mt-2">Login admin untuk mengelola streaming</p>
-        </div>
+        </motion.div>
 
-        <form onSubmit={handleLogin} className="space-y-4 opacity-0 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
-          <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-xl shadow-black/20">
+        <motion.form
+          onSubmit={handleLogin}
+          className="space-y-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+        >
+          <div className="bg-card border border-border rounded-2xl p-6 space-y-4 shadow-xl shadow-black/20">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Email</label>
               <input
@@ -92,11 +105,16 @@ const Login = () => {
               {loading ? "Memproses..." : "Masuk"}
             </button>
           </div>
-        </form>
+        </motion.form>
 
-        <p className="text-center text-xs text-muted-foreground mt-6 opacity-0 animate-fade-in-up" style={{ animationDelay: "240ms" }}>
+        <motion.p
+          className="text-center text-xs text-muted-foreground mt-6"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
           <a href="/" className="text-primary hover:underline">← Kembali ke beranda</a>
-        </p>
+        </motion.p>
       </div>
     </div>
   );
