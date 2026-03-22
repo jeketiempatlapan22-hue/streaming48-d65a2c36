@@ -73,6 +73,7 @@ const AdminDashboard = () => {
       case "site": return (
         <div className="space-y-6">
           <SiteSettingsManager />
+          <AdminBroadcast />
           <AdminSettings />
         </div>
       );
