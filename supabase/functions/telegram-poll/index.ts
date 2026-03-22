@@ -13,6 +13,33 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Handle token block notification from admin panel
+  if (req.method === 'POST') {
+    try {
+      const body = await req.clone().json();
+      if (body?.notify_token_block) {
+        const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
+        const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
+        if (BOT_TOKEN && ADMIN_CHAT_ID) {
+          const action = body.action === 'block' ? 'diblokir' : 'dibuka blokirnya';
+          const emoji = body.action === 'block' ? '🚫' : '✅';
+          await sendTelegramMessage(BOT_TOKEN, ADMIN_CHAT_ID, `${emoji} Token \`${escapeMarkdown(body.token_code)}\` telah *${action}* dari admin panel\\.`);
+          // Also notify WhatsApp
+          const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+          const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+          if (FONNTE_TOKEN) {
+            const { data: settings } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle();
+            const adminNums = settings?.value?.split(',').map((n: string) => n.trim()).filter(Boolean) || [];
+            for (const num of adminNums) {
+              await sendFonnteWhatsApp(FONNTE_TOKEN, num, `${emoji} Token ${body.token_code} telah *${action}* dari admin panel.`);
+            }
+          }
+        }
+        return jsonResponse({ ok: true, notified: true });
+      }
+    } catch {}
+  }
+
   const startTime = Date.now();
   const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
   if (!BOT_TOKEN) return errorResponse('TELEGRAM_BOT_TOKEN is not configured');
@@ -147,6 +174,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unblocktokenMatch = rawText.match(/^\/unblocktoken\s+(\S+)$/i);
   const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
   const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
+  const isTokensList = /^\/tokens$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -182,6 +210,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleShowInfoCommand(supabase, botToken, chatId);
   } else if (msgshowMatch) {
     await handleMsgShowCommand(supabase, botToken, chatId, msgshowMatch[1].trim(), msgshowMatch[2].trim());
+  } else if (isTokensList) {
+    await handleTokensListCommand(supabase, botToken, chatId);
   } else if (blocktokenMatch) {
     await handleTokenCommand(supabase, botToken, chatId, blocktokenMatch[1], 'block');
   } else if (unblocktokenMatch) {
@@ -254,10 +284,11 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/setlive #ID\` \\- Set LIVE \\+ pilih show aktif\n` +
     `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
     `🔑 *Token Management:*\n` +
-    `\`/blocktoken <kode>\` \\- Blokir token user\n` +
-    `\`/unblocktoken <kode>\` \\- Buka blokir token\n` +
-    `\`/resettoken <kode>\` \\- Reset sesi token\n` +
-    `\`/deletetoken <kode>\` \\- Hapus token\n\n` +
+    `\`/tokens\` \\- Lihat daftar token \\+ 4 digit\n` +
+    `\`/blocktoken <4digit>\` \\- Blokir token \\(4 digit belakang\\)\n` +
+    `\`/unblocktoken <4digit>\` \\- Buka blokir token\n` +
+    `\`/resettoken <4digit>\` \\- Reset sesi token\n` +
+    `\`/deletetoken <4digit>\` \\- Hapus token\n\n` +
     `🔐 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
@@ -267,7 +298,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini\n\n` +
-    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk semua aksi show\\. Lihat ID dengan /shows_`;
+    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk show, 4 digit belakang untuk token\\._`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
@@ -952,30 +983,59 @@ async function handleShowInfoCommand(supabase: any, botToken: string, chatId: st
   }
 }
 
-async function handleTokenCommand(supabase: any, botToken: string, chatId: string, tokenCode: string, action: 'block' | 'unblock' | 'reset' | 'delete') {
+async function findTokenByInputTg(supabase: any, input: string): Promise<{ token: any | null; error: string | null; multiple: any[] | null }> {
+  const { data: exact } = await supabase.from('tokens').select('id, code, status').eq('code', input).maybeSingle();
+  if (exact) return { token: exact, error: null, multiple: null };
+
+  const suffix = input.toLowerCase();
+  const { data: all } = await supabase.from('tokens').select('id, code, status').in('status', ['active', 'blocked']).order('created_at', { ascending: false }).limit(500);
+  if (!all) return { token: null, error: 'Gagal mencari token.', multiple: null };
+
+  const matches = all.filter((t: any) => t.code.toLowerCase().endsWith(suffix));
+  if (matches.length === 0) return { token: null, error: `Token dengan akhiran "${input}" tidak ditemukan.`, multiple: null };
+  if (matches.length === 1) return { token: matches[0], error: null, multiple: null };
+  return { token: null, error: null, multiple: matches };
+}
+
+async function handleTokensListCommand(supabase: any, botToken: string, chatId: string) {
+  const { data: tokens } = await supabase.from('tokens').select('code, status, expires_at, duration_type').order('created_at', { ascending: false }).limit(30);
+  if (!tokens || tokens.length === 0) { await sendTelegramMessage(botToken, chatId, '📋 Tidak ada token\\.'); return; }
+  const now = new Date();
+  const lines = tokens.map((t: any) => {
+    const last4 = t.code.slice(-4);
+    const expired = t.expires_at && new Date(t.expires_at) < now;
+    const statusIcon = t.status === 'blocked' ? '🔴' : expired ? '🟡' : '🟢';
+    return `${statusIcon} \\.\\.\\.${escapeMarkdown(last4)} \\[${escapeMarkdown(t.status)}\\] ${escapeMarkdown(t.duration_type || '')}`;
+  });
+  await sendTelegramMessage(botToken, chatId, `🔑 *Daftar Token \\(${tokens.length}\\):*\n${lines.join('\n')}\n\n💡 _Gunakan 4 digit belakang untuk aksi token\\._`);
+}
+
+async function handleTokenCommand(supabase: any, botToken: string, chatId: string, tokenInput: string, action: 'block' | 'unblock' | 'reset' | 'delete') {
   try {
-    const { data: token } = await supabase.from('tokens').select('id, code, status').eq('code', tokenCode).maybeSingle();
-    if (!token) {
-      await sendTelegramMessage(botToken, chatId, `⚠️ Token \`${escapeMarkdown(tokenCode)}\` tidak ditemukan\\.`);
+    const { token, error, multiple } = await findTokenByInputTg(supabase, tokenInput);
+    if (error) { await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error)}`); return; }
+    if (multiple) {
+      const list = multiple.map((t: any) => `• \`${escapeMarkdown(t.code)}\` \\[${escapeMarkdown(t.status)}\\]`).join('\n');
+      await sendTelegramMessage(botToken, chatId, `⚠️ Ditemukan ${multiple.length} token dengan akhiran "${escapeMarkdown(tokenInput)}":\n${list}\n\nGunakan kode lengkap\\.`);
       return;
     }
 
+    const code = token.code;
     if (action === 'block') {
       await supabase.from('tokens').update({ status: 'blocked' }).eq('id', token.id);
-      // Also kill active sessions
       await supabase.from('token_sessions').update({ is_active: false }).eq('token_id', token.id);
-      await sendTelegramMessage(botToken, chatId, `🚫 Token \`${escapeMarkdown(tokenCode)}\` telah *diblokir*\\! Semua sesi dimatikan\\.`);
+      await sendTelegramMessage(botToken, chatId, `🚫 Token \`${escapeMarkdown(code)}\` telah *diblokir*\\! Semua sesi dimatikan\\.`);
     } else if (action === 'unblock') {
       await supabase.from('tokens').update({ status: 'active' }).eq('id', token.id);
-      await sendTelegramMessage(botToken, chatId, `✅ Token \`${escapeMarkdown(tokenCode)}\` telah *dibuka blokirnya*\\.`);
+      await sendTelegramMessage(botToken, chatId, `✅ Token \`${escapeMarkdown(code)}\` telah *dibuka blokirnya*\\.`);
     } else if (action === 'reset') {
       await supabase.from('token_sessions').delete().eq('token_id', token.id);
-      await sendTelegramMessage(botToken, chatId, `🔄 Semua sesi untuk token \`${escapeMarkdown(tokenCode)}\` telah *direset*\\.`);
+      await sendTelegramMessage(botToken, chatId, `🔄 Semua sesi untuk token \`${escapeMarkdown(code)}\` telah *direset*\\.`);
     } else if (action === 'delete') {
       await supabase.from('chat_messages').delete().eq('token_id', token.id);
       await supabase.from('token_sessions').delete().eq('token_id', token.id);
       await supabase.from('tokens').delete().eq('id', token.id);
-      await sendTelegramMessage(botToken, chatId, `🗑️ Token \`${escapeMarkdown(tokenCode)}\` telah *dihapus* beserta semua sesi dan pesan chat\\.`);
+      await sendTelegramMessage(botToken, chatId, `🗑️ Token \`${escapeMarkdown(code)}\` telah *dihapus* beserta semua sesi dan pesan chat\\.`);
     }
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);

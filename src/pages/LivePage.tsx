@@ -123,9 +123,18 @@ const LivePage = () => {
       setError("no_token"); setLoading(false); return;
     }
     const validate = async () => {
+      const { data: settingsEarly } = await supabase.from("site_settings").select("*");
+      if (settingsEarly) settingsEarly.forEach((s: any) => {
+        if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+      });
+
       const { data: validation } = await supabase.rpc("validate_token", { _code: tokenCode });
       const result = validation as any;
-      if (!result?.valid) { setError(result?.error || "Token tidak valid."); setLoading(false); return; }
+      if (!result?.valid) {
+        const errText = String(result?.error || "").toLowerCase();
+        if (errText.includes("diblokir")) { setBlocked(true); setLoading(false); return; }
+        setError(result?.error || "Token tidak valid."); setLoading(false); return;
+      }
       const fp = getFingerprint();
       const { data: sess } = await supabase.rpc("create_token_session", { _token_code: tokenCode, _fingerprint: fp, _user_agent: navigator.userAgent });
       const sd = sess as any;
@@ -297,11 +306,23 @@ const LivePage = () => {
           </p>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
-          Jika kamu merasa ini adalah kesalahan, hubungi admin untuk informasi lebih lanjut.
+          Jika kamu merasa ini adalah kesalahan, hubungi admin untuk konfirmasi.
         </p>
-        <button onClick={() => navigate("/")} className="rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
-          🏠 Kembali ke Beranda
-        </button>
+        <div className="flex flex-col gap-3">
+          {whatsappNumber && (
+            <a
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin, token saya diblokir tetapi saya tidak melakukan pelanggaran. Mohon konfirmasi.\n\nToken: " + tokenCode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[hsl(var(--success))] px-8 py-3 font-semibold text-primary-foreground hover:bg-[hsl(var(--success))]/90 active:scale-[0.97] transition-transform"
+            >
+              💬 Hubungi Admin via WhatsApp
+            </a>
+          )}
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
+            🏠 Kembali ke Beranda
+          </button>
+        </div>
       </div>
     </div>
   );

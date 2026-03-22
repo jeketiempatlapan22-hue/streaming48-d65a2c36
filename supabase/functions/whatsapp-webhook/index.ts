@@ -123,6 +123,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const unblocktokenMatch = rawText.match(/^\/unblocktoken\s+(\S+)$/i);
   const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
   const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
+  const tokensListMatch = /^\/tokens$/i.test(rawText);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -143,6 +144,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (unblocktokenMatch) return await handleTokenCmd(supabase, unblocktokenMatch[1], 'unblock');
   if (resettokenMatch) return await handleTokenCmd(supabase, resettokenMatch[1], 'reset');
   if (deletetokenMatch) return await handleTokenCmd(supabase, deletetokenMatch[1], 'delete');
+  if (tokensListMatch) return await handleTokensList(supabase);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -186,10 +188,11 @@ TIDAK <id> - Tolak order
 /setoffline - Set semua stream jadi OFFLINE
 
 🔑 *Token Management:*
-/blocktoken <kode> - Blokir token user
-/unblocktoken <kode> - Buka blokir token
-/resettoken <kode> - Reset sesi token
-/deletetoken <kode> - Hapus token
+/tokens - Lihat daftar token aktif + 4 digit
+/blocktoken <4digit> - Blokir token (4 digit belakang)
+/unblocktoken <4digit> - Buka blokir token
+/resettoken <4digit> - Reset sesi token
+/deletetoken <4digit> - Hapus token
 
 🔐 *Password Reset:*
 RESET <id> - Setujui reset password
@@ -737,31 +740,68 @@ async function handleShowInfo(supabase: any): Promise<string> {
   }
 }
 
-async function handleTokenCmd(supabase: any, tokenCode: string, action: 'block' | 'unblock' | 'reset' | 'delete'): Promise<string> {
+async function findTokenByInput(supabase: any, input: string): Promise<{ token: any | null; error: string | null; multiple: any[] | null }> {
+  // Try exact match first
+  const { data: exact } = await supabase.from('tokens').select('id, code, status').eq('code', input).maybeSingle();
+  if (exact) return { token: exact, error: null, multiple: null };
+
+  // Try 4-char suffix match (case-insensitive)
+  const suffix = input.toLowerCase();
+  const { data: all } = await supabase.from('tokens').select('id, code, status').eq('status', 'active').order('created_at', { ascending: false }).limit(500);
+  if (!all) return { token: null, error: 'Gagal mencari token.', multiple: null };
+
+  // Also search blocked tokens for unblock
+  const { data: allBlocked } = await supabase.from('tokens').select('id, code, status').eq('status', 'blocked').order('created_at', { ascending: false }).limit(500);
+  const combined = [...(all || []), ...(allBlocked || [])];
+
+  const matches = combined.filter((t: any) => t.code.toLowerCase().endsWith(suffix));
+  if (matches.length === 0) return { token: null, error: `Token dengan akhiran "${input}" tidak ditemukan.`, multiple: null };
+  if (matches.length === 1) return { token: matches[0], error: null, multiple: null };
+  return { token: null, error: null, multiple: matches };
+}
+
+async function handleTokenCmd(supabase: any, tokenInput: string, action: 'block' | 'unblock' | 'reset' | 'delete'): Promise<string> {
   try {
-    const { data: token } = await supabase.from('tokens').select('id, code, status').eq('code', tokenCode).maybeSingle();
-    if (!token) return `⚠️ Token "${tokenCode}" tidak ditemukan.`;
+    const { token, error, multiple } = await findTokenByInput(supabase, tokenInput);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      const list = multiple.map((t: any) => `• ${t.code} [${t.status}]`).join('\n');
+      return `⚠️ Ditemukan ${multiple.length} token dengan akhiran "${tokenInput}":\n${list}\n\nGunakan kode lengkap untuk aksi.`;
+    }
 
     if (action === 'block') {
       await supabase.from('tokens').update({ status: 'blocked' }).eq('id', token.id);
       await supabase.from('token_sessions').update({ is_active: false }).eq('token_id', token.id);
-      return `🚫 Token ${tokenCode} telah *diblokir*! Semua sesi dimatikan.`;
+      return `🚫 Token ${token.code} telah *diblokir*! Semua sesi dimatikan.`;
     } else if (action === 'unblock') {
       await supabase.from('tokens').update({ status: 'active' }).eq('id', token.id);
-      return `✅ Token ${tokenCode} telah *dibuka blokirnya*.`;
+      return `✅ Token ${token.code} telah *dibuka blokirnya*.`;
     } else if (action === 'reset') {
       await supabase.from('token_sessions').delete().eq('token_id', token.id);
-      return `🔄 Semua sesi untuk token ${tokenCode} telah *direset*.`;
+      return `🔄 Semua sesi untuk token ${token.code} telah *direset*.`;
     } else if (action === 'delete') {
       await supabase.from('chat_messages').delete().eq('token_id', token.id);
       await supabase.from('token_sessions').delete().eq('token_id', token.id);
       await supabase.from('tokens').delete().eq('id', token.id);
-      return `🗑️ Token ${tokenCode} telah *dihapus* beserta semua sesi dan pesan chat.`;
+      return `🗑️ Token ${token.code} telah *dihapus* beserta semua sesi dan pesan chat.`;
     }
     return '⚠️ Aksi tidak dikenal.';
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
+}
+
+async function handleTokensList(supabase: any): Promise<string> {
+  const { data: tokens } = await supabase.from('tokens').select('code, status, expires_at, duration_type').order('created_at', { ascending: false }).limit(30);
+  if (!tokens || tokens.length === 0) return '📋 Tidak ada token.';
+  const now = new Date();
+  const lines = tokens.map((t: any) => {
+    const last4 = t.code.slice(-4);
+    const expired = t.expires_at && new Date(t.expires_at) < now;
+    const statusIcon = t.status === 'blocked' ? '🔴' : expired ? '🟡' : '🟢';
+    return `${statusIcon} ...${last4} [${t.status}] ${t.duration_type || ''}`;
+  });
+  return `🔑 *Daftar Token (${tokens.length}):*\n${lines.join('\n')}\n\n💡 Gunakan 4 digit belakang untuk aksi token.`;
 }
 
 function jsonResponse(body: unknown, status = 200) {
