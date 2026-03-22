@@ -284,10 +284,11 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/setlive #ID\` \\- Set LIVE \\+ pilih show aktif\n` +
     `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
     `🔑 *Token Management:*\n` +
-    `\`/blocktoken <kode>\` \\- Blokir token user\n` +
-    `\`/unblocktoken <kode>\` \\- Buka blokir token\n` +
-    `\`/resettoken <kode>\` \\- Reset sesi token\n` +
-    `\`/deletetoken <kode>\` \\- Hapus token\n\n` +
+    `\`/tokens\` \\- Lihat daftar token \\+ 4 digit\n` +
+    `\`/blocktoken <4digit>\` \\- Blokir token \\(4 digit belakang\\)\n` +
+    `\`/unblocktoken <4digit>\` \\- Buka blokir token\n` +
+    `\`/resettoken <4digit>\` \\- Reset sesi token\n` +
+    `\`/deletetoken <4digit>\` \\- Hapus token\n\n` +
     `🔐 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
@@ -297,7 +298,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini\n\n` +
-    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk semua aksi show\\. Lihat ID dengan /shows_`;
+    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk show, 4 digit belakang untuk token\\._`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
