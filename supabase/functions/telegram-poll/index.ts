@@ -798,14 +798,15 @@ async function handleShowInfoCommand(supabase: any, botToken: string, chatId: st
     }
 
     if (settingsMap.active_show_id) {
-      const { data: show } = await supabase.from('shows').select('title, schedule_date, schedule_time, is_replay').eq('id', settingsMap.active_show_id).maybeSingle();
+      const { data: show } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, is_replay').eq('id', settingsMap.active_show_id).maybeSingle();
       if (show) {
-        msg += `🎭 Show aktif: *${escapeMarkdown(show.title)}*\n`;
+        msg += `🎭 Show aktif: *${escapeMarkdown(show.title)}* \\(\`#${showShortId(show.id)}\`\\)\n`;
         if (show.schedule_date) msg += `📅 Jadwal: ${escapeMarkdown(show.schedule_date)} ${escapeMarkdown(show.schedule_time || '')}\n`;
         if (show.is_replay) msg += `🔁 Mode: Replay\n`;
       }
     } else {
       msg += '🎭 Show aktif: _Belum dipilih_\n';
+      msg += `💡 Set show: \`/setactive #ID\`\n`;
     }
 
     if (settingsMap.next_show_time) {
