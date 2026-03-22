@@ -35,7 +35,8 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     { icon: <Home className="h-5 w-5 text-primary" />, label: "Beranda", description: "Halaman utama", href: "/" },
     { icon: <Calendar className="h-5 w-5 text-primary" />, label: "Jadwal Show", description: "Lihat jadwal & countdown", href: "/schedule" },
     { icon: <Coins className="h-5 w-5 text-[hsl(var(--warning))]" />, label: "Coin Shop", description: "Beli koin untuk akses show", href: "/coins" },
-    { icon: <Film className="h-5 w-5 text-primary" />, label: "Replay Show", description: "Tonton ulang show lalu", href: "/schedule" },
+    { icon: <Crown className="h-5 w-5 text-yellow-500" />, label: "Membership", description: "Paket langganan eksklusif", href: "/membership" },
+    { icon: <Film className="h-5 w-5 text-primary" />, label: "Replay Show", description: "Tonton ulang show lalu", href: "/replay" },
     ...(coinUser ? [{ icon: <User className="h-5 w-5 text-primary" />, label: "Profil Saya", description: "Token, koin & pengaturan", href: "/profile" }] : []),
     { icon: <Settings className="h-5 w-5 text-muted-foreground" />, label: "Admin", description: "Panel admin", href: "/admin" },
   ];
