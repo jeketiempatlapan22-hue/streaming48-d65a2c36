@@ -50,6 +50,24 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_moderators: {
+        Row: {
+          created_at: string
+          id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       coin_balances: {
         Row: {
           balance: number
@@ -148,6 +166,42 @@ export type Database = {
           price?: string
           qris_image_url?: string | null
           sort_order?: number
+        }
+        Relationships: []
+      }
+      landing_descriptions: {
+        Row: {
+          content: string
+          created_at: string
+          icon: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          sort_order: number
+          text_align: string | null
+          title: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          text_align?: string | null
+          title?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          sort_order?: number
+          text_align?: string | null
+          title?: string
         }
         Relationships: []
       }
@@ -261,6 +315,33 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      security_events: {
+        Row: {
+          created_at: string
+          description: string
+          event_type: string
+          id: string
+          ip_address: string | null
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          severity?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          severity?: string
         }
         Relationships: []
       }
