@@ -21,6 +21,7 @@ const sections = [
   { id: "polls", label: "Live Poll", icon: BarChart3 },
   { id: "security", label: "Security Log", icon: Shield },
   { id: "health", label: "System Health", icon: Activity },
+  { id: "logs", label: "Live Logs", icon: ScrollText },
   { id: "monitor", label: "Monitor", icon: Monitor },
   { id: "site", label: "Pengaturan", icon: Settings },
 ];
