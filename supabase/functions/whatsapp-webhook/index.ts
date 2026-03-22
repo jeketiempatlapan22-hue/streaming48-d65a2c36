@@ -451,6 +451,28 @@ async function sendFonnteMessage(token: string, target: string, message: string)
   }
 }
 
+async function notifyTelegram(command: string, result: string) {
+  const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+
+  // Skip read-only commands
+  const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
+  if (readOnly.test(command.trim())) return;
+
+  const telegramMsg = `📱 *WhatsApp Bot Activity*\n\nCommand: \`${command}\`\n\n${result}`;
+  
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: telegramMsg }),
+    });
+  } catch (e) {
+    console.error('notifyTelegram error:', e);
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

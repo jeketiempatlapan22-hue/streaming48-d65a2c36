@@ -538,6 +538,34 @@ async function sendFonnteWhatsApp(phone: string, message: string) {
   } catch (e) { console.error('sendFonnteWhatsApp error:', e); }
 }
 
+async function notifyWhatsAppAdmins(supabase: any, command: string) {
+  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+  if (!FONNTE_TOKEN) return;
+  
+  try {
+    // Get whitelist numbers
+    const { data: waSetting } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle();
+    const { data: primarySetting } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_number').maybeSingle();
+    
+    const numbers: string[] = [];
+    if (waSetting?.value) numbers.push(...waSetting.value.split(',').map((n: string) => n.trim()).filter(Boolean));
+    if (primarySetting?.value) numbers.push(primarySetting.value.trim());
+    
+    if (numbers.length === 0) return;
+    
+    const msg = `🤖 *Telegram Bot Activity*\n\nCommand: ${command}`;
+    
+    for (const num of [...new Set(numbers)]) {
+      const cleanPhone = num.replace(/^0/, '62').replace(/[^0-9]/g, '');
+      if (!cleanPhone) continue;
+      await fetch('https://api.fonnte.com/send', {
+        method: 'POST', headers: { Authorization: FONNTE_TOKEN },
+        body: new URLSearchParams({ target: cleanPhone, message: msg }),
+      });
+    }
+  } catch (e) { console.error('notifyWhatsAppAdmins error:', e); }
+}
+
 async function sendTelegramMessage(botToken: string, chatId: string, text: string) {
   const res = await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
