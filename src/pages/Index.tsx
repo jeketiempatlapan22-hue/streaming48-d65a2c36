@@ -462,7 +462,7 @@ const Index = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative flex min-h-[70vh] items-center justify-center overflow-hidden pt-16">
+      <section className="relative flex min-h-[45vh] md:min-h-[55vh] items-center justify-center overflow-hidden pt-14">
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e1a] via-[#0d1226] to-background" />
         {/* Starfield overlay */}
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(1px 1px at 20% 30%, hsl(var(--primary)/0.6) 1px, transparent 0), radial-gradient(1px 1px at 80% 70%, hsl(var(--primary)/0.4) 1px, transparent 0), radial-gradient(1px 1px at 50% 50%, hsl(var(--primary)/0.5) 1px, transparent 0)', backgroundSize: '200px 200px, 150px 150px, 300px 300px' }} />
