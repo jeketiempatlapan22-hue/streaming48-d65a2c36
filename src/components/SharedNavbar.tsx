@@ -53,7 +53,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
           <span className="text-sm font-bold">Real<span className="text-primary">Time48</span></span>
         </a>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          
           {showCoinBadge && coinUser && (
             <a href="/profile" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 hover:bg-[hsl(var(--warning))]/20 transition">
               <Coins className="h-4 w-4 text-[hsl(var(--warning))]" />
