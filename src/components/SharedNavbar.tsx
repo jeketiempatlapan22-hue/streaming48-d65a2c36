@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Shield, Coins, Menu, User, Home, Calendar, Film, Settings, Crown } from "lucide-react";
+import { Shield, Coins, Menu, User, Home, Calendar, Film, Settings, Crown, Info, MessageCircle, Download } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
 import {
