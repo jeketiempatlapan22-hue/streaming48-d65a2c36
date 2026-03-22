@@ -274,6 +274,8 @@ const Index = () => {
             <span className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
           </div>
           <div className="flex items-center gap-2">
+            <LiveViewerCount isLive={isStreamLive} />
+            <ThemeToggle />
             {!sheetOpen && (
               <a href="/coins" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20" title="Coin Shop">
                 <Coins className="h-4 w-4" />
