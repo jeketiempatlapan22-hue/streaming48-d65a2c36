@@ -72,7 +72,7 @@ export function useShowPurchase() {
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
     setPurchaseStep(show.is_subscription ? "qris" : "info");
-    setProofUrl(""); setPhone(""); setEmail("");
+    setProofFilePath(""); setPhone(""); setEmail("");
   };
 
   const handleCoinBuy = (show: Show) => {
