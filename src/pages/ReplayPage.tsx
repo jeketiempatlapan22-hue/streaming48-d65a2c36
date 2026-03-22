@@ -41,6 +41,7 @@ const ReplayPage = () => {
   const { toast } = useToast();
   const [shows, setShows] = useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [coinUser, setCoinUser] = useState<any>(null);
   const [coinBalance, setCoinBalance] = useState(0);
   const [replayTarget, setReplayTarget] = useState<Show | null>(null);
