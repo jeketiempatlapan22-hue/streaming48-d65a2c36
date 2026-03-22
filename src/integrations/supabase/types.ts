@@ -855,6 +855,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_purchased_show_passwords: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -866,6 +867,7 @@ export type Database = {
         Args: { _email: string; _phone: string; _show_id: string }
         Returns: Json
       }
+      redeem_coins_for_replay: { Args: { _show_id: string }; Returns: Json }
       redeem_coins_for_token: { Args: { _show_id: string }; Returns: Json }
       release_token_session: {
         Args: { _fingerprint: string; _token_code: string }
