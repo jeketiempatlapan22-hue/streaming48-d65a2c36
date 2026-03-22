@@ -299,10 +299,13 @@ const Index = () => {
 
   const regularShows = shows.filter((s) => !s.is_subscription && !s.is_replay);
   const replayShows = shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0);
+  const membershipShows = shows.filter((s) => s.is_subscription);
+  const hasMembershipOpen = membershipShows.some((s) => !s.is_order_closed);
 
   const menuItems = [
     { icon: <Home className="h-5 w-5 text-primary" />, label: "Beranda", description: "Halaman utama", href: "/" },
     { icon: <Calendar className="h-5 w-5 text-primary" />, label: "Jadwal Show", description: "Lihat jadwal & countdown", href: "/schedule" },
+    { icon: <Crown className="h-5 w-5 text-yellow-500" />, label: "Membership", description: membershipShows.length > 0 ? (hasMembershipOpen ? `${membershipShows.length} paket tersedia` : "Pendaftaran ditutup") : "Belum tersedia", href: "/membership" },
     { icon: <Film className="h-5 w-5 text-accent" />, label: "Replay Show", description: `Tonton ulang show${replayShows.length > 0 ? ` (${replayShows.length})` : ""}`, href: "/replay" },
     ...(settings.whatsapp_channel ? [{
       icon: <Radio className="h-5 w-5 text-primary" />, label: "Saluran WhatsApp", description: "Ikuti saluran info terbaru",
