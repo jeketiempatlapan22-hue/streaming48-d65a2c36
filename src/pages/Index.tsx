@@ -281,7 +281,7 @@ const Index = () => {
   const menuItems = [
     { icon: <Home className="h-5 w-5 text-primary" />, label: "Beranda", description: "Halaman utama", href: "/" },
     { icon: <Calendar className="h-5 w-5 text-primary" />, label: "Jadwal Show", description: "Lihat jadwal & countdown", href: "/schedule" },
-    { icon: <Film className="h-5 w-5 text-accent" />, label: "Replay Show", description: "Tonton ulang show yang sudah berlalu", href: "/schedule" },
+    { icon: <Film className="h-5 w-5 text-accent" />, label: "Replay Show", description: `Tonton ulang show${replayShows.length > 0 ? ` (${replayShows.length})` : ""}`, href: "/replay" },
     ...(settings.whatsapp_channel ? [{
       icon: <Radio className="h-5 w-5 text-primary" />, label: "Saluran WhatsApp", description: "Ikuti saluran info terbaru",
       href: settings.whatsapp_channel,
