@@ -65,9 +65,22 @@ const LiveControl = () => {
 
   const toggleLive = async (checked: boolean) => {
     if (!stream) return;
+    if (checked && !activeShowId) {
+      toast({ title: "⚠️ Pilih show yang sedang live terlebih dahulu!", variant: "destructive" });
+      return;
+    }
     setIsLive(checked);
     await supabase.from("streams").update({ is_live: checked }).eq("id", stream.id);
     toast({ title: checked ? "🔴 Live ON" : "⚫ Live OFF" });
+  };
+
+  const saveActiveShow = async (showId: string) => {
+    setActiveShowId(showId);
+    await supabase
+      .from("site_settings")
+      .upsert({ key: "active_show_id", value: showId } as any, { onConflict: "key" });
+    const show = shows.find((s) => s.id === showId);
+    toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
   };
 
   const saveDetails = async () => {
