@@ -35,6 +35,8 @@ const LivePage = () => {
   const [countdown, setCountdown] = useState("");
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
+  const [showMismatch, setShowMismatch] = useState(false);
+  const [mismatchShowTitle, setMismatchShowTitle] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -73,7 +75,7 @@ const LivePage = () => {
       const { data: sess } = await supabase.rpc("create_token_session", { _token_code: tokenCode, _fingerprint: fp, _user_agent: navigator.userAgent });
       const sd = sess as any;
       if (!sd?.success) { setError("device_limit"); setLoading(false); return; }
-      setTokenData({ id: result.id, code: result.code });
+      setTokenData({ id: result.id, code: result.code, show_id: result.show_id });
       const [streamRes, playlistRes, settingsRes] = await Promise.all([
         supabase.from("streams").select("*").limit(1).single(),
         supabase.from("playlists").select("*").eq("is_active", true).order("sort_order"),
@@ -81,11 +83,26 @@ const LivePage = () => {
       ]);
       if (streamRes.data) setStream(streamRes.data);
       if (playlistRes.data?.length) { setPlaylists(playlistRes.data); setActivePlaylist(playlistRes.data[0]); }
+      
+      let activeShowId = "";
       if (settingsRes.data) settingsRes.data.forEach((s: any) => {
         if (s.key === "next_show_time") setNextShowTime(s.value);
         if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
         if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
+        if (s.key === "active_show_id") activeShowId = s.value;
       });
+
+      // Validate show_id: token must match the currently active show
+      if (result.show_id && activeShowId && result.show_id !== activeShowId) {
+        // Fetch show titles for better error message
+        const { data: tokenShow } = await supabase.from("shows").select("title").eq("id", result.show_id).maybeSingle();
+        const { data: activeShow } = await supabase.from("shows").select("title").eq("id", activeShowId).maybeSingle();
+        setShowMismatch(true);
+        setMismatchShowTitle(
+          `Token kamu untuk show "${tokenShow?.title || "lain"}", sedangkan yang sedang live adalah "${activeShow?.title || "show lain"}".`
+        );
+      }
+
       setLoading(false);
     };
     validate();
@@ -132,6 +149,24 @@ const LivePage = () => {
   if (error) return (<div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="rounded-xl border border-destructive/30 bg-card p-8 text-center"><h2 className="mb-2 text-xl font-bold text-destructive">Akses Ditolak</h2><p className="text-muted-foreground">{error}</p><div className="mt-4"><a href="/" className="text-sm text-primary hover:underline">← Kembali</a></div></div></div>);
 
   const isLive = stream?.is_live || false;
+
+  // Show mismatch: token is for a different show
+  if (showMismatch) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+          <span className="text-4xl">🎭</span>
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-foreground">Show Berbeda</h2>
+        <p className="text-sm text-muted-foreground mb-4">{mismatchShowTitle}</p>
+        <p className="text-xs text-muted-foreground mb-6">Kamu perlu membeli token untuk show yang sedang live agar bisa menonton.</p>
+        <div className="flex flex-col gap-3">
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🏠 Beli Token Show Ini</button>
+          <a href="/" className="text-sm text-muted-foreground hover:text-foreground">← Kembali ke Beranda</a>
+        </div>
+      </div>
+    </div>
+  );
 
   const { signedUrl, loading: signedLoading } = useSignedStreamUrl(
     activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,

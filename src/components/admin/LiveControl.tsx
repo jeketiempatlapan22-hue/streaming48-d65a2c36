@@ -28,6 +28,10 @@ const LiveControl = () => {
   const [editType, setEditType] = useState("");
   const [editUrl, setEditUrl] = useState("");
 
+  // Active show selection
+  const [shows, setShows] = useState<any[]>([]);
+  const [activeShowId, setActiveShowId] = useState("");
+
   const fetchPlaylists = async () => {
     const { data } = await supabase.from("playlists").select("*").order("sort_order");
     setPlaylists(data || []);
@@ -35,9 +39,10 @@ const LiveControl = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [streamRes, settingsRes] = await Promise.all([
+      const [streamRes, settingsRes, showsRes] = await Promise.all([
         supabase.from("streams").select("*").limit(1).single(),
         supabase.from("site_settings").select("*"),
+        supabase.from("shows").select("id, title, is_active, is_replay, schedule_date").order("created_at", { ascending: false }),
       ]);
       if (streamRes.data) {
         setStream(streamRes.data);
@@ -45,10 +50,12 @@ const LiveControl = () => {
         setDescription(streamRes.data.description || "");
         setIsLive(streamRes.data.is_live);
       }
+      if (showsRes.data) setShows(showsRes.data);
       if (settingsRes.data) {
         settingsRes.data.forEach((s: any) => {
           if (s.key === "next_show_time") setNextShowTime(s.value);
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
+          if (s.key === "active_show_id") setActiveShowId(s.value);
         });
       }
     };
@@ -58,9 +65,22 @@ const LiveControl = () => {
 
   const toggleLive = async (checked: boolean) => {
     if (!stream) return;
+    if (checked && !activeShowId) {
+      toast({ title: "⚠️ Pilih show yang sedang live terlebih dahulu!", variant: "destructive" });
+      return;
+    }
     setIsLive(checked);
     await supabase.from("streams").update({ is_live: checked }).eq("id", stream.id);
     toast({ title: checked ? "🔴 Live ON" : "⚫ Live OFF" });
+  };
+
+  const saveActiveShow = async (showId: string) => {
+    setActiveShowId(showId);
+    await supabase
+      .from("site_settings")
+      .upsert({ key: "active_show_id", value: showId } as any, { onConflict: "key" });
+    const show = shows.find((s) => s.id === showId);
+    toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
   };
 
   const saveDetails = async () => {
@@ -118,6 +138,27 @@ const LiveControl = () => {
         <div className={isLive ? "animate-glow-pulse" : ""}>
           <Switch checked={isLive} onCheckedChange={toggleLive} />
         </div>
+      </div>
+
+      {/* Active Show Selector */}
+      <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
+        <p className="text-xs text-muted-foreground">Pilih show yang sedang berlangsung. Token hanya bisa akses show yang sesuai.</p>
+        <Select value={activeShowId} onValueChange={saveActiveShow}>
+          <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
+          <SelectContent>
+            {shows.filter(s => s.is_active).map((show) => (
+              <SelectItem key={show.id} value={show.id}>
+                {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {activeShowId && (
+          <p className="text-xs text-muted-foreground">
+            Show aktif: <span className="font-semibold text-primary">{shows.find(s => s.id === activeShowId)?.title || "Unknown"}</span>
+          </p>
+        )}
       </div>
 
       {/* Next Show Countdown */}
