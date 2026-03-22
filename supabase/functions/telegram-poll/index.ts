@@ -132,6 +132,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
   const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
   const isReplayList = /^\/replay$/i.test(rawText);
+  const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
+  const isSetOffline = /^\/setoffline$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -151,6 +153,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleReplayToggle(supabase, botToken, chatId, replayMatch[1].trim());
   } else if (isReplayList) {
     await handleReplayList(supabase, botToken, chatId);
+  } else if (setliveMatch) {
+    await handleSetLiveCommand(supabase, botToken, chatId, setliveMatch[1]?.trim() || null);
+  } else if (isSetOffline) {
+    await handleSetOfflineCommand(supabase, botToken, chatId);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
