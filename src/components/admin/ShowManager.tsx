@@ -11,7 +11,7 @@ interface Show {
   id: string; title: string; price: string; lineup: string;
   schedule_date: string; schedule_time: string;
   background_image_url: string | null; qris_image_url: string | null;
-  sort_order: number; is_active: boolean; is_subscription: boolean;
+  is_active: boolean; is_subscription: boolean;
   max_subscribers: number; subscription_benefits: string; group_link: string;
   is_order_closed: boolean; category: string; category_member: string;
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
