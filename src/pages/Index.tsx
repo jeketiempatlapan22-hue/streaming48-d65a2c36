@@ -298,8 +298,8 @@ const Index = () => {
               <SheetContent side="right" className="w-80 border-border bg-card">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-foreground">
-                    <div className="h-6 w-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                      <img src={logo} alt="RT48" className="h-3 w-3 rounded-full object-cover" />
+                    <div className="h-7 w-7 rounded-full border border-border/60 overflow-hidden">
+                      <img src={logo} alt="RT48" className="h-full w-full object-cover" />
                     </div>
                     RealTime48
                   </SheetTitle>
