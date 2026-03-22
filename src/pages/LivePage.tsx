@@ -58,7 +58,7 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
   );
 };
 
-  const [searchParams] = useSearchParams();
+  const LivePage = () => {
   const navigate = useNavigate();
   const tokenCode = searchParams.get("t") || "";
   const [tokenData, setTokenData] = useState<any>(null);
