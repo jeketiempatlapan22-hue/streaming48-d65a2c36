@@ -14,12 +14,279 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_deleted: boolean
+          message: string
+          user_id: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          message: string
+          user_id?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          message?: string
+          user_id?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      coin_balances: {
+        Row: {
+          balance: number
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      coin_orders: {
+        Row: {
+          coin_amount: number
+          created_at: string
+          id: string
+          package_id: string | null
+          payment_proof_url: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          coin_amount: number
+          created_at?: string
+          id?: string
+          package_id?: string | null
+          payment_proof_url?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          coin_amount?: number
+          created_at?: string
+          id?: string
+          package_id?: string | null
+          payment_proof_url?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coin_orders_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "coin_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coin_packages: {
+        Row: {
+          coin_amount: number
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          price: string
+          qris_image_url: string | null
+          sort_order: number
+        }
+        Insert: {
+          coin_amount: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          price: string
+          qris_image_url?: string | null
+          sort_order?: number
+        }
+        Update: {
+          coin_amount?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: string
+          qris_image_url?: string | null
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      playlists: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string
+          type: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title: string
+          type?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          type?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      shows: {
+        Row: {
+          access_password: string | null
+          background_image_url: string | null
+          category: string | null
+          category_member: string | null
+          coin_price: number
+          created_at: string
+          group_link: string | null
+          id: string
+          is_active: boolean
+          is_order_closed: boolean
+          is_replay: boolean
+          is_subscription: boolean
+          lineup: string | null
+          max_subscribers: number
+          price: string
+          qris_image_url: string | null
+          replay_coin_price: number
+          schedule_date: string | null
+          schedule_time: string | null
+          subscription_benefits: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          access_password?: string | null
+          background_image_url?: string | null
+          category?: string | null
+          category_member?: string | null
+          coin_price?: number
+          created_at?: string
+          group_link?: string | null
+          id?: string
+          is_active?: boolean
+          is_order_closed?: boolean
+          is_replay?: boolean
+          is_subscription?: boolean
+          lineup?: string | null
+          max_subscribers?: number
+          price?: string
+          qris_image_url?: string | null
+          replay_coin_price?: number
+          schedule_date?: string | null
+          schedule_time?: string | null
+          subscription_benefits?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          access_password?: string | null
+          background_image_url?: string | null
+          category?: string | null
+          category_member?: string | null
+          coin_price?: number
+          created_at?: string
+          group_link?: string | null
+          id?: string
+          is_active?: boolean
+          is_order_closed?: boolean
+          is_replay?: boolean
+          is_subscription?: boolean
+          lineup?: string | null
+          max_subscribers?: number
+          price?: string
+          qris_image_url?: string | null
+          replay_coin_price?: number
+          schedule_date?: string | null
+          schedule_time?: string | null
+          subscription_benefits?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          id: string
+          key: string
+          value: string
+        }
+        Insert: {
+          id?: string
+          key: string
+          value?: string
+        }
+        Update: {
+          id?: string
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       streams: {
         Row: {
           created_at: string
           created_by: string | null
           id: string
           is_active: boolean
+          is_live: boolean
           title: string
           type: string
           updated_at: string
@@ -30,6 +297,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_live?: boolean
           title: string
           type: string
           updated_at?: string
@@ -40,12 +308,92 @@ export type Database = {
           created_by?: string | null
           id?: string
           is_active?: boolean
+          is_live?: boolean
           title?: string
           type?: string
           updated_at?: string
           url?: string
         }
         Relationships: []
+      }
+      token_sessions: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          id: string
+          is_active: boolean
+          last_seen_at: string
+          token_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          token_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          token_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_sessions_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tokens: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          max_devices: number
+          show_id: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          max_devices?: number
+          show_id?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          max_devices?: number
+          show_id?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tokens_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -70,6 +418,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_token_session: {
+        Args: { _fingerprint: string; _token_code: string; _user_agent: string }
+        Returns: Json
+      }
+      get_public_shows: {
+        Args: never
+        Returns: {
+          access_password: string | null
+          background_image_url: string | null
+          category: string | null
+          category_member: string | null
+          coin_price: number
+          created_at: string
+          group_link: string | null
+          id: string
+          is_active: boolean
+          is_order_closed: boolean
+          is_replay: boolean
+          is_subscription: boolean
+          lineup: string | null
+          max_subscribers: number
+          price: string
+          qris_image_url: string | null
+          replay_coin_price: number
+          schedule_date: string | null
+          schedule_time: string | null
+          subscription_benefits: string | null
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "shows"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -77,6 +462,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      redeem_coins_for_token: { Args: { _show_id: string }; Returns: Json }
+      release_token_session: {
+        Args: { _fingerprint: string; _token_code: string }
+        Returns: undefined
+      }
+      validate_token: { Args: { _code: string }; Returns: Json }
     }
     Enums: {
       app_role: "admin" | "user"
