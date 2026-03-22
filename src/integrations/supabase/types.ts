@@ -321,6 +321,7 @@ export type Database = {
           new_password: string | null
           phone: string
           processed_at: string | null
+          secure_token: string | null
           short_id: string
           status: string
           user_id: string
@@ -332,6 +333,7 @@ export type Database = {
           new_password?: string | null
           phone?: string
           processed_at?: string | null
+          secure_token?: string | null
           short_id?: string
           status?: string
           user_id: string
@@ -343,6 +345,7 @@ export type Database = {
           new_password?: string | null
           phone?: string
           processed_at?: string | null
+          secure_token?: string | null
           short_id?: string
           status?: string
           user_id?: string
