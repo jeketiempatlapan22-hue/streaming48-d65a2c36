@@ -157,9 +157,31 @@ const Index = () => {
       })
       .subscribe();
 
+    // Realtime: descriptions, settings (announcements/quote/title), broadcasts
+    const descCh = supabase.channel("idx-descriptions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "landing_descriptions" }, () => {
+        supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order").then(({ data }) => {
+          if (data) setDescriptions(data as any[]);
+        });
+      })
+      .subscribe();
+    const settingsCh = supabase.channel("idx-settings")
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => {
+        supabase.from("site_settings").select("*").then(({ data }) => {
+          if (data) {
+            const s: any = {};
+            data.forEach((row: any) => { s[row.key] = row.value; });
+            setSettings((prev) => ({ ...prev, ...s }));
+          }
+        });
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(showCh);
       supabase.removeChannel(streamCh);
+      supabase.removeChannel(descCh);
+      supabase.removeChannel(settingsCh);
       cleanupBalance.then((cleanup) => cleanup?.());
       window.removeEventListener("beforeinstallprompt", installHandler);
     };

@@ -162,7 +162,7 @@ const LandingDescriptionManager = () => {
             <Textarea value={item.content} onChange={(e) => setItems(items.map((i) => i.id === item.id ? { ...i, content: e.target.value } : i))} onBlur={() => update(item)} className="bg-background" rows={2} placeholder="Konten deskripsi..." />
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-muted-foreground">Rata:</span>
-              {[{ value: "left", icon: <AlignLeft className="h-3.5 w-3.5" /> }, { value: "center", icon: <AlignCenter className="h-3.5 w-3.5" /> }, { value: "right", icon: <AlignRight className="h-3.5 w-3.5" /> }].map((opt) => (
+              {[{ value: "left", icon: <AlignLeft className="h-3.5 w-3.5" /> }, { value: "center", icon: <AlignCenter className="h-3.5 w-3.5" /> }, { value: "right", icon: <AlignRight className="h-3.5 w-3.5" /> }, { value: "justify", icon: <span className="h-3.5 w-3.5 text-[10px] font-bold leading-none">J</span> }].map((opt) => (
                 <Button key={opt.value} variant={item.text_align === opt.value ? "default" : "outline"} size="sm" className="h-7 px-2" onClick={() => { const u = { ...item, text_align: opt.value }; setItems(items.map((i) => i.id === u.id ? u : i)); update(u); }}>
                   {opt.icon}
                 </Button>
