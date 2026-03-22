@@ -123,6 +123,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isHelp = /^\/(help|start)$/i.test(rawText);
   const deductCoinMatch = rawText.match(/^\/deductcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
+  const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
+  const isReplayList = /^\/replay$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
