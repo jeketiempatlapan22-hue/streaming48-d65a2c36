@@ -182,6 +182,7 @@ const ReplayPage = () => {
       if (error) throw error;
       const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
       setProofUrl(urlData?.signedUrl || "");
+      setProofFilePath(path);
       setQrisStep("upload");
     } catch {
       toast({ title: "Upload gagal, coba lagi", variant: "destructive" });
