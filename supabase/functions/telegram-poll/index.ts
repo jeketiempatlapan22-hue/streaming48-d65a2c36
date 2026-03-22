@@ -293,7 +293,7 @@ async function handleAddCoinCommand(supabase: any, botToken: string, chatId: str
   }
 }
 
-
+function escapeMarkdown(text: string): string {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
