@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Eye, EyeOff, Upload, Crown, Film } from "lucide-react";
+import { Plus, Trash2, GripVertical, Eye, EyeOff, Upload, Crown, Film, Copy, ExternalLink } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 
 interface Show {
   id: string; title: string; price: string; lineup: string;
@@ -155,6 +156,25 @@ const ShowManager = () => {
                   <span className="text-sm font-medium text-foreground">Mode Replay</span>
                 </div>
                 <Switch checked={editing.is_replay} onCheckedChange={(v) => { const u = { ...editing, is_replay: v }; setEditing(u); updateShow(u); }} />
+              </div>
+            )}
+
+            {editing.is_replay && editing.access_password && (
+              <div className="space-y-2 rounded-lg border border-accent/30 bg-accent/5 p-3">
+                <p className="text-xs font-medium text-muted-foreground">🎬 Replay Aktif</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => {
+                    navigator.clipboard.writeText(editing.access_password || "");
+                    sonnerToast.success("Password disalin!");
+                  }}>
+                    <Copy className="mr-1 h-3 w-3" /> Salin Password
+                  </Button>
+                  <Button size="sm" className="flex-1 text-xs" onClick={() => {
+                    window.open(`https://replaytime.lovable.app`, "_blank");
+                  }}>
+                    <ExternalLink className="mr-1 h-3 w-3" /> Tonton Replay
+                  </Button>
+                </div>
               </div>
             )}
 
