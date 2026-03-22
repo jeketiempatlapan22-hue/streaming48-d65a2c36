@@ -97,8 +97,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin }: LiveChatProps) => {
         .order("created_at", { ascending: true })
         .limit(50);
       if (data) {
-        setMessages(data as ChatMessage[]);
-        setPinnedMessages((data as ChatMessage[]).filter((m) => m.is_pinned));
+        const msgs = (data as unknown as ChatMessage[]);
+        setMessages(msgs);
+        setPinnedMessages(msgs.filter((m) => m.is_pinned));
       }
     };
     fetchMessages();
