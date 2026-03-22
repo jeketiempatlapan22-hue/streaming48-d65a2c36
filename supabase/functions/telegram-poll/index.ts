@@ -890,6 +890,7 @@ async function handleMsgMembersCommand(supabase: any, botToken: string, chatId: 
 }
 
 
+async function handleShowInfoCommand(supabase: any, botToken: string, chatId: string) {
   try {
     const { data: stream } = await supabase.from('streams').select('id, title, is_live').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: settings } = await supabase.from('site_settings').select('key, value').in('key', ['active_show_id', 'next_show_time']);
