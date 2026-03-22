@@ -6,8 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const Index = lazy(() => import("./pages/Index"));
-const Login = lazy(() => import("./pages/Login"));
-const Admin = lazy(() => import("./pages/Admin"));
+const AdminLogin = lazy(() => import("./pages/AdminLogin"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const ViewerAuth = lazy(() => import("./pages/ViewerAuth"));
 const LivePage = lazy(() => import("./pages/LivePage"));
 const CoinShop = lazy(() => import("./pages/CoinShop"));
@@ -31,8 +31,8 @@ const App = () => (
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin" element={<Admin />} />
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/auth" element={<ViewerAuth />} />
             <Route path="/live" element={<LivePage />} />
             <Route path="/coins" element={<CoinShop />} />
