@@ -24,12 +24,17 @@ export default defineConfig(({ mode }) => ({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-api",
               expiration: { maxEntries: 50, maxAgeSeconds: 300 },
             },
+          },
+          {
+            // Never cache realtime/websocket/auth endpoints
+            urlPattern: /^https:\/\/.*\.supabase\.co\/(realtime|auth|functions)\/.*/i,
+            handler: "NetworkOnly",
           },
           {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,

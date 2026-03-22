@@ -20,33 +20,45 @@ const useCountUp = (target: number, duration: number, inView: boolean) => {
 };
 
 const LandingStats = () => {
-  const [stats, setStats] = useState({ users: 0, shows: 0, coins: 0, replays: 0 });
+  const [stats, setStats] = useState({ viewers: 0, shows: 0, coins: 0, replays: 0 });
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, amount: 0.3 });
 
   useEffect(() => {
-    const fetch = async () => {
-      const [profiles, showsRpc, balances] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
+    const fetchData = async () => {
+      const [showsRpc, balances] = await Promise.all([
         supabase.rpc("get_public_shows"),
         supabase.from("coin_balances").select("balance"),
       ]);
       const showsList = showsRpc.data || [];
-      const shows = { count: showsList.length };
-      const replays = { count: showsList.filter((s: any) => s.is_replay).length };
       const totalCoins = (balances.data || []).reduce((s, r) => s + (r.balance || 0), 0);
-      setStats({
-        users: profiles.count || 0,
-        shows: shows.count || 0,
+      setStats(prev => ({
+        ...prev,
+        shows: showsList.length,
         coins: totalCoins,
-        replays: replays.count || 0,
-      });
+        replays: showsList.filter((s: any) => s.is_replay).length,
+      }));
     };
-    fetch();
+    fetchData();
+  }, []);
+
+  // Subscribe to Supabase Presence on "online-users" channel (read-only)
+  // This counts only users actively watching the stream (who call track() from LiveChat)
+  useEffect(() => {
+    const channel = supabase.channel("online-users");
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        setStats(prev => ({ ...prev, viewers: Object.keys(state).length }));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const cards = [
-    { label: "Penonton", value: stats.users, icon: Users, color: "text-primary" },
+    { label: "Sedang Menonton", value: stats.viewers, icon: Users, color: "text-destructive" },
     { label: "Total Show", value: stats.shows, icon: Ticket, color: "text-[hsl(var(--success))]" },
     { label: "Koin Beredar", value: stats.coins, icon: Coins, color: "text-[hsl(var(--warning))]" },
     { label: "Replay", value: stats.replays, icon: Film, color: "text-accent" },

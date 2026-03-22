@@ -7,8 +7,11 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+// Store globally so the prompt survives across navigations
+let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
+
 const InstallPage = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
   const [installed, setInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -16,18 +19,31 @@ const InstallPage = () => {
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
     setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
-    const handler = (e: Event) => { e.preventDefault(); setDeferredPrompt(e as BeforeInstallPromptEvent); };
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      globalDeferredPrompt = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", () => setInstalled(true));
+
+    // Re-fire the event in case it was captured before this component mounted
+    if (globalDeferredPrompt) {
+      setDeferredPrompt(globalDeferredPrompt);
+    }
+
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const prompt = deferredPrompt || globalDeferredPrompt;
+    if (!prompt) return;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") setInstalled(true);
     setDeferredPrompt(null);
+    globalDeferredPrompt = null;
   };
 
   if (isStandalone) {
@@ -55,6 +71,22 @@ const InstallPage = () => {
           <p className="mt-2 text-sm text-muted-foreground">Dapatkan pengalaman terbaik dengan menginstall aplikasi ke HP kamu</p>
         </div>
 
+        {/* Always show the install button prominently at the top */}
+        {installed ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-6 text-center mb-6">
+            <CheckCircle className="h-10 w-10 text-primary" />
+            <p className="font-semibold text-foreground">Berhasil Di-install!</p>
+            <p className="text-sm text-muted-foreground">Buka RealTime48 dari home screen kamu</p>
+          </div>
+        ) : (
+          <button
+            onClick={handleInstall}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.98] mb-6 animate-pulse hover:animate-none"
+          >
+            <Download className="h-5 w-5" /> Install Sekarang
+          </button>
+        )}
+
         <div className="space-y-3 mb-8">
           {[
             { icon: "⚡", title: "Akses Cepat", desc: "Buka langsung dari home screen tanpa browser" },
@@ -69,48 +101,41 @@ const InstallPage = () => {
           ))}
         </div>
 
-        {installed ? (
-          <div className="flex flex-col items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-6 text-center">
-            <CheckCircle className="h-10 w-10 text-primary" />
-            <p className="font-semibold text-foreground">Berhasil Di-install!</p>
-            <p className="text-sm text-muted-foreground">Buka RealTime48 dari home screen kamu</p>
-          </div>
-        ) : deferredPrompt ? (
-          <button onClick={handleInstall} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.98]">
-            <Download className="h-5 w-5" /> Install Sekarang
-          </button>
-        ) : isIOS ? (
-          <div className="rounded-xl border border-border bg-card p-6">
-            <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di iPhone/iPad:</p>
-            <div className="space-y-3">
-              {[
-                <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span> <span>di Safari</span></>,
-                <>Pilih <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
-                <>Ketuk <span className="font-medium text-foreground">"Add"</span></>,
-              ].map((content, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
-                  <p className="text-sm text-muted-foreground">{content}</p>
-                </div>
-              ))}
+        {/* Manual instructions if native prompt is not available */}
+        {!installed && !deferredPrompt && (
+          isIOS ? (
+            <div className="rounded-xl border border-border bg-card p-6">
+              <p className="mb-4 text-center text-sm font-semibold text-foreground">Jika tombol di atas tidak muncul:</p>
+              <div className="space-y-3">
+                {[
+                  <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span> <span>di Safari</span></>,
+                  <>Pilih <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
+                  <>Ketuk <span className="font-medium text-foreground">"Add"</span></>,
+                ].map((content, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
+                    <p className="text-sm text-muted-foreground">{content}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border bg-card p-6">
-            <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di Android:</p>
-            <div className="space-y-3">
-              {[
-                <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span></>,
-                <>Pilih <span className="font-medium text-foreground">"Install app"</span> atau <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
-                <>Ketuk <span className="font-medium text-foreground">"Install"</span></>,
-              ].map((content, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
-                  <p className="text-sm text-muted-foreground">{content}</p>
-                </div>
-              ))}
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-6">
+              <p className="mb-4 text-center text-sm font-semibold text-foreground">Jika tombol di atas tidak berfungsi:</p>
+              <div className="space-y-3">
+                {[
+                  <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span></>,
+                  <>Pilih <span className="font-medium text-foreground">"Install app"</span> atau <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
+                  <>Ketuk <span className="font-medium text-foreground">"Install"</span></>,
+                ].map((content, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
+                    <p className="text-sm text-muted-foreground">{content}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
 
         <div className="mt-6 flex items-center justify-center gap-2 text-center">
