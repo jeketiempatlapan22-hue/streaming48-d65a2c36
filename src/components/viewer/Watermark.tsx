@@ -6,7 +6,7 @@ interface WatermarkProps {
 
 const Watermark = ({ tokenCode }: WatermarkProps) => {
   const [position, setPosition] = useState({ top: 10, left: 10 });
-  const code = `RE-${tokenCode.slice(-4)}`;
+  const code = `RT-${tokenCode.slice(-4)}`;
 
   useEffect(() => {
     setPosition({
