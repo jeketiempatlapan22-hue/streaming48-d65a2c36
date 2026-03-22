@@ -188,10 +188,11 @@ TIDAK <id> - Tolak order
 /setoffline - Set semua stream jadi OFFLINE
 
 🔑 *Token Management:*
-/blocktoken <kode> - Blokir token user
-/unblocktoken <kode> - Buka blokir token
-/resettoken <kode> - Reset sesi token
-/deletetoken <kode> - Hapus token
+/tokens - Lihat daftar token aktif + 4 digit
+/blocktoken <4digit> - Blokir token (4 digit belakang)
+/unblocktoken <4digit> - Buka blokir token
+/resettoken <4digit> - Reset sesi token
+/deletetoken <4digit> - Hapus token
 
 🔐 *Password Reset:*
 RESET <id> - Setujui reset password
