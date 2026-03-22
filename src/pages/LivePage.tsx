@@ -150,6 +150,24 @@ const LivePage = () => {
 
   const isLive = stream?.is_live || false;
 
+  // Show mismatch: token is for a different show
+  if (showMismatch) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center">
+        <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+          <span className="text-4xl">🎭</span>
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-foreground">Show Berbeda</h2>
+        <p className="text-sm text-muted-foreground mb-4">{mismatchShowTitle}</p>
+        <p className="text-xs text-muted-foreground mb-6">Kamu perlu membeli token untuk show yang sedang live agar bisa menonton.</p>
+        <div className="flex flex-col gap-3">
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🏠 Beli Token Show Ini</button>
+          <a href="/" className="text-sm text-muted-foreground hover:text-foreground">← Kembali ke Beranda</a>
+        </div>
+      </div>
+    </div>
+  );
+
   const { signedUrl, loading: signedLoading } = useSignedStreamUrl(
     activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode
