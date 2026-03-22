@@ -387,6 +387,50 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_orders: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          payment_method: string | null
+          payment_proof_url: string | null
+          phone: string | null
+          show_id: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_proof_url?: string | null
+          phone?: string | null
+          show_id: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          payment_method?: string | null
+          payment_proof_url?: string | null
+          phone?: string | null
+          show_id?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_orders_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       token_sessions: {
         Row: {
           created_at: string
@@ -500,6 +544,7 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string; _user_agent: string }
         Returns: Json
       }
+      get_order_count: { Args: { _show_id: string }; Returns: number }
       get_public_shows: {
         Args: never
         Returns: {
@@ -539,6 +584,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      redeem_coins_for_membership: {
+        Args: { _email: string; _phone: string; _show_id: string }
+        Returns: Json
       }
       redeem_coins_for_token: { Args: { _show_id: string }; Returns: Json }
       release_token_session: {
