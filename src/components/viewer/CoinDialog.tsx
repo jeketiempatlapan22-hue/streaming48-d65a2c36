@@ -11,10 +11,12 @@ interface CoinDialogProps {
   coinResult: { token_code: string; remaining_balance: number; access_password?: string } | null;
   onClose: () => void;
   onRedeem: () => void;
+  isReplayMode?: boolean;
 }
 
-const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onRedeem }: CoinDialogProps) => {
+const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onRedeem, isReplayMode = false }: CoinDialogProps) => {
   const { toast } = useToast();
+  const effectivePrice = isReplayMode ? (show?.replay_coin_price || 0) : (show?.coin_price || 0);
 
   return (
     <Dialog open={!!show} onOpenChange={onClose}>
@@ -44,16 +46,16 @@ const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onR
               )}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Harga</span>
-                <span className="font-bold text-yellow-500">{show?.coin_price} Koin</span>
+                <span className="font-bold text-[hsl(var(--warning))]">{effectivePrice} Koin</span>
               </div>
               <div className="flex items-center justify-between text-sm border-t border-border pt-2">
                 <span className="text-muted-foreground">Saldo Anda</span>
-                <span className={`font-bold ${coinBalance >= (show?.coin_price || 0) ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
+                <span className={`font-bold ${coinBalance >= effectivePrice ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
                   {coinBalance} Koin
                 </span>
               </div>
             </div>
-            {coinBalance < (show?.coin_price || 0) ? (
+            {coinBalance < effectivePrice ? (
               <div className="space-y-3">
                 <p className="text-center text-sm text-destructive">Koin tidak cukup untuk membeli show ini.</p>
                 <Button className="w-full" variant="outline" onClick={() => { onClose(); window.location.href = "/coins"; }}>
@@ -63,7 +65,7 @@ const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onR
             ) : (
               <Button className="w-full gap-2" onClick={onRedeem} disabled={coinRedeeming}>
                 <Coins className="h-4 w-4" />
-                {coinRedeeming ? "Memproses..." : `Bayar ${show?.coin_price} Koin`}
+                {coinRedeeming ? "Memproses..." : `Bayar ${effectivePrice} Koin`}
               </Button>
             )}
           </div>

@@ -169,7 +169,10 @@ const Index = () => {
   const handleCoinRedeem = async () => {
     if (!coinShowTarget) return;
     setCoinRedeeming(true);
-    const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: coinShowTarget.id });
+    const isReplay = coinShowTarget.is_replay;
+    const { data, error } = isReplay
+      ? await supabase.rpc("redeem_coins_for_replay", { _show_id: coinShowTarget.id })
+      : await supabase.rpc("redeem_coins_for_token", { _show_id: coinShowTarget.id });
     setCoinRedeeming(false);
     const result = data as any;
     if (error || !result?.success) {
@@ -782,16 +785,16 @@ const Index = () => {
                 )}
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Harga</span>
-                  <span className="font-bold text-[hsl(var(--warning))]">{coinShowTarget?.coin_price} Koin</span>
+                  <span className="font-bold text-[hsl(var(--warning))]">{coinShowTarget?.is_replay ? coinShowTarget?.replay_coin_price : coinShowTarget?.coin_price} Koin</span>
                 </div>
                 <div className="flex items-center justify-between text-sm border-t border-border pt-2">
                   <span className="text-muted-foreground">Saldo Anda</span>
-                  <span className={`font-bold ${coinBalance >= (coinShowTarget?.coin_price || 0) ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
+                  <span className={`font-bold ${coinBalance >= (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
                     {coinBalance} Koin
                   </span>
                 </div>
               </div>
-              {coinBalance < (coinShowTarget?.coin_price || 0) ? (
+              {coinBalance < (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? (
                 <div className="space-y-3">
                   <p className="text-center text-sm text-destructive">Koin tidak cukup.</p>
                   <Button className="w-full" variant="outline" onClick={() => { setCoinShowTarget(null); window.location.href = "/coins"; }}>
@@ -801,7 +804,7 @@ const Index = () => {
               ) : (
                 <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming}>
                   <Coins className="h-4 w-4" />
-                  {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.coin_price} Koin`}
+                  {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.is_replay ? coinShowTarget?.replay_coin_price : coinShowTarget?.coin_price} Koin`}
                 </Button>
               )}
             </div>

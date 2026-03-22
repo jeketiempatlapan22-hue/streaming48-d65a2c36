@@ -239,23 +239,23 @@ const ShowCard = ({
             )
           ) : (
             <>
-              {show.coin_price > 0 && (
+              {((isReplayMode && show.replay_coin_price > 0) || (!isReplayMode && show.coin_price > 0)) && (
                 <button
                   onClick={() => onCoinBuy(show)}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--warning))] py-3 font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--warning))]/90 hover:shadow-lg hover:shadow-[hsl(var(--warning))]/25"
                 >
-                  <Coins className="h-4 w-4" /> Beli dengan {show.coin_price} Koin
+                  <Coins className="h-4 w-4" /> Beli dengan {isReplayMode ? show.replay_coin_price : show.coin_price} Koin
                 </button>
               )}
               <button
                 onClick={() => onBuy(show)}
                 className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold transition-all ${
-                  show.coin_price > 0
+                  (isReplayMode ? show.replay_coin_price : show.coin_price) > 0
                     ? "bg-muted text-muted-foreground hover:bg-muted/80"
                     : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25"
                 }`}
               >
-                <MessageCircle className="h-4 w-4" /> {show.coin_price > 0 ? "Beli via QRIS" : "Beli Tiket"}
+                <MessageCircle className="h-4 w-4" /> {(isReplayMode ? show.replay_coin_price : show.coin_price) > 0 ? "Beli via QRIS" : "Beli Tiket"}
               </button>
             </>
           )}
