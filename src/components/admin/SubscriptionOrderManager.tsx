@@ -51,9 +51,20 @@ const SubscriptionOrderManager = () => {
     toast({ title: "Order dihapus" });
   };
 
-  const sendWhatsApp = (phone: string, message: string) => {
+  const sendWhatsApp = async (phone: string, message: string) => {
     const cleanPhone = phone.replace(/^0/, "62").replace(/[^0-9]/g, "");
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { target: cleanPhone, message },
+      });
+      if (error || !data?.success) {
+        toast({ title: "Gagal mengirim WA", variant: "destructive" });
+      } else {
+        toast({ title: "Pesan WA terkirim!" });
+      }
+    } catch {
+      toast({ title: "Gagal mengirim WA", variant: "destructive" });
+    }
   };
 
   const copyBulkData = (field: "phone" | "email") => {
