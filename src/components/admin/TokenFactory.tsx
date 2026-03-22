@@ -117,6 +117,19 @@ const TokenFactory = () => {
     const token = [...tokens, ...coinTokens].find(t => t.id === id);
     const newStatus = token?.status === "blocked" ? "active" : "blocked";
     await supabase.from("tokens").update({ status: newStatus }).eq("id", id);
+    if (newStatus === "blocked") {
+      await supabase.from("token_sessions").update({ is_active: false }).eq("token_id", id);
+      await supabase.from("admin_notifications").insert({
+        title: `🚫 Token Diblokir: ${token?.code}`,
+        message: `Token ${token?.code} telah diblokir dari admin panel.`,
+        type: "token_block",
+      });
+      try {
+        await supabase.functions.invoke("telegram-poll", {
+          body: { notify_token_block: true, token_code: token?.code, action: "block" },
+        });
+      } catch {}
+    }
     await fetchTokens();
     toast({ title: newStatus === "blocked" ? "Token diblokir" : "Token diaktifkan kembali" });
   };

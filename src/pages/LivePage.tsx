@@ -306,11 +306,23 @@ const LivePage = () => {
           </p>
         </div>
         <p className="text-xs text-muted-foreground mb-6">
-          Jika kamu merasa ini adalah kesalahan, hubungi admin untuk informasi lebih lanjut.
+          Jika kamu merasa ini adalah kesalahan, hubungi admin untuk konfirmasi.
         </p>
-        <button onClick={() => navigate("/")} className="rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
-          🏠 Kembali ke Beranda
-        </button>
+        <div className="flex flex-col gap-3">
+          {whatsappNumber && (
+            <a
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin, token saya diblokir tetapi saya tidak melakukan pelanggaran. Mohon konfirmasi.\n\nToken: " + tokenCode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[hsl(var(--success))] px-8 py-3 font-semibold text-primary-foreground hover:bg-[hsl(var(--success))]/90 active:scale-[0.97] transition-transform"
+            >
+              💬 Hubungi Admin via WhatsApp
+            </a>
+          )}
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
+            🏠 Kembali ke Beranda
+          </button>
+        </div>
       </div>
     </div>
   );
