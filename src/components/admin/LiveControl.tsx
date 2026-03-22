@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Check, X } from "lucide-react";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
+  const [nextShowTime, setNextShowTime] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -31,11 +33,20 @@ const LiveControl = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const streamRes = await supabase.from("streams").select("*").limit(1).single();
+      const [streamRes, settingsRes] = await Promise.all([
+        supabase.from("streams").select("*").limit(1).single(),
+        supabase.from("site_settings").select("*"),
+      ]);
       if (streamRes.data) {
         setStream(streamRes.data);
         setTitle(streamRes.data.title);
+        setDescription(streamRes.data.description || "");
         setIsLive(streamRes.data.is_live);
+      }
+      if (settingsRes.data) {
+        settingsRes.data.forEach((s: any) => {
+          if (s.key === "next_show_time") setNextShowTime(s.value);
+        });
       }
     };
     fetchData();
@@ -52,17 +63,22 @@ const LiveControl = () => {
   const saveDetails = async () => {
     if (!stream) return;
     setSaving(true);
-    await supabase.from("streams").update({ title }).eq("id", stream.id);
+    await supabase.from("streams").update({ title, description }).eq("id", stream.id);
     toast({ title: "Tersimpan!" });
     setSaving(false);
+  };
+
+  const saveNextShowTime = async () => {
+    await supabase
+      .from("site_settings")
+      .upsert({ key: "next_show_time", value: nextShowTime } as any, { onConflict: "key" });
+    toast({ title: "Jadwal show disimpan!" });
   };
 
   const addPlaylist = async () => {
     if (!newLabel || !newUrl) return;
     setPlLoading(true);
-    await supabase.from("playlists").insert({
-      title: newLabel, type: newType, url: newUrl, sort_order: playlists.length,
-    });
+    await supabase.from("playlists").insert({ title: newLabel, type: newType, url: newUrl, sort_order: playlists.length });
     setNewLabel(""); setNewUrl("");
     await fetchPlaylists();
     toast({ title: "Playlist ditambahkan!" });
@@ -90,6 +106,7 @@ const LiveControl = () => {
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-foreground">🔴 Live Control</h2>
 
+      {/* Live Toggle */}
       <div className={`flex items-center justify-between rounded-xl border p-6 ${isLive ? "border-primary/50 bg-primary/5" : "border-border bg-card"}`}>
         <div>
           <p className="text-lg font-bold text-foreground">{isLive ? "LIVE" : "OFFLINE"}</p>
@@ -100,17 +117,36 @@ const LiveControl = () => {
         </div>
       </div>
 
+      {/* Next Show Countdown */}
+      <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Show Berikutnya</h3>
+        <p className="text-xs text-muted-foreground">Countdown akan tampil di player saat offline.</p>
+        <div className="flex gap-2">
+          <Input type="datetime-local" value={nextShowTime} onChange={(e) => setNextShowTime(e.target.value)} className="bg-background" />
+          <Button onClick={saveNextShowTime} size="sm">Simpan</Button>
+        </div>
+        {nextShowTime && (
+          <p className="text-xs text-muted-foreground">
+            Dijadwalkan: {new Date(nextShowTime).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" })}
+          </p>
+        )}
+      </div>
+
+      {/* Stream Details */}
       <div className="space-y-4 rounded-xl border border-border bg-card p-6">
         <h3 className="text-sm font-semibold text-foreground">📝 Detail Stream</h3>
         <div>
           <label className="mb-1 block text-sm font-medium text-muted-foreground">Judul Live</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-background" />
         </div>
-        <Button onClick={saveDetails} disabled={saving}>
-          {saving ? "Menyimpan..." : "Simpan"}
-        </Button>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-muted-foreground">Deskripsi</label>
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} className="bg-background" />
+        </div>
+        <Button onClick={saveDetails} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
       </div>
 
+      {/* Playlist Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-bold text-foreground">📋 Sumber Video</h3>
         <div className="space-y-3 rounded-xl border border-border bg-card p-6">
@@ -150,36 +186,26 @@ const LiveControl = () => {
                   </div>
                   <Input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="bg-background font-mono text-xs" />
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={saveEdit} disabled={!editLabel || !editUrl} className="gap-1">
-                      <Check className="h-3.5 w-3.5" /> Simpan
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={cancelEdit} className="gap-1">
-                      <X className="h-3.5 w-3.5" /> Batal
-                    </Button>
+                    <Button size="sm" onClick={saveEdit} disabled={!editLabel || !editUrl} className="gap-1"><Check className="h-3.5 w-3.5" /> Simpan</Button>
+                    <Button size="sm" variant="ghost" onClick={cancelEdit} className="gap-1"><X className="h-3.5 w-3.5" /> Batal</Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
+                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{p.title}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase">{p.type}</span>
-                      {" "}{p.url}
+                      <span className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[10px] uppercase">{p.type}</span> {p.url}
                     </p>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => startEdit(p)} title="Edit">
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => deletePlaylist(p.id)} title="Hapus">
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => startEdit(p)}><Pencil className="h-4 w-4 text-muted-foreground" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => deletePlaylist(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               )}
             </div>
           ))}
-          {playlists.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-8">Belum ada playlist</p>
-          )}
+          {playlists.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">Belum ada playlist</p>}
         </div>
       </div>
     </div>

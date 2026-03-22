@@ -20,6 +20,7 @@ const SystemHealthCheck = lazy(() => import("@/components/admin/SystemHealthChec
 const LandingDescriptionManager = lazy(() => import("@/components/admin/LandingDescriptionManager"));
 const ChatModeratorManager = lazy(() => import("@/components/admin/ChatModeratorManager"));
 const PlaylistManager = lazy(() => import("@/components/admin/PlaylistManager"));
+const AdminLiveLogs = lazy(() => import("@/components/admin/AdminLiveLogs"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -58,6 +59,7 @@ const AdminDashboard = () => {
       case "polls": return <PollManager />;
       case "security": return <SecurityLogManager />;
       case "health": return <SystemHealthCheck />;
+      case "logs": return <AdminLiveLogs />;
       case "monitor": return <AdminMonitor />;
       case "site": return (
         <div className="space-y-6">
