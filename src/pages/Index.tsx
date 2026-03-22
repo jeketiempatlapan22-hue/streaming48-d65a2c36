@@ -11,7 +11,7 @@ import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
 import LandingStats from "@/components/viewer/LandingStats";
 import {
   Calendar, Clock, Users, MessageCircle, Ticket, Star, Upload, CheckCircle, Crown, Sparkles,
-  Menu, X, Phone, Info, Radio, CreditCard, Mail, Coins, User, Copy, Play, Lock, Film, Home, Settings,
+  Menu, X, Phone, Info, Radio, CreditCard, Mail, Coins, User, Copy, Play, Lock, Film, Home, Settings, Download, LogIn,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import { SHOW_CATEGORIES } from "@/types/show";
