@@ -27,6 +27,7 @@ const AdminSettings = lazy(() => import("@/components/admin/AdminSettings"));
 const AdminNotifications = lazy(() => import("@/components/admin/AdminNotifications"));
 const ModeratorAccountManager = lazy(() => import("@/components/admin/ModeratorAccountManager"));
 const UserManager = lazy(() => import("@/components/admin/UserManager"));
+const AdminAnalytics = lazy(() => import("@/components/admin/AdminAnalytics"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -56,6 +57,7 @@ const AdminDashboard = () => {
   const renderSection = () => {
     switch (activeSection) {
       case "live": return <><AdminDashboardStats /><div className="mt-6"><LiveControl /></div></>;
+      case "analytics": return <AdminAnalytics />;
       case "tokens": return <TokenFactory />;
       case "shows": return <ShowManager />;
       case "orders": return <SubscriptionOrderManager />;

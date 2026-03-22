@@ -18,6 +18,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const ViewerProfile = lazy(() => import("./pages/ViewerProfile"));
 const MembershipPage = lazy(() => import("./pages/MembershipPage"));
+const FaqPage = lazy(() => import("./pages/FaqPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/install" element={<InstallPage />} />
               <Route path="/profile" element={<ViewerProfile />} />
               <Route path="/membership" element={<MembershipPage />} />
+              <Route path="/faq" element={<FaqPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>

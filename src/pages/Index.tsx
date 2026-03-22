@@ -576,14 +576,56 @@ const Index = () => {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-border px-4 py-8 text-center">
-        <div className="flex items-center justify-center gap-2">
-          <div className="h-6 w-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.3)]">
-            <img src={logo} alt="RT48" className="h-3 w-3 rounded-full object-cover" />
+      <footer className="border-t border-border bg-card/50 px-4 py-10">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 md:grid-cols-3">
+            {/* Brand */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.3)]">
+                  <img src={logo} alt="RT48" className="h-4 w-4 rounded-full object-cover" />
+                </div>
+                <span className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">Platform streaming eksklusif dengan keamanan tinggi. Nikmati live show dan replay kapanpun.</p>
+            </div>
+            {/* Links */}
+            <div>
+              <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Navigasi</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Jadwal Show", href: "/schedule" },
+                  { label: "Replay", href: "/replay" },
+                  { label: "Coin Shop", href: "/coins" },
+                  { label: "Membership", href: "/membership" },
+                  { label: "FAQ", href: "/faq" },
+                  { label: "Install App", href: "/install" },
+                ].map(l => (
+                  <a key={l.href} href={l.href} className="text-xs text-muted-foreground hover:text-primary transition">{l.label}</a>
+                ))}
+              </div>
+            </div>
+            {/* Contact */}
+            <div>
+              <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Hubungi Kami</h4>
+              <div className="space-y-2">
+                {settings.whatsapp_number && (
+                  <a href={`https://wa.me/${settings.whatsapp_number}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-[hsl(var(--success))] transition">
+                    <Phone className="h-3 w-3" /> WhatsApp Admin
+                  </a>
+                )}
+                {settings.whatsapp_channel && (
+                  <a href={settings.whatsapp_channel} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary transition">
+                    <Radio className="h-3 w-3" /> Saluran WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
-          <span className="text-sm font-semibold text-foreground">Real<span className="text-primary">Time48</span></span>
+          <div className="mt-8 border-t border-border pt-4 text-center">
+            <p className="text-[10px] text-muted-foreground">© {new Date().getFullYear()} RealTime48 • Secure Streaming Platform</p>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Secure Streaming Platform</p>
       </footer>
 
       <InstallBanner />
