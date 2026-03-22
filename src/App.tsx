@@ -17,6 +17,7 @@ const ReplayPage = lazy(() => import("./pages/ReplayPage"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const ViewerProfile = lazy(() => import("./pages/ViewerProfile"));
+const MembershipPage = lazy(() => import("./pages/MembershipPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
