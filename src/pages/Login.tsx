@@ -44,8 +44,8 @@ const Login = () => {
           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
             <LogIn className="w-5 h-5 text-primary" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ lineHeight: "1.1" }}>Admin Login</h1>
-          <p className="text-muted-foreground text-sm mt-2">Masuk untuk mengelola stream</p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ lineHeight: "1.1" }}>RealTime48</h1>
+          <p className="text-muted-foreground text-sm mt-2">Login admin untuk mengelola streaming</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4 opacity-0 animate-fade-in-up" style={{ animationDelay: "120ms" }}>

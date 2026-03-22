@@ -176,7 +176,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border mt-auto">
         <div className="container max-w-5xl mx-auto px-4 py-4 text-center text-xs text-muted-foreground">
-          StreamBox — Putar M3U8, Cloudflare Stream & YouTube
+          RealTime48 — Secure Streaming Platform
         </div>
       </footer>
     </div>
