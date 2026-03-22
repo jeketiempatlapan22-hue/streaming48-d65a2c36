@@ -568,6 +568,46 @@ async function handleSetOfflineCommand(supabase: any, botToken: string, chatId: 
   } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
 }
 
+async function handleMsgShowCommand(supabase: any, botToken: string, chatId: string, showName: string, message: string) {
+  try {
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_active', true).ilike('title', `%${showName}%`).limit(5);
+    if (!shows || shows.length === 0) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Show "${escapeMarkdown(showName)}" tidak ditemukan\\.`);
+      return;
+    }
+    if (shows.length > 1) {
+      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
+      for (const s of shows) msg += `• ${escapeMarkdown(s.title)}\n`;
+      msg += '\n💡 Gunakan nama yang lebih spesifik\\.';
+      await sendTelegramMessage(botToken, chatId, msg);
+      return;
+    }
+
+    const show = shows[0];
+    const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
+    const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
+
+    if (phones.length === 0) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${escapeMarkdown(show.title)}"\\.`);
+      return;
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const phone of phones) {
+      try {
+        await sendFonnteWhatsApp(phone, message);
+        sent++;
+      } catch { failed++; }
+    }
+
+    const result = `✅ *Pesan Terkirim\\!*\n\n🎬 Show: ${escapeMarkdown(show.title)}\n📨 Terkirim: ${sent} nomor${failed > 0 ? `\n⚠️ Gagal: ${failed}` : ''}\n\n📝 Pesan: ${escapeMarkdown(message)}`;
+    await sendTelegramMessage(botToken, chatId, result);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function escapeMarkdown(text: string): string {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
