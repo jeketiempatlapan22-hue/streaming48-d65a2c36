@@ -363,7 +363,7 @@ async function handleUsersCommand(supabase: any, botToken: string, chatId: strin
   }
 }
 
-
+function escapeMarkdown(text: string): string {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
