@@ -946,6 +946,35 @@ const Index = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Login Required Popup */}
+      <Dialog open={loginPopup} onOpenChange={setLoginPopup}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LogIn className="h-5 w-5 text-primary" />
+              Login Diperlukan
+            </DialogTitle>
+            <DialogDescription>
+              Kamu perlu login atau daftar terlebih dahulu untuk mengakses fitur ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <a
+              href="/auth"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.98]"
+            >
+              <LogIn className="h-4 w-4" /> Login / Daftar
+            </a>
+            <button
+              onClick={() => setLoginPopup(false)}
+              className="flex w-full items-center justify-center rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground transition hover:bg-secondary/80"
+            >
+              Nanti
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
