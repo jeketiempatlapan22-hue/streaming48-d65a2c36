@@ -117,9 +117,12 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const yaMatch = text.match(/^YA\s+(.+)$/);
   const tidakMatch = text.match(/^TIDAK\s+(.+)$/);
   const isStatus = rawText === '/status' || text === '/STATUS';
+  const addCoinMatch = rawText.match(/^\/addcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
 
   if (isStatus) {
     await handleStatusCommand(supabase, botToken, chatId);
+  } else if (addCoinMatch) {
+    await handleAddCoinCommand(supabase, botToken, chatId, addCoinMatch[1], parseInt(addCoinMatch[2], 10), addCoinMatch[3] || null);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
