@@ -83,6 +83,12 @@ Deno.serve(async (req) => {
 
     if (response) {
       await sendFonnteMessage(FONNTE_TOKEN, sender, response);
+      
+      // Cross-notify to Telegram (skip read-only commands)
+      const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
+      if (!readOnly.test(rawText.trim())) {
+        await notifyTelegram(rawText, response);
+      }
     }
 
     return jsonResponse({ ok: true, processed: true });
