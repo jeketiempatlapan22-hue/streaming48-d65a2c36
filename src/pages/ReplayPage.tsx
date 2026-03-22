@@ -148,6 +148,7 @@ const ReplayPage = () => {
     setReplayResult(null);
     setQrisStep("scan");
     setProofUrl("");
+    setProofFilePath("");
   };
 
   const handleCoinRedeem = async () => {
