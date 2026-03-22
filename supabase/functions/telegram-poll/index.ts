@@ -70,9 +70,16 @@ Deno.serve(async (req) => {
 
         const adminMessages = rows.filter((r: any) => String(r.chat_id) === ADMIN_CHAT_ID && r.text);
         for (const msg of adminMessages) {
+          const cmdText = (msg.text as string).trim();
           await processAdminMessage(supabase, BOT_TOKEN, ADMIN_CHAT_ID, msg);
           totalProcessed++;
           await supabase.from('telegram_messages').update({ processed: true }).eq('update_id', msg.update_id);
+          
+          // Cross-notify to WhatsApp (skip read-only commands)
+          const readOnly = /^\/(help|start|status|balance|users|replay)$/i;
+          if (!readOnly.test(cmdText)) {
+            await notifyWhatsAppAdmins(supabase, cmdText);
+          }
         }
         continue;
       }
