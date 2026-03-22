@@ -1,4 +1,4 @@
-import { Radio, Key, Monitor, Settings, LogOut, Theater, ClipboardList, Coins, Package, Menu } from "lucide-react";
+import { Radio, Key, Monitor, Settings, LogOut, Theater, ClipboardList, Coins, Package, Menu, BarChart3 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface AdminSidebarProps {
@@ -15,6 +15,7 @@ const sections = [
   { id: "shows", label: "Show Manager", icon: Theater },
   { id: "coin-packages", label: "Paket Koin", icon: Package },
   { id: "coin-orders", label: "Order Koin", icon: Coins },
+  { id: "polls", label: "Live Poll", icon: BarChart3 },
   { id: "monitor", label: "Monitor", icon: Monitor },
   { id: "site", label: "Pengaturan", icon: Settings },
 ];
