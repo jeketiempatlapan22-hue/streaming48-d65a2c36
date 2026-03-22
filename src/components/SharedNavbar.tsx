@@ -7,6 +7,11 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 interface SharedNavbarProps {
   showCoinBadge?: boolean;
 }
@@ -16,8 +21,22 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
   const [coinUser, setCoinUser] = useState<any>(null);
   const [coinBalance, setCoinBalance] = useState(0);
   const [coinUsername, setCoinUsername] = useState("");
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    setIsStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as any).standalone === true
+    );
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    window.addEventListener("appinstalled", () => setIsStandalone(true));
+
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -31,7 +50,20 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
       }
     };
     checkAuth();
+
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
+
+  const handleInstallClick = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") setIsStandalone(true);
+      setInstallPrompt(null);
+    } else {
+      window.location.href = "/install";
+    }
+  };
 
   const menuItems = [
     { icon: <Home className="h-5 w-5 text-primary" />, label: "Beranda", description: "Halaman utama", href: "/" },
@@ -41,7 +73,6 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     { icon: <Film className="h-5 w-5 text-primary" />, label: "Replay Show", description: "Tonton ulang show lalu", href: "/replay" },
     { icon: <Info className="h-5 w-5 text-primary" />, label: "Tentang", description: "Info lengkap platform", href: "/about" },
     { icon: <MessageCircle className="h-5 w-5 text-primary" />, label: "FAQ", description: "Pertanyaan yang sering diajukan", href: "/faq" },
-    { icon: <Download className="h-5 w-5 text-primary" />, label: "Install App", description: "Pasang di HP kamu", href: "/install" },
     ...(coinUser ? [{ icon: <User className="h-5 w-5 text-primary" />, label: "Profil Saya", description: "Token, koin & pengaturan", href: "/profile" }] : []),
   ];
 
@@ -56,6 +87,17 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
         </a>
         <div className="flex items-center gap-2">
           
+          {/* Install App Button - only show if not already installed */}
+          {!isStandalone && (
+            <button
+              onClick={handleInstallClick}
+              className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-primary hover:bg-primary/20 transition active:scale-[0.95]"
+            >
+              <Download className="h-4 w-4" />
+              <span className="text-xs font-semibold hidden sm:inline">Install</span>
+            </button>
+          )}
+
           {showCoinBadge && coinUser && (
             <a href="/profile" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 hover:bg-[hsl(var(--warning))]/20 transition">
               <Coins className="h-4 w-4 text-[hsl(var(--warning))]" />
@@ -124,6 +166,24 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                     </div>
                   </a>
                 ))}
+
+                {/* Install App in side menu */}
+                {!isStandalone && (
+                  <button
+                    onClick={handleInstallClick}
+                    className="flex w-full items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-left transition hover:border-primary/50 hover:bg-primary/10 active:scale-[0.98]"
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      <Download className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-primary">Install App</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {installPrompt ? "Pasang langsung dalam 1 klik" : "Pasang di HP kamu"}
+                      </p>
+                    </div>
+                  </button>
+                )}
               </div>
             </SheetContent>
           </Sheet>
