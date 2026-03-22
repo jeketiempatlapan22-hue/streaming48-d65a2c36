@@ -9,22 +9,16 @@ const LiveViewerCount = ({ isLive }: { isLive: boolean }) => {
   useEffect(() => {
     if (!isLive) { setCount(0); return; }
 
-    // Use the same channel name as LiveChat ("online-users") so counts match
-    const viewerKey = `landing-${Math.random().toString(36).slice(2)}`;
-    const channel = supabase.channel("online-users", {
-      config: { presence: { key: viewerKey } },
-    });
+    // Subscribe to the same "online-users" channel as LiveChat but READ-ONLY
+    // Do NOT call channel.track() — we only want to observe live viewers, not add ourselves
+    const channel = supabase.channel("online-users");
 
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         setCount(Object.keys(state).length);
       })
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED") {
-          await channel.track({ user: viewerKey, joined_at: new Date().toISOString() });
-        }
-      });
+      .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [isLive]);
