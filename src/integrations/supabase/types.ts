@@ -196,6 +196,36 @@ export type Database = {
         }
         Relationships: []
       }
+      coin_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          reference_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string
+          id?: string
+          reference_id?: string | null
+          type?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          reference_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       landing_descriptions: {
         Row: {
           content: string
@@ -366,6 +396,62 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      referral_claims: {
+        Row: {
+          claimed_by: string
+          created_at: string
+          id: string
+          referral_code_id: string
+        }
+        Insert: {
+          claimed_by: string
+          created_at?: string
+          id?: string
+          referral_code_id: string
+        }
+        Update: {
+          claimed_by?: string
+          created_at?: string
+          id?: string
+          referral_code_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_claims_referral_code_id_fkey"
+            columns: ["referral_code_id"]
+            isOneToOne: false
+            referencedRelation: "referral_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_codes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          reward_coins: number
+          user_id: string
+          uses: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          reward_coins?: number
+          user_id: string
+          uses?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          reward_coins?: number
+          user_id?: string
+          uses?: number
         }
         Relationships: []
       }
@@ -728,11 +814,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_referral: { Args: { _code: string }; Returns: Json }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
       create_token_session: {
         Args: { _fingerprint: string; _token_code: string; _user_agent: string }
         Returns: Json
       }
+      get_or_create_referral_code: { Args: never; Returns: Json }
       get_order_count: { Args: { _show_id: string }; Returns: number }
       get_public_shows: {
         Args: never
