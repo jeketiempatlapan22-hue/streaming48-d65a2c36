@@ -146,7 +146,7 @@ const LivePage = () => {
             </div>
           ) : (
             <div className="relative flex aspect-video w-full flex-col items-center justify-center bg-card">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center opacity-30"><Shield className="h-8 w-8 text-primary" /></div>
+              <div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden opacity-30"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div>
               {countdown ? <div className="text-center"><p className="text-sm text-muted-foreground">Show dimulai dalam</p><p className="mt-2 font-mono text-4xl font-bold text-primary">{countdown}</p></div> : <div className="text-center"><p className="font-mono text-2xl font-bold text-destructive tracking-widest">STREAMING OFFLINE</p><p className="mt-2 text-sm text-muted-foreground">Tidak ada jadwal saat ini</p></div>}
             </div>
           )}
