@@ -83,6 +83,12 @@ Deno.serve(async (req) => {
 
     if (response) {
       await sendFonnteMessage(FONNTE_TOKEN, sender, response);
+      
+      // Cross-notify to Telegram (skip read-only commands)
+      const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
+      if (!readOnly.test(rawText.trim())) {
+        await notifyTelegram(rawText, response);
+      }
     }
 
     return jsonResponse({ ok: true, processed: true });
@@ -448,6 +454,28 @@ async function sendFonnteMessage(token: string, target: string, message: string)
     });
   } catch (e) {
     console.error('sendFonnteMessage error:', e);
+  }
+}
+
+async function notifyTelegram(command: string, result: string) {
+  const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
+  const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+
+  // Skip read-only commands
+  const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
+  if (readOnly.test(command.trim())) return;
+
+  const telegramMsg = `📱 *WhatsApp Bot Activity*\n\nCommand: \`${command}\`\n\n${result}`;
+  
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: ADMIN_CHAT_ID, text: telegramMsg }),
+    });
+  } catch (e) {
+    console.error('notifyTelegram error:', e);
   }
 }
 
