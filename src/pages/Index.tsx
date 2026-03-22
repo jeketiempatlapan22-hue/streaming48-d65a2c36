@@ -314,12 +314,31 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <LiveViewerCount isLive={isStreamLive} />
+
+            {!isStandalone && (
+              <button
+                onClick={handleInstallClick}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-primary-foreground hover:bg-primary/90 transition active:scale-[0.95] shadow-sm shadow-primary/20"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-xs font-bold">Install</span>
+              </button>
+            )}
             
-            {!sheetOpen && (
+            {!sheetOpen && coinUser && (
               <a href="/coins" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20" title="Coin Shop">
                 <Coins className="h-4 w-4" />
-                <span className="text-xs font-semibold">Beli Koin</span>
+                <span className="text-xs font-semibold">{coinBalance}</span>
               </a>
+            )}
+            {!sheetOpen && !coinUser && (
+              <button
+                onClick={() => setLoginPopup(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20"
+              >
+                <Coins className="h-4 w-4" />
+                <span className="text-xs font-semibold">Beli Koin</span>
+              </button>
             )}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
@@ -327,8 +346,8 @@ const Index = () => {
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80 border-border bg-card">
-                <SheetHeader>
+              <SheetContent side="right" className="w-80 border-border bg-card p-0 flex flex-col">
+                <SheetHeader className="px-6 pt-6 pb-2">
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <div className="h-7 w-7 rounded-full border border-border/60 overflow-hidden">
                       <img src={logo} alt="RT48" className="h-full w-full object-cover" />
@@ -337,53 +356,80 @@ const Index = () => {
                   </SheetTitle>
                 </SheetHeader>
 
-                {coinUser && (
-                  <div className="mt-4 rounded-xl border border-border bg-background p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <User className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">{coinUsername || "User"}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Coins className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
-                          <span className="text-xs font-bold text-[hsl(var(--warning))]">{coinBalance} Koin</span>
+                <ScrollArea className="flex-1 px-6 pb-6">
+                  {coinUser ? (
+                    <div className="mt-2 rounded-xl border border-border bg-background p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-foreground">{coinUsername || "User"}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Coins className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
+                            <span className="text-xs font-bold text-[hsl(var(--warning))]">{coinBalance} Koin</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="mt-3 flex gap-2">
-                      <a href="/profile" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-secondary/80">
-                        <User className="h-3.5 w-3.5 text-primary" /> Profil
-                      </a>
-                      <a href="/coins" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-2 text-xs font-semibold text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20">
-                        <Coins className="h-3.5 w-3.5" /> Coin Shop
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {!coinUser && (
-                  <div className="mt-4 rounded-xl border border-border bg-background p-4">
-                    <a href="/auth" className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90">
-                      <User className="h-4 w-4" /> Login / Daftar
-                    </a>
-                  </div>
-                )}
-
-                <div className="mt-4 space-y-2">
-                  {menuItems.map((item, i) => (
-                    <a
-                      key={i}
-                      href={item.href}
-                      className="flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
-                    >
-                      <div className="mt-0.5 shrink-0">{item.icon}</div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground line-clamp-3">{item.description}</p>
+                      <div className="mt-3 flex gap-2">
+                        <a href="/profile" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-secondary/80">
+                          <User className="h-3.5 w-3.5 text-primary" /> Profil
+                        </a>
+                        <a href="/coins" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-2 text-xs font-semibold text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20">
+                          <Coins className="h-3.5 w-3.5" /> Coin Shop
+                        </a>
                       </div>
-                    </a>
-                  ))}
-                </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                          <LogIn className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Belum Login</p>
+                          <p className="text-xs text-muted-foreground">Login untuk akses semua fitur</p>
+                        </div>
+                      </div>
+                      <a href="/auth" className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition active:scale-[0.98]">
+                        <LogIn className="h-4 w-4" /> Login / Daftar
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="mt-4 space-y-2">
+                    {menuItems.map((item, i) => (
+                      <a
+                        key={i}
+                        href={item.href}
+                        className="flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                      >
+                        <div className="mt-0.5 shrink-0">{item.icon}</div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-3">{item.description}</p>
+                        </div>
+                      </a>
+                    ))}
+
+                    {!isStandalone && (
+                      <button
+                        onClick={handleInstallClick}
+                        className="flex w-full items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-left transition hover:border-primary/50 hover:bg-primary/10 active:scale-[0.98]"
+                      >
+                        <div className="mt-0.5 shrink-0">
+                          <Download className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-primary">Install App</p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {installPrompt ? "Pasang langsung dalam 1 klik" : "Pasang di HP kamu"}
+                          </p>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </ScrollArea>
               </SheetContent>
             </Sheet>
           </div>
