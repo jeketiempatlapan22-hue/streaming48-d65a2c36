@@ -181,6 +181,31 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   }
 }
 
+// Helper: find show by short ID (first 6 hex chars of UUID) or by name
+async function findShowByIdOrName(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
+  const shortIdMatch = input.match(/^#?([a-f0-9]{6})$/i);
+  if (shortIdMatch) {
+    const shortId = shortIdMatch[1].toLowerCase();
+    const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category');
+    if (activeOnly) query.eq('is_active', true);
+    const { data: shows } = await query;
+    const match = (shows || []).find((s: any) => s.id.replace(/-/g, '').slice(0, 6).toLowerCase() === shortId);
+    if (match) return { show: match, multiple: null, error: null };
+    return { show: null, multiple: null, error: `Show dengan ID #${shortId} tidak ditemukan.` };
+  }
+  // Search by name
+  const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category').ilike('title', `%${input}%`).limit(5);
+  if (activeOnly) query.eq('is_active', true);
+  const { data: shows } = await query;
+  if (!shows || shows.length === 0) return { show: null, multiple: null, error: `Show "${input}" tidak ditemukan.` };
+  if (shows.length === 1) return { show: shows[0], multiple: null, error: null };
+  return { show: null, multiple: shows, error: null };
+}
+
+function showShortId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 6).toLowerCase();
+}
+
 async function handleHelpCommand(botToken: string, chatId: string) {
   const msg = `🤖 *REALTIME48 BOT \\- DAFTAR COMMAND*\n\n` +
     `📋 *Order Management:*\n` +
@@ -196,20 +221,23 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `👥 *User Management:*\n` +
     `\`/users\` \\- Daftar semua user\n\n` +
     `🎬 *Show Management:*\n` +
-    `\`/replay\` \\- Lihat daftar show yang bisa di\\-replay\n` +
-    `\`/replay <nama show>\` \\- Toggle mode replay show\n\n` +
+    `\`/replay\` \\- Lihat daftar show \\+ ID\n` +
+    `\`/replay <nama/ID>\` \\- Toggle replay by nama atau \\#ID\n` +
+    `\`/setactive <ID>\` \\- Set show aktif by \\#ID\n\n` +
     `📡 *Live Stream:*\n` +
     `\`/showinfo\` \\- Info stream \\& show aktif saat ini\n` +
     `\`/setlive\` \\- Set stream jadi LIVE\n` +
+    `\`/setlive <nama/ID>\` \\- Set LIVE \\+ pilih show aktif\n` +
     `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
     `🔑 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
     `📨 *Messaging:*\n` +
-    `\`/msgshow <nama show> | <pesan>\` \\- Kirim WA ke semua pemesan show\n\n` +
+    `\`/msgshow <nama/ID> | <pesan>\` \\- Kirim WA ke pemesan show\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
-    `\`/help\` \\- Tampilkan daftar command ini`;
+    `\`/help\` \\- Tampilkan daftar command ini\n\n` +
+    `💡 _ID show bisa dilihat di Admin Panel Show Manager \\(\\#6 digit\\)_`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
