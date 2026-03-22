@@ -152,7 +152,7 @@ export function useShowPurchase() {
 
   return {
     selectedShow, setSelectedShow, purchaseStep, setPurchaseStep,
-    uploadingProof, proofUrl, phone, setPhone, email, setEmail,
+    uploadingProof, proofFilePath, phone, setPhone, email, setEmail,
     handleBuy, handleUploadProof, handleSubmitSubscription,
     coinUser, coinBalance, coinUsername, coinShowTarget, setCoinShowTarget,
     coinRedeeming, coinResult, setCoinResult, handleCoinBuy, handleCoinRedeem,
