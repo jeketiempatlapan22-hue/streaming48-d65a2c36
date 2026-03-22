@@ -135,9 +135,6 @@ const LivePoll = ({ voterId }: LivePollProps) => {
           await fetchVotes(poll.id);
         }
       }
-        setMyVote(previousVote);
-        await fetchVotes(poll.id);
-      }
     } catch {
       setMyVote(previousVote);
       await fetchVotes(poll.id);
