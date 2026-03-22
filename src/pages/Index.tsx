@@ -257,6 +257,8 @@ const Index = () => {
       href: `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent("Halo admin")}`,
     }] : []),
     { icon: <Coins className="h-5 w-5 text-[hsl(var(--warning))]" />, label: "Coin Shop", description: "Beli koin untuk akses nonton show", href: "/coins" },
+    { icon: <Info className="h-5 w-5 text-primary" />, label: "Tentang", description: "Info lengkap tentang platform", href: "/about" },
+    { icon: <MessageCircle className="h-5 w-5 text-primary" />, label: "FAQ", description: "Pertanyaan yang sering diajukan", href: "/faq" },
     { icon: <Ticket className="h-5 w-5 text-primary" />, label: "Data Show", description: `${regularShows.length} show tersedia`, href: "#shows" },
   ];
 
