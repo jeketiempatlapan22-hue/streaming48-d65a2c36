@@ -29,8 +29,8 @@ const PlayerAnimations = ({ type, backgroundOnly = false }: { type: AnimationTyp
     if (type === "none") { setParticles([]); return; }
     const count = type === "rain" ? 60 : type === "confetti" ? 40 : 30;
     setParticles(Array.from({ length: count }, (_, i) => ({
-      id: i, x: Math.random() * 100, y: Math.random() * 100, size: 2 + Math.random() * 6,
-      speed: 3 + Math.random() * 8, opacity: 0.3 + Math.random() * 0.5, delay: Math.random() * 5,
+      id: i, x: Math.random() * 100, y: Math.random() * 100, size: 4 + Math.random() * 10,
+      speed: 3 + Math.random() * 8, opacity: 0.35 + Math.random() * 0.5, delay: Math.random() * 5,
       color: type === "confetti" ? CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)] : undefined,
     })));
   }, [type]);
