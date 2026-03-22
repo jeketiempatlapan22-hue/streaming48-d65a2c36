@@ -264,6 +264,7 @@ const Index = () => {
     <div className="relative min-h-screen bg-background">
       <ConnectionStatus />
       <LandingFloatingEmojis />
+      <LiveNowBanner isLive={isStreamLive} />
 
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
