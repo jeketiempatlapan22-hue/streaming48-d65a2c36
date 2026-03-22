@@ -384,19 +384,16 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
   try {
     const sid = order.short_id || order.id.substring(0, 6);
     if (action === 'approve') {
-      const { data: confirmedOrder } = await supabase.from('coin_orders').update({ status: 'confirmed' }).eq('id', order.id).eq('status', 'pending').select('id').maybeSingle();
-      if (!confirmedOrder) { if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(sid)}\` sudah diproses\.`); return; }
-
-      const { data: existingBalance } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      if (existingBalance) {
-        await supabase.from('coin_balances').update({ balance: existingBalance.balance + order.coin_amount, updated_at: new Date().toISOString() }).eq('user_id', order.user_id);
-      } else {
-        await supabase.from('coin_balances').insert({ user_id: order.user_id, balance: order.coin_amount });
+      // Use atomic RPC to prevent double-credit race conditions
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
+      if (rpcError || !rpcResult?.success) {
+        const errMsg = rpcResult?.error || rpcError?.message || 'Gagal konfirmasi';
+        if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(sid)}\`: ${escapeMarkdown(errMsg)}`);
+        return;
       }
 
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', order.user_id).single();
-      const { data: balanceData } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      const newBalance = balanceData?.balance ?? order.coin_amount;
+      const newBalance = rpcResult.new_balance ?? order.coin_amount;
 
       if (order.phone) {
         const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;

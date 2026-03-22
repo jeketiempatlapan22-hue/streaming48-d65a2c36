@@ -456,28 +456,24 @@ async function processCoinOrder(supabase: any, order: any, action: 'approve' | '
   try {
     const sid = order.short_id || order.id.substring(0, 6);
     if (action === 'approve') {
-      const { data: confirmed } = await supabase.from('coin_orders').update({ status: 'confirmed' }).eq('id', order.id).eq('status', 'pending').select('id').maybeSingle();
-      if (!confirmed) return `⚠️ Order koin ${sid} sudah diproses.`;
-
-      const { data: existing } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      if (existing) {
-        await supabase.from('coin_balances').update({ balance: existing.balance + order.coin_amount, updated_at: new Date().toISOString() }).eq('user_id', order.user_id);
-      } else {
-        await supabase.from('coin_balances').insert({ user_id: order.user_id, balance: order.coin_amount });
+      // Use atomic RPC to prevent double-credit race conditions
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
+      if (rpcError || !rpcResult?.success) {
+        return `⚠️ Order koin ${sid}: ${rpcResult?.error || rpcError?.message || 'Gagal konfirmasi'}`;
       }
 
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', order.user_id).single();
-      const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
+      const newBalance = rpcResult.new_balance ?? order.coin_amount;
 
       if (order.phone) {
         const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
         if (FONNTE_TOKEN) {
-          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${balData?.balance ?? order.coin_amount} koin.\n\nTerima kasih! 🎉`;
+          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }
 
-      return `✅ Order koin ${sid} dikonfirmasi! ${profile?.username || 'User'} +${order.coin_amount} koin (Saldo: ${balData?.balance ?? order.coin_amount})`;
+      return `✅ Order koin ${sid} dikonfirmasi! ${profile?.username || 'User'} +${order.coin_amount} koin (Saldo: ${newBalance})`;
     } else {
       await supabase.from('coin_orders').update({ status: 'rejected' }).eq('id', order.id).eq('status', 'pending');
       return `❌ Order koin ${sid} ditolak.`;
