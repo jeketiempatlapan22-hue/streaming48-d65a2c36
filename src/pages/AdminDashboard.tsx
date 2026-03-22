@@ -61,12 +61,8 @@ const AdminDashboard = () => {
       case "health": return <SystemHealthCheck />;
       case "logs": return <AdminLiveLogs />;
       case "monitor": return <AdminMonitor />;
-      case "site": return (
-        <div className="space-y-6">
-          <SiteSettingsManager />
-          <ChatModeratorManager />
-        </div>
-      );
+      case "site": return <SiteSettingsManager />;
+      case "moderators": return <ChatModeratorManager />;
       default: return <LiveControl />;
     }
   };
