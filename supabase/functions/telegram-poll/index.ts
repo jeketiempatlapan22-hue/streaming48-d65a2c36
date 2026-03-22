@@ -617,6 +617,25 @@ async function handleMsgShowCommand(supabase: any, botToken: string, chatId: str
   }
 }
 
+async function handlePasswordResetCommand(supabase: any, botToken: string, chatId: string, shortId: string, action: 'approve' | 'reject') {
+  try {
+    const { data: request } = await supabase.from('password_reset_requests').select('id, user_id, identifier, phone, short_id').eq('short_id', shortId).eq('status', 'pending').maybeSingle();
+    if (!request) { await sendTelegramMessage(botToken, chatId, `⚠️ Request reset ${escapeMarkdown(shortId)} tidak ditemukan\\.`); return; }
+    if (action === 'approve') {
+      await supabase.from('password_reset_requests').update({ status: 'approved', processed_at: new Date().toISOString() }).eq('id', request.id);
+      const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+      if (FONNTE_TOKEN && request.phone) {
+        const resetLink = `https://streaming48.lovable.app/reset-password?token=${request.short_id}`;
+        await sendFonnteWhatsApp(request.phone, `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 24 jam.`);
+      }
+      await sendTelegramMessage(botToken, chatId, `✅ Reset password ${escapeMarkdown(shortId)} disetujui\\! Link dikirim ke user\\.`);
+    } else {
+      await supabase.from('password_reset_requests').update({ status: 'rejected', processed_at: new Date().toISOString() }).eq('id', request.id);
+      await sendTelegramMessage(botToken, chatId, `❌ Reset password ${escapeMarkdown(shortId)} ditolak\\.`);
+    }
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
 function escapeMarkdown(text: string): string {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
