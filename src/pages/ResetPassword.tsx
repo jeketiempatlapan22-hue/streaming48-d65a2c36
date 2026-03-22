@@ -29,7 +29,7 @@ const ResetPassword = () => {
     if (token) {
       // Admin-approved reset via edge function
       const { data, error } = await supabase.functions.invoke("apply-password-reset", {
-        body: { short_id: token, new_password: password },
+        body: { secure_token: token, new_password: password },
       });
 
       if (error || !data?.success) {
