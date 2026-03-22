@@ -33,7 +33,7 @@ const ShowManager = () => {
 
   const fetchShows = async () => {
     const { data } = await supabase.from("shows").select("*").order("created_at", { ascending: false });
-    setShows((data as Show[]) || []);
+    setShows((data as unknown as Show[]) || []);
   };
 
   useEffect(() => { fetchShows(); }, []);
