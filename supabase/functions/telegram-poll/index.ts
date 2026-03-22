@@ -174,6 +174,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unblocktokenMatch = rawText.match(/^\/unblocktoken\s+(\S+)$/i);
   const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
   const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
+  const isTokensList = /^\/tokens$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -209,6 +210,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleShowInfoCommand(supabase, botToken, chatId);
   } else if (msgshowMatch) {
     await handleMsgShowCommand(supabase, botToken, chatId, msgshowMatch[1].trim(), msgshowMatch[2].trim());
+  } else if (isTokensList) {
+    await handleTokensListCommand(supabase, botToken, chatId);
   } else if (blocktokenMatch) {
     await handleTokenCommand(supabase, botToken, chatId, blocktokenMatch[1], 'block');
   } else if (unblocktokenMatch) {
