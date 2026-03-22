@@ -113,6 +113,13 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
   const isChatMod = chatModUsernames.has(username);
 
+  // Get current user id
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUserId(session?.user?.id || null);
+    });
+  }, []);
+
   // Load chat moderators
   useEffect(() => {
     const fetchMods = async () => {
