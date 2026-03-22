@@ -111,6 +111,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
   const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
   const isReplayList = /^\/replay$/i.test(rawText);
+  const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
+  const isSetOffline = /^\/setoffline$/i.test(rawText);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -121,6 +123,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (broadcastMatch) return await handleBroadcast(supabase, broadcastMatch[1].trim());
   if (replayMatch) return await handleReplayToggle(supabase, replayMatch[1].trim());
   if (isReplayList) return await handleReplayList(supabase);
+  if (setliveMatch) return await handleSetLive(supabase, setliveMatch[1]?.trim() || null);
+  if (isSetOffline) return await handleSetOffline(supabase);
   if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     return await handleBulkOrders(supabase, ids, 'approve');
