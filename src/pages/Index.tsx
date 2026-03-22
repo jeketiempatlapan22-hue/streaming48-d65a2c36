@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Play, Radio, Film, MonitorPlay, Settings, Shield, Ticket, Menu, Home, Coins, Calendar, Clock, Users, MessageCircle, Crown, User } from "lucide-react";
+import { Play, Radio, Film, MonitorPlay, Shield, Ticket, Menu, Home, Coins, Calendar, Clock, Users, MessageCircle, Crown, User, Settings } from "lucide-react";
 import VideoPlayer from "@/components/VideoPlayer";
+import CountdownTimer from "@/components/CountdownTimer";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import {
