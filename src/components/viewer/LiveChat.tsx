@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Users, Trophy } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
-import EmojiReactions from "@/components/viewer/EmojiReactions";
+
 
 interface LiveChatProps {
   username: string;
