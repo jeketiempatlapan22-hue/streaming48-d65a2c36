@@ -147,6 +147,70 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   }
 }
 
+async function handleHelpCommand(botToken: string, chatId: string) {
+  const msg = `🤖 *REALTIME48 BOT \\- DAFTAR COMMAND*\n\n` +
+    `📋 *Order Management:*\n` +
+    `\`/status\` \\- Cek order pending\n` +
+    `\`YA <id>\` \\- Konfirmasi order\n` +
+    `\`YA id1,id2,id3\` \\- Bulk konfirmasi\n` +
+    `\`TIDAK <id>\` \\- Tolak order\n\n` +
+    `💰 *Koin Management:*\n` +
+    `\`/addcoin <user> <jumlah>\` \\- Tambah koin\n` +
+    `\`/addcoin <user> <jumlah> <alasan>\` \\- Tambah koin \\+ alasan\n` +
+    `\`/deductcoin <user> <jumlah>\` \\- Kurangi koin\n` +
+    `\`/balance <user>\` \\- Cek saldo user\n\n` +
+    `👥 *User Management:*\n` +
+    `\`/users\` \\- Daftar semua user\n\n` +
+    `📢 *Lainnya:*\n` +
+    `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
+    `\`/help\` \\- Tampilkan daftar command ini`;
+  await sendTelegramMessage(botToken, chatId, msg);
+}
+
+async function handleDeductCoinCommand(supabase: any, botToken: string, chatId: string, username: string, amount: number, reason: string | null) {
+  try {
+    if (amount <= 0 || amount > 100000) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Jumlah koin harus antara 1\\-100\\.000');
+      return;
+    }
+    const { data: profile } = await supabase.from('profiles').select('id, username').ilike('username', username).maybeSingle();
+    if (!profile) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ User "${escapeMarkdown(username)}" tidak ditemukan\\.`);
+      return;
+    }
+    const { data: existing } = await supabase.from('coin_balances').select('balance').eq('user_id', profile.id).maybeSingle();
+    const currentBal = existing?.balance ?? 0;
+    if (currentBal < amount) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Saldo ${escapeMarkdown(profile.username)} hanya ${currentBal} koin\\. Tidak cukup untuk dikurangi ${amount}\\.`);
+      return;
+    }
+    const newBalance = currentBal - amount;
+    await supabase.from('coin_balances').update({ balance: newBalance, updated_at: new Date().toISOString() }).eq('user_id', profile.id);
+    await supabase.from('coin_transactions').insert({
+      user_id: profile.id, amount: -amount, type: 'admin_deduct',
+      description: reason || 'Koin dikurangi oleh admin via Telegram',
+    });
+    await sendTelegramMessage(botToken, chatId,
+      `✅ *Koin Dikurangi\\!*\n\n👤 User: ${escapeMarkdown(profile.username)}\n💸 \\-${amount} koin\n🏦 Saldo baru: ${newBalance}${reason ? `\n📝 Alasan: ${escapeMarkdown(reason)}` : ''}`
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handleBroadcastCommand(supabase: any, botToken: string, chatId: string, message: string) {
+  try {
+    await supabase.from('admin_notifications').insert({
+      title: '📢 Broadcast Admin',
+      message: message,
+      type: 'broadcast',
+    });
+    await sendTelegramMessage(botToken, chatId, `✅ Broadcast terkirim\\!\n\n📝 Pesan: ${escapeMarkdown(message)}`);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error broadcast: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 async function processBulkOrders(supabase: any, botToken: string, chatId: string, shortIds: string[], action: 'approve' | 'reject') {
   const results: string[] = [];
   for (const shortId of shortIds) {
