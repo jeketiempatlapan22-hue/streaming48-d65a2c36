@@ -15,6 +15,11 @@ const SiteSettingsManager = lazy(() => import("@/components/admin/SiteSettingsMa
 const AdminMonitor = lazy(() => import("@/components/admin/AdminMonitor"));
 const PollManager = lazy(() => import("@/components/admin/PollManager"));
 const SubscriptionOrderManager = lazy(() => import("@/components/admin/SubscriptionOrderManager"));
+const SecurityLogManager = lazy(() => import("@/components/admin/SecurityLogManager"));
+const SystemHealthCheck = lazy(() => import("@/components/admin/SystemHealthCheck"));
+const LandingDescriptionManager = lazy(() => import("@/components/admin/LandingDescriptionManager"));
+const ChatModeratorManager = lazy(() => import("@/components/admin/ChatModeratorManager"));
+const PlaylistManager = lazy(() => import("@/components/admin/PlaylistManager"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -49,9 +54,17 @@ const AdminDashboard = () => {
       case "orders": return <SubscriptionOrderManager />;
       case "coin-packages": return <CoinPackageManager />;
       case "coin-orders": return <CoinOrderManager />;
+      case "descriptions": return <LandingDescriptionManager />;
       case "polls": return <PollManager />;
+      case "security": return <SecurityLogManager />;
+      case "health": return <SystemHealthCheck />;
       case "monitor": return <AdminMonitor />;
-      case "site": return <SiteSettingsManager />;
+      case "site": return (
+        <div className="space-y-6">
+          <SiteSettingsManager />
+          <ChatModeratorManager />
+        </div>
+      );
       default: return <LiveControl />;
     }
   };
