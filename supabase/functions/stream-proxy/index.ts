@@ -203,10 +203,21 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
 // Extract YouTube video ID from various URL formats
 function extractYouTubeId(url: string): string {
   if (!url) return url;
-  // Already a plain ID (11 chars, alphanumeric + - _)
   if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
   const match = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/v\/|\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
   return match?.[1] || url;
+}
+
+// XOR encrypt YouTube video ID to prevent exposure in network responses
+function xorEncryptId(videoId: string): string {
+  const key = [82,84,52,56,120,75,57,109,81,50,118,76,55,110,80,52];
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(videoId);
+  const result = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) {
+    result[i] = bytes[i] ^ key[i % key.length];
+  }
+  return "enc:" + btoa(String.fromCharCode(...result));
 }
 
 // Generate a secure YouTube embed HTML page
