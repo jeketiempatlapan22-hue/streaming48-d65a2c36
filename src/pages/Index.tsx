@@ -155,6 +155,7 @@ const Index = () => {
     setProofUrl("");
     setPhone("");
     setEmail("");
+    setUploadingProof(false);
   };
 
   const handleCoinBuy = (show: Show) => {
@@ -206,8 +207,9 @@ const Index = () => {
   const handleConfirmRegular = () => {
     if (!selectedShow || !settings.whatsapp_number) return;
     const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+    const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
     const msg = encodeURIComponent(
-      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN TIKET BARU*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${selectedShow.title}\n💰 *Harga:* ${selectedShow.price}\n${selectedShow.schedule_date ? `📅 *Jadwal:* ${selectedShow.schedule_date} ${selectedShow.schedule_time}\n` : ""}${selectedShow.lineup ? `👥 *Lineup:* ${selectedShow.lineup}\n` : ""}\n📋 *DATA PEMBELI*\n📧 Email: ${email}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
+      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN TIKET BARU*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${selectedShow.title}\n💰 *Harga:* ${selectedShow.price}\n${selectedShow.schedule_date ? `📅 *Jadwal:* ${selectedShow.schedule_date} ${selectedShow.schedule_time}\n` : ""}${selectedShow.lineup ? `👥 *Lineup:* ${selectedShow.lineup}\n` : ""}\n📋 *DATA PEMBELI*\n📧 Email: ${email}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
     );
     window.open(`https://wa.me/${settings.whatsapp_number}?text=${msg}`, "_blank");
     setSelectedShow(null);
@@ -221,9 +223,9 @@ const Index = () => {
     try {
       const ext = file.name.split(".").pop();
       const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("coin-proofs").upload(path, file);
+      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
       if (error) throw error;
-      const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(path, 86400);
+      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
       setProofUrl(urlData?.signedUrl || "");
       if (selectedShow.is_subscription) setPurchaseStep("info");
     } catch {
@@ -659,7 +661,7 @@ const Index = () => {
               <div className="space-y-4">
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <p className="text-sm text-muted-foreground">
-                    Silakan scan QRIS di bawah, lalu kirim bukti transfer secara manual ke admin via WhatsApp.
+                    Silakan scan QRIS di bawah, lalu upload bukti transfer dan kirim pesanan ke admin via WhatsApp.
                   </p>
                 </div>
                 {selectedShow.qris_image_url ? (
@@ -669,6 +671,39 @@ const Index = () => {
                     QRIS belum tersedia
                   </div>
                 )}
+
+                {/* Upload bukti transfer */}
+                <div>
+                  <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Upload className="h-3.5 w-3.5" /> Upload Bukti Transfer
+                  </label>
+                  {proofUrl ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))]">
+                        <CheckCircle className="h-4 w-4" /> Bukti berhasil diupload
+                      </div>
+                      <img src={proofUrl} alt="Bukti" className="max-h-32 rounded-lg border border-border object-contain" />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-3 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = "image/*,.heic,.heif";
+                        input.capture = "environment";
+                        input.onchange = (e) => handleUploadProof(e as any);
+                        input.click();
+                      }}
+                      disabled={uploadingProof}
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploadingProof ? "Mengupload..." : "Pilih Foto Bukti Transfer"}
+                    </button>
+                  )}
+                </div>
+
                 <div>
                   <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                     <Mail className="h-3.5 w-3.5" /> Email Anda
@@ -688,7 +723,7 @@ const Index = () => {
                   <MessageCircle className="h-4 w-4" /> Kirim Pesanan via WhatsApp
                 </Button>
                 <p className="text-[10px] text-center text-muted-foreground">
-                  * Anda akan diarahkan ke WhatsApp
+                  * Anda akan diarahkan ke WhatsApp untuk mengirim data pesanan dan bukti transfer ke admin
                 </p>
               </div>
             )}

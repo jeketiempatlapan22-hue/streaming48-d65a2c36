@@ -28,6 +28,7 @@ const AdminNotifications = lazy(() => import("@/components/admin/AdminNotificati
 const ModeratorAccountManager = lazy(() => import("@/components/admin/ModeratorAccountManager"));
 const UserManager = lazy(() => import("@/components/admin/UserManager"));
 const AdminBroadcast = lazy(() => import("@/components/admin/AdminBroadcast"));
+const MediaLibrary = lazy(() => import("@/components/admin/MediaLibrary"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -81,6 +82,7 @@ const AdminDashboard = () => {
         </div>
       );
       case "users": return <UserManager />;
+      case "media": return <MediaLibrary />;
       default: return <LiveControl />;
     }
   };

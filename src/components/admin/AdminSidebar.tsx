@@ -1,5 +1,5 @@
 import logo from "@/assets/logo.png";
-import { Radio, Key, Monitor, Settings, LogOut, Theater, FileText, ClipboardList, Coins, Package, Shield, Activity, ScrollText, UsersRound, UserCog } from "lucide-react";
+import { Radio, Key, Monitor, Settings, LogOut, Theater, FileText, ClipboardList, Coins, Package, Shield, Activity, ScrollText, UsersRound, UserCog, Image } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface AdminSidebarProps {
@@ -25,6 +25,7 @@ const sections = [
   { id: "site", label: "Pengaturan", icon: Settings },
   { id: "moderators", label: "Akun Moderator", icon: UsersRound },
   { id: "users", label: "Manajemen User", icon: UserCog },
+  { id: "media", label: "Media Library", icon: Image },
 ];
 
 const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, onMobileOpenChange }: AdminSidebarProps) => {
