@@ -35,6 +35,8 @@ const LivePage = () => {
   const [countdown, setCountdown] = useState("");
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
+  const [showMismatch, setShowMismatch] = useState(false);
+  const [mismatchShowTitle, setMismatchShowTitle] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
