@@ -113,6 +113,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const isReplayList = /^\/replay$/i.test(rawText);
   const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
   const isSetOffline = /^\/setoffline$/i.test(rawText);
+  const msgshowMatch = rawText.match(/^\/msgshow\s+(.+?)\s*\|\s*(.+)$/is);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -125,6 +126,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (isReplayList) return await handleReplayList(supabase);
   if (setliveMatch) return await handleSetLive(supabase, setliveMatch[1]?.trim() || null);
   if (isSetOffline) return await handleSetOffline(supabase);
+  if (msgshowMatch) return await handleMsgShow(supabase, msgshowMatch[1].trim(), msgshowMatch[2].trim());
   if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     return await handleBulkOrders(supabase, ids, 'approve');
@@ -163,6 +165,9 @@ TIDAK <id> - Tolak order
 /setlive - Set stream pertama jadi LIVE
 /setlive <judul> - Set stream tertentu jadi LIVE
 /setoffline - Set semua stream jadi OFFLINE
+
+📨 *Messaging:*
+/msgshow <nama show> | <pesan> - Kirim WA ke semua pemesan show
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
@@ -483,6 +488,43 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
       await supabase.from('subscription_orders').update({ status: 'rejected' }).eq('id', order.id).eq('status', 'pending');
       return `❌ Subscription ${sid} untuk "${showTitle}" ditolak.`;
     }
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleMsgShow(supabase: any, showName: string, message: string): Promise<string> {
+  try {
+    const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+    if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN tidak dikonfigurasi.';
+
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_active', true).ilike('title', `%${showName}%`).limit(5);
+    if (!shows || shows.length === 0) return `⚠️ Show "${showName}" tidak ditemukan.`;
+    if (shows.length > 1) {
+      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
+      for (const s of shows) msg += `• ${s.title}\n`;
+      msg += '\n💡 Gunakan nama yang lebih spesifik.';
+      return msg;
+    }
+
+    const show = shows[0];
+    const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
+    const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
+
+    if (phones.length === 0) return `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${show.title}".`;
+
+    let sent = 0;
+    let failed = 0;
+    for (const phone of phones) {
+      try {
+        await sendFonnteMessage(FONNTE_TOKEN, phone, message);
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return `✅ *Pesan Terkirim!*\n\n🎬 Show: ${show.title}\n📨 Terkirim: ${sent} nomor${failed > 0 ? `\n⚠️ Gagal: ${failed}` : ''}\n\n📝 Pesan: ${message}`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }

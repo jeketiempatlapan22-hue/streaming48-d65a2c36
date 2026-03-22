@@ -134,6 +134,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isReplayList = /^\/replay$/i.test(rawText);
   const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
   const isSetOffline = /^\/setoffline$/i.test(rawText);
+  const msgshowMatch = rawText.match(/^\/msgshow\s+(.+?)\s*\|\s*(.+)$/is);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -157,6 +158,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleSetLiveCommand(supabase, botToken, chatId, setliveMatch[1]?.trim() || null);
   } else if (isSetOffline) {
     await handleSetOfflineCommand(supabase, botToken, chatId);
+  } else if (msgshowMatch) {
+    await handleMsgShowCommand(supabase, botToken, chatId, msgshowMatch[1].trim(), msgshowMatch[2].trim());
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
@@ -187,6 +190,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/setlive\` \\- Set stream pertama jadi LIVE\n` +
     `\`/setlive <judul>\` \\- Set stream tertentu jadi LIVE\n` +
     `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
+    `📨 *Messaging:*\n` +
+    `\`/msgshow <nama show> | <pesan>\` \\- Kirim WA ke semua pemesan show\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini`;
@@ -561,6 +566,46 @@ async function handleSetOfflineCommand(supabase: any, botToken: string, chatId: 
     const names = liveStreams.map((s: any) => escapeMarkdown(s.title)).join(', ');
     await sendTelegramMessage(botToken, chatId, `🔴 *Stream OFFLINE\\!*\n\n📡 ${names} sekarang OFFLINE\\.`);
   } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleMsgShowCommand(supabase: any, botToken: string, chatId: string, showName: string, message: string) {
+  try {
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_active', true).ilike('title', `%${showName}%`).limit(5);
+    if (!shows || shows.length === 0) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Show "${escapeMarkdown(showName)}" tidak ditemukan\\.`);
+      return;
+    }
+    if (shows.length > 1) {
+      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
+      for (const s of shows) msg += `• ${escapeMarkdown(s.title)}\n`;
+      msg += '\n💡 Gunakan nama yang lebih spesifik\\.';
+      await sendTelegramMessage(botToken, chatId, msg);
+      return;
+    }
+
+    const show = shows[0];
+    const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
+    const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
+
+    if (phones.length === 0) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${escapeMarkdown(show.title)}"\\.`);
+      return;
+    }
+
+    let sent = 0;
+    let failed = 0;
+    for (const phone of phones) {
+      try {
+        await sendFonnteWhatsApp(phone, message);
+        sent++;
+      } catch { failed++; }
+    }
+
+    const result = `✅ *Pesan Terkirim\\!*\n\n🎬 Show: ${escapeMarkdown(show.title)}\n📨 Terkirim: ${sent} nomor${failed > 0 ? `\n⚠️ Gagal: ${failed}` : ''}\n\n📝 Pesan: ${escapeMarkdown(message)}`;
+    await sendTelegramMessage(botToken, chatId, result);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
 }
 
 function escapeMarkdown(text: string): string {
