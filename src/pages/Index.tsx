@@ -757,7 +757,7 @@ const Index = () => {
         </div>
       )}
 
-      {/* Coin Purchase Dialog */}
+      {/* Coin Purchase Dialog - No upload needed */}
       <Dialog open={!!coinShowTarget} onOpenChange={() => { setCoinShowTarget(null); setCoinResult(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -766,12 +766,6 @@ const Index = () => {
           </DialogHeader>
           {!coinResult ? (
             <div className="space-y-4">
-              {coinShowTarget?.qris_image_url && (
-                <div className="text-center">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">📱 Scan QRIS untuk pembayaran</p>
-                  <img src={coinShowTarget.qris_image_url} alt="QRIS" className="mx-auto max-h-48 rounded-lg object-contain" />
-                </div>
-              )}
               <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Show</span>
@@ -812,9 +806,11 @@ const Index = () => {
             <div className="space-y-4 text-center">
               <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
               <p className="font-semibold text-foreground">Pembelian Berhasil!</p>
-              <div className="rounded-lg bg-secondary p-4">
-                <p className="font-mono text-lg font-bold text-primary">{coinResult.token_code}</p>
-              </div>
+              {coinResult.token_code && (
+                <div className="rounded-lg bg-secondary p-4">
+                  <p className="font-mono text-lg font-bold text-primary">{coinResult.token_code}</p>
+                </div>
+              )}
               {coinResult.replay_password && (
                 <div className="rounded-lg border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/10 p-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1">🔐 Sandi Replay</p>

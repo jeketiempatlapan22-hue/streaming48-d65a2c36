@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift } from "lucide-react";
 
@@ -17,6 +18,7 @@ const ViewerAuth = () => {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
   const [searchParams] = useSearchParams();
   const refCode = searchParams.get("ref");
   const navigate = useNavigate();
@@ -25,7 +27,6 @@ const ViewerAuth = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) navigate("/coins");
     });
-    // If ref code present, default to signup
     if (refCode) setMode("signup");
   }, [navigate, refCode]);
 
@@ -34,7 +35,10 @@ const ViewerAuth = () => {
   const getAuthEmail = () => method === "email" ? email.trim() : deriveEmail(phone);
   const isFormValid = () => {
     if (mode === "signup" && !username.trim()) return false;
-    if (method === "phone") return normalizePhone(phone).length >= 10 && password.length >= 6;
+    if (method === "phone") {
+      if (!phoneVerified) return false;
+      return normalizePhone(phone).length >= 10 && password.length >= 6;
+    }
     return email.trim().includes("@") && password.length >= 6;
   };
 
@@ -59,7 +63,6 @@ const ViewerAuth = () => {
         toast.error(error.message.includes("already registered") ? "Sudah terdaftar." : error.message);
       } else {
         toast.success("Berhasil!");
-        // Auto-claim referral if present
         if (refCode) {
           await claimReferral(refCode);
         }
@@ -100,7 +103,30 @@ const ViewerAuth = () => {
             <button type="button" onClick={() => setMethod("email")} className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}><Mail className="h-3.5 w-3.5" /> Email</button>
           </div>
           {mode === "signup" && <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Username</label><div className="relative"><User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="NamaKamu" required maxLength={30} className="bg-background pl-10" /></div></div>}
-          {method === "phone" && <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Nomor HP</label><div className="relative"><Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" required className="bg-background pl-10" /></div></div>}
+          {method === "phone" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Nomor HP</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); }} placeholder="08xxxxxxxxxx" required className="bg-background pl-10" />
+                </div>
+              </div>
+              {normalizePhone(phone).length >= 10 && (
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-secondary/50 p-3">
+                  <Checkbox
+                    id="phone-verify"
+                    checked={phoneVerified}
+                    onCheckedChange={(checked) => setPhoneVerified(checked === true)}
+                    className="mt-0.5"
+                  />
+                  <label htmlFor="phone-verify" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
+                    Saya memverifikasi bahwa nomor <span className="font-bold text-foreground">{phone}</span> adalah nomor HP saya yang aktif dan benar
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
           {method === "email" && <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><div className="relative"><Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" required className="bg-background pl-10" /></div></div>}
           <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Password</label><div className="relative"><Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 karakter" required minLength={6} className="bg-background pl-10" /></div></div>
           <Button type="submit" className="w-full" disabled={loading || !isFormValid()}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
