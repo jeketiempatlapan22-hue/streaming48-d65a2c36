@@ -202,7 +202,7 @@ const Index = () => {
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
     setPurchaseStep(show.is_subscription ? "qris" : "info");
-    setProofUrl("");
+    setProofUrl(""); setProofFilePath("");
     setPhone("");
     setEmail("");
     setUploadingProof(false);
