@@ -323,6 +323,9 @@ const Index = () => {
                         <Clock className="h-4 w-4 text-primary" />{show.schedule_time}
                       </div>
                     )}
+                    {show.schedule_date && show.schedule_time && (
+                      <CountdownTimer dateStr={show.schedule_date} timeStr={show.schedule_time} />
+                    )}
                     {show.lineup && (
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <Users className="mt-0.5 h-4 w-4 text-primary" />
