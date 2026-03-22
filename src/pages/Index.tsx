@@ -330,7 +330,9 @@ const Index = () => {
 
       {/* Hero Section */}
       <section className="relative flex min-h-[70vh] items-center justify-center overflow-hidden pt-16">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-background to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e1a] via-[#0d1226] to-background" />
+        {/* Starfield overlay */}
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(1px 1px at 20% 30%, hsl(var(--primary)/0.6) 1px, transparent 0), radial-gradient(1px 1px at 80% 70%, hsl(var(--primary)/0.4) 1px, transparent 0), radial-gradient(1px 1px at 50% 50%, hsl(var(--primary)/0.5) 1px, transparent 0)', backgroundSize: '200px 200px, 150px 150px, 300px 300px' }} />
 
         {/* Floating particles */}
         <div className="absolute inset-0 overflow-hidden">
@@ -347,16 +349,16 @@ const Index = () => {
 
         <div className="relative z-10 text-center px-4">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-            <div className="mx-auto mb-6 h-20 w-20 md:h-28 md:w-28 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.4)] animate-float">
-              <img src={logo} alt="RT48" className="h-10 w-10 md:h-14 md:w-14 rounded-full object-cover" />
+            <div className="mx-auto mb-6 h-28 w-28 md:h-36 md:w-36 rounded-full border-[3px] border-[#c9a96e]/60 flex items-center justify-center shadow-[0_0_30px_rgba(201,169,110,0.3),0_0_60px_rgba(201,169,110,0.1)] animate-float overflow-hidden">
+              <img src={logo} alt="RT48" className="h-full w-full object-cover" />
             </div>
           </motion.div>
           <motion.h1
-            className="mb-3 text-4xl font-extrabold tracking-tight text-foreground md:text-6xl"
+            className="mb-3 text-4xl font-extrabold tracking-tight md:text-6xl"
             style={{ lineHeight: "1.05" }}
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
           >
-            Real<span className="text-primary">Time48</span>
+            <span className="text-foreground">Real</span><span className="text-primary">Time48</span>
           </motion.h1>
           <motion.p
             className="mx-auto mb-4 max-w-md text-muted-foreground md:text-lg"
