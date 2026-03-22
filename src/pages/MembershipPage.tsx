@@ -119,12 +119,12 @@ const MembershipPage = () => {
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofUrl) return;
     setSubmitting(true);
-    await supabase.from("subscription_orders").insert({
+    await (supabase as any).from("subscription_orders").insert({
       show_id: selectedShow.id,
       phone, email,
       payment_proof_url: proofUrl,
       payment_method: "qris",
-    } as any);
+    });
     setResultGroupLink(selectedShow.group_link || "");
     setPurchaseStep("done");
     setSubmitting(false);
