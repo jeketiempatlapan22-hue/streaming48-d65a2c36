@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Radio, Film, MonitorPlay, Settings } from "lucide-react";
+import { Play, Radio, Film, MonitorPlay, Settings, Shield } from "lucide-react";
 import VideoPlayer from "@/components/VideoPlayer";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
