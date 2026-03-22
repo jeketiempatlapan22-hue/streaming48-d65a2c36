@@ -182,11 +182,17 @@ const LivePage = () => {
     if (!tokenCode || !tokenData?.id) return;
     const fp = getFingerprint();
     const interval = window.setInterval(() => {
-      supabase.rpc("create_token_session", {
-        _token_code: tokenCode,
-        _fingerprint: fp,
-        _user_agent: navigator.userAgent,
-      }).catch(() => {});
+      void (async () => {
+        try {
+          await supabase.rpc("create_token_session", {
+            _token_code: tokenCode,
+            _fingerprint: fp,
+            _user_agent: navigator.userAgent,
+          });
+        } catch {
+          // no-op heartbeat failure
+        }
+      })();
     }, 45000);
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint]);
