@@ -140,6 +140,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleUsersCommand(supabase, botToken, chatId);
   } else if (broadcastMatch) {
     await handleBroadcastCommand(supabase, botToken, chatId, broadcastMatch[1].trim());
+  } else if (replayMatch) {
+    await handleReplayToggle(supabase, botToken, chatId, replayMatch[1].trim());
+  } else if (isReplayList) {
+    await handleReplayList(supabase, botToken, chatId);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
