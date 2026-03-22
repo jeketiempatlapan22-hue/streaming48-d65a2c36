@@ -162,6 +162,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleSetOfflineCommand(supabase, botToken, chatId);
   } else if (msgshowMatch) {
     await handleMsgShowCommand(supabase, botToken, chatId, msgshowMatch[1].trim(), msgshowMatch[2].trim());
+  } else if (resetMatch) {
+    await handlePasswordResetCommand(supabase, botToken, chatId, resetMatch[1].toLowerCase(), 'approve');
+  } else if (tolakResetMatch) {
+    await handlePasswordResetCommand(supabase, botToken, chatId, tolakResetMatch[1].toLowerCase(), 'reject');
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
