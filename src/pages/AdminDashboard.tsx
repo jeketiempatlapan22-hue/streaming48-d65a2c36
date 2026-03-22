@@ -49,7 +49,7 @@ const AdminDashboard = () => {
       case "shows": return <ShowManager />;
       case "coin-packages": return <CoinPackageManager />;
       case "coin-orders": return <CoinOrderManager />;
-      case "monitor": return <div className="text-muted-foreground text-center py-16">Monitor — Coming soon</div>;
+      case "monitor": return <AdminMonitor />;
       case "site": return <SiteSettingsManager />;
       default: return <LiveControl />;
     }
