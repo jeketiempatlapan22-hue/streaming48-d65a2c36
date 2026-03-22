@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Pencil, Trash2, LogOut, Play, Radio, Film, MonitorPlay, Power, PowerOff } from "lucide-react";
+import { Plus, Pencil, Trash2, LogOut, Shield, Radio, Film, MonitorPlay, Power, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 
