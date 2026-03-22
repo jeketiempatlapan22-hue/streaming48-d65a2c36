@@ -81,6 +81,12 @@ const LivePage = () => {
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
+  const getFingerprint = useCallback(() => {
+    let fp = localStorage.getItem("rt48_fp");
+    if (!fp) { fp = crypto.randomUUID(); localStorage.setItem("rt48_fp", fp); }
+    return fp;
+  }, []);
+
   const fp = getFingerprint();
 
   // IMPORTANT: All hooks must be called before any conditional returns
@@ -100,17 +106,10 @@ const LivePage = () => {
         if (profile?.username) { setUsername(profile.username); localStorage.setItem("rt48_username", profile.username); return; }
         setShowUsernameModal(true); return;
       }
-      // Always show modal if no username stored
       const stored = localStorage.getItem("rt48_username");
       if (!stored) setShowUsernameModal(true);
     };
     checkAuth();
-  }, []);
-
-  const getFingerprint = useCallback(() => {
-    let fp = localStorage.getItem("rt48_fp");
-    if (!fp) { fp = crypto.randomUUID(); localStorage.setItem("rt48_fp", fp); }
-    return fp;
   }, []);
 
   useEffect(() => {
