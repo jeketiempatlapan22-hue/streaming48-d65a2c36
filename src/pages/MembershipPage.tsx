@@ -119,15 +119,21 @@ const MembershipPage = () => {
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofUrl) return;
     setSubmitting(true);
-    await (supabase as any).from("subscription_orders").insert({
+    const { data: orderData } = await (supabase as any).from("subscription_orders").insert({
       show_id: selectedShow.id,
       phone, email,
       payment_proof_url: proofUrl,
       payment_method: "qris",
-    });
+    }).select("id").single();
     setResultGroupLink(selectedShow.group_link || "");
     setPurchaseStep("done");
     setSubmitting(false);
+
+    if (orderData?.id) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, payment_proof_url: proofUrl },
+      }).catch(() => {});
+    }
   };
 
   const handleCoinPurchase = async () => {

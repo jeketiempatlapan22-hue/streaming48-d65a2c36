@@ -217,7 +217,16 @@ const Index = () => {
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofUrl) return;
+    const { data: orderData } = await supabase.from("subscription_orders").insert({
+      show_id: selectedShow.id, phone, email, payment_proof_url: proofUrl,
+    }).select("id").single();
     setPurchaseStep("done");
+
+    if (orderData?.id) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, payment_proof_url: proofUrl },
+      }).catch(() => {});
+    }
   };
 
   const regularShows = shows.filter((s) => !s.is_subscription && !s.is_replay);
