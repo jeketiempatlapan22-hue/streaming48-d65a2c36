@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
+import ConnectionStatus from "@/components/viewer/ConnectionStatus";
+import InstallBanner from "@/components/viewer/InstallBanner";
 import {
   Calendar, Clock, Users, MessageCircle, Ticket, Star, Upload, CheckCircle, Crown, Sparkles,
   Menu, X, Phone, Info, Radio, CreditCard, Mail, Coins, User, Copy, Play, Lock, Film, Home, Settings,
