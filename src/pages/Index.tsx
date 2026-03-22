@@ -7,6 +7,8 @@ import InstallBanner from "@/components/viewer/InstallBanner";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import ThemeToggle from "@/components/ThemeToggle";
 import LiveNowBanner from "@/components/viewer/LiveNowBanner";
+import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
+import LandingStats from "@/components/viewer/LandingStats";
 import {
   Calendar, Clock, Users, MessageCircle, Ticket, Star, Upload, CheckCircle, Crown, Sparkles,
   Menu, X, Phone, Info, Radio, CreditCard, Mail, Coins, User, Copy, Play, Lock, Film, Home, Settings,
