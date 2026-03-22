@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import VideoPlayer from "@/components/VideoPlayer";
+import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
 import logo from "@/assets/logo.png";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import PipButton from "@/components/viewer/PipButton";
 import SecurityAlert from "@/components/viewer/SecurityAlert";
 import PlayerAnimations, { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
+import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
@@ -34,6 +35,7 @@ const LivePage = () => {
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
+  const playerRef = useRef<VideoPlayerHandle>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -89,9 +91,7 @@ const LivePage = () => {
         if (s.key === "active_show_id") activeShowId = s.value;
       });
 
-      // Validate show_id: token must match the currently active show
       if (result.show_id && activeShowId && result.show_id !== activeShowId) {
-        // Fetch show titles for better error message
         const { data: tokenShow } = await supabase.from("shows").select("title").eq("id", result.show_id).maybeSingle();
         const { data: activeShow } = await supabase.from("shows").select("title").eq("id", activeShowId).maybeSingle();
         setShowMismatch(true);
@@ -135,6 +135,15 @@ const LivePage = () => {
 
   const handleUsernameSet = async (name: string) => { setUsername(name); localStorage.setItem("rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
 
+  // Handle playlist switching: pause current, auto-play new
+  const handlePlaylistSwitch = useCallback((newPlaylist: any) => {
+    if (activePlaylist?.id === newPlaylist.id) return;
+    // Pause current player before switching
+    playerRef.current?.pause();
+    setActivePlaylist(newPlaylist);
+    // New player will auto-play via autoPlay prop
+  }, [activePlaylist?.id]);
+
   if (loading) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">Memvalidasi akses...</p></div></div>);
 
   if (blocked) return (<div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="w-full max-w-md rounded-2xl border-2 border-destructive bg-card p-8 text-center"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-destructive/10 animate-pulse"><span className="text-4xl">🚫</span></div><h2 className="mb-2 text-2xl font-black text-destructive uppercase">DIBLOKIR</h2><p className="text-sm text-muted-foreground mb-4">Token Anda telah diblokir.</p><button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🏠 Ke Beranda</button></div></div>);
@@ -147,7 +156,6 @@ const LivePage = () => {
 
   const isLive = stream?.is_live || false;
 
-  // Show mismatch: token is for a different show
   if (showMismatch) return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center">
@@ -170,7 +178,6 @@ const LivePage = () => {
     tokenCode
   );
 
-  // Determine the effective playlist type for the player
   const effectiveType = proxyType === "youtube_proxy" ? "youtube" : (activePlaylist?.type || "m3u8");
 
   return (
@@ -184,6 +191,7 @@ const LivePage = () => {
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
           <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
           <div className="flex-1 min-w-0"><h1 className="text-sm font-bold text-foreground lg:text-base truncate">{stream?.title || "RealTime48"}</h1></div>
+          <LiveViewerCount isLive={isLive} />
           <PipButton />
           {isLive ? <span className="flex items-center gap-1.5 rounded-full bg-destructive/20 px-3 py-1 text-xs font-semibold text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />LIVE</span> : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">OFFLINE</span>}
         </header>
@@ -192,13 +200,18 @@ const LivePage = () => {
             <div className="relative">
               {signedUrl ? (
                 <VideoPlayer
+                  ref={playerRef}
+                  key={activePlaylist.id}
                   playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
                   autoPlay
                   tokenCode={tokenData?.code}
                 />
               ) : signedLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
-                  <p className="text-sm text-muted-foreground animate-pulse">Memuat stream...</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+                    <p className="text-sm text-muted-foreground animate-pulse">Memuat stream...</p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
@@ -215,7 +228,7 @@ const LivePage = () => {
         </div>
         {isLive && playlists.length > 1 && (
           <div className="flex gap-2 overflow-x-auto border-t border-border px-4 py-2">
-            {playlists.map((p: any) => <button key={p.id} onClick={() => setActivePlaylist(p)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-all ${activePlaylist?.id === p.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{p.title}</button>)}
+            {playlists.map((p: any) => <button key={p.id} onClick={() => handlePlaylistSwitch(p)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-all ${activePlaylist?.id === p.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{p.title}</button>)}
           </div>
         )}
         <div className="border-t border-border px-4 py-3"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>

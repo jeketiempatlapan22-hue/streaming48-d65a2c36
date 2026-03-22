@@ -21,8 +21,8 @@ export interface VideoPlayerHandle {
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isLoading, setIsLoading] = useState(false); // Start false - no delay
   const [isSwitchingQuality, setIsSwitchingQuality] = useState(false);
   const [qualities, setQualities] = useState<{ label: string; index: number; ytKey?: string }[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
@@ -108,7 +108,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   // Cleanup HLS on playlist change
   useEffect(() => {
-    setIsLoading(true);
     hlsInitRef.current = false;
     return () => {
       if (hlsRef.current) {
@@ -140,6 +139,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     hlsInitRef.current = true;
     let destroyed = false;
     let hls: any = null;
+    setIsLoading(true);
 
     const initHls = async () => {
       const Hls = (await import("hls.js")).default;
@@ -147,6 +147,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const decodedUrl = deobfuscate(obfuscate(playlist.url));
       if (!Hls.isSupported()) {
         videoRef.current!.src = decodedUrl;
+        setIsLoading(false);
         if (autoPlay) videoRef.current!.play().catch(() => {});
         return;
       }
@@ -294,16 +295,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             onReady: (e: any) => {
               if (destroyed) return;
               ytReadyRef.current = true;
-              let qualityReleased = false;
-              const releaseQuality = () => {
-                if (qualityReleased || destroyed) return;
-                qualityReleased = true;
-                try {
-                  if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackQuality === 'function') {
-                    ytPlayerRef.current.setPlaybackQuality('default');
-                  }
-                } catch {}
-              };
+              setIsLoading(false);
 
               // Force highest quality initially
               try {
@@ -314,6 +306,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               } catch {}
 
               // Fallback: release quality lock after 8s
+              const releaseQuality = () => {
+                try {
+                  if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackQuality === 'function') {
+                    ytPlayerRef.current.setPlaybackQuality('default');
+                  }
+                } catch {}
+              };
               const fallbackTimer = setTimeout(releaseQuality, 8000);
               (e.target as any).__releaseQuality = releaseQuality;
               (e.target as any).__fallbackTimer = fallbackTimer;
@@ -327,13 +326,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 }
               } catch {}
 
-              if (autoPlay) e.target.playVideo();
+              if (autoPlay) {
+                e.target.playVideo();
+                setIsPlaying(true);
+              }
             },
             onStateChange: (e: any) => {
               if (destroyed) return;
               const state = e.data;
               setIsPlaying(state === 1);
-              if (state === 1 || state === 2) setIsLoading(false);
+              setIsLoading(state === 3); // Only show loading on buffering
 
               // If buffering >4s, release quality lock
               if (state === 3) {
@@ -376,8 +378,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   // Cloudflare loading
   useEffect(() => {
     if (playlist.type === "cloudflare") {
-      const timer = setTimeout(() => setIsLoading(false), 2000);
-      return () => clearTimeout(timer);
+      setIsLoading(false);
     }
   }, [playlist]);
 
@@ -489,12 +490,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       ref={containerRef}
       className={`relative w-full bg-card overflow-hidden ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
     >
-      {/* Loading overlay */}
+      {/* Loading overlay - only shown when actually buffering */}
       {isLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80">
-          <div className="flex flex-col items-center gap-3">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="text-xs text-muted-foreground animate-pulse">Menghubungkan ke streaming...</p>
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
+            <p className="text-xs text-muted-foreground">Memuat...</p>
           </div>
         </div>
       )}
