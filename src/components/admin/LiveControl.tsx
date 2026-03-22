@@ -140,6 +140,27 @@ const LiveControl = () => {
         </div>
       </div>
 
+      {/* Active Show Selector */}
+      <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
+        <p className="text-xs text-muted-foreground">Pilih show yang sedang berlangsung. Token hanya bisa akses show yang sesuai.</p>
+        <Select value={activeShowId} onValueChange={saveActiveShow}>
+          <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
+          <SelectContent>
+            {shows.filter(s => s.is_active).map((show) => (
+              <SelectItem key={show.id} value={show.id}>
+                {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {activeShowId && (
+          <p className="text-xs text-muted-foreground">
+            Show aktif: <span className="font-semibold text-primary">{shows.find(s => s.id === activeShowId)?.title || "Unknown"}</span>
+          </p>
+        )}
+      </div>
+
       {/* Next Show Countdown */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
         <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Show Berikutnya</h3>
