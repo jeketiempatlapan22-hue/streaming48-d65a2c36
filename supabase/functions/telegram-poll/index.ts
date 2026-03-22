@@ -253,7 +253,12 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/setlive\` \\- Set stream jadi LIVE\n` +
     `\`/setlive #ID\` \\- Set LIVE \\+ pilih show aktif\n` +
     `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
-    `🔑 *Password Reset:*\n` +
+    `🔑 *Token Management:*\n` +
+    `\`/blocktoken <kode>\` \\- Blokir token user\n` +
+    `\`/unblocktoken <kode>\` \\- Buka blokir token\n` +
+    `\`/resettoken <kode>\` \\- Reset sesi token\n` +
+    `\`/deletetoken <kode>\` \\- Hapus token\n\n` +
+    `🔐 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
     `📨 *Messaging:*\n` +
