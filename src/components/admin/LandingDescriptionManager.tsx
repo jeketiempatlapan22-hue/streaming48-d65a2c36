@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Eye, EyeOff, Upload, Image, AlignLeft, AlignCenter, AlignRight, X } from "lucide-react";
 
@@ -16,6 +17,13 @@ const LandingDescriptionManager = () => {
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
   const [showGallery, setShowGallery] = useState(false);
   const [galleryTargetId, setGalleryTargetId] = useState<string | null>(null);
+
+  // Layout settings
+  const [descLayout, setDescLayout] = useState("list");
+  const [descWidth, setDescWidth] = useState("medium");
+  const [descTitle, setDescTitle] = useState("");
+  const [descSubtitle, setDescSubtitle] = useState("");
+  const [descQuote, setDescQuote] = useState("");
   const { toast } = useToast();
 
   const fetchItems = async () => {
@@ -31,7 +39,25 @@ const LandingDescriptionManager = () => {
     }
   };
 
-  useEffect(() => { fetchItems(); fetchGallery(); }, []);
+  const fetchSettings = async () => {
+    const { data } = await supabase.from("site_settings").select("*").in("key", ["landing_desc_layout", "landing_description_width", "landing_desc_title", "landing_desc_subtitle", "landing_desc_quote"]);
+    if (data) {
+      data.forEach((s: any) => {
+        if (s.key === "landing_desc_layout") setDescLayout(s.value || "list");
+        if (s.key === "landing_description_width") setDescWidth(s.value || "medium");
+        if (s.key === "landing_desc_title") setDescTitle(s.value || "");
+        if (s.key === "landing_desc_subtitle") setDescSubtitle(s.value || "");
+        if (s.key === "landing_desc_quote") setDescQuote(s.value || "");
+      });
+    }
+  };
+
+  useEffect(() => { fetchItems(); fetchGallery(); fetchSettings(); }, []);
+
+  const saveSetting = async (key: string, value: string) => {
+    await supabase.from("site_settings").upsert({ key, value } as any, { onConflict: "key" });
+    toast({ title: "Pengaturan disimpan" });
+  };
 
   const create = async () => {
     await supabase.from("landing_descriptions" as any).insert({ title: "Fitur Baru", content: "Deskripsi fitur...", icon: "✨", sort_order: items.length } as any);
@@ -76,6 +102,48 @@ const LandingDescriptionManager = () => {
         <Button onClick={create} size="sm"><Plus className="mr-1 h-4 w-4" /> Tambah</Button>
       </div>
 
+      {/* Layout Settings */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">⚙️ Pengaturan Tampilan</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Layout</label>
+            <Select value={descLayout} onValueChange={(v) => { setDescLayout(v); saveSetting("landing_desc_layout", v); }}>
+              <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="list">List (Vertikal)</SelectItem>
+                <SelectItem value="grid">Grid (2 Kolom)</SelectItem>
+                <SelectItem value="cards">Cards (3 Kolom)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Lebar Konten</label>
+            <Select value={descWidth} onValueChange={(v) => { setDescWidth(v); saveSetting("landing_description_width", v); }}>
+              <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Kecil (max-w-2xl)</SelectItem>
+                <SelectItem value="medium">Sedang (max-w-4xl)</SelectItem>
+                <SelectItem value="large">Lebar (max-w-6xl)</SelectItem>
+                <SelectItem value="full">Full Width</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Judul Section</label>
+          <Input value={descTitle} onChange={(e) => setDescTitle(e.target.value)} onBlur={() => saveSetting("landing_desc_title", descTitle)} placeholder="Tentang Kami" className="bg-background" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Subtitle</label>
+          <Input value={descSubtitle} onChange={(e) => setDescSubtitle(e.target.value)} onBlur={() => saveSetting("landing_desc_subtitle", descSubtitle)} placeholder="Kenapa harus kami?" className="bg-background" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Kutipan / Quote</label>
+          <Textarea value={descQuote} onChange={(e) => setDescQuote(e.target.value)} onBlur={() => saveSetting("landing_desc_quote", descQuote)} placeholder="Kutipan yang tampil di bawah deskripsi..." className="bg-background" rows={2} />
+        </div>
+      </div>
+
       <div className="space-y-3">
         {items.map((item) => (
           <div key={item.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -86,7 +154,7 @@ const LandingDescriptionManager = () => {
               </div>
               <div className="flex gap-1">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { const u = { ...item, is_active: !item.is_active }; setItems(items.map((i) => i.id === u.id ? u : i)); update(u); }}>
-                  {item.is_active ? <Eye className="h-4 w-4 text-green-500" /> : <EyeOff className="h-4 w-4" />}
+                  {item.is_active ? <Eye className="h-4 w-4 text-[hsl(var(--success))]" /> : <EyeOff className="h-4 w-4" />}
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(item.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div>
