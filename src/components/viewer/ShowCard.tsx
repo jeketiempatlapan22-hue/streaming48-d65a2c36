@@ -108,8 +108,8 @@ const ShowCard = ({
           );
         })()}
 
-        {/* Countdown badge */}
-        {showCountdown && countdown && (
+        {/* Countdown badge - hide for replay shows */}
+        {showCountdown && countdown && !show.is_replay && (
           <div className="absolute top-3 right-3 rounded-lg bg-background/80 backdrop-blur-sm px-2.5 py-1.5 text-center">
             <Timer className="mx-auto mb-0.5 h-3 w-3 text-primary" />
             <p className={`font-mono text-[10px] font-bold ${countdown === "LIVE!" ? "text-destructive animate-pulse" : "text-primary"}`}>
