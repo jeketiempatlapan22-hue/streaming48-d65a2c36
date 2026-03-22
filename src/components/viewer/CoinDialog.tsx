@@ -11,6 +11,7 @@ interface CoinDialogProps {
   coinResult: { token_code: string; remaining_balance: number; access_password?: string } | null;
   onClose: () => void;
   onRedeem: () => void;
+  isReplayMode?: boolean;
 }
 
 const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onRedeem }: CoinDialogProps) => {
