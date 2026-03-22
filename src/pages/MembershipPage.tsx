@@ -93,7 +93,7 @@ const MembershipPage = () => {
 
     setSelectedShow(show);
     setPurchaseMethod(null);
-    setProofUrl("");
+    setProofFilePath("");
     setPhone("");
     setEmail("");
     setResultGroupLink("");
