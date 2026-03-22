@@ -53,7 +53,9 @@ const LivePage = () => {
         if (profile?.username) { setUsername(profile.username); localStorage.setItem("rt48_username", profile.username); return; }
         setShowUsernameModal(true); return;
       }
-      if (!localStorage.getItem("rt48_username")) setShowUsernameModal(true);
+      // Always show modal if no username stored
+      const stored = localStorage.getItem("rt48_username");
+      if (!stored) setShowUsernameModal(true);
     };
     checkAuth();
   }, []);
