@@ -72,6 +72,9 @@ const Index = () => {
   const [replayPasswords, setReplayPasswords] = useState<Record<string, string>>({});
   const [accessPasswords, setAccessPasswords] = useState<Record<string, string>>({});
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [loginPopup, setLoginPopup] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   const fetchData = async () => {
     const [showsRes, settingsRes, streamRes, descRes] = await Promise.all([
