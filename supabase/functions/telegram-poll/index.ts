@@ -167,6 +167,9 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/balance <user>\` \\- Cek saldo user\n\n` +
     `👥 *User Management:*\n` +
     `\`/users\` \\- Daftar semua user\n\n` +
+    `🎬 *Show Management:*\n` +
+    `\`/replay\` \\- Lihat daftar show yang bisa di\\-replay\n` +
+    `\`/replay <nama show>\` \\- Toggle mode replay show\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini`;
