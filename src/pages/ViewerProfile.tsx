@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+
+const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
 
 const ViewerProfile = () => {
   const [user, setUser] = useState<any>(null);
