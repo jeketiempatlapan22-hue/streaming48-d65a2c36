@@ -159,7 +159,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin }: LiveChatProps) => {
 
   const handlePin = useCallback(async (id: string) => {
     const msg = messages.find((m) => m.id === id);
-    if (msg) await supabase.from("chat_messages").update({ is_pinned: !msg.is_pinned }).eq("id", id);
+    if (msg) await supabase.from("chat_messages").update({ is_pinned: !msg.is_pinned } as any).eq("id", id);
   }, [messages]);
 
   const handleDelete = useCallback(async (id: string) => {

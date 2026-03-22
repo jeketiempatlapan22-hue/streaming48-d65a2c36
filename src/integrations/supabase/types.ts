@@ -18,24 +18,33 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_admin: boolean
           is_deleted: boolean
+          is_pinned: boolean
           message: string
+          token_id: string | null
           user_id: string | null
           username: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_admin?: boolean
           is_deleted?: boolean
+          is_pinned?: boolean
           message: string
+          token_id?: string | null
           user_id?: string | null
           username: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_admin?: boolean
           is_deleted?: boolean
+          is_pinned?: boolean
           message?: string
+          token_id?: string | null
           user_id?: string | null
           username?: string
         }
@@ -284,6 +293,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          description: string | null
           id: string
           is_active: boolean
           is_live: boolean
@@ -295,6 +305,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           is_live?: boolean
@@ -306,6 +317,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          description?: string | null
           id?: string
           is_active?: boolean
           is_live?: boolean
