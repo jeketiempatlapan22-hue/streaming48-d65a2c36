@@ -96,6 +96,17 @@ const Index = () => {
   useEffect(() => {
     fetchData();
 
+    // PWA install prompt detection
+    setIsStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as any).standalone === true
+    );
+    const installHandler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", installHandler);
+    window.addEventListener("appinstalled", () => setIsStandalone(true));
     const fetchCoinUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
