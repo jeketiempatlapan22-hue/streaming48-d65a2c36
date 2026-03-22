@@ -161,8 +161,20 @@ const Index = () => {
       supabase.removeChannel(showCh);
       supabase.removeChannel(streamCh);
       cleanupBalance.then((cleanup) => cleanup?.());
+      window.removeEventListener("beforeinstallprompt", installHandler);
     };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") setIsStandalone(true);
+      setInstallPrompt(null);
+    } else {
+      window.location.href = "/install";
+    }
+  };
 
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
