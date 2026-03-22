@@ -207,7 +207,7 @@ const LivePage = () => {
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
           <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
           <div className="flex-1 min-w-0"><h1 className="text-sm font-bold text-foreground lg:text-base truncate">{stream?.title || "RealTime48"}</h1></div>
-          <LiveViewerCount isLive={isLive} />
+          
           <PipButton />
           {isLive ? <span className="flex items-center gap-1.5 rounded-full bg-destructive/20 px-3 py-1 text-xs font-semibold text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />LIVE</span> : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">OFFLINE</span>}
         </header>
