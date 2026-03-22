@@ -13,6 +13,33 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Handle token block notification from admin panel
+  if (req.method === 'POST') {
+    try {
+      const body = await req.clone().json();
+      if (body?.notify_token_block) {
+        const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
+        const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
+        if (BOT_TOKEN && ADMIN_CHAT_ID) {
+          const action = body.action === 'block' ? 'diblokir' : 'dibuka blokirnya';
+          const emoji = body.action === 'block' ? '🚫' : '✅';
+          await sendTelegramMessage(BOT_TOKEN, ADMIN_CHAT_ID, `${emoji} Token \`${escapeMarkdown(body.token_code)}\` telah *${action}* dari admin panel\\.`);
+          // Also notify WhatsApp
+          const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+          const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+          if (FONNTE_TOKEN) {
+            const { data: settings } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle();
+            const adminNums = settings?.value?.split(',').map((n: string) => n.trim()).filter(Boolean) || [];
+            for (const num of adminNums) {
+              await sendFonnteWhatsApp(FONNTE_TOKEN, num, `${emoji} Token ${body.token_code} telah *${action}* dari admin panel.`);
+            }
+          }
+        }
+        return jsonResponse({ ok: true, notified: true });
+      }
+    } catch {}
+  }
+
   const startTime = Date.now();
   const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
   if (!BOT_TOKEN) return errorResponse('TELEGRAM_BOT_TOKEN is not configured');
