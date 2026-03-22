@@ -138,6 +138,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const msgshowMatch = rawText.match(/^\/msgshow\s+(.+?)\s*\|\s*(.+)$/is);
   const resetMatch = text.match(/^RESET\s+(\S+)$/);
   const tolakResetMatch = text.match(/^TOLAK_RESET\s+(\S+)$/);
+  const setactiveMatch = rawText.match(/^\/setactive\s+(\S+)$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -157,6 +158,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleReplayToggle(supabase, botToken, chatId, replayMatch[1].trim());
   } else if (isReplayList) {
     await handleReplayList(supabase, botToken, chatId);
+  } else if (setactiveMatch) {
+    await handleSetActiveCommand(supabase, botToken, chatId, setactiveMatch[1].trim());
   } else if (setliveMatch) {
     await handleSetLiveCommand(supabase, botToken, chatId, setliveMatch[1]?.trim() || null);
   } else if (isSetOffline) {
