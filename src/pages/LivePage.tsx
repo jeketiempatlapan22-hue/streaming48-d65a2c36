@@ -32,6 +32,7 @@ const LivePage = () => {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [countdown, setCountdown] = useState("");
   const [nextShowTime, setNextShowTime] = useState("");
+  const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
 
   useEffect(() => {
     const checkAuth = async () => {
