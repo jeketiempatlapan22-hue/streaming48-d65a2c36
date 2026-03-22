@@ -111,6 +111,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
   const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
   const isReplayList = /^\/replay$/i.test(rawText);
+  const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
+  const isSetOffline = /^\/setoffline$/i.test(rawText);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -121,6 +123,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (broadcastMatch) return await handleBroadcast(supabase, broadcastMatch[1].trim());
   if (replayMatch) return await handleReplayToggle(supabase, replayMatch[1].trim());
   if (isReplayList) return await handleReplayList(supabase);
+  if (setliveMatch) return await handleSetLive(supabase, setliveMatch[1]?.trim() || null);
+  if (isSetOffline) return await handleSetOffline(supabase);
   if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     return await handleBulkOrders(supabase, ids, 'approve');
@@ -154,6 +158,11 @@ TIDAK <id> - Tolak order
 🎬 *Show Management:*
 /replay - Lihat daftar show replay
 /replay <nama show> - Toggle mode replay
+
+📡 *Live Stream:*
+/setlive - Set stream pertama jadi LIVE
+/setlive <judul> - Set stream tertentu jadi LIVE
+/setoffline - Set semua stream jadi OFFLINE
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
@@ -363,7 +372,42 @@ async function handleReplayToggle(supabase: any, showName: string): Promise<stri
   }
 }
 
-async function handleBulkOrders(supabase: any, shortIds: string[], action: 'approve' | 'reject'): Promise<string> {
+async function handleSetLive(supabase: any, title: string | null): Promise<string> {
+  try {
+    if (title) {
+      const { data: streams } = await supabase.from('streams').select('id, title, is_live').eq('is_active', true).ilike('title', `%${title}%`).limit(5);
+      if (!streams || streams.length === 0) return `⚠️ Stream "${title}" tidak ditemukan.`;
+      if (streams.length > 1) {
+        let msg = `⚠️ Ditemukan ${streams.length} stream:\n\n`;
+        for (const s of streams) msg += `• ${s.title} (${s.is_live ? '🟢 LIVE' : '🔴 OFF'})\n`;
+        msg += '\n💡 Gunakan nama yang lebih spesifik.';
+        return msg;
+      }
+      await supabase.from('streams').update({ is_live: true }).eq('id', streams[0].id);
+      return `🟢 *Stream LIVE!*\n\n📡 ${streams[0].title} sekarang LIVE!`;
+    } else {
+      const { data: stream } = await supabase.from('streams').select('id, title').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (!stream) return '⚠️ Tidak ada stream aktif.';
+      await supabase.from('streams').update({ is_live: true }).eq('id', stream.id);
+      return `🟢 *Stream LIVE!*\n\n📡 ${stream.title} sekarang LIVE!`;
+    }
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleSetOffline(supabase: any): Promise<string> {
+  try {
+    const { data: liveStreams } = await supabase.from('streams').select('id, title').eq('is_live', true);
+    if (!liveStreams || liveStreams.length === 0) return '📡 Tidak ada stream yang sedang LIVE.';
+    await supabase.from('streams').update({ is_live: false }).eq('is_live', true);
+    const names = liveStreams.map((s: any) => s.title).join(', ');
+    return `🔴 *Stream OFFLINE!*\n\n📡 ${names} sekarang OFFLINE.`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
   const results: string[] = [];
   for (const shortId of shortIds) {
     const result = await processOrderByShortId(supabase, shortId, action);
