@@ -126,19 +126,20 @@ const MembershipPage = () => {
     const filePath = `membership/${selectedShow.id}/${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from("coin-proofs").upload(filePath, file);
     if (error) { toast({ title: "Upload gagal", variant: "destructive" }); setUploadingProof(false); return; }
-    const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(filePath, 86400);
-    setProofUrl(urlData?.signedUrl || "");
+    setProofFilePath(filePath);
     setPurchaseStep("info");
     setUploadingProof(false);
   };
 
   const handleSubmitSubscription = async () => {
-    if (!selectedShow || !proofUrl) return;
+    if (!selectedShow || !proofFilePath) return;
     setSubmitting(true);
+    const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(proofFilePath, 86400);
+    const signedUrl = urlData?.signedUrl || "";
     const { data: orderData } = await (supabase as any).from("subscription_orders").insert({
       show_id: selectedShow.id,
       phone, email,
-      payment_proof_url: proofUrl,
+      payment_proof_url: signedUrl,
       payment_method: "qris",
     }).select("id").single();
     setResultGroupLink(selectedShow.group_link || "");
@@ -147,7 +148,7 @@ const MembershipPage = () => {
 
     if (orderData?.id) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, payment_proof_url: proofUrl },
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "coin-proofs", order_type: "membership" },
       }).catch(() => {});
     }
   };
