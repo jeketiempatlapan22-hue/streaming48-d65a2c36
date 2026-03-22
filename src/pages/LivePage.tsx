@@ -82,6 +82,7 @@ const LivePage = () => {
       if (settingsRes.data) settingsRes.data.forEach((s: any) => {
         if (s.key === "next_show_time") setNextShowTime(s.value);
         if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+        if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
       });
       setLoading(false);
     };
