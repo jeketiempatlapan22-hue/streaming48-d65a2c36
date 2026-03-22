@@ -120,15 +120,24 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const addCoinMatch = rawText.match(/^\/addcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
   const balanceMatch = rawText.match(/^\/balance\s+(\S+)$/i);
   const isUsers = /^\/users$/i.test(rawText);
+  const isHelp = /^\/(help|start)$/i.test(rawText);
+  const deductCoinMatch = rawText.match(/^\/deductcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
+  const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
 
-  if (isStatus) {
+  if (isHelp) {
+    await handleHelpCommand(botToken, chatId);
+  } else if (isStatus) {
     await handleStatusCommand(supabase, botToken, chatId);
   } else if (addCoinMatch) {
     await handleAddCoinCommand(supabase, botToken, chatId, addCoinMatch[1], parseInt(addCoinMatch[2], 10), addCoinMatch[3] || null);
+  } else if (deductCoinMatch) {
+    await handleDeductCoinCommand(supabase, botToken, chatId, deductCoinMatch[1], parseInt(deductCoinMatch[2], 10), deductCoinMatch[3] || null);
   } else if (balanceMatch) {
     await handleBalanceCommand(supabase, botToken, chatId, balanceMatch[1]);
   } else if (isUsers) {
     await handleUsersCommand(supabase, botToken, chatId);
+  } else if (broadcastMatch) {
+    await handleBroadcastCommand(supabase, botToken, chatId, broadcastMatch[1].trim());
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');

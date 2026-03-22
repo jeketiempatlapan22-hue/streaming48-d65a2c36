@@ -25,9 +25,21 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient();
 
 const PageLoader = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
-    <img src="/logo.png" alt="RealTime48" className="h-16 w-16 rounded-full object-cover animate-pulse" />
-    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
+    <div className="relative">
+      <div className="h-24 w-24 rounded-full border-2 border-border/60 overflow-hidden shadow-lg animate-float">
+        <img src="/logo.png" alt="RealTime48" className="h-full w-full object-cover" />
+      </div>
+      <div className="absolute -inset-2 rounded-full border border-primary/20 animate-ping opacity-30" />
+    </div>
+    <div className="flex flex-col items-center gap-2">
+      <p className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></p>
+      <div className="flex gap-1">
+        {[0, 1, 2].map(i => (
+          <div key={i} className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" style={{ animationDelay: `${i * 200}ms` }} />
+        ))}
+      </div>
+    </div>
   </div>
 );
 

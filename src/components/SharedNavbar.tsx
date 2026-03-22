@@ -49,7 +49,9 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <a href="/" className="flex items-center gap-2">
-          <img src={logo} alt="RealTime48" className="h-8 w-8 rounded-full object-cover shadow-[0_0_8px_hsl(var(--primary)/0.3)]" />
+          <div className="h-9 w-9 rounded-full border border-border/60 overflow-hidden shadow-sm">
+            <img src={logo} alt="RealTime48" className="h-full w-full object-cover" />
+          </div>
           <span className="text-sm font-bold">Real<span className="text-primary">Time48</span></span>
         </a>
         <div className="flex items-center gap-2">
