@@ -26,6 +26,7 @@ const AdminOrderNotifications = lazy(() => import("@/components/admin/AdminOrder
 const AdminSettings = lazy(() => import("@/components/admin/AdminSettings"));
 const AdminNotifications = lazy(() => import("@/components/admin/AdminNotifications"));
 const ModeratorAccountManager = lazy(() => import("@/components/admin/ModeratorAccountManager"));
+const UserManager = lazy(() => import("@/components/admin/UserManager"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
