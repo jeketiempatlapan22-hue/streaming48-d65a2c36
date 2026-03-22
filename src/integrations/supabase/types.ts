@@ -313,6 +313,42 @@ export type Database = {
         }
         Relationships: []
       }
+      password_reset_requests: {
+        Row: {
+          created_at: string
+          id: string
+          identifier: string
+          new_password: string | null
+          phone: string
+          processed_at: string | null
+          short_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          identifier?: string
+          new_password?: string | null
+          phone?: string
+          processed_at?: string | null
+          short_id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          identifier?: string
+          new_password?: string | null
+          phone?: string
+          processed_at?: string | null
+          short_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       playlists: {
         Row: {
           created_at: string
@@ -396,6 +432,24 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          key: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          key: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          key?: string
+          request_count?: number
+          window_start?: string
         }
         Relationships: []
       }
@@ -814,12 +868,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: { _key: string; _max_requests: number; _window_seconds: number }
+        Returns: boolean
+      }
       claim_referral: { Args: { _code: string }; Returns: Json }
+      cleanup_rate_limits: { Args: never; Returns: undefined }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
       create_token_session: {
         Args: { _fingerprint: string; _token_code: string; _user_agent: string }
         Returns: Json
       }
+      get_my_password_reset_status: { Args: never; Returns: Json }
       get_or_create_referral_code: { Args: never; Returns: Json }
       get_order_count: { Args: { _show_id: string }; Returns: number }
       get_public_shows: {
@@ -863,6 +923,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      parse_show_datetime: {
+        Args: { _date: string; _time: string }
+        Returns: string
+      }
       redeem_coins_for_membership: {
         Args: { _email: string; _phone: string; _show_id: string }
         Returns: Json
@@ -872,6 +936,10 @@ export type Database = {
       release_token_session: {
         Args: { _fingerprint: string; _token_code: string }
         Returns: undefined
+      }
+      request_password_reset: {
+        Args: { _identifier: string; _new_password?: string }
+        Returns: Json
       }
       validate_token: { Args: { _code: string }; Returns: Json }
     }
