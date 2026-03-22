@@ -41,6 +41,7 @@ const ReplayPage = () => {
   const { toast } = useToast();
   const [shows, setShows] = useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [coinUser, setCoinUser] = useState<any>(null);
   const [coinBalance, setCoinBalance] = useState(0);
   const [replayTarget, setReplayTarget] = useState<Show | null>(null);
@@ -162,8 +163,15 @@ const ReplayPage = () => {
 
   const filteredShows = shows.filter((s) => {
     const q = searchQuery.toLowerCase();
-    return s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q);
+    const matchesSearch = s.title.toLowerCase().includes(q) || 
+      (s.schedule_date || "").toLowerCase().includes(q) ||
+      (s.lineup || "").toLowerCase().includes(q) ||
+      (s.category_member || "").toLowerCase().includes(q);
+    const matchesCategory = categoryFilter === "all" || (s.category || "regular") === categoryFilter;
+    return matchesSearch && matchesCategory;
   });
+
+  const availableCategories = ["all", ...Array.from(new Set(shows.map((s) => s.category || "regular")))];
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,9 +182,25 @@ const ReplayPage = () => {
           <p className="mt-2 text-sm text-muted-foreground">Tonton ulang show yang sudah berlangsung</p>
         </motion.div>
 
-        <div className="relative mx-auto mb-8 max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama show atau tanggal..." className="bg-card pl-10" />
+        <div className="mx-auto mb-6 max-w-2xl space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Cari nama show, member, tanggal..." className="bg-card pl-10" />
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {availableCategories.map((cat) => {
+              const catInfo = cat === "all" ? { label: "📋 Semua", color: "bg-secondary text-secondary-foreground" } : (SHOW_CATEGORIES[cat] || { label: cat, color: "bg-secondary text-secondary-foreground" });
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-[0.95] ${categoryFilter === cat ? "ring-2 ring-primary ring-offset-2 ring-offset-background " + catInfo.color : "bg-secondary/50 text-muted-foreground hover:bg-secondary"}`}
+                >
+                  {catInfo.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {coinUser && (

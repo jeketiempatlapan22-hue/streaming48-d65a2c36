@@ -281,7 +281,7 @@ const Index = () => {
   const menuItems = [
     { icon: <Home className="h-5 w-5 text-primary" />, label: "Beranda", description: "Halaman utama", href: "/" },
     { icon: <Calendar className="h-5 w-5 text-primary" />, label: "Jadwal Show", description: "Lihat jadwal & countdown", href: "/schedule" },
-    { icon: <Film className="h-5 w-5 text-accent" />, label: "Replay Show", description: "Tonton ulang show yang sudah berlalu", href: "/schedule" },
+    { icon: <Film className="h-5 w-5 text-accent" />, label: "Replay Show", description: `Tonton ulang show${replayShows.length > 0 ? ` (${replayShows.length})` : ""}`, href: "/replay" },
     ...(settings.whatsapp_channel ? [{
       icon: <Radio className="h-5 w-5 text-primary" />, label: "Saluran WhatsApp", description: "Ikuti saluran info terbaru",
       href: settings.whatsapp_channel,
@@ -558,31 +558,24 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Replay Shows Section */}
+      {/* Replay Shows Section - Link to /replay */}
       {replayShows.length > 0 && (
         <section className="px-4 py-10">
           <div className="mx-auto max-w-6xl">
-            <motion.h2
-              className="mb-8 text-center text-2xl font-bold text-foreground md:text-3xl"
+            <motion.div
+              className="rounded-2xl border border-border bg-card p-8 text-center"
               initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             >
-              🎬 Replay Show
-            </motion.h2>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {replayShows.map((show, i) => (
-                <ShowCard
-                  key={show.id}
-                  show={show}
-                  index={i}
-                  isReplayMode={true}
-                  redeemedToken={redeemedTokens[show.id]}
-                  accessPassword={accessPasswords[show.id]}
-                  replayPassword={replayPasswords[show.id]}
-                  onBuy={handleBuy}
-                  onCoinBuy={handleCoinBuy}
-                />
-              ))}
-            </div>
+              <Film className="mx-auto mb-3 h-10 w-10 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">🎬 Replay Show</h2>
+              <p className="text-sm text-muted-foreground mb-4">{replayShows.length} show tersedia untuk ditonton ulang</p>
+              <a
+                href="/replay"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.97]"
+              >
+                <Play className="h-4 w-4" /> Lihat Semua Replay
+              </a>
+            </motion.div>
           </div>
         </section>
       )}
