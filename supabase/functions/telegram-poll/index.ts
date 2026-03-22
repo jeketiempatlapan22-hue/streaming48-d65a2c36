@@ -183,6 +183,10 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `🎬 *Show Management:*\n` +
     `\`/replay\` \\- Lihat daftar show yang bisa di\\-replay\n` +
     `\`/replay <nama show>\` \\- Toggle mode replay show\n\n` +
+    `📡 *Live Stream:*\n` +
+    `\`/setlive\` \\- Set stream pertama jadi LIVE\n` +
+    `\`/setlive <judul>\` \\- Set stream tertentu jadi LIVE\n` +
+    `\`/setoffline\` \\- Set semua stream jadi OFFLINE\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini`;
