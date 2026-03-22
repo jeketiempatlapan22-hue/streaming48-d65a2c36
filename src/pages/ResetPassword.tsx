@@ -13,6 +13,7 @@ const ResetPassword = () => {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const token = searchParams.get("token");
   const { toast } = useToast();
 
   // Handle Supabase recovery flow (from email link)
@@ -24,21 +25,54 @@ const ResetPassword = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      toast({ title: "Gagal", description: error.message, variant: "destructive" });
+
+    if (token) {
+      // Admin-approved reset via edge function
+      const { data, error } = await supabase.functions.invoke("apply-password-reset", {
+        body: { short_id: token, new_password: password },
+      });
+
+      if (error || !data?.success) {
+        toast({
+          title: "Gagal",
+          description: data?.error || error?.message || "Terjadi kesalahan",
+          variant: "destructive",
+        });
+      } else {
+        setSuccess(true);
+      }
     } else {
-      setSuccess(true);
+      // Supabase recovery flow
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        toast({ title: "Gagal", description: error.message, variant: "destructive" });
+      } else {
+        setSuccess(true);
+      }
     }
     setLoading(false);
   };
+
+  if (!token && !window.location.hash.includes('type=recovery')) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="text-center space-y-4">
+          <Shield className="mx-auto h-12 w-12 text-primary" />
+          <p className="text-sm text-muted-foreground">Link reset tidak valid.</p>
+          <button onClick={() => navigate("/auth")} className="flex items-center justify-center gap-2 text-sm text-primary hover:underline mx-auto">
+            <ArrowLeft className="h-4 w-4" /> Kembali ke Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (success) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm text-center space-y-4">
           <Shield className="mx-auto h-12 w-12 text-primary" />
-          <CheckCircle2 className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+          <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
           <h1 className="text-xl font-bold text-foreground">Password Berhasil Diubah!</h1>
           <p className="text-sm text-muted-foreground">Silakan login menggunakan password baru kamu.</p>
           <Button onClick={() => navigate("/auth")} className="w-full">Masuk Sekarang</Button>
