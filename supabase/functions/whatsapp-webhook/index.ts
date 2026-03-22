@@ -129,6 +129,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (setliveMatch) return await handleSetLive(supabase, setliveMatch[1]?.trim() || null);
   if (isSetOffline) return await handleSetOffline(supabase);
   if (msgshowMatch) return await handleMsgShow(supabase, msgshowMatch[1].trim(), msgshowMatch[2].trim());
+  if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
+  if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     return await handleBulkOrders(supabase, ids, 'approve');
