@@ -79,6 +79,7 @@ const AdminDashboard = () => {
           <ChatModeratorManager />
         </div>
       );
+      case "users": return <UserManager />;
       default: return <LiveControl />;
     }
   };
