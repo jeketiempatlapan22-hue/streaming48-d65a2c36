@@ -14,6 +14,7 @@ const LiveControl = () => {
   const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
   const [nextShowTime, setNextShowTime] = useState("");
+  const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
