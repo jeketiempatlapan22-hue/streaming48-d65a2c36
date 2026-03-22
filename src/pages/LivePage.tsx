@@ -168,10 +168,12 @@ const LivePage = () => {
     </div>
   );
 
-  const { signedUrl, loading: signedLoading } = useSignedStreamUrl(
+  const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
     activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode
   );
+
+  const isYouTubeProxied = proxyType === "youtube_proxy";
 
 
   return (
