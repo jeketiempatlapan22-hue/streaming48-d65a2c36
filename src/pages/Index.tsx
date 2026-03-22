@@ -582,6 +582,9 @@ const Index = () => {
         </section>
       )}
 
+      {/* Stats Section */}
+      <LandingStats />
+
       {/* Footer */}
       <footer className="border-t border-border bg-card/50 px-4 py-10">
         <div className="mx-auto max-w-6xl">

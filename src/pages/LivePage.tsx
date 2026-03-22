@@ -135,6 +135,7 @@ const LivePage = () => {
   return (
     <div className="relative flex min-h-screen flex-col bg-background lg:flex-row">
       <ConnectionStatus />
+      <ViewerBroadcast />
       <SecurityAlert />
       {playerAnimation !== "none" && <PlayerAnimations type={playerAnimation} backgroundOnly />}
       {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
