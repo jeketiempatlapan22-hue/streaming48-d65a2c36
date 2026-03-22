@@ -6,9 +6,10 @@ type StreamType = "m3u8" | "cloudflare" | "youtube";
 interface VideoPlayerProps {
   url: string;
   type: StreamType;
+  isProxied?: boolean;
 }
 
-const VideoPlayer = ({ url, type }: VideoPlayerProps) => {
+const VideoPlayer = ({ url, type, isProxied = false }: VideoPlayerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +41,24 @@ const VideoPlayer = ({ url, type }: VideoPlayerProps) => {
     );
   }
 
+  // YouTube proxied: render iframe pointing to our proxy HTML page
+  if (type === "youtube" && isProxied) {
+    return (
+      <div className="aspect-video rounded-lg overflow-hidden border border-border shadow-lg shadow-primary/5">
+        <iframe
+          src={url}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+          allowFullScreen
+          title="RT48 Player"
+          referrerPolicy="no-referrer"
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+        />
+      </div>
+    );
+  }
+
+  // YouTube direct (admin preview / fallback)
   if (type === "youtube") {
     const videoId = url.includes("youtube.com") || url.includes("youtu.be")
       ? url.match(/(?:v=|\/embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1] ?? url
@@ -59,7 +78,6 @@ const VideoPlayer = ({ url, type }: VideoPlayerProps) => {
   }
 
   if (type === "cloudflare") {
-    // Support full iframe URLs, watch URLs, or plain video IDs
     let embedUrl = "";
     if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
       embedUrl = url;
@@ -67,7 +85,6 @@ const VideoPlayer = ({ url, type }: VideoPlayerProps) => {
       const id = url.split("/").filter(Boolean).pop();
       embedUrl = `https://iframe.videodelivery.net/${id}`;
     } else {
-      // Assume plain video ID
       embedUrl = `https://iframe.videodelivery.net/${url}`;
     }
 

@@ -12,6 +12,7 @@ const SIGNING_SECRET = SERVICE_ROLE_KEY;
 
 const PLAYLIST_TOKEN_TTL = 300;
 const SUB_PLAYLIST_TOKEN_TTL = 600;
+const YT_TOKEN_TTL = 600;
 
 // In-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -52,7 +53,7 @@ const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 
 interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
-const playlistUrlCache = new Map<string, { url: string; cachedAt: number }>();
+const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
@@ -73,16 +74,16 @@ function setCachedM3u8(key: string, content: string): void {
   }
 }
 
-async function getPlaylistUrl(pid: string): Promise<string | null> {
+async function getPlaylistData(pid: string): Promise<{ url: string; type: string } | null> {
   const cached = playlistUrlCache.get(pid);
   if (cached && Date.now() - cached.cachedAt < PLAYLIST_URL_CACHE_TTL_MS) {
-    return cached.url;
+    return { url: cached.url, type: cached.type };
   }
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data } = await supabase.from("playlists").select("url").eq("id", pid).single();
+  const { data } = await supabase.from("playlists").select("url, type").eq("id", pid).single();
   if (!data) return null;
-  playlistUrlCache.set(pid, { url: data.url, cachedAt: Date.now() });
-  return data.url;
+  playlistUrlCache.set(pid, { url: data.url, type: data.type, cachedAt: Date.now() });
+  return { url: data.url, type: data.type };
 }
 
 // Crypto helpers
@@ -142,6 +143,12 @@ async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string)
   return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
+async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + YT_TOKEN_TTL;
+  const sig = await hmacSign(`yt:${playlistId}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=yt&pid=${playlistId}&exp=${exp}&sig=${sig}`;
+}
+
 async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string): Promise<string> {
   const lines = content.split("\n");
   const result: string[] = [];
@@ -193,6 +200,58 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
   return rewritten;
 }
 
+// Extract YouTube video ID from various URL formats
+function extractYouTubeId(url: string): string {
+  if (!url) return url;
+  // Already a plain ID (11 chars, alphanumeric + - _)
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+  const match = url.match(/(?:v=|\/embed\/|youtu\.be\/|\/v\/|\/watch\?.*v=)([a-zA-Z0-9_-]{11})/);
+  return match?.[1] || url;
+}
+
+// Generate a secure YouTube embed HTML page
+function generateYouTubeEmbedPage(videoId: string): string {
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
+<title>RT48 Player</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+iframe{width:100%;height:100%;border:none;position:absolute;top:0;left:0}
+.overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:none}
+</style>
+<script>
+// Prevent right-click
+document.addEventListener('contextmenu',function(e){e.preventDefault()});
+// Prevent view source shortcuts
+document.addEventListener('keydown',function(e){
+  if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'))||(e.ctrlKey&&e.key==='u'))e.preventDefault();
+});
+// Block frame-busting attempts
+if(window.top!==window.self){
+  try{document.domain=document.domain}catch(e){}
+}
+</script>
+</head>
+<body>
+<iframe 
+  src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&fs=1&playsinline=1&enablejsapi=0&origin=${encodeURIComponent(SUPABASE_URL)}" 
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
+  allowfullscreen
+  sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+  referrerpolicy="no-referrer"
+  loading="eager">
+</iframe>
+<div class="overlay"></div>
+</body>
+</html>`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -202,7 +261,7 @@ Deno.serve(async (req) => {
   const mode = url.searchParams.get("mode");
 
   try {
-    // MODE: generate (POST)
+    // MODE: generate (POST) - generates signed URLs for m3u8 AND youtube
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
       const { token_code, playlist_id } = body;
@@ -239,23 +298,34 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (playlist.type !== "m3u8") {
+      const functionUrl = `${SUPABASE_URL}/functions/v1`;
+
+      if (playlist.type === "youtube") {
+        // Generate signed YouTube proxy URL
+        const signedUrl = await generateYouTubeSignedUrl(playlist_id, functionUrl);
         return new Response(
-          JSON.stringify({ error: "Tokenized URL hanya untuk m3u8" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ signed_url: signedUrl, expires_in: YT_TOKEN_TTL, type: "youtube_proxy" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const signedUrl = await generatePlaylistSignedUrl(playlist_id, functionUrl);
+      if (playlist.type === "m3u8") {
+        const signedUrl = await generatePlaylistSignedUrl(playlist_id, functionUrl);
+        return new Response(
+          JSON.stringify({ signed_url: signedUrl, expires_in: PLAYLIST_TOKEN_TTL, type: "m3u8" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
+      // For cloudflare or other types, also proxy
+      const signedUrl = await generateYouTubeSignedUrl(playlist_id, functionUrl);
       return new Response(
-        JSON.stringify({ signed_url: signedUrl, expires_in: PLAYLIST_TOKEN_TTL }),
+        JSON.stringify({ signed_url: signedUrl, expires_in: YT_TOKEN_TTL, type: playlist.type }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // MODE: play (GET)
+    // MODE: play (GET) - m3u8 proxy
     if (req.method === "GET" && mode === "play") {
       const pid = url.searchParams.get("pid");
       const exp = url.searchParams.get("exp");
@@ -278,13 +348,13 @@ Deno.serve(async (req) => {
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
-      const playlistUrl = await getPlaylistUrl(pid);
-      if (!playlistUrl) {
+      const plData = await getPlaylistData(pid);
+      if (!plData) {
         return new Response("Playlist not found", { status: 404, headers: corsHeaders });
       }
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewritten = await fetchAndRewriteM3u8(playlistUrl, `play:${pid}`, functionUrl);
+      const rewritten = await fetchAndRewriteM3u8(plData.url, `play:${pid}`, functionUrl);
 
       if (!rewritten) {
         return new Response("Failed to fetch stream", { status: 502, headers: corsHeaders });
@@ -301,7 +371,51 @@ Deno.serve(async (req) => {
       });
     }
 
-    // MODE: sub (GET)
+    // MODE: yt (GET) - YouTube embed proxy
+    if (req.method === "GET" && mode === "yt") {
+      const pid = url.searchParams.get("pid");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+
+      const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+      if (pid && !edgeRateLimit(`yt:${clientIp}:${pid}`, 20, 60000)) {
+        return getRateLimitResponse();
+      }
+
+      if (!pid || !exp || !sig) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Token expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`yt:${pid}:${exp}`, sig))) {
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const plData = await getPlaylistData(pid);
+      if (!plData) {
+        return new Response("Playlist not found", { status: 404, headers: corsHeaders });
+      }
+
+      const videoId = extractYouTubeId(plData.url);
+      const html = generateYouTubeEmbedPage(videoId);
+
+      return new Response(html, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "ALLOWALL",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+
+    // MODE: sub (GET) - sub-playlist proxy for m3u8
     if (req.method === "GET" && mode === "sub") {
       const encoded = url.searchParams.get("u");
       const exp = url.searchParams.get("exp");
