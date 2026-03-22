@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Pencil, Check, X } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles } from "lucide-react";
+import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
