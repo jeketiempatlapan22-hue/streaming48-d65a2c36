@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Shield, Coins, Menu, User, Home, Calendar, Film, Settings, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import logo from "@/assets/logo.png";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
