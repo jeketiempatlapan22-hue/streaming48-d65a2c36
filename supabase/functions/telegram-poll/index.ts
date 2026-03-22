@@ -576,7 +576,6 @@ async function handleReplayToggle(supabase: any, botToken: string, chatId: strin
 
 async function handleSetLiveCommand(supabase: any, botToken: string, chatId: string, title: string | null) {
   try {
-    // Get or create stream record
     let { data: stream } = await supabase.from('streams').select('id, title').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (!stream) {
       const { data: newStream } = await supabase.from('streams').insert({ title: 'RealTime48', type: 'youtube', url: '', is_active: true, is_live: false }).select().single();
@@ -586,15 +585,49 @@ async function handleSetLiveCommand(supabase: any, botToken: string, chatId: str
 
     await supabase.from('streams').update({ is_live: true }).eq('id', stream.id);
 
-    // Get active show info
-    const { data: settings } = await supabase.from('site_settings').select('value').eq('key', 'active_show_id').maybeSingle();
+    // If title provided, try to set active show by ID or name
     let showInfo = '';
-    if (settings?.value) {
-      const { data: show } = await supabase.from('shows').select('title').eq('id', settings.value).maybeSingle();
-      if (show) showInfo = `\n🎭 Show aktif: *${escapeMarkdown(show.title)}*`;
+    if (title) {
+      const result = await findShowByIdOrName(supabase, title);
+      if (result.show) {
+        await supabase.from('site_settings').upsert({ key: 'active_show_id', value: result.show.id }, { onConflict: 'key' });
+        showInfo = `\n🎭 Show aktif: *${escapeMarkdown(result.show.title)}* \\(\`#${showShortId(result.show.id)}\`\\)`;
+      } else if (result.multiple) {
+        let msg = `🟢 Stream LIVE\\! Tapi ada ${result.multiple.length} show ditemukan:\n\n`;
+        for (const s of result.multiple) msg += `• ${escapeMarkdown(s.title)} \\(\`#${showShortId(s.id)}\`\\)\n`;
+        msg += `\n💡 Gunakan: \`/setactive #ID\``;
+        await sendTelegramMessage(botToken, chatId, msg);
+        return;
+      }
+    } else {
+      const { data: settings } = await supabase.from('site_settings').select('value').eq('key', 'active_show_id').maybeSingle();
+      if (settings?.value) {
+        const { data: show } = await supabase.from('shows').select('title').eq('id', settings.value).maybeSingle();
+        if (show) showInfo = `\n🎭 Show aktif: *${escapeMarkdown(show.title)}*`;
+      }
     }
 
     await sendTelegramMessage(botToken, chatId, `🟢 *Stream LIVE\\!*\n\n📡 ${escapeMarkdown(stream.title)} sekarang LIVE\\!${showInfo}`);
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleSetActiveCommand(supabase: any, botToken: string, chatId: string, input: string) {
+  try {
+    const result = await findShowByIdOrName(supabase, input);
+    if (result.error) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(result.error)}`);
+      return;
+    }
+    if (result.multiple) {
+      let msg = `⚠️ Ditemukan ${result.multiple.length} show:\n\n`;
+      for (const s of result.multiple) msg += `• ${escapeMarkdown(s.title)} \\(\`#${showShortId(s.id)}\`\\)\n`;
+      msg += `\n💡 Gunakan ID: \`/setactive #${showShortId(result.multiple[0].id)}\``;
+      await sendTelegramMessage(botToken, chatId, msg);
+      return;
+    }
+    const show = result.show;
+    await supabase.from('site_settings').upsert({ key: 'active_show_id', value: show.id }, { onConflict: 'key' });
+    await sendTelegramMessage(botToken, chatId, `✅ *Show Aktif Diubah\\!*\n\n🎭 ${escapeMarkdown(show.title)} \\(\`#${showShortId(show.id)}\`\\)\n📅 ${escapeMarkdown(show.schedule_date || '-')}`);
   } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
 }
 
@@ -610,20 +643,20 @@ async function handleSetOfflineCommand(supabase: any, botToken: string, chatId: 
 
 async function handleMsgShowCommand(supabase: any, botToken: string, chatId: string, showName: string, message: string) {
   try {
-    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_active', true).ilike('title', `%${showName}%`).limit(5);
-    if (!shows || shows.length === 0) {
-      await sendTelegramMessage(botToken, chatId, `⚠️ Show "${escapeMarkdown(showName)}" tidak ditemukan\\.`);
+    const result = await findShowByIdOrName(supabase, showName);
+    if (result.error) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(result.error)}`);
       return;
     }
-    if (shows.length > 1) {
-      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
-      for (const s of shows) msg += `• ${escapeMarkdown(s.title)}\n`;
-      msg += '\n💡 Gunakan nama yang lebih spesifik\\.';
+    if (result.multiple) {
+      let msg = `⚠️ Ditemukan ${result.multiple.length} show:\n\n`;
+      for (const s of result.multiple) msg += `• ${escapeMarkdown(s.title)} \\(\`#${showShortId(s.id)}\`\\)\n`;
+      msg += `\n💡 Gunakan ID: \`/msgshow #${showShortId(result.multiple[0].id)} | pesan\``;
       await sendTelegramMessage(botToken, chatId, msg);
       return;
     }
 
-    const show = shows[0];
+    const show = result.show;
     const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
     const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
 
