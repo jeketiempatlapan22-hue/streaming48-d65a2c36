@@ -143,6 +143,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const resetMatch = text.match(/^RESET\s+(\S+)$/);
   const tolakResetMatch = text.match(/^TOLAK_RESET\s+(\S+)$/);
   const setactiveMatch = rawText.match(/^\/setactive\s+#([a-f0-9]{6})$/i);
+  const blocktokenMatch = rawText.match(/^\/blocktoken\s+(\S+)$/i);
+  const unblocktokenMatch = rawText.match(/^\/unblocktoken\s+(\S+)$/i);
+  const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
+  const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -178,6 +182,14 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleShowInfoCommand(supabase, botToken, chatId);
   } else if (msgshowMatch) {
     await handleMsgShowCommand(supabase, botToken, chatId, msgshowMatch[1].trim(), msgshowMatch[2].trim());
+  } else if (blocktokenMatch) {
+    await handleTokenCommand(supabase, botToken, chatId, blocktokenMatch[1], 'block');
+  } else if (unblocktokenMatch) {
+    await handleTokenCommand(supabase, botToken, chatId, unblocktokenMatch[1], 'unblock');
+  } else if (resettokenMatch) {
+    await handleTokenCommand(supabase, botToken, chatId, resettokenMatch[1], 'reset');
+  } else if (deletetokenMatch) {
+    await handleTokenCommand(supabase, botToken, chatId, deletetokenMatch[1], 'delete');
   } else if (resetMatch) {
     await handlePasswordResetCommand(supabase, botToken, chatId, resetMatch[1].toLowerCase(), 'approve');
   } else if (tolakResetMatch) {
