@@ -58,6 +58,7 @@ const Index = () => {
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("qris");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofUrl, setProofUrl] = useState("");
+  const [proofFilePath, setProofFilePath] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
