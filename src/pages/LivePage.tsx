@@ -81,10 +81,13 @@ const LivePage = () => {
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
+  const fp = getFingerprint();
+
   // IMPORTANT: All hooks must be called before any conditional returns
   const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
     activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
-    tokenCode
+    tokenCode,
+    fp
   );
 
   const effectiveType = proxyType === "youtube_proxy" ? "youtube" : (activePlaylist?.type || "m3u8");

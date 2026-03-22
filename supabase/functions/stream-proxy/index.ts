@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
     // MODE: generate (POST) - generates signed URLs for m3u8 AND youtube
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
-      const { token_code, playlist_id } = body;
+      const { token_code, playlist_id, fingerprint } = body;
 
       const genClientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
       if (token_code && !edgeRateLimit(`gen:${genClientIp}`, 60, 60000)) {
@@ -290,13 +290,30 @@ Deno.serve(async (req) => {
       }
 
       const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-      const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
 
-      if (valErr || !(validation as any)?.valid) {
-        return new Response(
-          JSON.stringify({ error: (validation as any)?.error || "Token tidak valid atau expired" }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      // Validate token AND enforce device lock server-side
+      if (fingerprint) {
+        const { data: sessResult, error: sessErr } = await supabase.rpc("create_token_session", {
+          _token_code: token_code,
+          _fingerprint: fingerprint,
+          _user_agent: "stream-proxy",
+        });
+        const sr = sessResult as any;
+        if (sessErr || !sr?.success) {
+          const errMsg = sr?.error || "Token tidak valid";
+          return new Response(
+            JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
+        if (valErr || !(validation as any)?.valid) {
+          return new Response(
+            JSON.stringify({ error: (validation as any)?.error || "Token tidak valid atau expired" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
 
       const { data: playlist } = await supabase

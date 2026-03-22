@@ -67,7 +67,7 @@ export function useSignedStreamUrl(
       // No fallback to raw URL - keep it protected
       setSignedUrl(null);
     }
-  }, [playlist?.id, playlist?.type, tokenCode]);
+  }, [playlist?.id, playlist?.type, tokenCode, fingerprint]);
 
   useEffect(() => {
     isMounted.current = true;
