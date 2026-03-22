@@ -312,10 +312,12 @@ Deno.serve(async (req) => {
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
 
       if (playlist.type === "youtube") {
-        // Generate signed YouTube proxy URL
-        const signedUrl = await generateYouTubeSignedUrl(playlist_id, functionUrl);
+        // Resolve real YouTube ID server-side and encrypt it
+        const realUrl = await getPlaylistData(playlist_id);
+        const videoId = extractYouTubeId(realUrl?.url || "");
+        const encryptedId = xorEncryptId(videoId);
         return new Response(
-          JSON.stringify({ signed_url: signedUrl, expires_in: YT_TOKEN_TTL, type: "youtube_proxy" }),
+          JSON.stringify({ signed_url: encryptedId, expires_in: YT_TOKEN_TTL, type: "youtube" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
