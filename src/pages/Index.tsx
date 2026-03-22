@@ -248,7 +248,7 @@ const Index = () => {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.3)]">
-              <Shield className="h-4 w-4 text-primary" />
+              <img src={logo} alt="RT48" className="h-4 w-4 rounded-full object-cover" />
             </div>
             <span className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
           </div>
@@ -269,7 +269,7 @@ const Index = () => {
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <div className="h-6 w-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                      <Shield className="h-3 w-3 text-primary" />
+                      <img src={logo} alt="RT48" className="h-3 w-3 rounded-full object-cover" />
                     </div>
                     RealTime48
                   </SheetTitle>
@@ -348,7 +348,7 @@ const Index = () => {
         <div className="relative z-10 text-center px-4">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
             <div className="mx-auto mb-6 h-20 w-20 md:h-28 md:w-28 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center shadow-[0_0_20px_hsl(var(--primary)/0.4)] animate-float">
-              <Shield className="h-10 w-10 md:h-14 md:w-14 text-primary" />
+              <img src={logo} alt="RT48" className="h-10 w-10 md:h-14 md:w-14 rounded-full object-cover" />
             </div>
           </motion.div>
           <motion.h1
@@ -481,7 +481,7 @@ const Index = () => {
       <footer className="border-t border-border px-4 py-8 text-center">
         <div className="flex items-center justify-center gap-2">
           <div className="h-6 w-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shadow-[0_0_8px_hsl(var(--primary)/0.3)]">
-            <Shield className="h-3 w-3 text-primary" />
+            <img src={logo} alt="RT48" className="h-3 w-3 rounded-full object-cover" />
           </div>
           <span className="text-sm font-semibold text-foreground">Real<span className="text-primary">Time48</span></span>
         </div>
