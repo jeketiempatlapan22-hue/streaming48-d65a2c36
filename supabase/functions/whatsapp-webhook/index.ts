@@ -107,6 +107,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const balanceMatch = rawText.match(/^\/balance\s+(\S+)$/i);
   const isUsers = /^\/users$/i.test(rawText);
   const isHelp = /^\/(help|start|menu)$/i.test(rawText);
+  const isMembers = /^\/members$/i.test(rawText);
+  const msgmembersMatch = rawText.match(/^\/msgmembers\s+(.+)$/is);
   const deductCoinMatch = rawText.match(/^\/deductcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
   const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
@@ -124,13 +126,14 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (deductCoinMatch) return await handleDeductCoin(supabase, deductCoinMatch[1], parseInt(deductCoinMatch[2], 10), deductCoinMatch[3] || null);
   if (balanceMatch) return await handleBalance(supabase, balanceMatch[1]);
   if (isUsers) return await handleUsers(supabase);
+  if (isMembers) return await handleMembers(supabase);
+  if (msgmembersMatch) return await handleMsgMembers(supabase, msgmembersMatch[1].trim());
   if (broadcastMatch) return await handleBroadcast(supabase, broadcastMatch[1].trim());
   if (replayMatch) return await handleReplayToggle(supabase, replayMatch[1].trim());
   if (isReplayList) return await handleReplayList(supabase);
   if (setliveMatch) return await handleSetLive(supabase, setliveMatch[1]?.trim() || null);
   if (isSetOffline) return await handleSetOffline(supabase);
   if (isShowInfo) return await handleShowInfo(supabase);
-  if (msgshowMatch) return await handleMsgShow(supabase, msgshowMatch[1].trim(), msgshowMatch[2].trim());
   if (msgshowMatch) return await handleMsgShow(supabase, msgshowMatch[1].trim(), msgshowMatch[2].trim());
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
@@ -163,6 +166,7 @@ TIDAK <id> - Tolak order
 
 👥 *User Management:*
 /users - Daftar semua user
+/members - Daftar member langganan
 
 🎬 *Show Management:*
 /replay - Lihat daftar show replay
@@ -179,6 +183,7 @@ TOLAK_RESET <id> - Tolak reset password
 
 📨 *Messaging:*
 /msgshow <nama show> | <pesan> - Kirim WA ke semua pemesan show
+/msgmembers <pesan> - Kirim WA ke semua member
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
@@ -456,28 +461,24 @@ async function processCoinOrder(supabase: any, order: any, action: 'approve' | '
   try {
     const sid = order.short_id || order.id.substring(0, 6);
     if (action === 'approve') {
-      const { data: confirmed } = await supabase.from('coin_orders').update({ status: 'confirmed' }).eq('id', order.id).eq('status', 'pending').select('id').maybeSingle();
-      if (!confirmed) return `⚠️ Order koin ${sid} sudah diproses.`;
-
-      const { data: existing } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      if (existing) {
-        await supabase.from('coin_balances').update({ balance: existing.balance + order.coin_amount, updated_at: new Date().toISOString() }).eq('user_id', order.user_id);
-      } else {
-        await supabase.from('coin_balances').insert({ user_id: order.user_id, balance: order.coin_amount });
+      // Use atomic RPC to prevent double-credit race conditions
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
+      if (rpcError || !rpcResult?.success) {
+        return `⚠️ Order koin ${sid}: ${rpcResult?.error || rpcError?.message || 'Gagal konfirmasi'}`;
       }
 
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', order.user_id).single();
-      const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
+      const newBalance = rpcResult.new_balance ?? order.coin_amount;
 
       if (order.phone) {
         const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
         if (FONNTE_TOKEN) {
-          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${balData?.balance ?? order.coin_amount} koin.\n\nTerima kasih! 🎉`;
+          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }
 
-      return `✅ Order koin ${sid} dikonfirmasi! ${profile?.username || 'User'} +${order.coin_amount} koin (Saldo: ${balData?.balance ?? order.coin_amount})`;
+      return `✅ Order koin ${sid} dikonfirmasi! ${profile?.username || 'User'} +${order.coin_amount} koin (Saldo: ${newBalance})`;
     } else {
       await supabase.from('coin_orders').update({ status: 'rejected' }).eq('id', order.id).eq('status', 'pending');
       return `❌ Order koin ${sid} ditolak.`;
@@ -615,7 +616,70 @@ async function notifyTelegram(command: string, result: string) {
   }
 }
 
-async function handleShowInfo(supabase: any): Promise<string> {
+async function handleMembers(supabase: any): Promise<string> {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone, email, show_id, created_at')
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false });
+
+    if (!orders || orders.length === 0) return '👥 Belum ada member langganan.';
+
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_subscription', true);
+    const showMap: Record<string, string> = {};
+    (shows || []).forEach((s: any) => { showMap[s.id] = s.title; });
+
+    const grouped: Record<string, any[]> = {};
+    for (const o of orders) {
+      const title = showMap[o.show_id] || 'Unknown';
+      if (!grouped[title]) grouped[title] = [];
+      grouped[title].push(o);
+    }
+
+    let msg = `👥 *DAFTAR MEMBER LANGGANAN (${orders.length})*\n\n`;
+    for (const [title, members] of Object.entries(grouped)) {
+      msg += `🎬 *${title}* (${members.length})\n`;
+      for (const m of members) {
+        msg += `  📞 ${m.phone || '-'} | 📧 ${m.email || '-'}\n`;
+      }
+      msg += '\n';
+    }
+    msg += `💡 Kirim pesan massal: /msgmembers <pesan>`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleMsgMembers(supabase: any, message: string): Promise<string> {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone')
+      .eq('status', 'confirmed');
+
+    if (!orders || orders.length === 0) return '⚠️ Tidak ada member untuk dikirimi pesan.';
+
+    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))];
+    if (phones.length === 0) return '⚠️ Tidak ada nomor HP member yang tersedia.';
+
+    const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+    if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN belum dikonfigurasi.';
+
+    let sent = 0;
+    for (const phone of phones) {
+      await sendFonnteMessage(FONNTE_TOKEN, phone, message);
+      sent++;
+    }
+
+    return `✅ Pesan berhasil dikirim ke ${sent} member!`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+
   try {
     const { data: stream } = await supabase.from('streams').select('id, title, is_live').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: settings } = await supabase.from('site_settings').select('key, value').in('key', ['active_show_id', 'next_show_time']);

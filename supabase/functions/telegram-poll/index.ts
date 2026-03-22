@@ -129,6 +129,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isUsers = /^\/users$/i.test(rawText);
   const isHelp = /^\/(help|start)$/i.test(rawText);
   const isShows = /^\/shows$/i.test(rawText);
+  const isMembers = /^\/members$/i.test(rawText);
+  const msgmembersMatch = rawText.match(/^\/msgmembers\s+(.+)$/is);
   const deductCoinMatch = rawText.match(/^\/deductcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
   const replayMatch = rawText.match(/^\/replay\s+#([a-f0-9]{6})$/i);
@@ -156,6 +158,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleBalanceCommand(supabase, botToken, chatId, balanceMatch[1]);
   } else if (isUsers) {
     await handleUsersCommand(supabase, botToken, chatId);
+  } else if (isMembers) {
+    await handleMembersCommand(supabase, botToken, chatId);
+  } else if (msgmembersMatch) {
+    await handleMsgMembersCommand(supabase, botToken, chatId, msgmembersMatch[1].trim());
   } else if (broadcastMatch) {
     await handleBroadcastCommand(supabase, botToken, chatId, broadcastMatch[1].trim());
   } else if (replayMatch) {
@@ -223,7 +229,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/deductcoin <user> <jumlah>\` \\- Kurangi koin\n` +
     `\`/balance <user>\` \\- Cek saldo user\n\n` +
     `👥 *User Management:*\n` +
-    `\`/users\` \\- Daftar semua user\n\n` +
+    `\`/users\` \\- Daftar semua user\n` +
+    `\`/members\` \\- Daftar member langganan\n\n` +
     `🎬 *Show Management:*\n` +
     `\`/shows\` \\- Lihat semua show aktif \\+ ID\n` +
     `\`/replay\` \\- Lihat daftar show replay\n` +
@@ -238,7 +245,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
     `📨 *Messaging:*\n` +
-    `\`/msgshow <nama/ID> | <pesan>\` \\- Kirim WA ke pemesan show\n\n` +
+    `\`/msgshow <nama/ID> | <pesan>\` \\- Kirim WA ke pemesan show\n` +
+    `\`/msgmembers <pesan>\` \\- Kirim WA ke semua member\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/help\` \\- Tampilkan daftar command ini\n\n` +
@@ -384,19 +392,16 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
   try {
     const sid = order.short_id || order.id.substring(0, 6);
     if (action === 'approve') {
-      const { data: confirmedOrder } = await supabase.from('coin_orders').update({ status: 'confirmed' }).eq('id', order.id).eq('status', 'pending').select('id').maybeSingle();
-      if (!confirmedOrder) { if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(sid)}\` sudah diproses\.`); return; }
-
-      const { data: existingBalance } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      if (existingBalance) {
-        await supabase.from('coin_balances').update({ balance: existingBalance.balance + order.coin_amount, updated_at: new Date().toISOString() }).eq('user_id', order.user_id);
-      } else {
-        await supabase.from('coin_balances').insert({ user_id: order.user_id, balance: order.coin_amount });
+      // Use atomic RPC to prevent double-credit race conditions
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
+      if (rpcError || !rpcResult?.success) {
+        const errMsg = rpcResult?.error || rpcError?.message || 'Gagal konfirmasi';
+        if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(sid)}\`: ${escapeMarkdown(errMsg)}`);
+        return;
       }
 
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', order.user_id).single();
-      const { data: balanceData } = await supabase.from('coin_balances').select('balance').eq('user_id', order.user_id).maybeSingle();
-      const newBalance = balanceData?.balance ?? order.coin_amount;
+      const newBalance = rpcResult.new_balance ?? order.coin_amount;
 
       if (order.phone) {
         const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
@@ -815,7 +820,76 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 }
 
-async function handleShowInfoCommand(supabase: any, botToken: string, chatId: string) {
+async function handleMembersCommand(supabase: any, botToken: string, chatId: string) {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone, email, show_id, created_at')
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false });
+
+    if (!orders || orders.length === 0) {
+      await sendTelegramMessage(botToken, chatId, '👥 Belum ada member langganan\\.');
+      return;
+    }
+
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_subscription', true);
+    const showMap: Record<string, string> = {};
+    (shows || []).forEach((s: any) => { showMap[s.id] = s.title; });
+
+    const grouped: Record<string, any[]> = {};
+    for (const o of orders) {
+      const title = showMap[o.show_id] || 'Unknown';
+      if (!grouped[title]) grouped[title] = [];
+      grouped[title].push(o);
+    }
+
+    let msg = `👥 *DAFTAR MEMBER LANGGANAN \\(${orders.length}\\)*\n\n`;
+    for (const [title, members] of Object.entries(grouped)) {
+      msg += `🎬 *${escapeMarkdown(title)}* \\(${members.length}\\)\n`;
+      for (const m of members) {
+        msg += `  📞 ${escapeMarkdown(m.phone || '-')} \\| 📧 ${escapeMarkdown(m.email || '-')}\n`;
+      }
+      msg += '\n';
+    }
+    msg += `💡 Kirim pesan massal: \`/msgmembers <pesan>\``;
+    await sendTelegramMessage(botToken, chatId, msg);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handleMsgMembersCommand(supabase: any, botToken: string, chatId: string, message: string) {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone')
+      .eq('status', 'confirmed');
+
+    if (!orders || orders.length === 0) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Tidak ada member untuk dikirimi pesan\\.');
+      return;
+    }
+
+    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))];
+    if (phones.length === 0) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Tidak ada nomor HP member yang tersedia\\.');
+      return;
+    }
+
+    let sent = 0;
+    for (const phone of phones) {
+      await sendFonnteWhatsApp(phone, message);
+      sent++;
+    }
+
+    await sendTelegramMessage(botToken, chatId, `✅ Pesan berhasil dikirim ke ${sent} member\\!`);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+
   try {
     const { data: stream } = await supabase.from('streams').select('id, title, is_live').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: settings } = await supabase.from('site_settings').select('key, value').in('key', ['active_show_id', 'next_show_time']);
