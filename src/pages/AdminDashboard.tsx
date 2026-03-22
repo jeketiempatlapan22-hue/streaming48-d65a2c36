@@ -28,6 +28,7 @@ const AdminNotifications = lazy(() => import("@/components/admin/AdminNotificati
 const ModeratorAccountManager = lazy(() => import("@/components/admin/ModeratorAccountManager"));
 const UserManager = lazy(() => import("@/components/admin/UserManager"));
 const AdminAnalytics = lazy(() => import("@/components/admin/AdminAnalytics"));
+const AdminBroadcast = lazy(() => import("@/components/admin/AdminBroadcast"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -72,6 +73,7 @@ const AdminDashboard = () => {
       case "site": return (
         <div className="space-y-6">
           <SiteSettingsManager />
+          <AdminBroadcast />
           <AdminSettings />
         </div>
       );

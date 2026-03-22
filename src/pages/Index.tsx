@@ -6,6 +6,7 @@ import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import InstallBanner from "@/components/viewer/InstallBanner";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import ThemeToggle from "@/components/ThemeToggle";
+import LiveNowBanner from "@/components/viewer/LiveNowBanner";
 import {
   Calendar, Clock, Users, MessageCircle, Ticket, Star, Upload, CheckCircle, Crown, Sparkles,
   Menu, X, Phone, Info, Radio, CreditCard, Mail, Coins, User, Copy, Play, Lock, Film, Home, Settings,
@@ -256,6 +257,8 @@ const Index = () => {
       href: `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent("Halo admin")}`,
     }] : []),
     { icon: <Coins className="h-5 w-5 text-[hsl(var(--warning))]" />, label: "Coin Shop", description: "Beli koin untuk akses nonton show", href: "/coins" },
+    { icon: <Info className="h-5 w-5 text-primary" />, label: "Tentang", description: "Info lengkap tentang platform", href: "/about" },
+    { icon: <MessageCircle className="h-5 w-5 text-primary" />, label: "FAQ", description: "Pertanyaan yang sering diajukan", href: "/faq" },
     { icon: <Ticket className="h-5 w-5 text-primary" />, label: "Data Show", description: `${regularShows.length} show tersedia`, href: "#shows" },
   ];
 
@@ -263,6 +266,7 @@ const Index = () => {
     <div className="relative min-h-screen bg-background">
       <ConnectionStatus />
       <LandingFloatingEmojis />
+      <LiveNowBanner isLive={isStreamLive} />
 
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
@@ -599,6 +603,7 @@ const Index = () => {
                   { label: "Coin Shop", href: "/coins" },
                   { label: "Membership", href: "/membership" },
                   { label: "FAQ", href: "/faq" },
+                  { label: "Tentang", href: "/about" },
                   { label: "Install App", href: "/install" },
                 ].map(l => (
                   <a key={l.href} href={l.href} className="text-xs text-muted-foreground hover:text-primary transition">{l.label}</a>

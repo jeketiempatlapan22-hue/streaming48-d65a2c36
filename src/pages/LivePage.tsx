@@ -5,6 +5,8 @@ import VideoPlayer from "@/components/VideoPlayer";
 import logo from "@/assets/logo.png";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import PipButton from "@/components/viewer/PipButton";
+import SecurityAlert from "@/components/viewer/SecurityAlert";
+import PlayerAnimations, { AnimationType } from "@/components/viewer/PlayerAnimations";
 
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
 const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
@@ -30,6 +32,7 @@ const LivePage = () => {
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [countdown, setCountdown] = useState("");
   const [nextShowTime, setNextShowTime] = useState("");
+  const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -79,6 +82,7 @@ const LivePage = () => {
       if (settingsRes.data) settingsRes.data.forEach((s: any) => {
         if (s.key === "next_show_time") setNextShowTime(s.value);
         if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+        if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
       });
       setLoading(false);
     };
@@ -130,6 +134,8 @@ const LivePage = () => {
   return (
     <div className="relative flex min-h-screen flex-col bg-background lg:flex-row">
       <ConnectionStatus />
+      <SecurityAlert />
+      {playerAnimation !== "none" && <PlayerAnimations type={playerAnimation} backgroundOnly />}
       {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
