@@ -51,6 +51,7 @@ const App = () => (
               <Route path="/install" element={<InstallPage />} />
               <Route path="/profile" element={<ViewerProfile />} />
               <Route path="/membership" element={<MembershipPage />} />
+              <Route path="/faq" element={<FaqPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
