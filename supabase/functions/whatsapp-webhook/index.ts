@@ -169,8 +169,8 @@ TIDAK <id> - Tolak order
 /replay <nama show> - Toggle mode replay
 
 📡 *Live Stream:*
-/setlive - Set stream pertama jadi LIVE
-/setlive <judul> - Set stream tertentu jadi LIVE
+/showinfo - Info stream & show aktif saat ini
+/setlive - Set stream jadi LIVE
 /setoffline - Set semua stream jadi OFFLINE
 
 🔑 *Password Reset:*
