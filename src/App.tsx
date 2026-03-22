@@ -53,6 +53,7 @@ const App = () => (
               <Route path="/profile" element={<ViewerProfile />} />
               <Route path="/membership" element={<MembershipPage />} />
               <Route path="/faq" element={<FaqPage />} />
+              <Route path="/about" element={<AboutPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
