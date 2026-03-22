@@ -50,6 +50,7 @@ const ReplayPage = () => {
   const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "done">("scan");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofUrl, setProofUrl] = useState("");
+  const [proofFilePath, setProofFilePath] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [loginPopup, setLoginPopup] = useState(false);
 
@@ -147,6 +148,7 @@ const ReplayPage = () => {
     setReplayResult(null);
     setQrisStep("scan");
     setProofUrl("");
+    setProofFilePath("");
   };
 
   const handleCoinRedeem = async () => {
@@ -180,6 +182,7 @@ const ReplayPage = () => {
       if (error) throw error;
       const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
       setProofUrl(urlData?.signedUrl || "");
+      setProofFilePath(path);
       setQrisStep("upload");
     } catch {
       toast({ title: "Upload gagal, coba lagi", variant: "destructive" });
@@ -196,6 +199,12 @@ const ReplayPage = () => {
     );
     window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
     setQrisStep("done");
+    // Also send Telegram/WA notification to admin
+    if (proofFilePath) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: "", show_title: purchaseShow.title, phone: "", email: "", proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "replay" },
+      }).catch(() => {});
+    }
   };
 
   const filteredShows = shows.filter((s) => {

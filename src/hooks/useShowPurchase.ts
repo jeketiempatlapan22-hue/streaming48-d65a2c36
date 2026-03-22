@@ -7,7 +7,7 @@ export function useShowPurchase() {
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("info");
   const [uploadingProof, setUploadingProof] = useState(false);
-  const [proofUrl, setProofUrl] = useState("");
+  const [proofFilePath, setProofFilePath] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
@@ -72,7 +72,7 @@ export function useShowPurchase() {
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
     setPurchaseStep(show.is_subscription ? "qris" : "info");
-    setProofUrl(""); setPhone(""); setEmail("");
+    setProofFilePath(""); setPhone(""); setEmail("");
   };
 
   const handleCoinBuy = (show: Show) => {
@@ -126,8 +126,7 @@ export function useShowPurchase() {
       const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("payment-proofs").upload(path, file);
       if (upErr) throw upErr;
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
-      setProofUrl(urlData?.signedUrl || "");
+      setProofFilePath(path);
       if (selectedShow.is_subscription) setPurchaseStep("info");
     } catch (err: any) {
       toast.error("Upload gagal: " + (err?.message || "Coba lagi"));
@@ -136,21 +135,24 @@ export function useShowPurchase() {
   };
 
   const handleSubmitSubscription = async () => {
-    if (!selectedShow || !proofUrl) return;
+    if (!selectedShow || !proofFilePath) return;
+    // Get signed URL for storing in DB
+    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
+    const signedUrl = urlData?.signedUrl || "";
     const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email, payment_proof_url: proofUrl,
+      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl,
     }).select("id").single();
     setPurchaseStep("done");
     if (orderData?.id) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, payment_proof_url: proofUrl },
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "membership" },
       }).catch(() => {});
     }
   };
 
   return {
     selectedShow, setSelectedShow, purchaseStep, setPurchaseStep,
-    uploadingProof, proofUrl, phone, setPhone, email, setEmail,
+    uploadingProof, proofFilePath, phone, setPhone, email, setEmail,
     handleBuy, handleUploadProof, handleSubmitSubscription,
     coinUser, coinBalance, coinUsername, coinShowTarget, setCoinShowTarget,
     coinRedeeming, coinResult, setCoinResult, handleCoinBuy, handleCoinRedeem,

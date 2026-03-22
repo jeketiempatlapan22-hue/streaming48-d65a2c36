@@ -104,7 +104,7 @@ const CoinShop = () => {
       toast({ title: "Order terkirim!", description: "Menunggu konfirmasi admin." });
       if (orderData?.id) {
         supabase.functions.invoke("notify-coin-order", {
-          body: { order_id: orderData.id, username, package_name: selectedPkg.name, coin_amount: selectedPkg.coin_amount, price: selectedPkg.price, payment_proof_url: proofUrl },
+          body: { order_id: orderData.id, username, package_name: selectedPkg.name, coin_amount: selectedPkg.coin_amount, price: selectedPkg.price, proof_file_path: fileName },
         }).catch(() => {});
       }
     }
