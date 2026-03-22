@@ -12,6 +12,7 @@ const CoinShop = () => {
   const [selectedPkg, setSelectedPkg] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -59,18 +60,34 @@ const CoinShop = () => {
       proofUrl = urlData.publicUrl;
     }
 
-    const { error } = await supabase.from("coin_orders").insert({
+    const { data: orderData, error } = await supabase.from("coin_orders").insert({
       user_id: user.id,
       package_id: selectedPkg.id,
       coin_amount: selectedPkg.coin_amount,
       payment_proof_url: proofUrl,
+      phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""),
+      price: selectedPkg.price,
       status: "pending",
-    });
+    }).select("id").single();
     if (error) {
       toast.error("Gagal mengirim pesanan");
     } else {
       setSubmitted(true);
       toast.success("Pesanan berhasil dikirim! Admin akan mengkonfirmasi.");
+
+      if (orderData?.id) {
+        const { data: profile } = await supabase.from("profiles").select("username").eq("id", user.id).maybeSingle();
+        supabase.functions.invoke("notify-coin-order", {
+          body: {
+            order_id: orderData.id,
+            username: profile?.username || user.email,
+            package_name: selectedPkg.name,
+            coin_amount: selectedPkg.coin_amount,
+            price: selectedPkg.price,
+            payment_proof_url: proofUrl,
+          },
+        }).catch(() => {});
+      }
     }
     setUploading(false);
   };
@@ -137,6 +154,11 @@ const CoinShop = () => {
                 <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground mb-4">QRIS belum tersedia</div>
               )}
 
+              <div className="mb-4">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Nomor WhatsApp (untuk notifikasi)</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+              </div>
               <p className="text-xs text-muted-foreground text-center mb-4">Scan QRIS lalu upload bukti pembayaran</p>
 
               <button

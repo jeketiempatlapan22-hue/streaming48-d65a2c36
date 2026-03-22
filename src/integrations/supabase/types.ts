@@ -78,6 +78,9 @@ export type Database = {
           id: string
           package_id: string | null
           payment_proof_url: string | null
+          phone: string | null
+          price: string | null
+          short_id: string | null
           status: string
           user_id: string
         }
@@ -87,6 +90,9 @@ export type Database = {
           id?: string
           package_id?: string | null
           payment_proof_url?: string | null
+          phone?: string | null
+          price?: string | null
+          short_id?: string | null
           status?: string
           user_id: string
         }
@@ -96,6 +102,9 @@ export type Database = {
           id?: string
           package_id?: string | null
           payment_proof_url?: string | null
+          phone?: string | null
+          price?: string | null
+          short_id?: string | null
           status?: string
           user_id?: string
         }
@@ -395,6 +404,7 @@ export type Database = {
           payment_method: string | null
           payment_proof_url: string | null
           phone: string | null
+          short_id: string | null
           show_id: string
           status: string
           user_id: string | null
@@ -406,6 +416,7 @@ export type Database = {
           payment_method?: string | null
           payment_proof_url?: string | null
           phone?: string | null
+          short_id?: string | null
           show_id: string
           status?: string
           user_id?: string | null
@@ -417,6 +428,7 @@ export type Database = {
           payment_method?: string | null
           payment_proof_url?: string | null
           phone?: string | null
+          short_id?: string | null
           show_id?: string
           status?: string
           user_id?: string | null
@@ -430,6 +442,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      telegram_bot_state: {
+        Row: {
+          id: number
+          update_offset: number
+          updated_at: string
+        }
+        Insert: {
+          id: number
+          update_offset?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          update_offset?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      telegram_messages: {
+        Row: {
+          chat_id: number
+          created_at: string
+          processed: boolean
+          raw_update: Json
+          text: string | null
+          update_id: number
+        }
+        Insert: {
+          chat_id: number
+          created_at?: string
+          processed?: boolean
+          raw_update?: Json
+          text?: string | null
+          update_id: number
+        }
+        Update: {
+          chat_id?: number
+          created_at?: string
+          processed?: boolean
+          raw_update?: Json
+          text?: string | null
+          update_id?: number
+        }
+        Relationships: []
       }
       token_sessions: {
         Row: {
