@@ -616,7 +616,70 @@ async function notifyTelegram(command: string, result: string) {
   }
 }
 
-async function handleShowInfo(supabase: any): Promise<string> {
+async function handleMembers(supabase: any): Promise<string> {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone, email, show_id, created_at')
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false });
+
+    if (!orders || orders.length === 0) return '👥 Belum ada member langganan.';
+
+    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_subscription', true);
+    const showMap: Record<string, string> = {};
+    (shows || []).forEach((s: any) => { showMap[s.id] = s.title; });
+
+    const grouped: Record<string, any[]> = {};
+    for (const o of orders) {
+      const title = showMap[o.show_id] || 'Unknown';
+      if (!grouped[title]) grouped[title] = [];
+      grouped[title].push(o);
+    }
+
+    let msg = `👥 *DAFTAR MEMBER LANGGANAN (${orders.length})*\n\n`;
+    for (const [title, members] of Object.entries(grouped)) {
+      msg += `🎬 *${title}* (${members.length})\n`;
+      for (const m of members) {
+        msg += `  📞 ${m.phone || '-'} | 📧 ${m.email || '-'}\n`;
+      }
+      msg += '\n';
+    }
+    msg += `💡 Kirim pesan massal: /msgmembers <pesan>`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleMsgMembers(supabase: any, message: string): Promise<string> {
+  try {
+    const { data: orders } = await supabase
+      .from('subscription_orders')
+      .select('phone')
+      .eq('status', 'confirmed');
+
+    if (!orders || orders.length === 0) return '⚠️ Tidak ada member untuk dikirimi pesan.';
+
+    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))];
+    if (phones.length === 0) return '⚠️ Tidak ada nomor HP member yang tersedia.';
+
+    const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+    if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN belum dikonfigurasi.';
+
+    let sent = 0;
+    for (const phone of phones) {
+      await sendFonnteMessage(FONNTE_TOKEN, phone, message);
+      sent++;
+    }
+
+    return `✅ Pesan berhasil dikirim ke ${sent} member!`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+
   try {
     const { data: stream } = await supabase.from('streams').select('id, title, is_live').eq('is_active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
     const { data: settings } = await supabase.from('site_settings').select('key, value').in('key', ['active_show_id', 'next_show_time']);
