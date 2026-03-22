@@ -286,15 +286,17 @@ const Index = () => {
   };
 
   const handleSubmitSubscription = async () => {
-    if (!selectedShow || !proofUrl) return;
+    if (!selectedShow || !proofFilePath) return;
+    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
+    const signedUrl = urlData?.signedUrl || "";
     const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email, payment_proof_url: proofUrl,
+      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl,
     }).select("id").single();
     setPurchaseStep("done");
 
     if (orderData?.id) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, payment_proof_url: proofUrl },
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription" },
       }).catch(() => {});
     }
   };
