@@ -166,6 +166,9 @@ TIDAK <id> - Tolak order
 /setlive <judul> - Set stream tertentu jadi LIVE
 /setoffline - Set semua stream jadi OFFLINE
 
+📨 *Messaging:*
+/msgshow <nama show> | <pesan> - Kirim WA ke semua pemesan show
+
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
 /help - Tampilkan daftar command`;
