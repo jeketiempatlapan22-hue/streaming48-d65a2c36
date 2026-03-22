@@ -99,6 +99,9 @@ const SchedulePage = () => {
                           <Coins className="h-3 w-3" />{show.coin_price} Koin
                         </span>
                       )}
+                      {show.schedule_date && show.schedule_time && (
+                        <CountdownTimer dateStr={show.schedule_date} timeStr={show.schedule_time} />
+                      )}
                     </div>
                   </div>
                 </div>
