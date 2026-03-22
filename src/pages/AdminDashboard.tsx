@@ -59,6 +59,7 @@ const AdminDashboard = () => {
       case "polls": return <PollManager />;
       case "security": return <SecurityLogManager />;
       case "health": return <SystemHealthCheck />;
+      case "logs": return <AdminLiveLogs />;
       case "monitor": return <AdminMonitor />;
       case "site": return (
         <div className="space-y-6">
