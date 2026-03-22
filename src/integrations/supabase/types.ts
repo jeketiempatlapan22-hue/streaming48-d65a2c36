@@ -871,6 +871,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      change_poll_vote: {
+        Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
+        Returns: undefined
+      }
       check_rate_limit: {
         Args: { _key: string; _max_requests: number; _window_seconds: number }
         Returns: boolean
