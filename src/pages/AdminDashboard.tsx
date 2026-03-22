@@ -22,6 +22,9 @@ const ChatModeratorManager = lazy(() => import("@/components/admin/ChatModerator
 const PlaylistManager = lazy(() => import("@/components/admin/PlaylistManager"));
 const AdminLiveLogs = lazy(() => import("@/components/admin/AdminLiveLogs"));
 const AdminOrderNotifications = lazy(() => import("@/components/admin/AdminOrderNotifications"));
+const AdminSettings = lazy(() => import("@/components/admin/AdminSettings"));
+const AdminNotifications = lazy(() => import("@/components/admin/AdminNotifications"));
+const ModeratorAccountManager = lazy(() => import("@/components/admin/ModeratorAccountManager"));
 
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
@@ -62,8 +65,18 @@ const AdminDashboard = () => {
       case "health": return <SystemHealthCheck />;
       case "logs": return <AdminLiveLogs />;
       case "monitor": return <AdminMonitor />;
-      case "site": return <SiteSettingsManager />;
-      case "moderators": return <ChatModeratorManager />;
+      case "site": return (
+        <div className="space-y-6">
+          <SiteSettingsManager />
+          <AdminSettings />
+        </div>
+      );
+      case "moderators": return (
+        <div className="space-y-6">
+          <ModeratorAccountManager />
+          <ChatModeratorManager />
+        </div>
+      );
       default: return <LiveControl />;
     }
   };
@@ -76,6 +89,10 @@ const AdminDashboard = () => {
         <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-3 md:hidden">
           <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setMobileOpen(true)}><Menu className="h-5 w-5" /></Button>
           <span className="flex-1 text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
+        </header>
+        {/* Desktop header with notifications */}
+        <header className="hidden shrink-0 items-center justify-end gap-3 border-b border-border bg-card px-6 py-3 md:flex">
+          <Suspense fallback={null}><AdminNotifications /></Suspense>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 lg:p-8">
           <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
