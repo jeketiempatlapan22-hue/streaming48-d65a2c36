@@ -110,8 +110,8 @@ const MembershipPage = () => {
     const filePath = `membership/${selectedShow.id}/${Date.now()}_${file.name}`;
     const { error } = await supabase.storage.from("coin-proofs").upload(filePath, file);
     if (error) { toast({ title: "Upload gagal", variant: "destructive" }); setUploadingProof(false); return; }
-    const { data: urlData } = supabase.storage.from("coin-proofs").getPublicUrl(filePath);
-    setProofUrl(urlData.publicUrl);
+    const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(filePath, 86400);
+    setProofUrl(urlData?.signedUrl || "");
     setPurchaseStep("info");
     setUploadingProof(false);
   };

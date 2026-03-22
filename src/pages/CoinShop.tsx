@@ -89,8 +89,8 @@ const CoinShop = () => {
     const { error: uploadErr } = await supabase.storage.from("coin-proofs").upload(fileName, file);
     let proofUrl: string | null = null;
     if (!uploadErr) {
-      const { data: urlData } = supabase.storage.from("coin-proofs").getPublicUrl(fileName);
-      proofUrl = urlData.publicUrl;
+      const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(fileName, 86400);
+      proofUrl = urlData?.signedUrl || null;
     }
     const { data: orderData, error } = await supabase.from("coin_orders").insert({
       user_id: user.id, package_id: selectedPkg.id, coin_amount: selectedPkg.coin_amount,
