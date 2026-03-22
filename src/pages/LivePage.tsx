@@ -210,17 +210,32 @@ const LivePage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Player */}
           <div className="lg:col-span-2 space-y-4">
-            {isLive && currentUrl ? (
-              <VideoPlayer url={currentUrl} type={currentType} />
-            ) : (
-              <div className="aspect-video rounded-2xl border border-border bg-card flex items-center justify-center">
-                <div className="text-center">
-                  <Shield className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                  <p className="text-muted-foreground font-medium">Streaming sedang offline</p>
-                  <p className="text-xs text-muted-foreground mt-1">Tunggu sampai admin memulai live streaming</p>
+            <div className="relative">
+              {isLive && currentUrl ? (
+                <VideoPlayer url={currentUrl} type={currentType} />
+              ) : (
+                <div className="aspect-video rounded-2xl border border-border bg-card flex items-center justify-center">
+                  <div className="text-center">
+                    <Shield className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
+                    <p className="text-muted-foreground font-medium">Streaming sedang offline</p>
+                    <p className="text-xs text-muted-foreground mt-1">Tunggu sampai admin memulai live streaming</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+              {/* Watermark overlay */}
+              {isLive && username && (
+                <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden select-none">
+                  <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-x-16 gap-y-10 -rotate-[25deg] scale-125 opacity-[0.06]">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <span key={i} className="whitespace-nowrap text-lg font-bold text-foreground">{username}</span>
+                    ))}
+                  </div>
+                  <div className="absolute bottom-3 right-3 rounded-md bg-background/40 backdrop-blur-sm px-2 py-1">
+                    <span className="text-[10px] font-medium text-foreground/30">{username}</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Playlist selector */}
             {playlists.length > 1 && (

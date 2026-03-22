@@ -43,16 +43,7 @@ const SchedulePage = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <nav className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <a href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <Shield className="h-4 w-4 text-primary" />
-            </div>
-            <span className="text-sm font-bold">Real<span className="text-primary">Time48</span></span>
-          </a>
-        </div>
-      </nav>
+      <SharedNavbar />
 
       <div className="mx-auto max-w-4xl px-4 py-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
