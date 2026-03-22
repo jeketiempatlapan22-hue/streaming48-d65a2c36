@@ -199,6 +199,12 @@ const ReplayPage = () => {
     );
     window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
     setQrisStep("done");
+    // Also send Telegram/WA notification to admin
+    if (proofFilePath) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: "", show_title: purchaseShow.title, phone: "", email: "", proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "replay" },
+      }).catch(() => {});
+    }
   };
 
   const filteredShows = shows.filter((s) => {
