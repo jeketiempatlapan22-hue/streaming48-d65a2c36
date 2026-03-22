@@ -114,7 +114,22 @@ const CoinPackageManager = () => {
                   <Input value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className="bg-background" />
                   <Input type="number" value={editing.coin_amount} onChange={(e) => setEditing({ ...editing, coin_amount: parseInt(e.target.value) || 0 })} className="bg-background" />
                   <Input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} className="bg-background" />
+                  <div className="flex gap-2">
+                    <Input placeholder="URL QRIS" value={editing.qris_image_url || ""} onChange={(e) => setEditing({ ...editing, qris_image_url: e.target.value })} className="bg-background flex-1" />
+                    <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-xs hover:bg-secondary shrink-0">
+                      <Upload className="h-3 w-3" /> {uploadingQris ? "..." : "Upload"}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrisUpload(e, "edit")} disabled={uploadingQris} />
+                    </label>
+                  </div>
                 </div>
+                {editing.qris_image_url && (
+                  <div className="flex items-center gap-3">
+                    <img src={editing.qris_image_url} alt="QRIS Preview" className="h-20 w-20 rounded-lg border border-border object-contain bg-white" />
+                    <Button size="sm" variant="ghost" className="text-destructive text-xs" onClick={() => setEditing({ ...editing, qris_image_url: null })}>
+                      <Trash2 className="h-3 w-3 mr-1" /> Hapus QRIS
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => updatePackage(editing)} className="gap-1"><Save className="h-3.5 w-3.5" /> Simpan</Button>
                   <Button size="sm" variant="outline" onClick={() => setEditing(null)}>Batal</Button>
