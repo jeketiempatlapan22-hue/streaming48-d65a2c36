@@ -34,6 +34,7 @@ interface SiteSettings {
 const Index = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [isStreamLive, setIsStreamLive] = useState(false);
+  const [descriptions, setDescriptions] = useState<any[]>([]);
   const [settings, setSettings] = useState<SiteSettings>({
     whatsapp_number: "",
     purchase_message: "",
@@ -42,6 +43,10 @@ const Index = () => {
     subscription_info: "",
     announcement_text: "",
     announcement_enabled: "",
+    landing_desc_layout: "list",
+    landing_desc_title: "",
+    landing_desc_subtitle: "",
+    landing_desc_quote: "",
   });
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("qris");
