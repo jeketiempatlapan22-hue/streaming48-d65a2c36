@@ -53,9 +53,12 @@ const Index = () => {
         <div className="container max-w-5xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Play className="w-4 h-4 text-primary fill-primary" />
+              <Shield className="w-4 h-4 text-primary" />
             </div>
-            <h1 className="text-lg font-semibold tracking-tight">StreamBox</h1>
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight leading-none">RealTime48</h1>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">Secure Streaming</p>
+            </div>
           </div>
           <a
             href="/login"
