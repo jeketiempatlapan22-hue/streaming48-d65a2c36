@@ -3,19 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import SharedNavbar from "@/components/SharedNavbar";
-import { Search, Calendar, Clock, Users, Coins, Play, Copy, Lock, Ticket } from "lucide-react";
+import { Search, Calendar, Clock, Users, Coins, Play, Copy, Lock, Ticket, CreditCard, Upload, CheckCircle, MessageCircle, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
-
-const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {
-  regular: { label: "🎭 Reguler", color: "bg-primary/20 text-primary" },
-  birthday: { label: "🎂 Ulang Tahun/STS", color: "bg-pink-500/20 text-pink-400" },
-  special: { label: "⭐ Spesial", color: "bg-yellow-500/20 text-yellow-400" },
-  anniversary: { label: "🎉 Anniversary", color: "bg-purple-500/20 text-purple-400" },
-  last_show: { label: "👋 Last Show", color: "bg-red-500/20 text-red-400" },
-};
+import { SHOW_CATEGORIES } from "@/types/show";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
@@ -44,18 +37,33 @@ const ReplayPage = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [coinUser, setCoinUser] = useState<any>(null);
   const [coinBalance, setCoinBalance] = useState(0);
-  const [replayTarget, setReplayTarget] = useState<Show | null>(null);
-  const [redeeming, setRedeeming] = useState(false);
   const [replayPasswords, setReplayPasswords] = useState<Record<string, string>>({});
   const [replayModal, setReplayModal] = useState<{ showId: string; password: string } | null>(null);
+
+  // Purchase flow state
+  const [purchaseShow, setPurchaseShow] = useState<Show | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"choose" | "coin" | "qris">("choose");
+  const [redeeming, setRedeeming] = useState(false);
   const [replayResult, setReplayResult] = useState<{ replay_password: string; remaining_balance: number } | null>(null);
+
+  // QRIS flow state
+  const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "done">("scan");
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [proofUrl, setProofUrl] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [loginPopup, setLoginPopup] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
-      const [showsRes, streamRes] = await Promise.all([
+      const [showsRes, streamRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
         supabase.from("streams").select("is_live").limit(1).single(),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
       ]);
+      if (settingsRes.data) {
+        const waRow = settingsRes.data.find((r: any) => r.key === "whatsapp_number");
+        if (waRow) setWhatsappNumber(waRow.value);
+      }
       if (showsRes.data) {
         const streamLive = streamRes.data?.is_live ?? true;
         const pastShows = (showsRes.data as any[]).filter((s) => {
@@ -83,13 +91,9 @@ const ReplayPage = () => {
         const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", user.id).maybeSingle();
         setCoinBalance(bal?.balance || 0);
 
-        // Load replay passwords from localStorage
         let storedPw: Record<string, string> = {};
-        try {
-          storedPw = JSON.parse(localStorage.getItem(`replay_passwords_${user.id}`) || "{}");
-        } catch {}
+        try { storedPw = JSON.parse(localStorage.getItem(`replay_passwords_${user.id}`) || "{}"); } catch {}
 
-        // Check coin_transactions for past replay purchases not in localStorage
         const { data: txns } = await supabase
           .from("coin_transactions")
           .select("reference_id")
@@ -99,28 +103,22 @@ const ReplayPage = () => {
 
         if (txns) {
           for (const tx of txns) {
-            if (tx.reference_id && !storedPw[tx.reference_id]) {
-              storedPw[tx.reference_id] = "__purchased__";
-            }
+            if (tx.reference_id && !storedPw[tx.reference_id]) storedPw[tx.reference_id] = "__purchased__";
           }
           localStorage.setItem(`replay_passwords_${user.id}`, JSON.stringify(storedPw));
         }
 
-        // Fetch real access passwords from DB for purchased shows
         try {
           const { data: pwData } = await supabase.rpc("get_purchased_show_passwords" as any);
           if (pwData && typeof pwData === "object") {
             const pwMap = pwData as Record<string, string>;
-            for (const [showId, pw] of Object.entries(pwMap)) {
-              if (pw) storedPw[showId] = pw;
-            }
+            for (const [showId, pw] of Object.entries(pwMap)) { if (pw) storedPw[showId] = pw; }
             localStorage.setItem(`replay_passwords_${user.id}`, JSON.stringify(storedPw));
           }
         } catch {}
 
         setReplayPasswords(storedPw);
 
-        // Realtime balance subscription
         const balCh = supabase
           .channel(`replay-balance-${user.id}`)
           .on("postgres_changes", { event: "*", schema: "public", table: "coin_balances", filter: `user_id=eq.${user.id}` }, (p: any) => {
@@ -142,10 +140,19 @@ const ReplayPage = () => {
     };
   }, []);
 
-  const handleReplayRedeem = async () => {
-    if (!replayTarget || !coinUser) return;
+  const openPurchase = (show: Show) => {
+    if (!coinUser) { setLoginPopup(true); return; }
+    setPurchaseShow(show);
+    setPaymentMethod("choose");
+    setReplayResult(null);
+    setQrisStep("scan");
+    setProofUrl("");
+  };
+
+  const handleCoinRedeem = async () => {
+    if (!purchaseShow || !coinUser) return;
     setRedeeming(true);
-    const { data, error } = await supabase.rpc("redeem_coins_for_replay" as any, { _show_id: replayTarget.id });
+    const { data, error } = await supabase.rpc("redeem_coins_for_replay" as any, { _show_id: purchaseShow.id });
     setRedeeming(false);
     const result = data as any;
     if (error || !result?.success) {
@@ -156,14 +163,44 @@ const ReplayPage = () => {
     setCoinBalance(result.remaining_balance);
 
     const stored = JSON.parse(localStorage.getItem(`replay_passwords_${coinUser.id}`) || "{}");
-    stored[replayTarget.id] = result.replay_password;
+    stored[purchaseShow.id] = result.replay_password;
     localStorage.setItem(`replay_passwords_${coinUser.id}`, JSON.stringify(stored));
-    setReplayPasswords((prev) => ({ ...prev, [replayTarget.id]: result.replay_password }));
+    setReplayPasswords((prev) => ({ ...prev, [purchaseShow.id]: result.replay_password }));
+  };
+
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !purchaseShow) return;
+    if (file.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
+    setUploadingProof(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
+      if (error) throw error;
+      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
+      setProofUrl(urlData?.signedUrl || "");
+      setQrisStep("upload");
+    } catch {
+      toast({ title: "Upload gagal, coba lagi", variant: "destructive" });
+    }
+    setUploadingProof(false);
+  };
+
+  const handleSendWhatsApp = () => {
+    if (!purchaseShow || !whatsappNumber) return;
+    const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+    const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
+    const msg = encodeURIComponent(
+      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN REPLAY*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${purchaseShow.title}\n💰 *Harga:* ${purchaseShow.price}\n${purchaseShow.schedule_date ? `📅 *Jadwal:* ${purchaseShow.schedule_date} ${purchaseShow.schedule_time}\n` : ""}${purchaseShow.lineup ? `👥 *Lineup:* ${purchaseShow.lineup}\n` : ""}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
+    );
+    window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
+    setQrisStep("done");
   };
 
   const filteredShows = shows.filter((s) => {
     const q = searchQuery.toLowerCase();
-    const matchesSearch = s.title.toLowerCase().includes(q) || 
+    const matchesSearch = s.title.toLowerCase().includes(q) ||
       (s.schedule_date || "").toLowerCase().includes(q) ||
       (s.lineup || "").toLowerCase().includes(q) ||
       (s.category_member || "").toLowerCase().includes(q);
@@ -233,8 +270,7 @@ const ReplayPage = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
                     {show.category && show.category !== "regular" && (() => {
                       const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
-                      const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show")
-                        ? ` — ${show.category_member}` : "";
+                      const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show") ? ` — ${show.category_member}` : "";
                       return <span className={`absolute top-3 left-3 rounded-full px-3 py-1 text-[10px] font-bold backdrop-blur-sm ${cat.color}`}>{cat.label}{memberText}</span>;
                     })()}
                     <span className="absolute top-3 right-3 rounded-full bg-accent/80 px-2.5 py-1 text-[10px] font-bold text-accent-foreground backdrop-blur-sm">REPLAY</span>
@@ -252,7 +288,12 @@ const ReplayPage = () => {
                         <Users className="mt-0.5 h-3.5 w-3.5 text-primary" /><span className="line-clamp-2">{show.lineup}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-1.5 text-sm text-primary"><Coins className="h-4 w-4" /><span className="font-semibold">{show.replay_coin_price} Koin</span></div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-sm text-primary"><Coins className="h-4 w-4" /><span className="font-semibold">{show.replay_coin_price} Koin</span></div>
+                      {show.price && show.price !== "Gratis" && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="font-medium">{show.price}</span></div>
+                      )}
+                    </div>
 
                     {hasRealPassword ? (
                       <div className="space-y-2">
@@ -264,9 +305,7 @@ const ReplayPage = () => {
                           onClick={() => {
                             navigator.clipboard.writeText(replayPasswords[show.id]);
                             toast({ title: "Sandi disalin! Membuka halaman replay..." });
-                            setTimeout(() => {
-                              window.open("https://replaytime.lovable.app", "_blank");
-                            }, 500);
+                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
@@ -274,23 +313,16 @@ const ReplayPage = () => {
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a
-                        href="https://replaytime.lovable.app"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
-                      >
+                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
                         <Play className="h-4 w-4" /> Tonton Replay
                       </a>
                     ) : (
                       <button
-                        onClick={() => {
-                          if (!coinUser) { toast({ title: "Login terlebih dahulu", description: "Silakan login di /auth untuk membeli replay.", variant: "destructive" }); return; }
-                          setReplayTarget(show); setReplayResult(null);
-                        }}
+                        onClick={() => openPurchase(show)}
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.97]"
                       >
-                        <Coins className="h-4 w-4" /> Beli Replay {show.replay_coin_price} Koin
+                        <Ticket className="h-4 w-4" /> Beli Replay
                       </button>
                     )}
                   </div>
@@ -301,50 +333,161 @@ const ReplayPage = () => {
         )}
       </div>
 
-      {/* Replay Purchase Dialog */}
-      <Dialog open={!!replayTarget} onOpenChange={() => { setReplayTarget(null); setReplayResult(null); }}>
+      {/* Purchase Dialog */}
+      <Dialog open={!!purchaseShow} onOpenChange={() => { setPurchaseShow(null); setReplayResult(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>🎬 Beli Replay</DialogTitle>
-            <DialogDescription>{replayTarget?.title}</DialogDescription>
+            <DialogDescription>{purchaseShow?.title}</DialogDescription>
           </DialogHeader>
-          {!replayResult ? (
+
+          {/* Step 1: Choose payment method */}
+          {paymentMethod === "choose" && !replayResult && (
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Show</span>
-                  <span className="font-semibold text-foreground">{replayTarget?.title}</span>
+                  <span className="font-semibold text-foreground">{purchaseShow?.title}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Tanggal</span>
-                  <span className="text-foreground">{replayTarget?.schedule_date}</span>
+                  <span className="text-foreground">{purchaseShow?.schedule_date}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Harga Koin</span>
+                  <span className="font-bold text-primary">{purchaseShow?.replay_coin_price} Koin</span>
+                </div>
+                {purchaseShow?.price && purchaseShow.price !== "Gratis" && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Harga QRIS</span>
+                    <span className="font-bold text-foreground">{purchaseShow.price}</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-center text-sm font-medium text-foreground">Pilih metode pembayaran:</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setPaymentMethod("coin")}
+                  className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 transition hover:border-primary/50 hover:bg-primary/5 active:scale-[0.97]"
+                >
+                  <Coins className="h-8 w-8 text-primary" />
+                  <span className="text-sm font-semibold text-foreground">Koin</span>
+                  <span className="text-[10px] text-muted-foreground">Langsung terproses</span>
+                </button>
+                <button
+                  onClick={() => { setPaymentMethod("qris"); setQrisStep("scan"); setProofUrl(""); }}
+                  className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 transition hover:border-primary/50 hover:bg-primary/5 active:scale-[0.97]"
+                >
+                  <CreditCard className="h-8 w-8 text-foreground" />
+                  <span className="text-sm font-semibold text-foreground">Scan QRIS</span>
+                  <span className="text-[10px] text-muted-foreground">Transfer & upload bukti</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Coin payment */}
+          {paymentMethod === "coin" && !replayResult && (
+            <div className="space-y-4">
+              <button onClick={() => setPaymentMethod("choose")} className="text-xs text-primary hover:underline">← Kembali</button>
+              <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Harga Replay</span>
-                  <span className="font-bold text-primary">{replayTarget?.replay_coin_price} Koin</span>
+                  <span className="font-bold text-primary">{purchaseShow?.replay_coin_price} Koin</span>
                 </div>
                 <div className="flex items-center justify-between text-sm border-t border-border pt-2">
                   <span className="text-muted-foreground">Saldo Anda</span>
-                  <span className={`font-bold ${coinBalance >= (replayTarget?.replay_coin_price || 0) ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
+                  <span className={`font-bold ${coinBalance >= (purchaseShow?.replay_coin_price || 0) ? "text-[hsl(var(--success))]" : "text-destructive"}`}>
                     {coinBalance} Koin
                   </span>
                 </div>
               </div>
-              {coinBalance < (replayTarget?.replay_coin_price || 0) ? (
+              {coinBalance < (purchaseShow?.replay_coin_price || 0) ? (
                 <div className="space-y-3">
                   <p className="text-center text-sm text-destructive">Koin tidak cukup.</p>
-                  <Button className="w-full" variant="outline" onClick={() => { setReplayTarget(null); window.location.href = "/coins"; }}>
+                  <Button className="w-full" variant="outline" onClick={() => { setPurchaseShow(null); window.location.href = "/coins"; }}>
                     <Coins className="mr-2 h-4 w-4" /> Beli Koin
                   </Button>
                 </div>
               ) : (
-                <Button className="w-full gap-2" onClick={handleReplayRedeem} disabled={redeeming}>
+                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={redeeming}>
                   <Coins className="h-4 w-4" />
-                  {redeeming ? "Memproses..." : `Bayar ${replayTarget?.replay_coin_price} Koin`}
+                  {redeeming ? "Memproses..." : `Bayar ${purchaseShow?.replay_coin_price} Koin`}
                 </Button>
               )}
             </div>
-          ) : (
+          )}
+
+          {/* QRIS payment */}
+          {paymentMethod === "qris" && !replayResult && (
+            <div className="space-y-4">
+              <button onClick={() => setPaymentMethod("choose")} className="text-xs text-primary hover:underline">← Kembali</button>
+
+              {qrisStep === "scan" && (
+                <>
+                  <p className="text-sm text-muted-foreground">Silakan scan QRIS di bawah untuk melakukan pembayaran:</p>
+                  {purchaseShow?.qris_image_url ? (
+                    <img src={purchaseShow.qris_image_url} alt="QRIS" className="mx-auto w-full max-w-sm rounded-lg object-contain" />
+                  ) : (
+                    <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia untuk show ini</div>
+                  )}
+                  <div className="rounded-xl border border-border bg-secondary/50 p-3 text-center">
+                    <p className="text-xs text-muted-foreground">Harga</p>
+                    <p className="text-lg font-bold text-foreground">{purchaseShow?.price}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
+                    onClick={() => {
+                      const input = document.createElement("input");
+                      input.type = "file";
+                      input.accept = "image/*,.heic,.heif";
+                      input.capture = "environment";
+                      input.onchange = (e) => handleUploadProof(e as any);
+                      input.click();
+                    }}
+                    disabled={uploadingProof}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
+                  </button>
+                </>
+              )}
+
+              {qrisStep === "upload" && (
+                <>
+                  <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))]">
+                    <CheckCircle className="h-4 w-4" /> Bukti pembayaran berhasil diupload
+                  </div>
+                  <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+                    <p className="text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>🎭 {purchaseShow?.title}</p>
+                      <p>💰 {purchaseShow?.price}</p>
+                      {purchaseShow?.schedule_date && <p>📅 {purchaseShow.schedule_date} {purchaseShow.schedule_time}</p>}
+                    </div>
+                  </div>
+                  <Button onClick={handleSendWhatsApp} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
+                    <MessageCircle className="h-4 w-4" /> Kirim Pesanan via WhatsApp
+                  </Button>
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    * Anda akan diarahkan ke WhatsApp untuk mengirim data pesanan dan bukti transfer ke admin
+                  </p>
+                </>
+              )}
+
+              {qrisStep === "done" && (
+                <div className="space-y-4 text-center">
+                  <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                  <h4 className="text-lg font-bold text-foreground">Pesanan Terkirim!</h4>
+                  <p className="text-sm text-muted-foreground">Admin akan memproses pesanan Anda dan mengirimkan sandi replay via WhatsApp.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Success result (coin) */}
+          {replayResult && (
             <div className="space-y-4 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--success))]/20">
                 <Play className="h-6 w-6 text-[hsl(var(--success))]" />
@@ -362,14 +505,13 @@ const ReplayPage = () => {
                   toast({ title: "Sandi disalin! Membuka halaman replay..." });
                   setTimeout(() => {
                     window.open("https://replaytime.lovable.app", "_blank");
-                    setReplayTarget(null);
+                    setPurchaseShow(null);
                     setReplayResult(null);
                   }, 500);
                 }}
               >
                 <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
               </Button>
-              <p className="text-xs text-muted-foreground">⚠️ Sandi akan disalin otomatis, lalu halaman replay terbuka</p>
               <p className="text-xs text-muted-foreground">Sisa saldo: <span className="font-bold text-primary">{replayResult.remaining_balance} koin</span></p>
             </div>
           )}
@@ -402,9 +544,26 @@ const ReplayPage = () => {
               >
                 <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
               </Button>
-              <p className="text-xs text-muted-foreground">⚠️ Sandi akan disalin otomatis, lalu halaman replay terbuka</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Login Required Popup */}
+      <Dialog open={loginPopup} onOpenChange={setLoginPopup}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><LogIn className="h-5 w-5 text-primary" /> Login Diperlukan</DialogTitle>
+            <DialogDescription>Kamu perlu login atau daftar terlebih dahulu untuk membeli replay.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <a href="/auth" className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.98]">
+              <LogIn className="h-4 w-4" /> Login / Daftar
+            </a>
+            <button onClick={() => setLoginPopup(false)} className="flex w-full items-center justify-center rounded-xl bg-secondary px-4 py-3 text-sm font-medium text-secondary-foreground transition hover:bg-secondary/80">
+              Nanti
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
