@@ -170,16 +170,26 @@ const LivePage = () => {
         keepalive: true,
       }).catch(() => {});
     };
-    const onVisChange = () => { if (document.visibilityState === "hidden") releaseSession(); };
     window.addEventListener("beforeunload", releaseSession);
     window.addEventListener("pagehide", releaseSession);
-    document.addEventListener("visibilitychange", onVisChange);
     return () => {
       window.removeEventListener("beforeunload", releaseSession);
       window.removeEventListener("pagehide", releaseSession);
-      document.removeEventListener("visibilitychange", onVisChange);
     };
   }, [tokenCode, getFingerprint]);
+
+  useEffect(() => {
+    if (!tokenCode || !tokenData?.id) return;
+    const fp = getFingerprint();
+    const interval = window.setInterval(() => {
+      supabase.rpc("create_token_session", {
+        _token_code: tokenCode,
+        _fingerprint: fp,
+        _user_agent: navigator.userAgent,
+      }).catch(() => {});
+    }, 45000);
+    return () => window.clearInterval(interval);
+  }, [tokenCode, tokenData?.id, getFingerprint]);
 
   useEffect(() => {
     const ch = supabase.channel("stream-rt").on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => { if (p.new) setStream(p.new); }).subscribe();

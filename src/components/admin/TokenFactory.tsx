@@ -49,7 +49,7 @@ const TokenFactory = () => {
     ]);
     setTokens(manualRes.data || []);
     setCoinTokens(coinRes.data || []);
-    const { data: sessData } = await supabase.from("token_sessions").select("token_id");
+    const { data: sessData } = await supabase.from("token_sessions").select("token_id").eq("is_active", true);
     if (sessData) {
       const counts: Record<string, number> = {};
       sessData.forEach((s: any) => { counts[s.token_id] = (counts[s.token_id] || 0) + 1; });
