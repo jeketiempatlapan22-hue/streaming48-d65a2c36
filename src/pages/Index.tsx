@@ -169,7 +169,10 @@ const Index = () => {
   const handleCoinRedeem = async () => {
     if (!coinShowTarget) return;
     setCoinRedeeming(true);
-    const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: coinShowTarget.id });
+    const isReplay = coinShowTarget.is_replay;
+    const { data, error } = isReplay
+      ? await supabase.rpc("redeem_coins_for_replay", { _show_id: coinShowTarget.id })
+      : await supabase.rpc("redeem_coins_for_token", { _show_id: coinShowTarget.id });
     setCoinRedeeming(false);
     const result = data as any;
     if (error || !result?.success) {
