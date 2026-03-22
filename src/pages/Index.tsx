@@ -804,7 +804,7 @@ const Index = () => {
               ) : (
                 <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming}>
                   <Coins className="h-4 w-4" />
-                  {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.coin_price} Koin`}
+                  {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.is_replay ? coinShowTarget?.replay_coin_price : coinShowTarget?.coin_price} Koin`}
                 </Button>
               )}
             </div>
