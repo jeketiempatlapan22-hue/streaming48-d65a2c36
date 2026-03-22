@@ -27,12 +27,6 @@ const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onR
         </DialogHeader>
         {!coinResult ? (
           <div className="space-y-4">
-            {show?.qris_image_url && (
-              <div className="text-center">
-                <p className="text-xs font-medium text-muted-foreground mb-2">📱 Scan QRIS untuk pembayaran</p>
-                <img src={show.qris_image_url} alt="QRIS" className="mx-auto max-h-48 rounded-lg object-contain" />
-              </div>
-            )}
             <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Show</span>
@@ -55,6 +49,7 @@ const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onR
                 </span>
               </div>
             </div>
+            <p className="text-[10px] text-center text-muted-foreground">* Tidak perlu upload bukti transaksi, koin akan langsung dipotong</p>
             {coinBalance < effectivePrice ? (
               <div className="space-y-3">
                 <p className="text-center text-sm text-destructive">Koin tidak cukup untuk membeli show ini.</p>

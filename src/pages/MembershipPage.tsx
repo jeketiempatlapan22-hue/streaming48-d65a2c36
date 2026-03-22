@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Crown, Sparkles, CheckCircle, Star, Upload, Users, Calendar, Coins } from "lucide-react";
+import { Crown, Sparkles, CheckCircle, Star, Upload, Users, Calendar, Coins, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import SharedNavbar from "@/components/SharedNavbar";
 
 interface Show {
@@ -39,6 +40,7 @@ const MembershipPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [resultGroupLink, setResultGroupLink] = useState("");
   const [coinOnly, setCoinOnly] = useState(false);
+  const [closedPopup, setClosedPopup] = useState<Show | null>(null);
 
   const fetchData = async () => {
     const { data: allShows } = await supabase.rpc("get_public_shows");
@@ -71,10 +73,24 @@ const MembershipPage = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
       .subscribe();
 
-    return () => { supabase.removeChannel(showChannel); };
+    const orderChannel = supabase.channel("membership-orders")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscription_orders" }, () => fetchData())
+      .subscribe();
+
+    return () => { supabase.removeChannel(showChannel); supabase.removeChannel(orderChannel); };
   }, []);
 
   const handleBuy = async (show: Show) => {
+    // Re-check realtime quota
+    const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: show.id });
+    const confirmed = (count as number) || 0;
+    const isFull = (show.max_subscribers > 0 && confirmed >= show.max_subscribers) || show.is_order_closed;
+
+    if (isFull) {
+      setClosedPopup(show);
+      return;
+    }
+
     setSelectedShow(show);
     setPurchaseMethod(null);
     setProofUrl("");
@@ -230,6 +246,28 @@ const MembershipPage = () => {
         )}
       </section>
 
+      {/* Closed/Full Popup */}
+      <Dialog open={!!closedPopup} onOpenChange={() => setClosedPopup(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" /> Pendaftaran Tidak Tersedia
+            </DialogTitle>
+            <DialogDescription>{closedPopup?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-center">
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+              <p className="text-sm font-medium text-destructive">
+                {closedPopup?.is_order_closed
+                  ? "🔒 Pendaftaran membership ini telah ditutup oleh admin."
+                  : "🔒 Kuota membership ini sudah penuh."}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">Silakan hubungi admin untuk informasi lebih lanjut.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {selectedShow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
@@ -283,9 +321,11 @@ const MembershipPage = () => {
             {purchaseStep === "coin_info" && (
               <div className="space-y-4">
                 <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">💰 Saldo koin: {coinBalance} · Harga: {selectedShow.coin_price} koin</div>
+                <p className="text-xs text-muted-foreground">Isi data di bawah agar admin dapat menghubungi Anda:</p>
                 <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
                 <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
                 <Button onClick={handleCoinPurchase} disabled={submitting || !phone || !email} className="w-full">{submitting ? "Memproses..." : `Bayar ${selectedShow.coin_price} Koin`}</Button>
+                <p className="text-[10px] text-center text-muted-foreground">* Tidak perlu upload bukti transaksi, koin akan langsung dipotong</p>
               </div>
             )}
 
@@ -300,7 +340,7 @@ const MembershipPage = () => {
               <div className="space-y-4 text-center">
                 <div className="text-4xl">🎉</div>
                 <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
-                <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar" : "Admin akan memverifikasi pembayaran Anda"}</p>
+                <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar. Admin akan menghubungi Anda." : "Admin akan memverifikasi pembayaran Anda"}</p>
                 {resultGroupLink && (
                   <a href={resultGroupLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
                     📱 Gabung Grup
