@@ -1,8 +1,11 @@
-import { useState } from "react";
-import { Play, Radio, Film, MonitorPlay } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Play, Radio, Film, MonitorPlay, Settings } from "lucide-react";
 import VideoPlayer from "@/components/VideoPlayer";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 type StreamType = "m3u8" | "cloudflare" | "youtube";
+type Stream = Tables<"streams">;
 
 const streamTabs: { type: StreamType; label: string; icon: React.ReactNode; placeholder: string }[] = [
   { type: "m3u8", label: "M3U8 / HLS", icon: <Radio className="w-4 h-4" />, placeholder: "https://example.com/stream.m3u8" },
@@ -10,25 +13,57 @@ const streamTabs: { type: StreamType; label: string; icon: React.ReactNode; plac
   { type: "youtube", label: "YouTube", icon: <MonitorPlay className="w-4 h-4" />, placeholder: "ID video YouTube atau URL lengkap" },
 ];
 
+const typeIcons: Record<StreamType, React.ReactNode> = {
+  m3u8: <Radio className="w-4 h-4" />,
+  cloudflare: <Film className="w-4 h-4" />,
+  youtube: <MonitorPlay className="w-4 h-4" />,
+};
+
 const Index = () => {
   const [activeType, setActiveType] = useState<StreamType>("m3u8");
   const [url, setUrl] = useState("");
   const [playing, setPlaying] = useState<{ url: string; type: StreamType } | null>(null);
+  const [savedStreams, setSavedStreams] = useState<Stream[]>([]);
+
+  useEffect(() => {
+    const fetchStreams = async () => {
+      const { data } = await supabase
+        .from("streams")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (data) setSavedStreams(data);
+    };
+    fetchStreams();
+  }, []);
 
   const handlePlay = () => {
     if (!url.trim()) return;
     setPlaying({ url: url.trim(), type: activeType });
   };
 
+  const handlePlayStream = (stream: Stream) => {
+    setPlaying({ url: stream.url, type: stream.type as StreamType });
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border">
-        <div className="container max-w-5xl mx-auto px-4 py-5 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Play className="w-4 h-4 text-primary fill-primary" />
+        <div className="container max-w-5xl mx-auto px-4 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Play className="w-4 h-4 text-primary fill-primary" />
+            </div>
+            <h1 className="text-lg font-semibold tracking-tight">StreamBox</h1>
           </div>
-          <h1 className="text-lg font-semibold tracking-tight">StreamBox</h1>
+          <a
+            href="/login"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-[0.95]"
+            title="Admin"
+          >
+            <Settings className="w-4 h-4" />
+          </a>
         </div>
       </header>
 
@@ -94,8 +129,36 @@ const Index = () => {
           </section>
         )}
 
+        {/* Saved Streams */}
+        {savedStreams.length > 0 && (
+          <section className="opacity-0 animate-fade-in-up space-y-4" style={{ animationDelay: "240ms" }}>
+            <h3 className="text-lg font-semibold tracking-tight">Channel Tersedia</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {savedStreams.map((stream) => (
+                <button
+                  key={stream.id}
+                  onClick={() => handlePlayStream(stream)}
+                  className={`bg-card border rounded-xl p-4 text-left hover:border-primary/40 transition-all active:scale-[0.97] group ${
+                    playing?.url === stream.url ? "border-primary shadow-lg shadow-primary/10" : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:bg-primary/20 transition-colors">
+                      {typeIcons[stream.type as StreamType] || <Radio className="w-4 h-4" />}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-medium text-sm truncate">{stream.title}</h4>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5 uppercase tracking-wider">{stream.type}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Empty state */}
-        {!playing && (
+        {!playing && savedStreams.length === 0 && (
           <section className="opacity-0 animate-fade-in-up py-16 text-center" style={{ animationDelay: "240ms" }}>
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center">
               <Play className="w-7 h-7 text-muted-foreground" />
