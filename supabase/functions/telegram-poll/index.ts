@@ -128,17 +128,19 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const balanceMatch = rawText.match(/^\/balance\s+(\S+)$/i);
   const isUsers = /^\/users$/i.test(rawText);
   const isHelp = /^\/(help|start)$/i.test(rawText);
+  const isShows = /^\/shows$/i.test(rawText);
   const deductCoinMatch = rawText.match(/^\/deductcoin\s+(\S+)\s+(\d+)(?:\s+(.+))?$/i);
   const broadcastMatch = rawText.match(/^\/broadcast\s+(.+)$/is);
-  const replayMatch = rawText.match(/^\/replay\s+(.+)$/i);
+  const replayMatch = rawText.match(/^\/replay\s+#([a-f0-9]{6})$/i);
   const isReplayList = /^\/replay$/i.test(rawText);
-  const setliveMatch = rawText.match(/^\/setlive(?:\s+(.+))?$/i);
+  const setliveMatch = rawText.match(/^\/setlive(?:\s+#([a-f0-9]{6}))?$/i);
+  const setofflineMatch = rawText.match(/^\/setoffline(?:\s+#([a-f0-9]{6}))?$/i);
   const isSetOffline = /^\/setoffline$/i.test(rawText);
   const isShowInfo = /^\/showinfo$/i.test(rawText);
   const msgshowMatch = rawText.match(/^\/msgshow\s+(.+?)\s*\|\s*(.+)$/is);
   const resetMatch = text.match(/^RESET\s+(\S+)$/);
   const tolakResetMatch = text.match(/^TOLAK_RESET\s+(\S+)$/);
-  const setactiveMatch = rawText.match(/^\/setactive\s+(\S+)$/i);
+  const setactiveMatch = rawText.match(/^\/setactive\s+#([a-f0-9]{6})$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
