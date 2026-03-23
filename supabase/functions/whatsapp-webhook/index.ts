@@ -229,7 +229,9 @@ TOLAK_RESET <id> - Tolak reset password
 /pendapatan - Ringkasan pendapatan
 /ordertoday - Order hari ini
 /topusers - Top user berdasarkan saldo
-/announce <pesan> - Kirim WA ke semua user`;
+/announce <pesan> - Kirim WA ke semua user
+/setprice <nama/ID> coin <harga> - Set harga koin show
+/setprice <nama/ID> replay <harga> - Set harga replay show`;
 }
 
 async function handleStatus(supabase: any): Promise<string> {
