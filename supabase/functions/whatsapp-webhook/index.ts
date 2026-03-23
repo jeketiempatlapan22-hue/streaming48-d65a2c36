@@ -131,6 +131,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const isPendapatan = /^\/pendapatan$/i.test(rawText);
   const isOrderToday = /^\/ordertoday$/i.test(rawText);
   const isTopUsers = /^\/topusers$/i.test(rawText);
+  const setpriceMatch = rawText.match(/^\/setprice\s+(.+?)\s+(coin|replay)\s+(\d+)$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
