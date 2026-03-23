@@ -55,6 +55,7 @@ serve(async (req) => {
           formData.append('chat_id', ADMIN_CHAT_ID);
           formData.append('caption', caption);
           formData.append('parse_mode', 'MarkdownV2');
+          formData.append('reply_markup', JSON.stringify({ inline_keyboard }));
           formData.append('photo', fileData, 'payment-proof.jpg');
 
           const photoResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
