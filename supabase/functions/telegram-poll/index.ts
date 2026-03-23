@@ -95,6 +95,21 @@ Deno.serve(async (req) => {
         await supabase.from('telegram_bot_state').update({ update_offset: newOffset, updated_at: new Date().toISOString() }).eq('id', 1);
         currentOffset = newOffset;
 
+        // Handle callback queries (inline keyboard button presses)
+        const callbackUpdates = updates.filter((u: any) => u.callback_query);
+        for (const cu of callbackUpdates) {
+          const cb = cu.callback_query;
+          if (String(cb.message?.chat?.id) === ADMIN_CHAT_ID) {
+            await processCallbackQuery(supabase, BOT_TOKEN, ADMIN_CHAT_ID, cb);
+            totalProcessed++;
+          }
+          // Answer callback to remove loading state
+          await fetch(`${TELEGRAM_API}${BOT_TOKEN}/answerCallbackQuery`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callback_query_id: cb.id }),
+          });
+        }
+
         const adminMessages = rows.filter((r: any) => String(r.chat_id) === ADMIN_CHAT_ID && r.text);
         for (const msg of adminMessages) {
           const cmdText = (msg.text as string).trim();
