@@ -124,6 +124,13 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
   const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
   const tokensListMatch = /^\/tokens$/i.test(rawText);
+  const isStats = /^\/stats$/i.test(rawText);
+  const cekuserMatch = rawText.match(/^\/cekuser\s+(\S+)$/i);
+  const announceMatch = rawText.match(/^\/announce\s+(.+)$/is);
+  const isShowList = /^\/showlist$/i.test(rawText);
+  const isPendapatan = /^\/pendapatan$/i.test(rawText);
+  const isOrderToday = /^\/ordertoday$/i.test(rawText);
+  const isTopUsers = /^\/topusers$/i.test(rawText);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -145,6 +152,13 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (resettokenMatch) return await handleTokenCmd(supabase, resettokenMatch[1], 'reset');
   if (deletetokenMatch) return await handleTokenCmd(supabase, deletetokenMatch[1], 'delete');
   if (tokensListMatch) return await handleTokensList(supabase);
+  if (isStats) return await handleStatsWa(supabase);
+  if (cekuserMatch) return await handleCekUserWa(supabase, cekuserMatch[1]);
+  if (announceMatch) return await handleAnnounceWa(supabase, announceMatch[1].trim());
+  if (isShowList) return await handleShowListWa(supabase);
+  if (isPendapatan) return await handlePendapatanWa(supabase);
+  if (isOrderToday) return await handleOrderTodayWa(supabase);
+  if (isTopUsers) return await handleTopUsersWa(supabase);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
