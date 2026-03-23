@@ -160,7 +160,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (isPendapatan) return await handlePendapatanWa(supabase);
   if (isOrderToday) return await handleOrderTodayWa(supabase);
   if (isTopUsers) return await handleTopUsersWa(supabase);
-  if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
+  if (setpriceMatch) return await handleSetPriceWa(supabase, setpriceMatch[1].trim(), setpriceMatch[2].toLowerCase() as 'coin' | 'replay', parseInt(setpriceMatch[3], 10));
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);

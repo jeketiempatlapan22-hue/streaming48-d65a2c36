@@ -1447,6 +1447,30 @@ async function handleTopUsersCommand(supabase: any, botToken: string, chatId: st
   }
 }
 
+async function handleSetPriceCommand(supabase: any, botToken: string, chatId: string, showInput: string, priceType: 'coin' | 'replay', price: number) {
+  try {
+    if (price < 0 || price > 999999) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Harga harus antara 0\\-999\\.999');
+      return;
+    }
+    const { show, error } = await findShowByIdOrName(supabase, showInput, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+    const field = priceType === 'coin' ? 'coin_price' : 'replay_coin_price';
+    const oldPrice = priceType === 'coin' ? show.coin_price : (show.replay_coin_price ?? 0);
+    await supabase.from('shows').update({ [field]: price }).eq('id', show.id);
+    const label = priceType === 'coin' ? 'Harga Koin' : 'Harga Replay';
+    await sendTelegramMessage(botToken, chatId,
+      `✅ *${label}* untuk *${escapeMarkdown(show.title)}* berhasil diubah\\!\n\n` +
+      `🔄 ${oldPrice} → *${price}* koin`
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function errorResponse(msg: string) {
   console.error('telegram-poll error:', msg);
   return jsonResponse({ error: msg }, 500);
