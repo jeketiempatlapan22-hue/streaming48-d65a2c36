@@ -914,6 +914,7 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
 }
 
 
+async function sendTelegramMessage(botToken: string, chatId: string | number, text: string) {
   const res = await fetch(`${TELEGRAM_API}${botToken}/sendMessage`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'MarkdownV2' }),
