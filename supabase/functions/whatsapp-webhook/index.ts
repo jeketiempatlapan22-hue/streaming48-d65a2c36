@@ -623,6 +623,53 @@ async function handleMsgShow(supabase: any, showName: string, message: string): 
   }
 }
 
+async function collectShowBuyerPhones(supabase: any, showId: string): Promise<string[]> {
+  const phones = new Set<string>();
+
+  // 1. Subscription orders (membership buyers)
+  const { data: subOrders } = await supabase
+    .from('subscription_orders').select('phone, user_id')
+    .eq('show_id', showId).eq('status', 'confirmed');
+  for (const o of (subOrders || [])) {
+    if (o.phone) phones.add(o.phone);
+  }
+
+  // 2. Coin transaction buyers (redeemed coins for this show)
+  const { data: coinTxns } = await supabase
+    .from('coin_transactions').select('user_id')
+    .eq('reference_id', showId)
+    .in('type', ['redeem', 'replay_redeem']);
+  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))];
+
+  // 3. Get phone from coin_orders for coin buyers
+  if (coinUserIds.length > 0) {
+    const { data: coinOrders } = await supabase
+      .from('coin_orders').select('phone, user_id')
+      .in('user_id', coinUserIds).eq('status', 'confirmed');
+    for (const o of (coinOrders || [])) {
+      if (o.phone) phones.add(o.phone);
+    }
+  }
+
+  // 4. Collect all unique user_ids
+  const allUserIds = new Set<string>();
+  for (const o of (subOrders || [])) { if (o.user_id) allUserIds.add(o.user_id); }
+  for (const uid of coinUserIds) { allUserIds.add(uid); }
+
+  // 5. Try to get phone from any coin_orders for users without phone
+  if (allUserIds.size > 0) {
+    const { data: extraOrders } = await supabase
+      .from('coin_orders').select('phone')
+      .in('user_id', [...allUserIds])
+      .neq('phone', '').not('phone', 'is', null).limit(100);
+    for (const o of (extraOrders || [])) {
+      if (o.phone) phones.add(o.phone);
+    }
+  }
+
+  return [...phones].filter(Boolean);
+}
+
 async function sendFonnteMessage(token: string, target: string, message: string) {
   const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
   if (!cleanPhone) return;

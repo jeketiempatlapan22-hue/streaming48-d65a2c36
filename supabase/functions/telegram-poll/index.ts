@@ -838,7 +838,68 @@ function escapeMarkdown(text: string): string {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
-async function sendFonnteWhatsApp(phone: string, message: string) {
+async function collectShowBuyerPhones(supabase: any, showId: string): Promise<string[]> {
+  const phones = new Set<string>();
+
+  // 1. Subscription orders (membership buyers)
+  const { data: subOrders } = await supabase
+    .from('subscription_orders').select('phone, user_id')
+    .eq('show_id', showId).eq('status', 'confirmed');
+  for (const o of (subOrders || [])) {
+    if (o.phone) phones.add(o.phone);
+  }
+
+  // 2. Coin transaction buyers (redeemed coins for this show)
+  const { data: coinTxns } = await supabase
+    .from('coin_transactions').select('user_id')
+    .eq('reference_id', showId)
+    .in('type', ['redeem', 'replay_redeem']);
+  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))];
+
+  // 3. Get phone from coin_orders for coin buyers
+  if (coinUserIds.length > 0) {
+    const { data: coinOrders } = await supabase
+      .from('coin_orders').select('phone, user_id')
+      .in('user_id', coinUserIds).eq('status', 'confirmed');
+    for (const o of (coinOrders || [])) {
+      if (o.phone) phones.add(o.phone);
+    }
+  }
+
+  // 4. Collect all unique user_ids from both sources
+  const allUserIds = new Set<string>();
+  for (const o of (subOrders || [])) { if (o.user_id) allUserIds.add(o.user_id); }
+  for (const uid of coinUserIds) { allUserIds.add(uid); }
+
+  // 5. Extract phone from login email (format: <phone>@rt48.user)
+  if (allUserIds.size > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles').select('id')
+      .in('id', [...allUserIds]);
+    // We can't query auth.users directly, but the email pattern is <phone>@rt48.user
+    // The phone is already captured from orders above. For users without order phone,
+    // try to get from their coin_orders or subscription_orders
+    const userIdsWithoutPhone = [...allUserIds].filter(uid => {
+      const hasPhone = (subOrders || []).some((o: any) => o.user_id === uid && o.phone) ||
+                       (coinUserIds.includes(uid));
+      return !hasPhone;
+    });
+    if (userIdsWithoutPhone.length > 0) {
+      // Try coin_orders for these users
+      const { data: extraOrders } = await supabase
+        .from('coin_orders').select('phone')
+        .in('user_id', userIdsWithoutPhone)
+        .neq('phone', '').not('phone', 'is', null).limit(100);
+      for (const o of (extraOrders || [])) {
+        if (o.phone) phones.add(o.phone);
+      }
+    }
+  }
+
+  return [...phones].filter(Boolean);
+}
+
+
   const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
   if (!FONNTE_TOKEN) return;
   const cleanPhone = phone.replace(/^0/, '62').replace(/[^0-9]/g, '');
