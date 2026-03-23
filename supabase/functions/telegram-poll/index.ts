@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
             const { data: settings } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle();
             const adminNums = settings?.value?.split(',').map((n: string) => n.trim()).filter(Boolean) || [];
             for (const num of adminNums) {
-              await sendFonnteWhatsApp(FONNTE_TOKEN, num, `${emoji} Token ${body.token_code} telah *${action}* dari admin panel.`);
+              await sendFonnteWhatsApp(num, `${emoji} Token ${body.token_code} telah *${action}* dari admin panel.`);
             }
           }
         }
