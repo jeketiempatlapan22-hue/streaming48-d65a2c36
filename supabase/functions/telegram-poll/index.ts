@@ -190,6 +190,13 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const resettokenMatch = rawText.match(/^\/resettoken\s+(\S+)$/i);
   const deletetokenMatch = rawText.match(/^\/deletetoken\s+(\S+)$/i);
   const isTokensList = /^\/tokens$/i.test(rawText);
+  const isStats = /^\/stats$/i.test(rawText);
+  const cekuserMatch = rawText.match(/^\/cekuser\s+(\S+)$/i);
+  const announceMatch = rawText.match(/^\/announce\s+(.+)$/is);
+  const isShowList = /^\/showlist$/i.test(rawText);
+  const isPendapatan = /^\/pendapatan$/i.test(rawText);
+  const isOrderToday = /^\/ordertoday$/i.test(rawText);
+  const isTopUsers = /^\/topusers$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
