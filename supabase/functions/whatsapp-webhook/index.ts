@@ -602,8 +602,7 @@ async function handleMsgShow(supabase: any, showName: string, message: string): 
     }
 
     const show = shows[0];
-    const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
-    const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
+    const phones = await collectShowBuyerPhones(supabase, show.id);
 
     if (phones.length === 0) return `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${show.title}".`;
 

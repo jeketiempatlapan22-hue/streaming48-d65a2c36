@@ -792,8 +792,7 @@ async function handleMsgShowCommand(supabase: any, botToken: string, chatId: str
     }
 
     const show = result.show;
-    const { data: orders } = await supabase.from('subscription_orders').select('phone, email').eq('show_id', show.id).eq('status', 'confirmed');
-    const phones = [...new Set((orders || []).map((o: any) => o.phone).filter(Boolean))];
+    const phones = await collectShowBuyerPhones(supabase, show.id);
 
     if (phones.length === 0) {
       await sendTelegramMessage(botToken, chatId, `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${escapeMarkdown(show.title)}"\\.`);
