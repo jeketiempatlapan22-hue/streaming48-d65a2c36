@@ -261,6 +261,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleOrderTodayCommand(supabase, botToken, chatId);
   } else if (isTopUsers) {
     await handleTopUsersCommand(supabase, botToken, chatId);
+  } else if (setpriceMatch) {
+    await handleSetPriceCommand(supabase, botToken, chatId, `#${setpriceMatch[1]}`, setpriceMatch[2].toLowerCase() as 'coin' | 'replay', parseInt(setpriceMatch[3], 10));
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
