@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift } from "lucide-react";
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
-import { withRetry, withTimeout } from "@/lib/queryCache";
 import { recordAuthMetric } from "@/lib/authMetrics";
 
 type AuthMethod = "phone" | "email";
@@ -28,7 +27,13 @@ const ViewerAuth = () => {
   const submitRef = useRef(false);
 
   useEffect(() => {
-    withTimeout(supabase.auth.getSession(), 8_000, "Session timeout")
+    // Check existing session with timeout — don't hang
+    Promise.race([
+      supabase.auth.getSession(),
+      new Promise<{ data: { session: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { session: null } }), 6000)
+      ),
+    ])
       .then(({ data: { session } }) => {
         if (session?.user) navigate("/coins");
       })
@@ -59,12 +64,39 @@ const ViewerAuth = () => {
     } catch {}
   };
 
+  /** Attempt auth with timeout + 2 retries */
+  const authWithRetry = async <T,>(
+    fn: () => Promise<{ data: T; error: any }>,
+    timeoutMs = 15_000,
+    retries = 2
+  ): Promise<{ data: T | null; error: any }> => {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const result = await Promise.race([
+          fn(),
+          new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(() => resolve({ data: null, error: { message: "Request timeout" } }), timeoutMs)
+          ),
+        ]);
+        // If success or non-retryable error, return immediately
+        if (!result.error || !/timeout|timed out|deadline|504|500/i.test(String(result.error?.message))) {
+          return result;
+        }
+        // On retryable error, wait before retry
+        if (i < retries) await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+      } catch (err: any) {
+        if (i === retries) return { data: null, error: err };
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+      }
+    }
+    return { data: null, error: { message: "All retries failed" } };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid() || submitRef.current || loading) return;
     submitRef.current = true;
 
-    // Rate limit: 5 attempts per 60 seconds
     const rlKey = `viewer-auth-${mode}`;
     if (!checkClientRateLimit(rlKey, 5, 60_000)) {
       const remaining = getRateLimitRemaining(rlKey);
@@ -75,61 +107,76 @@ const ViewerAuth = () => {
 
     setLoading(true);
     const authEmail = getAuthEmail();
-
-    const runWithTimeoutRetry = async <T,>(
-      request: () => Promise<{ data: T | null; error: any }>,
-      timeoutMs: number,
-      retries: number
-    ) => {
-      return withRetry(
-        () =>
-          withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
-            .then((result) => ({ data: result.data, error: result.error }))
-            .catch((error) => ({ data: null, error })),
-        retries,
-        700
-      );
-    };
+    const authStart = performance.now();
 
     try {
-      const authStart = performance.now();
       if (mode === "signup") {
-        const signupResult = await runWithTimeoutRetry(
+        const result = await authWithRetry(
           () => supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } }),
-          12_000,
+          15_000,
           2
         );
 
-        if (signupResult.error) {
-          const ms = Math.round(performance.now() - authStart);
-          const msg = String(signupResult.error?.message || "Gagal daftar");
-          const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
+        const ms = Math.round(performance.now() - authStart);
+
+        if (result.error) {
+          const msg = String(result.error?.message || "Gagal daftar");
+          const isTimeout = /timeout|timed out|deadline|504|500/i.test(msg);
           recordAuthMetric(isTimeout ? "signup_timeout" : "signup_error", ms, "viewer", msg);
-          toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : (msg.includes("already registered") ? "Sudah terdaftar." : msg));
+
+          if (isTimeout) {
+            // Server might have created the account anyway — check session
+            const sessionCheck = await Promise.race([
+              supabase.auth.getSession(),
+              new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 4000)),
+            ]).catch(() => ({ data: { session: null } }));
+
+            if ((sessionCheck.data as any)?.session?.user) {
+              recordAuthMetric("signup_success_late", ms, "viewer");
+              toast.success("Berhasil mendaftar!");
+              if (refCode) await claimReferral(refCode);
+              navigate("/coins");
+              return;
+            }
+            toast.error("Server sedang sibuk, coba lagi sebentar.");
+          } else {
+            toast.error(msg.includes("already registered") ? "Nomor/email sudah terdaftar. Silakan login." : msg);
+          }
         } else {
-          recordAuthMetric("signup_success", Math.round(performance.now() - authStart), "viewer");
-          toast.success("Berhasil!");
+          recordAuthMetric("signup_success", ms, "viewer");
+          toast.success("Berhasil mendaftar!");
           if (refCode) await claimReferral(refCode);
           navigate("/coins");
         }
       } else {
-        const signinResult = await runWithTimeoutRetry(
+        // LOGIN
+        const result = await authWithRetry(
           () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-          12_000,
+          15_000,
           2
         );
 
-        if (signinResult.error) {
-          const sessionCheck = await withTimeout(supabase.auth.getSession(), 5_000, "Session timeout").catch(() => null);
-          if (sessionCheck?.data?.session?.user) {
+        const ms = Math.round(performance.now() - authStart);
+
+        if (result.error) {
+          // Even if signIn returned an error, check if session was actually created
+          const sessionCheck = await Promise.race([
+            supabase.auth.getSession(),
+            new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 4000)),
+          ]).catch(() => ({ data: { session: null } }));
+
+          if ((sessionCheck.data as any)?.session?.user) {
+            recordAuthMetric("login_success_late", ms, "viewer");
             navigate("/coins");
             return;
           }
 
-          const msg = String(signinResult.error?.message || "Login gagal");
-          const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
+          const msg = String(result.error?.message || "Login gagal");
+          const isTimeout = /timeout|timed out|deadline|504|500/i.test(msg);
+          recordAuthMetric(isTimeout ? "login_timeout" : "login_error", ms, "viewer", msg);
           toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : "Nomor/email atau password salah.");
         } else {
+          recordAuthMetric("login_success", ms, "viewer");
           navigate("/coins");
         }
       }

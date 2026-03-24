@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { withRetry, withTimeout } from "@/lib/queryCache";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { lazy, Suspense } from "react";
+import { recordAuthMetric } from "@/lib/authMetrics";
 
 const AdminDashboardStats = lazy(() => import("@/components/admin/AdminDashboardStats"));
 const LiveControl = lazy(() => import("@/components/admin/LiveControl"));
@@ -15,7 +15,6 @@ const CoinPackageManager = lazy(() => import("@/components/admin/CoinPackageMana
 const CoinOrderManager = lazy(() => import("@/components/admin/CoinOrderManager"));
 const SiteSettingsManager = lazy(() => import("@/components/admin/SiteSettingsManager"));
 const AdminMonitor = lazy(() => import("@/components/admin/AdminMonitor"));
-
 const SubscriptionOrderManager = lazy(() => import("@/components/admin/SubscriptionOrderManager"));
 const SecurityLogManager = lazy(() => import("@/components/admin/SecurityLogManager"));
 const SystemHealthCheck = lazy(() => import("@/components/admin/SystemHealthCheck"));
@@ -32,6 +31,14 @@ const AdminBroadcast = lazy(() => import("@/components/admin/AdminBroadcast"));
 const MediaLibrary = lazy(() => import("@/components/admin/MediaLibrary"));
 const AdminAuthMetrics = lazy(() => import("@/components/admin/AdminAuthMetrics"));
 
+/** Safe race: returns result or fallback after timeout */
+async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
   const [loading, setLoading] = useState(true);
@@ -43,58 +50,82 @@ const AdminDashboard = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const runWithTimeoutRetry = async <T,>(
-      request: () => Promise<{ data: T | null; error: any }>,
-      timeoutMs: number,
-      retries: number
-    ) => {
-      return withRetry(
-        () =>
-          withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
-            .then((result) => ({ data: result.data, error: result.error }))
-            .catch((error) => ({ data: null, error })),
-        retries,
-        700
-      );
-    };
-
     const checkAuth = async () => {
       try {
         setAuthError("");
+        const start = performance.now();
 
-        const sessionResult = await runWithTimeoutRetry(
-          async () => await supabase.auth.getSession(),
+        // Step 1: Get session with 10s timeout
+        const sessionResult = await raceTimeout(
+          supabase.auth.getSession(),
           10_000,
-          2
+          { data: { session: null }, error: { message: "Session timeout" } } as any
         );
 
         if (cancelled) return;
 
-        if (sessionResult.error) {
-          setAuthError("Server sedang sibuk, gagal memuat session admin. Silakan coba lagi.");
+        const session = (sessionResult.data as any)?.session;
+        if (!session?.user) {
+          // Check if error was timeout vs no session
+          if (sessionResult.error) {
+            setAuthError("Server sedang sibuk, gagal memuat session admin. Silakan coba lagi.");
+            setLoading(false);
+            return;
+          }
+          navigate("/admin");
+          return;
+        }
+
+        // Step 2: Check admin role with 8s timeout — 3 attempts
+        let isAdmin = false;
+        let roleError = false;
+
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const roleResult = await raceTimeout(
+            Promise.resolve(supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" })),
+            8_000,
+            { data: null, error: { message: "Role check timeout" } } as any
+          );
+
+          if (cancelled) return;
+
+          if (roleResult.data) {
+            isAdmin = true;
+            break;
+          }
+
+          if (!roleResult.error) {
+            // RPC returned false — user is not admin
+            break;
+          }
+
+          // Error/timeout — retry after short delay
+          roleError = true;
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
+        }
+
+        if (cancelled) return;
+
+        const ms = Math.round(performance.now() - start);
+
+        if (isAdmin) {
+          recordAuthMetric("dashboard_auth_success", ms, "admin");
           setLoading(false);
           return;
         }
 
-        const session = (sessionResult.data as any)?.session;
-        if (!session?.user) { navigate("/admin"); return; }
-
-        const roleResult = await runWithTimeoutRetry(
-          async () => await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
-          8_000,
-          2
-        );
-
-        if (cancelled) return;
-
-        if (roleResult.error) {
+        if (roleError) {
+          // All retries failed — show retry UI instead of kicking out
+          recordAuthMetric("role_check_timeout", ms, "admin", "All 3 attempts failed");
           setAuthError("Server sedang sibuk, gagal verifikasi akses admin. Silakan coba lagi.");
           setLoading(false);
           return;
         }
 
-        if (!roleResult.data) { await supabase.auth.signOut(); navigate("/admin"); return; }
-        setLoading(false);
+        // User is authenticated but not admin
+        recordAuthMetric("role_check_fail", ms, "admin", "Not admin");
+        await supabase.auth.signOut();
+        navigate("/admin");
       } catch {
         if (!cancelled) {
           setAuthError("Tidak bisa terhubung ke server saat ini.");
@@ -110,7 +141,10 @@ const AdminDashboard = () => {
 
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="text-center space-y-3">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-muted-foreground">Memverifikasi akses admin...</p>
+      </div>
     </div>
   );
 
@@ -172,7 +206,6 @@ const AdminDashboard = () => {
           <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setMobileOpen(true)}><Menu className="h-5 w-5" /></Button>
           <span className="flex-1 text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
         </header>
-        {/* Desktop header with notifications */}
         <header className="hidden shrink-0 items-center justify-end gap-3 border-b border-border bg-card px-6 py-3 md:flex">
           <Suspense fallback={null}><AdminNotifications /></Suspense>
         </header>
