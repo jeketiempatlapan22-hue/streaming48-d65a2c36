@@ -53,7 +53,7 @@ export async function reportSuspiciousActivity(opts: ReportOptions) {
 /** Check if user is banned, returns ban info */
 export async function checkBanStatus(userId: string): Promise<{ banned: boolean; reason?: string }> {
   try {
-    const { data, error } = await supabase.rpc('get_ban_info', { _user_id: userId });
+    const { data, error } = await (supabase.rpc as any)('get_ban_info', { _user_id: userId });
     if (error || !data) return { banned: false };
     const info = data as any;
     return { banned: !!info.banned, reason: info.reason };
