@@ -996,10 +996,10 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
       } else if (coinOrder.status !== 'pending') {
         resultText = `⚠️ Order koin ${shortId} sudah diproses (${coinOrder.status}).`;
       } else {
-        await processCoinOrder(supabase, botToken, chatId, coinOrder, action, true);
-        resultText = action === 'approve'
-          ? `✅ Order koin ${shortId} berhasil dikonfirmasi!`
-          : `❌ Order koin ${shortId} telah ditolak.`;
+        const result = await processCoinOrder(supabase, botToken, chatId, coinOrder, action, true);
+        resultText = result.success
+          ? result.message
+          : `⚠️ Gagal: ${result.message}`;
       }
     } else {
       const { data: subOrder } = await supabase.from('subscription_orders').select('id, show_id, phone, email, status, short_id').eq('short_id', shortId).maybeSingle();
@@ -1008,10 +1008,10 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
       } else if (subOrder.status !== 'pending') {
         resultText = `⚠️ Order subscription ${shortId} sudah diproses (${subOrder.status}).`;
       } else {
-        await processSubscriptionOrder(supabase, botToken, chatId, subOrder, action, true);
-        resultText = action === 'approve'
-          ? `✅ Order subscription ${shortId} berhasil dikonfirmasi!`
-          : `❌ Order subscription ${shortId} telah ditolak.`;
+        const result = await processSubscriptionOrder(supabase, botToken, chatId, subOrder, action, true);
+        resultText = result.success
+          ? result.message
+          : `⚠️ Gagal: ${result.message}`;
       }
     }
 
