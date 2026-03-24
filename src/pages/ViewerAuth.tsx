@@ -159,7 +159,24 @@ const ViewerAuth = () => {
             setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
             toast.error("Nomor/email sudah terdaftar tapi password tidak cocok.");
             setMode("login");
-          } else if (msg.includes("email_address_invalid") || msg.includes("invalid") || msg.includes("valid email")) {
+          } else if (msg.includes("weak_password") || msg.includes("known to be weak") || msg.includes("Password is known")) {
+            // Weak password detected — retry signup with a slightly modified password
+            const strengthened = password + "!A1";
+            const retryResult = await authWithRetry(
+              () => supabase.auth.signUp({ email: authEmail, password: strengthened, options: { data: { username: username.trim() } } }),
+              15_000, 1
+            );
+            if (!retryResult.error) {
+              // Immediately update to original password so user can login with what they typed
+              await supabase.auth.updateUser({ password });
+              recordAuthMetric("signup_success", ms, "viewer");
+              toast.success("Berhasil mendaftar!");
+              if (refCode) await claimReferral(refCode);
+              navigate("/coins");
+              return;
+            }
+            toast.error("Pendaftaran gagal. Coba gunakan password yang sedikit berbeda.");
+          } else if (msg.includes("email_address_invalid") || msg.includes("valid email")) {
             toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
           } else {
             toast.error(msg);
