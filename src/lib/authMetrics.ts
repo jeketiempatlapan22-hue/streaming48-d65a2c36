@@ -11,7 +11,7 @@ export function recordAuthMetric(
 ) {
   try {
     const ua = navigator.userAgent?.slice(0, 200) || null;
-    supabase
+    (supabase
       .from("auth_metrics" as any)
       .insert({
         event_type: eventType,
@@ -19,7 +19,7 @@ export function recordAuthMetric(
         source,
         user_agent: ua,
         error_message: errorMessage?.slice(0, 500) || null,
-      })
+      }) as any as Promise<any>)
       .then(() => {})
       .catch(() => {});
   } catch {
