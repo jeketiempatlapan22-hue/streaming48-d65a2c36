@@ -54,12 +54,12 @@ const AdminLogin = () => {
       const authResult = await runWithTimeoutRetry(
         () => supabase.auth.signInWithPassword({ email, password }),
         12_000,
-        1
+        2
       );
 
       if (authResult.error || !authResult.data?.session?.user) {
         const msg = String(authResult.error?.message || "Login gagal");
-        const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+        const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
         toast({
           title: "Login gagal",
           description: isTimeout ? "Server sedang sibuk, silakan coba lagi." : msg,
@@ -77,14 +77,13 @@ const AdminLogin = () => {
       const adminCheck = await runWithTimeoutRetry(
         async () => await supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
         8_000,
-        2
+        3
       );
 
       if (adminCheck.error) {
-        await supabase.auth.signOut();
         toast({
-          title: "Server sibuk",
-          description: "Gagal memverifikasi akses admin. Coba lagi sebentar.",
+          title: "Verifikasi admin tertunda",
+          description: "Session login tersimpan, tapi server sedang sibuk saat cek role admin. Klik Login lagi dalam beberapa detik.",
           variant: "destructive",
         });
         return;
