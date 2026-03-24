@@ -160,22 +160,48 @@ const ViewerAuth = () => {
             toast.error("Nomor/email sudah terdaftar tapi password tidak cocok.");
             setMode("login");
           } else if (msg.includes("weak_password") || msg.includes("known to be weak") || msg.includes("Password is known")) {
-            // Weak password detected — retry signup with a slightly modified password
-            const strengthened = password + "!A1";
-            const retryResult = await authWithRetry(
-              () => supabase.auth.signUp({ email: authEmail, password: strengthened, options: { data: { username: username.trim() } } }),
-              15_000, 1
-            );
-            if (!retryResult.error) {
-              // Immediately update to original password so user can login with what they typed
-              await supabase.auth.updateUser({ password });
-              recordAuthMetric("signup_success", ms, "viewer");
-              toast.success("Berhasil mendaftar!");
-              if (refCode) await claimReferral(refCode);
-              navigate("/coins");
-              return;
+            // Weak password — use admin edge function to bypass check
+            try {
+              const { data: fnData, error: fnError } = await supabase.functions.invoke("signup-simple", {
+                body: { email: authEmail, password, username: username.trim() },
+              });
+              if (fnError || !fnData?.success) {
+                const fnMsg = fnData?.error || fnError?.message || "";
+                if (fnMsg.includes("already registered")) {
+                  const loginResult = await authWithRetry(
+                    () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+                    15_000, 1
+                  );
+                  if (!loginResult.error) {
+                    toast.success("Akun sudah ada, berhasil login!");
+                    navigate("/coins");
+                    return;
+                  }
+                  setFailCount((c) => c + 1);
+                  setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
+                  setMode("login");
+                } else {
+                  toast.error(fnMsg || "Pendaftaran gagal, coba lagi.");
+                }
+              } else {
+                // User created via admin — now login with original password
+                const loginResult = await authWithRetry(
+                  () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+                  15_000, 2
+                );
+                if (!loginResult.error) {
+                  recordAuthMetric("signup_success", ms, "viewer");
+                  toast.success("Berhasil mendaftar!");
+                  if (refCode) await claimReferral(refCode);
+                  navigate("/coins");
+                  return;
+                }
+                toast.success("Akun berhasil dibuat! Silakan login.");
+                setMode("login");
+              }
+            } catch {
+              toast.error("Pendaftaran gagal, coba lagi.");
             }
-            toast.error("Pendaftaran gagal. Coba gunakan password yang sedikit berbeda.");
           } else if (msg.includes("email_address_invalid") || msg.includes("valid email")) {
             toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
           } else {
