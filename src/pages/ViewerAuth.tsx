@@ -22,6 +22,7 @@ const ViewerAuth = () => {
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [failCount, setFailCount] = useState(0);
