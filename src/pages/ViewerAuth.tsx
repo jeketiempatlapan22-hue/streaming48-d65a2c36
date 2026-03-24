@@ -23,6 +23,8 @@ const ViewerAuth = () => {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [failCount, setFailCount] = useState(0);
   const [searchParams] = useSearchParams();
   const refCode = searchParams.get("ref");
   const navigate = useNavigate();
