@@ -85,7 +85,7 @@ const LandingDescriptionManager = () => {
     if (!galleryTargetId) return;
     const item = items.find((i) => i.id === galleryTargetId);
     if (item) { const updated = { ...item, image_url: url }; setItems(items.map((i) => i.id === galleryTargetId ? updated : i)); await update(updated); }
-    setShowGallery(false); setGalleryTargetId(null);
+    setGalleryTargetId(null);
   };
 
   return (
