@@ -17,29 +17,34 @@ const AdminLogin = () => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      toast({ title: "Login gagal", description: error.message, variant: "destructive" });
-      setLoading(false);
-      return;
-    }
+    try {
+      const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast({ title: "Login gagal", description: error.message, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      toast({ title: "Error", description: "User not found", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
+      const userId = authData.session?.user?.id;
+      if (!userId) {
+        toast({ title: "Error", description: "User not found", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
-    const { data } = await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" });
-    if (!data) {
-      await supabase.auth.signOut();
-      toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
+      const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+      if (!isAdmin) {
+        await supabase.auth.signOut();
+        toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
-    navigate("/admin/dashboard");
+      navigate("/admin/dashboard");
+    } catch (err) {
+      toast({ title: "Error", description: "Koneksi bermasalah, coba lagi.", variant: "destructive" });
+      setLoading(false);
+    }
   };
 
   return (

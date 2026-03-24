@@ -37,14 +37,22 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    let cancelled = false;
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { navigate("/admin"); return; }
-      const { data } = await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" });
-      if (!data) { await supabase.auth.signOut(); navigate("/admin"); return; }
-      setLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (!session?.user) { navigate("/admin"); return; }
+        const { data } = await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" });
+        if (cancelled) return;
+        if (!data) { await supabase.auth.signOut(); navigate("/admin"); return; }
+        setLoading(false);
+      } catch {
+        if (!cancelled) navigate("/admin");
+      }
     };
     checkAuth();
+    return () => { cancelled = true; };
   }, [navigate]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
