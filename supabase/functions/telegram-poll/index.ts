@@ -302,21 +302,36 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
 
 // Helper: find show by short ID (first 6 hex chars of UUID) or by name
 async function findShowByIdOrName(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
-  const shortIdMatch = input.match(/^#?([a-f0-9]{6})$/i);
-  if (shortIdMatch) {
-    const shortId = shortIdMatch[1].toLowerCase();
+  const cleanInput = input.replace(/^#/, '').trim();
+  
+  // Try matching by UUID (full or partial)
+  const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+  const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+  
+  if (isHexId) {
     const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category');
     if (activeOnly) query.eq('is_active', true);
     const { data: shows } = await query;
-    const match = (shows || []).find((s: any) => s.id.replace(/-/g, '').slice(0, 6).toLowerCase() === shortId);
-    if (match) return { show: match, multiple: null, error: null };
-    return { show: null, multiple: null, error: `Show dengan ID #${shortId} tidak ditemukan.` };
+    
+    // First try exact full UUID match
+    const exactMatch = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+    if (exactMatch) return { show: exactMatch, multiple: null, error: null };
+    
+    // Then try prefix match (6+ chars)
+    if (hexOnly.length >= 6) {
+      const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+      if (prefixMatches.length === 1) return { show: prefixMatches[0], multiple: null, error: null };
+      if (prefixMatches.length > 1) return { show: null, multiple: prefixMatches, error: null };
+    }
+    
+    return { show: null, multiple: null, error: `Show dengan ID #${hexOnly.slice(0, 6)} tidak ditemukan.` };
   }
+  
   // Search by name
-  const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category').ilike('title', `%${input}%`).limit(5);
+  const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category').ilike('title', `%${cleanInput}%`).limit(5);
   if (activeOnly) query.eq('is_active', true);
   const { data: shows } = await query;
-  if (!shows || shows.length === 0) return { show: null, multiple: null, error: `Show "${input}" tidak ditemukan.` };
+  if (!shows || shows.length === 0) return { show: null, multiple: null, error: `Show "${cleanInput}" tidak ditemukan.` };
   if (shows.length === 1) return { show: shows[0], multiple: null, error: null };
   return { show: null, multiple: shows, error: null };
 }
