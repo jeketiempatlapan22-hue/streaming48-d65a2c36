@@ -24,6 +24,26 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
+// 🔧 MAINTENANCE MODE — ubah ke true untuk tutup sementara, false untuk buka kembali
+const MAINTENANCE_MODE = true;
+
+const MaintenancePage = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 text-center gap-6">
+    <div className="h-24 w-24 rounded-full border-2 border-border/60 overflow-hidden shadow-lg">
+      <img src="/logo.png" alt="RealTime48" className="h-full w-full object-cover" />
+    </div>
+    <div className="space-y-3 max-w-sm">
+      <h1 className="text-2xl font-bold text-foreground">
+        Real<span className="text-primary">Time48</span>
+      </h1>
+      <p className="text-lg font-semibold text-foreground">🔧 Sedang Maintenance</p>
+      <p className="text-sm text-muted-foreground">
+        Website sedang dalam perbaikan sementara. Silakan kembali dalam beberapa menit.
+      </p>
+    </div>
+  </div>
+);
+
 const PageLoader = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6">
     <div className="relative">
