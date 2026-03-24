@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift } from "lucide-react";
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { recordAuthMetric } from "@/lib/authMetrics";
 
 type AuthMethod = "phone" | "email";
 
