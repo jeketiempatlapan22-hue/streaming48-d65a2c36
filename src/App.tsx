@@ -98,6 +98,7 @@ const App = () => {
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/replay" element={<ReplayPage />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/install" element={<InstallPage />} />
                 <Route path="/profile" element={<ViewerProfile />} />
                 <Route path="/membership" element={<MembershipPage />} />
