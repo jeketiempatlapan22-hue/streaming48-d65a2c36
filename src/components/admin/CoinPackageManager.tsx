@@ -64,10 +64,11 @@ const CoinPackageManager = () => {
   };
 
   const handleQrisUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: "new" | "edit") => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
     setUploadingQris(true);
-    const path = `qris_${Date.now()}.${file.name.split(".").pop() || "jpg"}`;
+    const file = await compressImage(rawFile);
+    const path = `qris_${Date.now()}.${file.name.split(".").pop() || "webp"}`;
     const { error } = await supabase.storage.from("show-images").upload(path, file);
     if (!error) {
       const { data: urlData } = supabase.storage.from("show-images").getPublicUrl(path);

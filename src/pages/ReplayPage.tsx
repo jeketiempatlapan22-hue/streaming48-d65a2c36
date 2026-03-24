@@ -171,11 +171,12 @@ const ReplayPage = () => {
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !purchaseShow) return;
-    if (file.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !purchaseShow) return;
+    if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
     setUploadingProof(true);
     try {
+      const file = await compressImage(rawFile);
       const ext = file.name.split(".").pop();
       const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from("payment-proofs").upload(path, file);

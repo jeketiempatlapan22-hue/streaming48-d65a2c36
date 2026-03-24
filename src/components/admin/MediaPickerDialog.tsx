@@ -59,11 +59,12 @@ const MediaPickerDialog = ({ open, onOpenChange, onSelect }: MediaPickerDialogPr
     setUploading(true);
     let uploaded = 0;
     for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} terlalu besar (max 10MB)`);
+      const rawFile = fileList[i];
+      if (rawFile.size > 10 * 1024 * 1024) {
+        toast.error(`${rawFile.name} terlalu besar (max 10MB)`);
         continue;
       }
+      const file = await compressImage(rawFile);
       const ext = file.name.split(".").pop();
       const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error } = await supabase.storage.from("admin-media").upload(safeName, file);

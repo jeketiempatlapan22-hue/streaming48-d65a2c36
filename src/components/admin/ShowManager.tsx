@@ -73,9 +73,10 @@ const ShowManager = () => {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: "bg" | "qris") => {
-    const file = e.target.files?.[0];
-    if (!file || !editing) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !editing) return;
     setUploading(true);
+    const file = await compressImage(rawFile);
     const ext = file.name.split(".").pop();
     const fileName = `${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage.from("show-images").upload(fileName, file);

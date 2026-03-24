@@ -119,10 +119,11 @@ const CoinShop = () => {
   const handleBuyPackage = (pkg: CoinPackage) => { setSelectedPkg(pkg); setPurchaseStep("phone"); setBuyerPhone(""); };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedPkg || !user) return;
-    if (file.size > 5 * 1024 * 1024) { toast({ title: "Maksimal 5 MB", variant: "destructive" }); return; }
+    const rawFile = e.target.files?.[0];
+    if (!rawFile || !selectedPkg || !user) return;
+    if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "Maksimal 5 MB", variant: "destructive" }); return; }
     setUploading(true);
+    const file = await compressImage(rawFile);
     const ext = file.name.split(".").pop();
     const fileName = `${user.id}/${crypto.randomUUID()}.${ext}`;
     const { error: uploadErr } = await supabase.storage.from("coin-proofs").upload(fileName, file);
