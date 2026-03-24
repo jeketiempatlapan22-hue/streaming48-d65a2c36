@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
+import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
@@ -36,10 +37,12 @@ const ReplayPage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [coinUser, setCoinUser] = useState<any>(null);
-  const [coinBalance, setCoinBalance] = useState(0);
-  const [replayPasswords, setReplayPasswords] = useState<Record<string, string>>({});
   const [replayModal, setReplayModal] = useState<{ showId: string; password: string } | null>(null);
+
+  const {
+    coinUser, coinBalance, replayPasswords,
+    addReplayPassword, setCoinBalance, loading: purchaseLoading,
+  } = usePurchasedShows();
 
   // Purchase flow state
   const [purchaseShow, setPurchaseShow] = useState<Show | null>(null);
@@ -85,60 +88,12 @@ const ReplayPage = () => {
     };
     fetchData();
 
-    const fetchUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const user = session.user;
-        setCoinUser(user);
-        const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", user.id).maybeSingle();
-        setCoinBalance(bal?.balance || 0);
-
-        let storedPw: Record<string, string> = {};
-        try { storedPw = JSON.parse(localStorage.getItem(`replay_passwords_${user.id}`) || "{}"); } catch {}
-
-        const { data: txns } = await supabase
-          .from("coin_transactions")
-          .select("reference_id")
-          .eq("user_id", user.id)
-          .eq("type", "replay_redeem")
-          .order("created_at", { ascending: false });
-
-        if (txns) {
-          for (const tx of txns) {
-            if (tx.reference_id && !storedPw[tx.reference_id]) storedPw[tx.reference_id] = "__purchased__";
-          }
-          localStorage.setItem(`replay_passwords_${user.id}`, JSON.stringify(storedPw));
-        }
-
-        try {
-          const { data: pwData } = await supabase.rpc("get_purchased_show_passwords" as any);
-          if (pwData && typeof pwData === "object") {
-            const pwMap = pwData as Record<string, string>;
-            for (const [showId, pw] of Object.entries(pwMap)) { if (pw) storedPw[showId] = pw; }
-            localStorage.setItem(`replay_passwords_${user.id}`, JSON.stringify(storedPw));
-          }
-        } catch {}
-
-        setReplayPasswords(storedPw);
-
-        const balCh = supabase
-          .channel(`replay-balance-${user.id}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "coin_balances", filter: `user_id=eq.${user.id}` }, (p: any) => {
-            if (p.new?.balance !== undefined) setCoinBalance(p.new.balance);
-          })
-          .subscribe();
-        return () => { supabase.removeChannel(balCh); };
-      }
-    };
-    const cleanup = fetchUser();
-
     const showCh = supabase.channel("replay-shows").on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData()).subscribe();
     const streamCh = supabase.channel("replay-streams").on("postgres_changes", { event: "*", schema: "public", table: "streams" }, () => fetchData()).subscribe();
 
     return () => {
       supabase.removeChannel(showCh);
       supabase.removeChannel(streamCh);
-      cleanup.then((c) => c?.());
     };
   }, []);
 
@@ -164,11 +119,7 @@ const ReplayPage = () => {
     }
     setReplayResult({ replay_password: result.replay_password, remaining_balance: result.remaining_balance });
     setCoinBalance(result.remaining_balance);
-
-    const stored = JSON.parse(localStorage.getItem(`replay_passwords_${coinUser.id}`) || "{}");
-    stored[purchaseShow.id] = result.replay_password;
-    localStorage.setItem(`replay_passwords_${coinUser.id}`, JSON.stringify(stored));
-    setReplayPasswords((prev) => ({ ...prev, [purchaseShow.id]: result.replay_password }));
+    addReplayPassword(purchaseShow.id, result.replay_password);
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
