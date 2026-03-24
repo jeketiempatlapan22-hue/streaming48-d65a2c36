@@ -5,6 +5,7 @@ const MAX_RUNTIME_MS = 50_000;
 const MIN_REMAINING_MS = 5_000;
 const POLL_INTERVAL_MS = 2000;
 const LOCK_WINDOW_MS = 60_000;
+const TOUCH_STATE_INTERVAL_MS = 15_000;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -58,13 +59,17 @@ Deno.serve(async (req) => {
   try {
     await ensureNoWebhook(BOT_TOKEN);
     let pollCount = 0;
+    let lastTouchAt = Date.now();
 
     while (true) {
       const elapsed = Date.now() - startTime;
       const remainingMs = MAX_RUNTIME_MS - elapsed;
       if (remainingMs < MIN_REMAINING_MS) break;
 
-      await touchState(supabase);
+      if (Date.now() - lastTouchAt >= TOUCH_STATE_INTERVAL_MS) {
+        await touchState(supabase);
+        lastTouchAt = Date.now();
+      }
 
       const response = await fetch(`${TELEGRAM_API}${BOT_TOKEN}/getUpdates`, {
         method: 'POST',
@@ -1026,17 +1031,32 @@ async function acquireLock(supabase: any): Promise<{ acquired: boolean; update_o
   const nowIso = new Date().toISOString();
   const staleBeforeIso = new Date(Date.now() - LOCK_WINDOW_MS).toISOString();
   const { data, error } = await supabase.from('telegram_bot_state').update({ updated_at: nowIso }).eq('id', 1).lt('updated_at', staleBeforeIso).select('update_offset').maybeSingle();
-  if (error) throw new Error(`lock failed: ${error.message}`);
+  if (error) {
+    if (isTimeoutLikeError(error)) {
+      return { acquired: false, update_offset: 0 };
+    }
+    throw new Error(`lock failed: ${error.message}`);
+  }
   if (!data) return { acquired: false, update_offset: 0 };
   return { acquired: true, update_offset: Number(data.update_offset ?? 0) };
 }
 
 async function touchState(supabase: any) {
-  await supabase.from('telegram_bot_state').update({ updated_at: new Date().toISOString() }).eq('id', 1);
+  try {
+    await supabase.from('telegram_bot_state').update({ updated_at: new Date().toISOString() }).eq('id', 1);
+  } catch {}
 }
 
 async function releaseLock(supabase: any) {
-  await supabase.from('telegram_bot_state').update({ updated_at: new Date(0).toISOString() }).eq('id', 1);
+  try {
+    await supabase.from('telegram_bot_state').update({ updated_at: new Date(0).toISOString() }).eq('id', 1);
+  } catch {}
+}
+
+function isTimeoutLikeError(error: any): boolean {
+  const code = String(error?.code ?? "").toUpperCase();
+  const msg = String(error?.message ?? "").toLowerCase();
+  return code === "504" || msg.includes("timeout") || msg.includes("deadline exceeded") || msg.includes("upstream request timeout");
 }
 
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }
