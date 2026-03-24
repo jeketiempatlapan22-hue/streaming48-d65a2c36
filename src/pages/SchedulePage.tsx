@@ -28,6 +28,23 @@ const SchedulePage = () => {
       ]);
       if (showsRes.data) {
         const upcoming = (showsRes.data as Show[]).filter(s => !s.is_subscription && !s.is_replay && s.schedule_date);
+        upcoming.sort((a, b) => {
+          const parseDate = (d: string, t: string) => {
+            if (!d) return Infinity;
+            const cleanT = (t || "00:00").replace(/\s*WIB\s*/i, "").trim().replace(/\./g, ":");
+            const iso = new Date(`${d}T${cleanT.padStart(5, "0")}:00`);
+            if (!isNaN(iso.getTime())) return iso.getTime();
+            const months: Record<string, number> = { januari:0, februari:1, maret:2, april:3, mei:4, juni:5, juli:6, agustus:7, september:8, oktober:9, november:10, desember:11 };
+            const parts = d.toLowerCase().trim().split(/\s+/);
+            if (parts.length === 3) {
+              const [day, mon, year] = [parseInt(parts[0]), months[parts[1]], parseInt(parts[2])];
+              const [h, m] = cleanT.split(":").map(Number);
+              if (!isNaN(day) && mon !== undefined && !isNaN(year)) return new Date(year, mon, day, h || 0, m || 0).getTime();
+            }
+            return Infinity;
+          };
+          return parseDate(a.schedule_date, a.schedule_time) - parseDate(b.schedule_date, b.schedule_time);
+        });
         setShows(upcoming);
       }
       if (settingsRes.data) {
