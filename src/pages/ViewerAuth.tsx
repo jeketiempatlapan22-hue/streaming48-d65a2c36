@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift } from "lucide-react";
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
+import { withRetry, withTimeout } from "@/lib/queryCache";
 
 type AuthMethod = "phone" | "email";
 
@@ -26,9 +27,12 @@ const ViewerAuth = () => {
   const submitRef = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) navigate("/coins");
-    });
+    withTimeout(supabase.auth.getSession(), 8_000, "Session timeout")
+      .then(({ data: { session } }) => {
+        if (session?.user) navigate("/coins");
+      })
+      .catch(() => {});
+
     if (refCode) setMode("signup");
   }, [navigate, refCode]);
 
@@ -71,27 +75,58 @@ const ViewerAuth = () => {
     setLoading(true);
     const authEmail = getAuthEmail();
 
+    const runWithTimeoutRetry = async <T,>(
+      request: () => Promise<{ data: T | null; error: any }>,
+      timeoutMs: number,
+      retries: number
+    ) => {
+      return withRetry(
+        () =>
+          withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
+            .then((result) => ({ data: result.data, error: result.error }))
+            .catch((error) => ({ data: null, error })),
+        retries,
+        700
+      );
+    };
+
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } });
-        if (error) {
-          toast.error(error.message.includes("already registered") ? "Sudah terdaftar." : error.message);
+        const signupResult = await runWithTimeoutRetry(
+          () => supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } }),
+          12_000,
+          1
+        );
+
+        if (signupResult.error) {
+          const msg = String(signupResult.error?.message || "Gagal daftar");
+          const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+          toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : (msg.includes("already registered") ? "Sudah terdaftar." : msg));
         } else {
           toast.success("Berhasil!");
           if (refCode) await claimReferral(refCode);
           navigate("/coins");
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
-        if (error) toast.error("Nomor/email atau password salah.");
+        const signinResult = await runWithTimeoutRetry(
+          () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+          12_000,
+          1
+        );
+
+        if (signinResult.error) {
+          const msg = String(signinResult.error?.message || "Login gagal");
+          const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+          toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : "Nomor/email atau password salah.");
+        }
         else navigate("/coins");
       }
     } catch {
       toast.error("Koneksi bermasalah, coba lagi.");
+    } finally {
+      setLoading(false);
+      submitRef.current = false;
     }
-
-    setLoading(false);
-    submitRef.current = false;
   };
 
   return (
