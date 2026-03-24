@@ -707,12 +707,15 @@ const Index = () => {
       {/* Regular Shows Section */}
       <section id="shows" className="px-4 py-10 md:py-16">
         <div className="mx-auto max-w-6xl">
-          <motion.h2
-            className="mb-8 text-center text-2xl font-bold text-foreground md:text-3xl"
-            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          >
-            🎭 Jadwal Show
-          </motion.h2>
+          <a href="/schedule" className="block mb-8 text-center no-underline group">
+            <motion.h2
+              className="text-2xl font-bold text-foreground md:text-3xl inline-flex items-center gap-2 group-hover:text-primary transition-colors"
+              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            >
+              🎭 Jadwal Show
+              <Calendar className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </motion.h2>
+          </a>
 
           {regularShows.length === 0 ? (
             <div className="rounded-2xl border border-border bg-card p-12 text-center">
