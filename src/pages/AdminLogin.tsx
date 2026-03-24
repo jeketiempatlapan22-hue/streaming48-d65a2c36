@@ -1,20 +1,37 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import logo from "@/assets/logo.png";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const submitRef = useRef(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Debounce: prevent double submit
+    if (submitRef.current || loading) return;
+    submitRef.current = true;
+
+    // Client-side rate limit: 5 attempts per 60 seconds
+    if (!checkClientRateLimit("admin-login", 5, 60_000)) {
+      const remaining = getRateLimitRemaining("admin-login");
+      setCooldown(remaining);
+      toast({ title: "Terlalu banyak percobaan", description: `Tunggu ${remaining} detik lagi.`, variant: "destructive" });
+      submitRef.current = false;
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -22,6 +39,7 @@ const AdminLogin = () => {
       if (error) {
         toast({ title: "Login gagal", description: error.message, variant: "destructive" });
         setLoading(false);
+        submitRef.current = false;
         return;
       }
 
@@ -29,6 +47,7 @@ const AdminLogin = () => {
       if (!userId) {
         toast({ title: "Error", description: "User not found", variant: "destructive" });
         setLoading(false);
+        submitRef.current = false;
         return;
       }
 
@@ -37,13 +56,15 @@ const AdminLogin = () => {
         await supabase.auth.signOut();
         toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
         setLoading(false);
+        submitRef.current = false;
         return;
       }
 
       navigate("/admin/dashboard");
-    } catch (err) {
+    } catch {
       toast({ title: "Error", description: "Koneksi bermasalah, coba lagi.", variant: "destructive" });
       setLoading(false);
+      submitRef.current = false;
     }
   };
 
@@ -83,8 +104,8 @@ const AdminLogin = () => {
               className="bg-background"
             />
           </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
+          <Button type="submit" className="w-full" disabled={loading || cooldown > 0}>
+            {loading ? "Logging in..." : cooldown > 0 ? `Tunggu ${cooldown}s` : "Login"}
           </Button>
         </form>
       </div>

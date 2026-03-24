@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import logo from "@/assets/logo.png";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift } from "lucide-react";
+import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 
 type AuthMethod = "phone" | "email";
 
@@ -22,6 +23,7 @@ const ViewerAuth = () => {
   const [searchParams] = useSearchParams();
   const refCode = searchParams.get("ref");
   const navigate = useNavigate();
+  const submitRef = useRef(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -54,26 +56,42 @@ const ViewerAuth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid()) return;
+    if (!isFormValid() || submitRef.current || loading) return;
+    submitRef.current = true;
+
+    // Rate limit: 5 attempts per 60 seconds
+    const rlKey = `viewer-auth-${mode}`;
+    if (!checkClientRateLimit(rlKey, 5, 60_000)) {
+      const remaining = getRateLimitRemaining(rlKey);
+      toast.error(`Terlalu banyak percobaan. Tunggu ${remaining} detik.`);
+      submitRef.current = false;
+      return;
+    }
+
     setLoading(true);
     const authEmail = getAuthEmail();
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } });
-      if (error) {
-        toast.error(error.message.includes("already registered") ? "Sudah terdaftar." : error.message);
-      } else {
-        toast.success("Berhasil!");
-        if (refCode) {
-          await claimReferral(refCode);
+
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } });
+        if (error) {
+          toast.error(error.message.includes("already registered") ? "Sudah terdaftar." : error.message);
+        } else {
+          toast.success("Berhasil!");
+          if (refCode) await claimReferral(refCode);
+          navigate("/coins");
         }
-        navigate("/coins");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
+        if (error) toast.error("Nomor/email atau password salah.");
+        else navigate("/coins");
       }
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
-      if (error) toast.error("Nomor/email atau password salah.");
-      else navigate("/coins");
+    } catch {
+      toast.error("Koneksi bermasalah, coba lagi.");
     }
+
     setLoading(false);
+    submitRef.current = false;
   };
 
   return (
