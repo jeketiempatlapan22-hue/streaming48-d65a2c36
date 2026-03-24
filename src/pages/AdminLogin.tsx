@@ -52,6 +52,7 @@ const AdminLogin = () => {
     };
 
     try {
+      const loginStart = performance.now();
       const authResult = await runWithTimeoutRetry(
         () => supabase.auth.signInWithPassword({ email, password }),
         12_000,
@@ -59,8 +60,10 @@ const AdminLogin = () => {
       );
 
       if (authResult.error || !authResult.data?.session?.user) {
+        const ms = Math.round(performance.now() - loginStart);
         const msg = String(authResult.error?.message || "Login gagal");
         const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
+        recordAuthMetric(isTimeout ? "login_timeout" : "login_error", ms, "admin", msg);
         toast({
           title: "Login gagal",
           description: isTimeout ? "Server sedang sibuk, silakan coba lagi." : msg,
@@ -68,6 +71,8 @@ const AdminLogin = () => {
         });
         return;
       }
+      const loginMs = Math.round(performance.now() - loginStart);
+      recordAuthMetric("login_success", loginMs, "admin");
 
       const userId = authResult.data.session.user.id;
       if (!userId) {
