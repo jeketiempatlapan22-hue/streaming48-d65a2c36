@@ -21,13 +21,20 @@ function getSupabase() {
   );
 }
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function getLandingData(sb: any) {
   if (landingCache && Date.now() - landingCache.ts < LANDING_TTL) return landingCache.data;
 
   const [settingsRes, descRes, streamRes] = await Promise.all([
-    sb.from("site_settings").select("key, value"),
-    sb.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
-    sb.from("streams").select("is_live").limit(1).single(),
+    withTimeout(sb.from("site_settings").select("key, value"), 6000, { data: [] } as any),
+    withTimeout(sb.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"), 6000, { data: [] } as any),
+    withTimeout(sb.from("streams").select("is_live").limit(1).single(), 6000, { data: null } as any),
   ]);
 
   const settings: Record<string, string> = {};
@@ -45,7 +52,11 @@ async function getLandingData(sb: any) {
 async function getPublicShows(sb: any) {
   if (showsCache && Date.now() - showsCache.ts < SHOWS_TTL) return showsCache.data;
 
-  const { data } = await sb.rpc("get_public_shows");
+  const { data } = await withTimeout(
+    sb.rpc("get_public_shows"),
+    7000,
+    { data: showsCache?.data ?? [] } as any
+  );
   const shows = data || [];
   showsCache = { data: shows, ts: Date.now() };
   return shows;
@@ -54,12 +65,14 @@ async function getPublicShows(sb: any) {
 async function getStats(sb: any) {
   if (statsCache && Date.now() - statsCache.ts < STATS_TTL) return statsCache.data;
 
-  const [profileCountRes, balancesRes] = await Promise.all([
+  const profileCountRes = await withTimeout(
     sb.from("profiles").select("id", { count: "exact", head: true }),
-    sb.from("coin_balances").select("balance"),
-  ]);
+    6000,
+    { count: statsCache?.data?.userCount ?? 0 } as any
+  );
 
-  const totalCoins = (balancesRes.data || []).reduce((s: number, r: any) => s + (r.balance || 0), 0);
+  // Keep stats endpoint lightweight: avoid scanning all balance rows on every refresh.
+  const totalCoins = statsCache?.data?.totalCoins ?? 0;
   const data = {
     userCount: profileCountRes.count ?? 0,
     totalCoins,

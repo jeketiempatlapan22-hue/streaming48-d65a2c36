@@ -11,6 +11,7 @@ import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import { recordAuthMetric } from "@/lib/authMetrics";
 
 type AuthMethod = "phone" | "email";
+const TRANSIENT_AUTH_ERROR = /timeout|timed out|deadline|504|500|failed to fetch|networkerror|network request failed|load failed|connection/i;
 
 const ViewerAuth = () => {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -79,7 +80,7 @@ const ViewerAuth = () => {
           ),
         ]);
         // If success or non-retryable error, return immediately
-        if (!result.error || !/timeout|timed out|deadline|504|500/i.test(String(result.error?.message))) {
+        if (!result.error || !TRANSIENT_AUTH_ERROR.test(String(result.error?.message || ""))) {
           return result;
         }
         // On retryable error, wait before retry
@@ -121,7 +122,7 @@ const ViewerAuth = () => {
 
         if (result.error) {
           const msg = String(result.error?.message || "Gagal daftar");
-          const isTimeout = /timeout|timed out|deadline|504|500/i.test(msg);
+          const isTimeout = TRANSIENT_AUTH_ERROR.test(msg);
           recordAuthMetric(isTimeout ? "signup_timeout" : "signup_error", ms, "viewer", msg);
 
           if (isTimeout) {
@@ -172,7 +173,7 @@ const ViewerAuth = () => {
           }
 
           const msg = String(result.error?.message || "Login gagal");
-          const isTimeout = /timeout|timed out|deadline|504|500/i.test(msg);
+          const isTimeout = TRANSIENT_AUTH_ERROR.test(msg);
           recordAuthMetric(isTimeout ? "login_timeout" : "login_error", ms, "viewer", msg);
           toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : "Nomor/email atau password salah.");
         } else {

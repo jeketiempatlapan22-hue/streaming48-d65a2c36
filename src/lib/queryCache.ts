@@ -109,6 +109,8 @@ export async function fetchCachedEndpoint(
 
   const cacheKey = `edge_${type}`;
   return cachedQuery(cacheKey, async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
       `https://${projectId}.supabase.co/functions/v1/cached-landing-data?type=${type}`,
       {
@@ -117,8 +119,9 @@ export async function fetchCachedEndpoint(
           "Content-Type": "application/json",
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
+        signal: controller.signal,
       }
-    );
+    ).finally(() => clearTimeout(timer));
     if (!res.ok) return null;
     return res.json();
   }, 20_000).catch(() => null);
