@@ -212,6 +212,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
   const isBanlist = /^\/banlist$/i.test(rawText);
   const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
+  const createtokenMatch = rawText.match(/^\/createtoken\s+#([a-f0-9]{6})(?:\s+(\d+))?$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -285,6 +286,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleBanlistCommand(supabase, botToken, chatId);
   } else if (suspiciousMatch) {
     await handleSuspiciousCommand(supabase, botToken, chatId, suspiciousMatch[1] || null);
+  } else if (createtokenMatch) {
+    await handleCreateTokenCommand(supabase, botToken, chatId, `#${createtokenMatch[1]}`, createtokenMatch[2] ? parseInt(createtokenMatch[2], 10) : 1);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
@@ -349,7 +352,9 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/blocktoken <4digit>\` \\- Blokir token \\(4 digit belakang\\)\n` +
     `\`/unblocktoken <4digit>\` \\- Buka blokir token\n` +
     `\`/resettoken <4digit>\` \\- Reset sesi token\n` +
-    `\`/deletetoken <4digit>\` \\- Hapus token\n\n` +
+    `\`/deletetoken <4digit>\` \\- Hapus token\n` +
+    `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
+    `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n\n` +
     `🔐 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
@@ -1685,6 +1690,69 @@ async function handleSuspiciousCommand(supabase: any, botToken: string, chatId: 
     }
     await sendTelegramMessage(botToken, chatId, msg);
   } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleCreateTokenCommand(supabase: any, botToken: string, chatId: string, showInput: string, maxDevices: number) {
+  try {
+    const { show, error } = await findShowByIdOrName(supabase, showInput, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+
+    if (maxDevices < 1 || maxDevices > 10) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-10');
+      return;
+    }
+
+    // Generate token code with RT48- prefix
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+    // Calculate expiry: if show has schedule, expire end of that day; otherwise 24h
+    let expiresAt: string | null = null;
+    if (show.schedule_date && show.schedule_time) {
+      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
+      if (parsed) {
+        const showDt = new Date(parsed);
+        // End of show day (23:59:59 WIB)
+        const endOfDay = new Date(showDt);
+        endOfDay.setHours(23, 59, 59, 0);
+        // If already past, use 24h from now
+        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    if (!expiresAt) {
+      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code,
+      show_id: show.id,
+      max_devices: maxDevices,
+      expires_at: expiresAt,
+      status: 'active',
+    });
+
+    if (insertErr) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal membuat token: ${escapeMarkdown(insertErr.message)}`);
+      return;
+    }
+
+    const last4 = code.slice(-4);
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    await sendTelegramMessage(botToken, chatId,
+      `✅ *Token Berhasil Dibuat\\!*\n\n` +
+      `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
+      `🔑 Kode: \`${code}\`\n` +
+      `📱 Max Device: *${maxDevices}*\n` +
+      `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n` +
+      `🔢 4 Digit: \`${last4}\`\n\n` +
+      `💡 Link: streaming48\\.lovable\\.app/live?t\\=${code}`
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
 }
 
 function errorResponse(msg: string) {
