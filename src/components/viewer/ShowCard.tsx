@@ -203,7 +203,7 @@ const ShowCard = ({
           {redeemedToken && accessPassword && (() => {
             const showStart = parseShowDateTime(show.schedule_date, show.schedule_time);
             const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
-            const tooEarly = accessOpens ? currentTime < accessOpens : false;
+            const tooEarly = accessOpens ? Date.now() < accessOpens : false;
             if (tooEarly) return null;
             return (
               <div className="rounded-xl border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/10 p-3 text-center">
