@@ -285,6 +285,11 @@ const TokenFactory = () => {
           <Button variant="outline" size="sm" onClick={() => bulkCopyUncopied(dur)} title="Salin semua token baru">
             <ClipboardList className="mr-1 h-3 w-3" /> Salin Baru
           </Button>
+          {lastCopied.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={undoLastCopy} title="Batalkan salinan terakhir">
+              <RefreshCw className="mr-1 h-3 w-3" /> Batalkan ({lastCopied.length})
+            </Button>
+          )}
         </div>
 
         {/* Token list */}
