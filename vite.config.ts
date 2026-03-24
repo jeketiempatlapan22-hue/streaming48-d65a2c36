@@ -19,29 +19,52 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png", "logo.png", "robots.txt"],
       workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
+        // Skip waiting so the new SW activates immediately
+        skipWaiting: true,
+        clientsClaim: true,
+        navigateFallbackDenylist: [
+          /^\/~oauth/,
+          /^\/admin/,
+          /^\/login/,
+          /^\/auth/,
+          /^\/reset-password/,
+        ],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // Clean old caches on update
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            // NEVER cache Supabase auth, realtime, functions
+            urlPattern: /^https:\/\/.*\.supabase\.co\/(auth|realtime|functions|rest\/v1\/rpc)\/.*/i,
+            handler: "NetworkOnly",
+          },
+          {
+            // Supabase REST API - network first with short cache
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-api",
-              expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
             },
           },
           {
-            // Never cache realtime/websocket/auth endpoints
-            urlPattern: /^https:\/\/.*\.supabase\.co\/(realtime|auth|functions)\/.*/i,
-            handler: "NetworkOnly",
-          },
-          {
+            // Images - cache first
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: "CacheFirst",
             options: {
               cacheName: "images",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
+          },
+          {
+            // Supabase storage files - stale while revalidate
+            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "supabase-storage",
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
             },
           },
         ],

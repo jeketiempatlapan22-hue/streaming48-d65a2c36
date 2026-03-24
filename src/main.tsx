@@ -9,5 +9,12 @@ if (import.meta.env.PROD) {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+// PWA: Listen for service worker updates and reload automatically
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    // New service worker took control — reload for latest version
+    window.location.reload();
+  });
+}
 
+createRoot(document.getElementById("root")!).render(<App />);
