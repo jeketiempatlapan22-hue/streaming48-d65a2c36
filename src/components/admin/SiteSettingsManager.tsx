@@ -70,22 +70,36 @@ const SiteSettingsManager = () => {
         </div>
       ))}
 
-      <div>
-        <label className="mb-1 block text-xs font-medium text-muted-foreground">Aktifkan Pengumuman</label>
+      <div className="rounded-xl border-2 border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-4">
+        <label className="mb-2 block text-sm font-bold text-foreground">📢 Pengumuman</label>
+        <p className="mb-3 text-xs text-muted-foreground">Aktifkan untuk menampilkan banner pengumuman di landing page</p>
         <div className="flex gap-2">
           {[{ value: "true", label: "✅ Aktif" }, { value: "false", label: "❌ Nonaktif" }].map((opt) => (
             <button key={opt.value}
-              onClick={() => {
+              onClick={async () => {
                 setValues((p) => ({ ...p, announcement_enabled: opt.value }));
-                supabase.from("site_settings").upsert({ key: "announcement_enabled", value: opt.value }, { onConflict: "key" });
-                toast({ title: "Pengaturan disimpan" });
+                const { error } = await supabase.from("site_settings").upsert(
+                  { key: "announcement_enabled", value: opt.value },
+                  { onConflict: "key" }
+                );
+                if (error) {
+                  toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: opt.value === "true" ? "Pengumuman diaktifkan" : "Pengumuman dinonaktifkan" });
+                }
               }}
-              className={`rounded-lg px-4 py-2 text-xs font-medium transition-all ${
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
                 (values.announcement_enabled || "false") === opt.value
-                  ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  ? opt.value === "true"
+                    ? "bg-[hsl(var(--success))] text-primary-foreground ring-2 ring-[hsl(var(--success))]/50"
+                    : "bg-destructive text-destructive-foreground ring-2 ring-destructive/50"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
               }`}>{opt.label}</button>
           ))}
         </div>
+        {values.announcement_enabled === "true" && (
+          <p className="mt-2 text-xs text-[hsl(var(--success))]">✓ Pengumuman sedang ditampilkan di landing page</p>
+        )}
       </div>
     </div>
   );
