@@ -23,6 +23,8 @@ const ViewerAuth = () => {
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [failCount, setFailCount] = useState(0);
   const [searchParams] = useSearchParams();
   const refCode = searchParams.get("ref");
   const navigate = useNavigate();
@@ -108,6 +110,7 @@ const ViewerAuth = () => {
     }
 
     setLoading(true);
+    setLoginError("");
     const authEmail = getAuthEmail();
     const authStart = performance.now();
 
@@ -141,7 +144,6 @@ const ViewerAuth = () => {
             }
             toast.error("Server sedang sibuk, coba lagi sebentar.");
           } else if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("User already registered")) {
-            // Auto-try login with the same credentials
             const loginResult = await authWithRetry(
               () => supabase.auth.signInWithPassword({ email: authEmail, password }),
               15_000, 1
@@ -152,9 +154,12 @@ const ViewerAuth = () => {
               navigate("/coins");
               return;
             }
-            // Login failed too — switch to login mode
-            toast.error("Nomor/email sudah terdaftar. Password tidak cocok, silakan login ulang.");
+            setFailCount((c) => c + 1);
+            setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
+            toast.error("Nomor/email sudah terdaftar tapi password tidak cocok.");
             setMode("login");
+          } else if (msg.includes("email_address_invalid") || msg.includes("invalid") || msg.includes("valid email")) {
+            toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
           } else {
             toast.error(msg);
           }
@@ -213,9 +218,19 @@ const ViewerAuth = () => {
           if (isTimeout) {
             toast.error("Server sedang sibuk, coba lagi sebentar.");
           } else if (msg.includes("Invalid login credentials") || msg.includes("invalid_credentials")) {
-            toast.error("Password salah atau akun tidak ditemukan. Periksa kembali nomor HP/email dan password kamu.");
+            const newFail = failCount + 1;
+            setFailCount(newFail);
+            if (newFail >= 3) {
+              setLoginError("Sudah 3x gagal login. Kemungkinan password kamu salah. Gunakan fitur Lupa Password di bawah untuk reset.");
+              toast.error("Password salah. Coba reset password kamu.");
+            } else if (newFail >= 2) {
+              setLoginError("Password salah. Pastikan password yang kamu masukkan benar, atau gunakan Lupa Password.");
+              toast.error("Password salah. Periksa kembali atau reset password.");
+            } else {
+              setLoginError("Password salah atau akun tidak ditemukan.");
+              toast.error("Password salah atau akun tidak ditemukan. Periksa kembali nomor HP/email dan password kamu.");
+            }
           } else if (msg.includes("Email not confirmed")) {
-            // Edge case: account exists but unconfirmed (shouldn't happen with auto-confirm)
             toast.error("Akun belum diverifikasi. Coba daftar ulang dengan nomor/email yang sama.");
             setMode("signup");
           } else {
@@ -287,10 +302,20 @@ const ViewerAuth = () => {
           )}
           {method === "email" && <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><div className="relative"><Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" required className="bg-background pl-10" /></div></div>}
           <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Password</label><div className="relative"><Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 karakter" required minLength={6} className="bg-background pl-10" /></div></div>
+          {loginError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+              <p className="font-medium">{loginError}</p>
+              {failCount >= 2 && mode === "login" && (
+                <a href="/forgot-password" className="mt-1.5 inline-flex items-center gap-1 font-bold text-primary hover:underline">
+                  🔑 Reset Password Sekarang
+                </a>
+              )}
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading || !isFormValid()}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
-          <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
+          <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setLoginError(""); setFailCount(0); }} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
           {mode === "login" && (
-            <p className="text-center text-xs"><a href="/forgot-password" className="text-muted-foreground hover:text-primary transition-colors">Lupa password?</a></p>
+            <p className="text-center text-xs"><a href="/forgot-password" className={`transition-colors ${failCount >= 2 ? "font-bold text-primary" : "text-muted-foreground hover:text-primary"}`}>Lupa password?</a></p>
           )}
         </form>
         <button onClick={() => navigate("/")} className="mt-4 flex w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Kembali ke Beranda</button>
