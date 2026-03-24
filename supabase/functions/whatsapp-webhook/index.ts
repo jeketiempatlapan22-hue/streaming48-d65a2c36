@@ -153,6 +153,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const isOrderToday = /^\/ordertoday$/i.test(rawText);
   const isTopUsers = /^\/topusers$/i.test(rawText);
   const setpriceMatch = rawText.match(/^\/setprice\s+(.+?)\s+(coin|replay)\s+(\d+)$/i);
+  const createtokenMatch = rawText.match(/^\/createtoken\s+(.+?)(?:\s+(\d+))?$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
