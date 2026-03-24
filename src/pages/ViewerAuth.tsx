@@ -244,7 +244,7 @@ const ViewerAuth = () => {
           <Button type="submit" className="w-full" disabled={loading || !isFormValid()}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
           <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => setMode(mode === "login" ? "signup" : "login")} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
           {mode === "login" && (
-            <p className="text-center text-xs"><a href="/reset-password" className="text-muted-foreground hover:text-primary transition-colors">Lupa password?</a></p>
+            <p className="text-center text-xs"><a href="/forgot-password" className="text-muted-foreground hover:text-primary transition-colors">Lupa password?</a></p>
           )}
         </form>
         <button onClick={() => navigate("/")} className="mt-4 flex w-full items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Kembali ke Beranda</button>

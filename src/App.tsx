@@ -15,6 +15,7 @@ const CoinShop = lazy(() => import("./pages/CoinShop"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const ReplayPage = lazy(() => import("./pages/ReplayPage"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const InstallPage = lazy(() => import("./pages/InstallPage"));
 const ViewerProfile = lazy(() => import("./pages/ViewerProfile"));
 const MembershipPage = lazy(() => import("./pages/MembershipPage"));
@@ -97,6 +98,7 @@ const App = () => {
                 <Route path="/schedule" element={<SchedulePage />} />
                 <Route path="/replay" element={<ReplayPage />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/install" element={<InstallPage />} />
                 <Route path="/profile" element={<ViewerProfile />} />
                 <Route path="/membership" element={<MembershipPage />} />
