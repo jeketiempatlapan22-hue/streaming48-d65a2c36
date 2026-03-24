@@ -10,6 +10,7 @@ import PlayerAnimations, { AnimationType } from "@/components/viewer/PlayerAnima
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
 
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
+import { withRetry, withTimeout } from "@/lib/queryCache";
 
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
 const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
@@ -98,75 +99,161 @@ const LivePage = () => {
 
   const effectiveType = proxyType === "youtube_proxy" ? "youtube" : (activePlaylist?.type || "m3u8");
 
+  const runWithTimeoutRetry = async <T,>(
+    request: () => Promise<{ data: T | null; error: any }>,
+    timeoutMs: number,
+    retries: number
+  ) => {
+    return withRetry(
+      () =>
+        withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
+          .then((result) => ({ data: result.data, error: result.error }))
+          .catch((error) => ({ data: null, error })),
+      retries,
+      700
+    );
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: profile } = await supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle();
-        if (profile?.username) { setUsername(profile.username); localStorage.setItem("rt48_username", profile.username); return; }
-        setShowUsernameModal(true); return;
+      try {
+        const { data: { session } } = await withTimeout(
+          supabase.auth.getSession(),
+          8_000,
+          "Session timeout"
+        );
+
+        if (session?.user) {
+          const profileRes = await withTimeout(
+            (async () => await supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle())(),
+            8_000,
+            "Profile timeout"
+          ).catch(() => null);
+
+          if (profileRes?.data?.username) {
+            setUsername(profileRes.data.username);
+            localStorage.setItem("rt48_username", profileRes.data.username);
+            return;
+          }
+          setShowUsernameModal(true);
+          return;
+        }
+
+        const stored = localStorage.getItem("rt48_username");
+        if (!stored) setShowUsernameModal(true);
+      } catch {
+        const stored = localStorage.getItem("rt48_username");
+        if (!stored) setShowUsernameModal(true);
       }
-      const stored = localStorage.getItem("rt48_username");
-      if (!stored) setShowUsernameModal(true);
     };
     checkAuth();
   }, []);
 
   useEffect(() => {
-    if (!tokenCode) {
-      supabase.from("site_settings").select("*").then(({ data }) => {
-        if (data) data.forEach((s: any) => {
-          if (s.key === "purchase_message") setPurchaseMessage(s.value);
-          if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
-        });
-      });
-      setError("no_token"); setLoading(false); return;
-    }
     const validate = async () => {
-      const { data: settingsEarly } = await supabase.from("site_settings").select("*");
-      if (settingsEarly) settingsEarly.forEach((s: any) => {
-        if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
-      });
+      try {
+        if (!tokenCode) {
+          const settingsRes = await withTimeout(
+            (async () => await supabase.from("site_settings").select("*"))(),
+            8_000,
+            "Settings timeout"
+          ).catch(() => null);
 
-      const { data: validation } = await supabase.rpc("validate_token", { _code: tokenCode });
-      const result = validation as any;
-      if (!result?.valid) {
-        const errText = String(result?.error || "").toLowerCase();
-        if (errText.includes("diblokir")) { setBlocked(true); setLoading(false); return; }
-        setError(result?.error || "Token tidak valid."); setLoading(false); return;
-      }
-      const fp = getFingerprint();
-      const { data: sess } = await supabase.rpc("create_token_session", { _token_code: tokenCode, _fingerprint: fp, _user_agent: navigator.userAgent });
-      const sd = sess as any;
-      if (!sd?.success) { setError("device_limit"); setLoading(false); return; }
-      setTokenData({ id: result.id, code: result.code, show_id: result.show_id });
-      const [streamRes, playlistRes, settingsRes] = await Promise.all([
-        supabase.from("streams").select("*").limit(1).single(),
-        supabase.from("playlists").select("*").eq("is_active", true).order("sort_order"),
-        supabase.from("site_settings").select("*"),
-      ]);
-      if (streamRes.data) setStream(streamRes.data);
-      if (playlistRes.data?.length) { setPlaylists(playlistRes.data); setActivePlaylist(playlistRes.data[0]); }
-      
-      let activeShowId = "";
-      if (settingsRes.data) settingsRes.data.forEach((s: any) => {
-        if (s.key === "next_show_time") setNextShowTime(s.value);
-        if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
-        if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
-        if (s.key === "active_show_id") activeShowId = s.value;
-      });
+          if (settingsRes?.data) {
+            settingsRes.data.forEach((s: any) => {
+              if (s.key === "purchase_message") setPurchaseMessage(s.value);
+              if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+            });
+          }
 
-      if (result.show_id && activeShowId && result.show_id !== activeShowId) {
-        const { data: allShows } = await supabase.rpc("get_public_shows");
-        const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
-        const activeShow = allShows?.find((s: any) => s.id === activeShowId);
-        setShowMismatch(true);
-        setMismatchShowTitle(
-          `Token kamu untuk show "${tokenShow?.title || "lain"}", sedangkan yang sedang live adalah "${activeShow?.title || "show lain"}".`
+          setError("no_token");
+          return;
+        }
+
+        const settingsEarlyRes = await withTimeout(
+          (async () => await supabase.from("site_settings").select("*"))(),
+          8_000,
+          "Settings timeout"
+        ).catch(() => null);
+
+        if (settingsEarlyRes?.data) {
+          settingsEarlyRes.data.forEach((s: any) => {
+            if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+          });
+        }
+
+        const validationResult = await runWithTimeoutRetry(
+          async () => await supabase.rpc("validate_token", { _code: tokenCode }),
+          10_000,
+          1
         );
-      }
 
-      setLoading(false);
+        const result = validationResult.data as any;
+        if (validationResult.error || !result?.valid) {
+          const errText = String(result?.error || validationResult.error?.message || "").toLowerCase();
+          if (errText.includes("diblokir")) { setBlocked(true); return; }
+          setError(result?.error || "Server sedang sibuk, coba muat ulang.");
+          return;
+        }
+
+        const fp = getFingerprint();
+        const sessionResult = await runWithTimeoutRetry(
+          async () => await supabase.rpc("create_token_session", { _token_code: tokenCode, _fingerprint: fp, _user_agent: navigator.userAgent }),
+          10_000,
+          1
+        );
+
+        const sd = sessionResult.data as any;
+        if (sessionResult.error || !sd?.success) {
+          setError(sd?.error === "device_limit" ? "device_limit" : "Server sedang sibuk, coba lagi.");
+          return;
+        }
+
+        setTokenData({ id: result.id, code: result.code, show_id: result.show_id });
+
+        const [streamRes, playlistRes, settingsRes] = await Promise.allSettled([
+          withTimeout((async () => await supabase.from("streams").select("*").limit(1).single())(), 8_000, "Stream timeout"),
+          withTimeout((async () => await supabase.from("playlists").select("*").eq("is_active", true).order("sort_order"))(), 8_000, "Playlist timeout"),
+          withTimeout((async () => await supabase.from("site_settings").select("*"))(), 8_000, "Settings timeout"),
+        ]);
+
+        if (streamRes.status === "fulfilled" && streamRes.value.data) setStream(streamRes.value.data);
+        if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
+          setPlaylists(playlistRes.value.data);
+          setActivePlaylist(playlistRes.value.data[0]);
+        }
+
+        let activeShowId = "";
+        const settingsData = settingsRes.status === "fulfilled" ? settingsRes.value.data : null;
+        if (settingsData) {
+          settingsData.forEach((s: any) => {
+            if (s.key === "next_show_time") setNextShowTime(s.value);
+            if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+            if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
+            if (s.key === "active_show_id") activeShowId = s.value;
+          });
+        }
+
+        if (result.show_id && activeShowId && result.show_id !== activeShowId) {
+          const allShowsRes = await withTimeout(
+            (async () => await supabase.rpc("get_public_shows"))(),
+            8_000,
+            "Shows timeout"
+          ).catch(() => null);
+
+          const allShows = allShowsRes?.data as any[] | undefined;
+          const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
+          const activeShow = allShows?.find((s: any) => s.id === activeShowId);
+          setShowMismatch(true);
+          setMismatchShowTitle(
+            `Token kamu untuk show "${tokenShow?.title || "lain"}", sedangkan yang sedang live adalah "${activeShow?.title || "show lain"}".`
+          );
+        }
+      } catch {
+        setError("Server sedang sibuk, coba muat ulang halaman.");
+      } finally {
+        setLoading(false);
+      }
     };
     validate();
   }, [tokenCode, getFingerprint]);

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { withTimeout } from "@/lib/queryCache";
 import { Coins, Upload, CheckCircle, ArrowLeft, Ticket, Copy, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,15 +34,35 @@ const CoinShop = () => {
   useEffect(() => {
     let cancelled = false;
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { navigate("/auth"); return; }
-      if (cancelled) return;
-      setUser(session.user);
-      const { data: profile } = await supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle();
-      if (cancelled) return;
-      setUsername(profile?.username || "User");
-      await fetchData(session.user.id);
-      if (!cancelled) setLoading(false);
+      try {
+        const { data: { session } } = await withTimeout(
+          supabase.auth.getSession(),
+          10_000,
+          "Session timeout"
+        );
+
+        if (!session?.user) { navigate("/auth"); return; }
+        if (cancelled) return;
+
+        setUser(session.user);
+
+        const profileRes = await withTimeout(
+          (async () => await supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle())(),
+          8_000,
+          "Profile timeout"
+        ).catch(() => null);
+
+        if (cancelled) return;
+        setUsername(profileRes?.data?.username || "User");
+
+        await fetchData(session.user.id);
+      } catch {
+        if (!cancelled) {
+          toast({ title: "Server sedang sibuk", description: "Coba muat ulang halaman sebentar lagi.", variant: "destructive" });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     init();
     return () => { cancelled = true; };
@@ -65,15 +86,18 @@ const CoinShop = () => {
   }, [user]);
 
   const fetchData = async (userId: string) => {
-    const [balRes, pkgRes, txRes] = await Promise.all([
-      supabase.from("coin_balances").select("balance").eq("user_id", userId).maybeSingle(),
-      supabase.from("coin_packages").select("*").eq("is_active", true).order("sort_order"),
-      supabase.from("coin_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50),
+    const [balRes, pkgRes, txRes, showsRes] = await Promise.allSettled([
+      withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", userId).maybeSingle())(), 8_000, "Balance timeout"),
+      withTimeout((async () => await supabase.from("coin_packages").select("*").eq("is_active", true).order("sort_order"))(), 8_000, "Packages timeout"),
+      withTimeout((async () => await supabase.from("coin_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50))(), 8_000, "Transactions timeout"),
+      withTimeout((async () => await supabase.rpc("get_public_shows"))(), 8_000, "Shows timeout"),
     ]);
-    setBalance(balRes.data?.balance || 0);
-    setPackages(pkgRes.data || []);
-    setTransactions(txRes.data || []);
-    const { data: showsData } = await supabase.rpc("get_public_shows");
+
+    setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
+    setPackages(pkgRes.status === "fulfilled" ? (pkgRes.value.data || []) : []);
+    setTransactions(txRes.status === "fulfilled" ? (txRes.value.data || []) : []);
+
+    const showsData = showsRes.status === "fulfilled" ? (showsRes.value.data as any[] | null) : null;
     setShows((showsData || []).filter((s: any) => s.coin_price > 0 && s.is_active));
   };
 

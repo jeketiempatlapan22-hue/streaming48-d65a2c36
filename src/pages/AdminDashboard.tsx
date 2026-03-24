@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withRetry, withTimeout } from "@/lib/queryCache";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,32 +35,91 @@ const AdminDashboard = () => {
   const [activeSection, setActiveSection] = useState("live");
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authCheckNonce, setAuthCheckNonce] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
+
+    const runWithTimeoutRetry = async <T,>(
+      request: () => Promise<{ data: T | null; error: any }>,
+      timeoutMs: number,
+      retries: number
+    ) => {
+      return withRetry(
+        () =>
+          withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
+            .then((result) => ({ data: result.data, error: result.error }))
+            .catch((error) => ({ data: null, error })),
+        retries,
+        700
+      );
+    };
+
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        setAuthError("");
+
+        const sessionResult = await runWithTimeoutRetry(
+          async () => await supabase.auth.getSession(),
+          10_000,
+          1
+        );
+
         if (cancelled) return;
+        const session = (sessionResult.data as any)?.session;
+
         if (!session?.user) { navigate("/admin"); return; }
-        const { data } = await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" });
+
+        const roleResult = await runWithTimeoutRetry(
+          async () => await supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
+          8_000,
+          2
+        );
+
         if (cancelled) return;
-        if (!data) { await supabase.auth.signOut(); navigate("/admin"); return; }
+
+        if (roleResult.error) {
+          setAuthError("Server sedang sibuk, gagal verifikasi akses admin. Silakan coba lagi.");
+          setLoading(false);
+          return;
+        }
+
+        if (!roleResult.data) { await supabase.auth.signOut(); navigate("/admin"); return; }
         setLoading(false);
       } catch {
-        if (!cancelled) navigate("/admin");
+        if (!cancelled) {
+          setAuthError("Tidak bisa terhubung ke server saat ini.");
+          setLoading(false);
+        }
       }
     };
     checkAuth();
     return () => { cancelled = true; };
-  }, [navigate]);
+  }, [navigate, authCheckNonce]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
 
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (authError) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 text-center space-y-4">
+        <p className="text-sm text-muted-foreground">{authError}</p>
+        <div className="flex gap-2">
+          <Button className="flex-1" onClick={() => { setLoading(true); setAuthCheckNonce((n) => n + 1); }}>
+            Coba lagi
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={() => navigate("/admin")}>
+            Kembali
+          </Button>
+        </div>
+      </div>
     </div>
   );
 
