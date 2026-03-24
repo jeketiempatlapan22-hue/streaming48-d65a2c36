@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { withTimeout } from "@/lib/queryCache";
+import { withTimeout, cachedQuery, fetchCachedEndpoint } from "@/lib/queryCache";
 import { Coins, Upload, CheckCircle, ArrowLeft, Ticket, Copy, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,18 +86,29 @@ const CoinShop = () => {
   }, [user]);
 
   const fetchData = async (userId: string) => {
+    // Use cached shows from edge function instead of direct RPC
+    const cachedShows = fetchCachedEndpoint("shows").catch(() => null);
+
     const [balRes, pkgRes, txRes, showsRes] = await Promise.allSettled([
       withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", userId).maybeSingle())(), 8_000, "Balance timeout"),
       withTimeout((async () => await supabase.from("coin_packages").select("*").eq("is_active", true).order("sort_order"))(), 8_000, "Packages timeout"),
-      withTimeout((async () => await supabase.from("coin_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(50))(), 8_000, "Transactions timeout"),
-      withTimeout((async () => await supabase.rpc("get_public_shows"))(), 8_000, "Shows timeout"),
+      withTimeout((async () => await supabase.from("coin_transactions").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(30))(), 8_000, "Transactions timeout"),
+      cachedShows,
     ]);
 
     setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
     setPackages(pkgRes.status === "fulfilled" ? (pkgRes.value.data || []) : []);
     setTransactions(txRes.status === "fulfilled" ? (txRes.value.data || []) : []);
 
-    const showsData = showsRes.status === "fulfilled" ? (showsRes.value.data as any[] | null) : null;
+    // Shows from edge function cache or fallback
+    let showsData: any[] | null = null;
+    if (showsRes.status === "fulfilled" && Array.isArray(showsRes.value)) {
+      showsData = showsRes.value;
+    } else {
+      // Fallback to direct RPC
+      const { data } = await supabase.rpc("get_public_shows");
+      showsData = data as any[] | null;
+    }
     setShows((showsData || []).filter((s: any) => s.coin_price > 0 && s.is_active));
   };
 

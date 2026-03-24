@@ -6,51 +6,107 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// In-memory cache (edge function instances are reused for ~30s-5min)
-let cache: { data: any; ts: number } | null = null;
-const CACHE_TTL = 30_000; // 30 seconds
+// In-memory caches (edge function instances are reused for ~30s-5min)
+let landingCache: { data: any; ts: number } | null = null;
+let showsCache: { data: any; ts: number } | null = null;
+let statsCache: { data: any; ts: number } | null = null;
+const LANDING_TTL = 30_000;
+const SHOWS_TTL = 20_000;
+const STATS_TTL = 60_000;
+
+function getSupabase() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
+}
+
+async function getLandingData(sb: any) {
+  if (landingCache && Date.now() - landingCache.ts < LANDING_TTL) return landingCache.data;
+
+  const [settingsRes, descRes, streamRes] = await Promise.all([
+    sb.from("site_settings").select("key, value"),
+    sb.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
+    sb.from("streams").select("is_live").limit(1).single(),
+  ]);
+
+  const settings: Record<string, string> = {};
+  (settingsRes.data || []).forEach((r: any) => { settings[r.key] = r.value; });
+
+  const data = {
+    settings,
+    descriptions: descRes.data || [],
+    isStreamLive: streamRes.data?.is_live ?? false,
+  };
+  landingCache = { data, ts: Date.now() };
+  return data;
+}
+
+async function getPublicShows(sb: any) {
+  if (showsCache && Date.now() - showsCache.ts < SHOWS_TTL) return showsCache.data;
+
+  const { data } = await sb.rpc("get_public_shows");
+  const shows = data || [];
+  showsCache = { data: shows, ts: Date.now() };
+  return shows;
+}
+
+async function getStats(sb: any) {
+  if (statsCache && Date.now() - statsCache.ts < STATS_TTL) return statsCache.data;
+
+  const [profileCountRes, balancesRes] = await Promise.all([
+    sb.from("profiles").select("id", { count: "exact", head: true }),
+    sb.from("coin_balances").select("balance"),
+  ]);
+
+  const totalCoins = (balancesRes.data || []).reduce((s: number, r: any) => s + (r.balance || 0), 0);
+  const data = {
+    userCount: profileCountRes.count ?? 0,
+    totalCoins,
+  };
+  statsCache = { data, ts: Date.now() };
+  return data;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Return cached data if fresh
-  if (cache && Date.now() - cache.ts < CACHE_TTL) {
-    return new Response(JSON.stringify(cache.data), {
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=30" },
-    });
-  }
-
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const sb = createClient(supabaseUrl, serviceKey);
+    const url = new URL(req.url);
+    const endpoint = url.searchParams.get("type") || "landing";
+    const sb = getSupabase();
 
-    // Fetch all non-critical landing page data in parallel
-    const [settingsRes, descRes, profileCountRes, streamRes] = await Promise.all([
-      sb.from("site_settings").select("key, value"),
-      sb.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
-      sb.from("profiles").select("id", { count: "exact", head: true }),
-      sb.from("streams").select("is_live").limit(1).single(),
-    ]);
+    let result: any;
 
-    const settings: Record<string, string> = {};
-    (settingsRes.data || []).forEach((r: any) => {
-      settings[r.key] = r.value;
-    });
-
-    const result = {
-      settings,
-      descriptions: descRes.data || [],
-      userCount: profileCountRes.count ?? 0,
-      isStreamLive: streamRes.data?.is_live ?? false,
-    };
-
-    cache = { data: result, ts: Date.now() };
+    switch (endpoint) {
+      case "shows":
+        result = await getPublicShows(sb);
+        break;
+      case "stats":
+        result = await getStats(sb);
+        break;
+      case "all": {
+        // Combined endpoint: returns everything in one call
+        const [landing, shows, stats] = await Promise.all([
+          getLandingData(sb),
+          getPublicShows(sb),
+          getStats(sb),
+        ]);
+        result = { ...landing, shows, ...stats };
+        break;
+      }
+      default:
+        result = await getLandingData(sb);
+    }
 
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=30" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=20, stale-while-revalidate=40",
+      },
     });
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), {

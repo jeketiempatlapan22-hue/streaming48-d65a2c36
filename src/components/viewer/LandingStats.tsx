@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, useInView } from "framer-motion";
 import { Users, Ticket, Coins, Film } from "lucide-react";
-import { cachedQuery } from "@/lib/queryCache";
+import { fetchCachedEndpoint, cachedQuery } from "@/lib/queryCache";
 
 const useCountUp = (target: number, duration: number, inView: boolean) => {
   const [current, setCurrent] = useState(0);
@@ -27,38 +27,44 @@ const LandingStats = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Use cached shows data (shared with Index page) to avoid duplicate RPC call
+      // Try edge function cache first (0 DB queries from client)
+      const cached = await fetchCachedEndpoint("all");
+
+      if (cached?.shows) {
+        const showsList = cached.shows as any[];
+        setStats(prev => ({
+          ...prev,
+          shows: showsList.length,
+          coins: cached.totalCoins ?? 0,
+          replays: showsList.filter((s: any) => s.is_replay).length,
+        }));
+        return;
+      }
+
+      // Fallback: direct DB (only if edge function failed)
       const showsList = await cachedQuery("public_shows", async () => {
         const { data } = await supabase.rpc("get_public_shows");
         return data || [];
       }, 60_000);
 
-      // Coin balances query is lightweight - but delay it slightly to stagger load
-      await new Promise(r => setTimeout(r, 500));
-      const { data: balances } = await supabase.from("coin_balances").select("balance");
-      const totalCoins = (balances || []).reduce((s, r) => s + (r.balance || 0), 0);
-
       setStats(prev => ({
         ...prev,
         shows: showsList.length,
-        coins: totalCoins,
         replays: showsList.filter((s: any) => s.is_replay).length,
       }));
     };
     fetchData();
   }, []);
 
-  // Subscribe to Supabase Presence on "online-users" channel (read-only)
+  // Presence channel for online users — lightweight, no DB query
   useEffect(() => {
     const channel = supabase.channel("online-users");
-
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         setStats(prev => ({ ...prev, viewers: Object.keys(state).length }));
       })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, []);
 

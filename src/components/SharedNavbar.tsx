@@ -42,19 +42,25 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", () => setIsStandalone(true));
 
-    // Delay auth check slightly so it doesn't compete with page-level queries
+    // Delay auth check — use cached session to avoid extra DB hit
     const timer = setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setCoinUser(session.user);
-        const [balRes, profileRes] = await Promise.all([
-          supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle(),
-          supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle(),
+      try {
+        const { data: { session } } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 5000)),
         ]);
-        setCoinBalance(balRes.data?.balance || 0);
-        setCoinUsername(profileRes.data?.username || "");
-      }
-    }, 200);
+        if (session?.user) {
+          setCoinUser(session.user);
+          // Batch both queries
+          const [balRes, profileRes] = await Promise.allSettled([
+            supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle(),
+            supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle(),
+          ]);
+          setCoinBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
+          setCoinUsername(profileRes.status === "fulfilled" ? (profileRes.value.data?.username || "") : "");
+        }
+      } catch {}
+    }, 500);
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);

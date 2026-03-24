@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
-import { cachedQuery, invalidateCache } from "@/lib/queryCache";
+import { cachedQuery, invalidateCache, fetchCachedEndpoint } from "@/lib/queryCache";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 
@@ -79,51 +79,42 @@ const Index = () => {
   const [isStandalone, setIsStandalone] = useState(false);
 
   const fetchData = async () => {
-    // Try cached edge function first for non-critical data
-    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-    const cachedFetch = projectId
-      ? fetch(`https://${projectId}.supabase.co/functions/v1/cached-landing-data`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        })
-          .then((r) => (r.ok ? r.json() : null))
-          .catch(() => null)
-      : Promise.resolve(null);
+    // Try "all" endpoint — single request, server-side cached
+    const cachedData = await fetchCachedEndpoint("all");
 
-    // Critical: shows (still uses RPC for freshness)
-    const showsFetch = cachedQuery("public_shows", async () => {
-      const { data } = await supabase.rpc("get_public_shows");
-      return data || [];
-    }, 30_000);
-
-    const [showsData, cachedData] = await Promise.all([showsFetch, cachedFetch]);
-    setShows(showsData as Show[]);
-
-    if (cachedData) {
-      // Use cached non-critical data
+    if (cachedData?.shows) {
+      // All data from a single cached edge function call (0 direct DB queries!)
+      setShows(cachedData.shows as Show[]);
       if (cachedData.isStreamLive !== undefined) setIsStreamLive(cachedData.isStreamLive);
       if (cachedData.descriptions) setDescriptions(cachedData.descriptions);
-      if (cachedData.settings) {
-        setSettings((prev) => ({ ...prev, ...cachedData.settings }));
-      }
-    } else {
-      // Fallback: direct DB queries (staggered)
-      const streamRes = await supabase.from("streams").select("is_live").limit(1).single();
-      if (streamRes.data) setIsStreamLive(streamRes.data.is_live);
-
-      setTimeout(async () => {
-        const [settingsRes, descRes] = await Promise.all([
-          supabase.from("site_settings").select("*"),
-          supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
-        ]);
-        if (descRes.data) setDescriptions(descRes.data as any[]);
-        if (settingsRes.data) {
-          const s: any = {};
-          settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
-          setSettings((prev) => ({ ...prev, ...s }));
-        }
-      }, 300);
+      if (cachedData.settings) setSettings((prev) => ({ ...prev, ...cachedData.settings }));
+      return;
     }
+
+    // Fallback: direct DB queries (only if edge function unavailable)
+    const [showsData, streamRes] = await Promise.all([
+      cachedQuery("public_shows", async () => {
+        const { data } = await supabase.rpc("get_public_shows");
+        return data || [];
+      }, 30_000),
+      supabase.from("streams").select("is_live").limit(1).single(),
+    ]);
+    setShows(showsData as Show[]);
+    if (streamRes.data) setIsStreamLive(streamRes.data.is_live);
+
+    // Stagger non-critical
+    setTimeout(async () => {
+      const [settingsRes, descRes] = await Promise.all([
+        supabase.from("site_settings").select("*"),
+        supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
+      ]);
+      if (descRes.data) setDescriptions(descRes.data as any[]);
+      if (settingsRes.data) {
+        const s: any = {};
+        settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
+        setSettings((prev) => ({ ...prev, ...s }));
+      }
+    }, 300);
   };
 
   useEffect(() => {
@@ -141,16 +132,19 @@ const Index = () => {
     window.addEventListener("beforeinstallprompt", installHandler);
     window.addEventListener("appinstalled", () => setIsStandalone(true));
     const fetchCoinUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 5000)),
+      ]).catch(() => ({ data: { session: null } }));
       const user = session?.user;
       if (!user) return;
       setCoinUser(user);
-      const [balRes, profileRes] = await Promise.all([
+      const [balRes, profileRes] = await Promise.allSettled([
         supabase.from("coin_balances").select("balance").eq("user_id", user.id).maybeSingle(),
         supabase.from("profiles").select("username").eq("id", user.id).maybeSingle(),
       ]);
-      setCoinBalance(balRes.data?.balance || 0);
-      setCoinUsername(profileRes.data?.username || user.user_metadata?.username || "");
+      setCoinBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
+      setCoinUsername(profileRes.status === "fulfilled" ? (profileRes.value.data?.username || user.user_metadata?.username || "") : "");
 
       try {
         const stored = JSON.parse(localStorage.getItem(`redeemed_tokens_${user.id}`) || "{}");
