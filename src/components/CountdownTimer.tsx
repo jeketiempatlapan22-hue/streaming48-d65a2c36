@@ -1,25 +1,24 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Timer } from "lucide-react";
 
 interface CountdownTimerProps {
   dateStr: string;
   timeStr: string;
 }
 
-const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
-  // Try to parse Indonesian date format like "20 Maret 2026"
-  const months: Record<string, number> = {
-    januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
-    juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
-    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-  };
+const months: Record<string, number> = {
+  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
 
-  // Extract time (e.g. "19:00 WIB" -> 19:00)
+const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
   const timeMatch = timeStr?.match(/(\d{1,2})[:.:](\d{2})/);
   const hours = timeMatch ? parseInt(timeMatch[1]) : 0;
   const minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
 
-  // Try Indonesian format: "20 Maret 2026"
   const dateMatch = dateStr?.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
   if (dateMatch) {
     const day = parseInt(dateMatch[1]);
@@ -32,12 +31,27 @@ const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
     }
   }
 
-  // Try ISO / standard format
   const d = new Date(`${dateStr} ${timeStr}`);
   if (!isNaN(d.getTime())) return d;
-
   return null;
 };
+
+const AnimatedDigit = ({ value, label }: { value: number; label: string }) => (
+  <div className="flex flex-col items-center">
+    <motion.div
+      key={value}
+      initial={{ rotateX: -90, opacity: 0 }}
+      animate={{ rotateX: 0, opacity: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 backdrop-blur-sm border border-primary/20"
+    >
+      <span className="font-mono text-sm font-bold text-primary tabular-nums">
+        {value.toString().padStart(2, "0")}
+      </span>
+    </motion.div>
+    <span className="mt-0.5 text-[8px] uppercase tracking-wider text-muted-foreground font-medium">{label}</span>
+  </div>
+);
 
 const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
@@ -53,7 +67,6 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
       const diff = target.getTime() - now.getTime();
 
       if (diff <= 0) {
-        // Check if it's within 3 hours of start time (consider "live")
         if (diff > -10800000) {
           setIsLive(true);
           setIsPast(false);
@@ -65,6 +78,8 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
         return;
       }
 
+      setIsLive(false);
+      setIsPast(false);
       setTimeLeft({
         days: Math.floor(diff / 86400000),
         hours: Math.floor((diff % 86400000) / 3600000),
@@ -86,10 +101,14 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
 
   if (isLive) {
     return (
-      <span className="flex items-center gap-1 text-xs font-bold text-destructive animate-pulse">
-        <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
-        SEDANG LIVE
-      </span>
+      <motion.div
+        animate={{ scale: [1, 1.05, 1] }}
+        transition={{ duration: 1.5, repeat: Infinity }}
+        className="flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 shadow-lg shadow-destructive/30"
+      >
+        <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+        <span className="text-xs font-bold text-destructive-foreground">SEDANG LIVE</span>
+      </motion.div>
     );
   }
 
@@ -97,15 +116,24 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
   if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) return null;
 
   return (
-    <div className="flex items-center gap-1">
-      {days > 0 && (
-        <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary tabular-nums">
-          {days}h
-        </span>
-      )}
-      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary tabular-nums">
-        {String(hours).padStart(2, "0")}:{String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-      </span>
+    <div className="inline-flex flex-col items-center rounded-xl bg-background/80 backdrop-blur-sm border border-primary/10 px-3 py-2">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Timer className="h-3 w-3 text-primary animate-pulse" />
+        <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-semibold">Mulai dalam</span>
+      </div>
+      <div className="flex items-center gap-1">
+        {days > 0 && (
+          <>
+            <AnimatedDigit value={days} label="Hari" />
+            <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+          </>
+        )}
+        <AnimatedDigit value={hours} label="Jam" />
+        <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+        <AnimatedDigit value={minutes} label="Min" />
+        <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+        <AnimatedDigit value={seconds} label="Det" />
+      </div>
     </div>
   );
 };
