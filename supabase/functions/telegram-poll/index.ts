@@ -289,6 +289,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleSuspiciousCommand(supabase, botToken, chatId, suspiciousMatch[1] || null);
   } else if (createtokenMatch) {
     await handleCreateTokenCommand(supabase, botToken, chatId, `#${createtokenMatch[1]}`, createtokenMatch[2] ? parseInt(createtokenMatch[2], 10) : 1);
+  } else if (givetokenMatch) {
+    await handleGiveTokenCommand(supabase, botToken, chatId, givetokenMatch[1], givetokenMatch[2].trim(), givetokenMatch[3] ? parseInt(givetokenMatch[3], 10) : 1);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
