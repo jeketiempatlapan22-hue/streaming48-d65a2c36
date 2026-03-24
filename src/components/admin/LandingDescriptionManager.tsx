@@ -45,7 +45,7 @@ const LandingDescriptionManager = () => {
     }
   };
 
-  useEffect(() => { fetchItems(); fetchGallery(); fetchSettings(); }, []);
+  useEffect(() => { fetchItems(); fetchSettings(); }, []);
 
   const saveSetting = async (key: string, value: string) => {
     await supabase.from("site_settings").upsert({ key, value } as any, { onConflict: "key" });
