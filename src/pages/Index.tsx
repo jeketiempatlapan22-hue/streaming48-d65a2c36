@@ -79,30 +79,51 @@ const Index = () => {
   const [isStandalone, setIsStandalone] = useState(false);
 
   const fetchData = async () => {
-    // Batch 1: Critical data (shows + stream status)
-    const [showsData, streamRes] = await Promise.all([
-      cachedQuery("public_shows", async () => {
-        const { data } = await supabase.rpc("get_public_shows");
-        return data || [];
-      }, 30_000),
-      supabase.from("streams").select("is_live").limit(1).single(),
-    ]);
-    if (streamRes.data) setIsStreamLive(streamRes.data.is_live);
+    // Try cached edge function first for non-critical data
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    const cachedFetch = projectId
+      ? fetch(`https://${projectId}.supabase.co/functions/v1/cached-landing-data`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    // Critical: shows (still uses RPC for freshness)
+    const showsFetch = cachedQuery("public_shows", async () => {
+      const { data } = await supabase.rpc("get_public_shows");
+      return data || [];
+    }, 30_000);
+
+    const [showsData, cachedData] = await Promise.all([showsFetch, cachedFetch]);
     setShows(showsData as Show[]);
 
-    // Batch 2: Non-critical data (staggered to reduce DB load)
-    setTimeout(async () => {
-      const [settingsRes, descRes] = await Promise.all([
-        supabase.from("site_settings").select("*"),
-        supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
-      ]);
-      if (descRes.data) setDescriptions(descRes.data as any[]);
-      if (settingsRes.data) {
-        const s: any = {};
-        settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
-        setSettings((prev) => ({ ...prev, ...s }));
+    if (cachedData) {
+      // Use cached non-critical data
+      if (cachedData.isStreamLive !== undefined) setIsStreamLive(cachedData.isStreamLive);
+      if (cachedData.descriptions) setDescriptions(cachedData.descriptions);
+      if (cachedData.settings) {
+        setSettings((prev) => ({ ...prev, ...cachedData.settings }));
       }
-    }, 300);
+    } else {
+      // Fallback: direct DB queries (staggered)
+      const streamRes = await supabase.from("streams").select("is_live").limit(1).single();
+      if (streamRes.data) setIsStreamLive(streamRes.data.is_live);
+
+      setTimeout(async () => {
+        const [settingsRes, descRes] = await Promise.all([
+          supabase.from("site_settings").select("*"),
+          supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
+        ]);
+        if (descRes.data) setDescriptions(descRes.data as any[]);
+        if (settingsRes.data) {
+          const s: any = {};
+          settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
+          setSettings((prev) => ({ ...prev, ...s }));
+        }
+      }, 300);
+    }
   };
 
   useEffect(() => {

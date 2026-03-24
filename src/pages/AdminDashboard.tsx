@@ -158,6 +158,7 @@ const AdminDashboard = () => {
       );
       case "users": return <UserManager />;
       case "media": return <MediaLibrary />;
+      case "auth-metrics": return <AdminAuthMetrics />;
       default: return <LiveControl />;
     }
   };
