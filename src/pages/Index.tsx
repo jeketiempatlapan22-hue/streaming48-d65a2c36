@@ -312,8 +312,53 @@ const Index = () => {
     }
   };
 
-  const regularShows = shows.filter((s) => !s.is_subscription && !s.is_replay);
-  const replayShows = shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0);
+  // Parse Indonesian date format like "28 Juni 2025" + "20.00 WIB" into a timestamp
+  const parseShowSchedule = (s: Show): number => {
+    if (!s.schedule_date) return Infinity;
+    const months: Record<string, number> = {
+      januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+      juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+    };
+    const parts = s.schedule_date.trim().toLowerCase().split(/\s+/);
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = months[parts[1]];
+      const year = parseInt(parts[2]);
+      if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+        let hour = 0, minute = 0;
+        if (s.schedule_time) {
+          const t = s.schedule_time.replace(/\s*WIB\s*/i, "").replace(".", ":");
+          const tp = t.split(":");
+          hour = parseInt(tp[0]) || 0;
+          minute = parseInt(tp[1]) || 0;
+        }
+        return new Date(year, month, day, hour, minute).getTime();
+      }
+    }
+    // Fallback: try native Date parse
+    try {
+      const d = new Date(s.schedule_date).getTime();
+      return isNaN(d) ? Infinity : d;
+    } catch { return Infinity; }
+  };
+
+  const sortBySchedule = (list: Show[]) => {
+    const now = Date.now();
+    return [...list].sort((a, b) => {
+      const tA = parseShowSchedule(a);
+      const tB = parseShowSchedule(b);
+      // Upcoming shows first (closest future), then past shows (most recent first)
+      const aFuture = tA >= now;
+      const bFuture = tB >= now;
+      if (aFuture && bFuture) return tA - tB; // both future: nearest first
+      if (aFuture && !bFuture) return -1; // a is future, b is past
+      if (!aFuture && bFuture) return 1;
+      return tB - tA; // both past: most recent first
+    });
+  };
+
+  const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay));
+  const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0));
   const membershipShows = shows.filter((s) => s.is_subscription);
   const hasMembershipOpen = membershipShows.some((s) => !s.is_order_closed);
 
