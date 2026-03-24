@@ -362,8 +362,24 @@ const TokenFactory = () => {
               <SelectItem value="daily">1 Hari</SelectItem>
               <SelectItem value="weekly">7 Hari</SelectItem>
               <SelectItem value="monthly">30 Hari</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        {duration === "custom" && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi (jam)</label>
+            <Input
+              type="number"
+              min="1"
+              max="8760"
+              value={customHours}
+              onChange={(e) => setCustomHours(e.target.value)}
+              className="w-24 bg-background"
+              placeholder="24"
+            />
+          </div>
+        )}
         </div>
         {!isPublic && (
           <div>
