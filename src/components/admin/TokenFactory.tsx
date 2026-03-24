@@ -41,6 +41,7 @@ const TokenFactory = () => {
       return stored ? new Set(JSON.parse(stored)) : new Set();
     } catch { return new Set(); }
   });
+  const [lastCopied, setLastCopied] = useState<string[]>([]);
   const { toast } = useToast();
 
   const fetchTokens = async () => {
@@ -114,6 +115,7 @@ const TokenFactory = () => {
   const copyLink = (code: string) => {
     navigator.clipboard.writeText(`${window.location.origin}/live?t=${code}`);
     markAsCopied(code);
+    setLastCopied([code]);
     toast({ title: "Link disalin!" });
   };
 
@@ -128,8 +130,22 @@ const TokenFactory = () => {
     }
     const links = uncopied.map((t) => `${window.location.origin}/live?t=${t.code}`).join("\n");
     navigator.clipboard.writeText(links);
-    uncopied.forEach((t) => markAsCopied(t.code));
+    const codes = uncopied.map((t) => t.code);
+    codes.forEach((c) => markAsCopied(c));
+    setLastCopied(codes);
     toast({ title: `${uncopied.length} link token disalin!` });
+  };
+
+  const undoLastCopy = () => {
+    if (lastCopied.length === 0) return;
+    setCopiedTokens((prev) => {
+      const next = new Set(prev);
+      lastCopied.forEach((c) => next.delete(c));
+      localStorage.setItem("rt48_copied_tokens", JSON.stringify([...next]));
+      return next;
+    });
+    toast({ title: `${lastCopied.length} token dibatalkan tandanya` });
+    setLastCopied([]);
   };
 
   const blockToken = async (id: string) => {
@@ -269,6 +285,11 @@ const TokenFactory = () => {
           <Button variant="outline" size="sm" onClick={() => bulkCopyUncopied(dur)} title="Salin semua token baru">
             <ClipboardList className="mr-1 h-3 w-3" /> Salin Baru
           </Button>
+          {lastCopied.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={undoLastCopy} title="Batalkan salinan terakhir">
+              <RefreshCw className="mr-1 h-3 w-3" /> Batalkan ({lastCopied.length})
+            </Button>
+          )}
         </div>
 
         {/* Token list */}
