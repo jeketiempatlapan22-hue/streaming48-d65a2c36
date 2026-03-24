@@ -175,40 +175,25 @@ const Index = () => {
     };
     const cleanupBalance = fetchCoinUser();
 
-    const showCh = supabase.channel("idx-shows")
+    // Single combined realtime channel instead of 4 separate ones — reduces DB connections
+    const realtimeCh = supabase.channel("idx-combined")
       .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => { invalidateCache("public_shows"); fetchData(); })
-      .subscribe();
-    const streamCh = supabase.channel("idx-streams")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (payload: any) => {
         if (payload.new?.is_live !== undefined) setIsStreamLive(payload.new.is_live);
       })
       .subscribe();
 
-    // Realtime: descriptions, settings (announcements/quote/title), broadcasts
-    const descCh = supabase.channel("idx-descriptions")
-      .on("postgres_changes", { event: "*", schema: "public", table: "landing_descriptions" }, () => {
-        supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order").then(({ data }) => {
-          if (data) setDescriptions(data as any[]);
-        });
-      })
-      .subscribe();
-    const settingsCh = supabase.channel("idx-settings")
-      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => {
-        supabase.from("site_settings").select("*").then(({ data }) => {
-          if (data) {
-            const s: any = {};
-            data.forEach((row: any) => { s[row.key] = row.value; });
-            setSettings((prev) => ({ ...prev, ...s }));
-          }
-        });
-      })
-      .subscribe();
+    // Poll for settings/descriptions changes every 60s instead of realtime (less DB pressure)
+    const settingsPoll = setInterval(() => {
+      fetchCachedEndpoint("landing").then((data) => {
+        if (data?.descriptions) setDescriptions(data.descriptions);
+        if (data?.settings) setSettings((prev: any) => ({ ...prev, ...data.settings }));
+      }).catch(() => {});
+    }, 60_000);
 
     return () => {
-      supabase.removeChannel(showCh);
-      supabase.removeChannel(streamCh);
-      supabase.removeChannel(descCh);
-      supabase.removeChannel(settingsCh);
+      supabase.removeChannel(realtimeCh);
+      clearInterval(settingsPoll);
       cleanupBalance.then((cleanup) => cleanup?.());
       window.removeEventListener("beforeinstallprompt", installHandler);
     };
