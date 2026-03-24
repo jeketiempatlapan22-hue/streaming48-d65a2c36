@@ -168,7 +168,7 @@ const LandingDescriptionManager = () => {
                   <Upload className="h-3 w-3" /> Upload
                   <input type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) uploadImage(file, item.id); }} />
                 </label>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setGalleryTargetId(item.id); setShowGallery(true); }}><Image className="mr-1 h-3 w-3" /> Galeri</Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setGalleryTargetId(item.id); setGalleryOpen(true); }}><Image className="mr-1 h-3 w-3" /> Galeri</Button>
                 {item.image_url && (
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => { const u = { ...item, image_url: "" }; setItems(items.map((i) => i.id === u.id ? u : i)); update(u); }}><X className="mr-1 h-3 w-3" /> Hapus</Button>
                 )}
