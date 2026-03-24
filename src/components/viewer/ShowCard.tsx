@@ -245,13 +245,18 @@ const ShowCard = ({
                 {(() => {
                   const showStart = parseShowDateTime(show.schedule_date, show.schedule_time);
                   const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
-                  const isTooEarly = accessOpens ? currentTime < accessOpens : false;
+                  const isTooEarly = accessOpens ? Date.now() < accessOpens : false;
 
                   if (isTooEarly && showStart) {
+                    const countdownText = countdown
+                      ? countdown.d > 0
+                        ? `${countdown.d}h ${countdown.h}j ${countdown.m}m`
+                        : `${countdown.h.toString().padStart(2,"0")}:${countdown.m.toString().padStart(2,"0")}:${countdown.s.toString().padStart(2,"0")}`
+                      : "";
                     return (
                       <div className="rounded-xl border border-muted bg-muted/50 p-4 text-center space-y-2">
                         <p className="text-xs font-medium text-muted-foreground">⏳ Menunggu Live Streaming</p>
-                        <p className="font-mono text-2xl font-bold text-primary">{countdown}</p>
+                        <p className="font-mono text-2xl font-bold text-primary">{countdownText}</p>
                         <p className="text-[10px] text-muted-foreground">{show.schedule_date} • {show.schedule_time}</p>
                         <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-muted py-3 text-sm font-semibold text-muted-foreground/50 cursor-not-allowed">
                           <Radio className="h-4 w-4" /> Menunggu Live...
