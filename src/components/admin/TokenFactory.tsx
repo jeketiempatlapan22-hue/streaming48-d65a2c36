@@ -326,6 +326,11 @@ const TokenFactory = () => {
                     {t.status === "blocked" ? "BLOCKED" : isExpired(t) ? "EXPIRED" : "ACTIVE"}
                   </span>
                   {!t.is_public && <span className="text-[10px] text-muted-foreground">{t.max_devices} device</span>}
+                  {t.duration_type === "custom" && t.expires_at && (
+                    <span className="text-[10px] text-muted-foreground">
+                      s/d {new Date(t.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  )}
                   {(sessions[t.id] || 0) > 0 && (
                     <span className="flex items-center gap-0.5 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                       👤 {sessions[t.id]} aktif
