@@ -58,7 +58,8 @@ const CoinShop = () => {
         await fetchData(session.user.id);
       } catch {
         if (!cancelled) {
-          navigate("/auth");
+          // Don't redirect on timeout — show content with retry instead
+          setLoading(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
