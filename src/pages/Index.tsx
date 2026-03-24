@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
+import { cachedQuery, invalidateCache } from "@/lib/queryCache";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 
