@@ -203,6 +203,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isOrderToday = /^\/ordertoday$/i.test(rawText);
   const isTopUsers = /^\/topusers$/i.test(rawText);
   const setpriceMatch = rawText.match(/^\/setprice\s+#([a-f0-9]{6})\s+(coin|replay)\s+(\d+)$/i);
+  const banuserMatch = rawText.match(/^\/banuser\s+(\S+)(?:\s+(.+))?$/i);
+  const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
+  const isBanlist = /^\/banlist$/i.test(rawText);
+  const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -268,6 +272,14 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleTopUsersCommand(supabase, botToken, chatId);
   } else if (setpriceMatch) {
     await handleSetPriceCommand(supabase, botToken, chatId, `#${setpriceMatch[1]}`, setpriceMatch[2].toLowerCase() as 'coin' | 'replay', parseInt(setpriceMatch[3], 10));
+  } else if (banuserMatch) {
+    await handleBanUserCommand(supabase, botToken, chatId, banuserMatch[1], banuserMatch[2]?.trim() || 'Diblokir oleh admin');
+  } else if (unbanuserMatch) {
+    await handleUnbanUserCommand(supabase, botToken, chatId, unbanuserMatch[1]);
+  } else if (isBanlist) {
+    await handleBanlistCommand(supabase, botToken, chatId);
+  } else if (suspiciousMatch) {
+    await handleSuspiciousCommand(supabase, botToken, chatId, suspiciousMatch[1] || null);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
@@ -1557,6 +1569,63 @@ async function handleSetPriceCommand(supabase: any, botToken: string, chatId: st
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
+}
+
+async function handleBanUserCommand(supabase: any, botToken: string, chatId: string, usernameOrId: string, reason: string) {
+  try {
+    const { data: profile } = await supabase.from('profiles').select('id, username').ilike('username', usernameOrId).maybeSingle();
+    if (!profile) { await sendTelegramMessage(botToken, chatId, `⚠️ User "${escapeMarkdown(usernameOrId)}" tidak ditemukan\\.`); return; }
+    const { error } = await supabase.from('user_bans').upsert({ user_id: profile.id, reason, banned_by: 'admin', is_active: true }, { onConflict: 'user_id' });
+    if (error) { await sendTelegramMessage(botToken, chatId, `⚠️ Gagal ban: ${escapeMarkdown(error.message)}`); return; }
+    await sendTelegramMessage(botToken, chatId, `🚫 User *${escapeMarkdown(profile.username || usernameOrId)}* berhasil *DIBLOKIR*\\!\n📝 Alasan: ${escapeMarkdown(reason)}`);
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleUnbanUserCommand(supabase: any, botToken: string, chatId: string, usernameOrId: string) {
+  try {
+    const { data: profile } = await supabase.from('profiles').select('id, username').ilike('username', usernameOrId).maybeSingle();
+    if (!profile) { await sendTelegramMessage(botToken, chatId, `⚠️ User "${escapeMarkdown(usernameOrId)}" tidak ditemukan\\.`); return; }
+    await supabase.from('user_bans').update({ is_active: false, unbanned_at: new Date().toISOString() }).eq('user_id', profile.id);
+    await sendTelegramMessage(botToken, chatId, `✅ User *${escapeMarkdown(profile.username || usernameOrId)}* berhasil *DIBUKA BLOKIR*\\!`);
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleBanlistCommand(supabase: any, botToken: string, chatId: string) {
+  try {
+    const { data: bans } = await supabase.from('user_bans').select('user_id, reason, created_at').eq('is_active', true).order('created_at', { ascending: false }).limit(20);
+    if (!bans || bans.length === 0) { await sendTelegramMessage(botToken, chatId, '✅ Tidak ada user yang diblokir\\.'); return; }
+    const userIds = bans.map((b: any) => b.user_id);
+    const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
+    let msg = `🚫 *DAFTAR USER DIBLOKIR \\(${bans.length}\\)*\n\n`;
+    for (const b of bans) {
+      const name = profileMap.get(b.user_id) || 'Unknown';
+      msg += `👤 ${escapeMarkdown(name)}\n📝 ${escapeMarkdown(b.reason)}\n\n`;
+    }
+    msg += `Gunakan \`/unbanuser <username>\` untuk buka blokir`;
+    await sendTelegramMessage(botToken, chatId, msg);
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
+}
+
+async function handleSuspiciousCommand(supabase: any, botToken: string, chatId: string, username: string | null) {
+  try {
+    let query = supabase.from('suspicious_activity_log').select('user_id, activity_type, severity, description, created_at').eq('resolved', false).order('created_at', { ascending: false }).limit(10);
+    if (username) {
+      const { data: profile } = await supabase.from('profiles').select('id').ilike('username', username).maybeSingle();
+      if (profile) query = query.eq('user_id', profile.id);
+    }
+    const { data: logs } = await query;
+    if (!logs || logs.length === 0) { await sendTelegramMessage(botToken, chatId, '✅ Tidak ada aktivitas mencurigakan\\.'); return; }
+    const userIds = [...new Set(logs.map((l: any) => l.user_id).filter(Boolean))];
+    const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
+    const sevEmoji: Record<string, string> = { low: '🟡', medium: '🟠', high: '🔴', critical: '🚨' };
+    let msg = `⚠️ *AKTIVITAS MENCURIGAKAN \\(${logs.length}\\)*\n\n`;
+    for (const l of logs) {
+      msg += `${sevEmoji[l.severity] || '🟠'} ${escapeMarkdown(profileMap.get(l.user_id) || '?')} \\- ${escapeMarkdown(l.activity_type)}\n📝 ${escapeMarkdown(l.description || '-')}\n\n`;
+    }
+    await sendTelegramMessage(botToken, chatId, msg);
+  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
 }
 
 function errorResponse(msg: string) {
