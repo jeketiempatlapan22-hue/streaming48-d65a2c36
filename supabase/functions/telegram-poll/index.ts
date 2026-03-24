@@ -203,6 +203,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isOrderToday = /^\/ordertoday$/i.test(rawText);
   const isTopUsers = /^\/topusers$/i.test(rawText);
   const setpriceMatch = rawText.match(/^\/setprice\s+#([a-f0-9]{6})\s+(coin|replay)\s+(\d+)$/i);
+  const banuserMatch = rawText.match(/^\/banuser\s+(\S+)(?:\s+(.+))?$/i);
+  const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
+  const isBanlist = /^\/banlist$/i.test(rawText);
+  const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
