@@ -368,15 +368,15 @@ const TokenFactory = () => {
         </div>
         {duration === "custom" && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi (jam)</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi (hari)</label>
             <Input
               type="number"
               min="1"
-              max="8760"
+              max="365"
               value={customHours}
               onChange={(e) => setCustomHours(e.target.value)}
               className="w-24 bg-background"
-              placeholder="24"
+              placeholder="3"
             />
           </div>
         )}
