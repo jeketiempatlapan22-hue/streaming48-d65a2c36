@@ -95,12 +95,12 @@ const ViewerAuth = () => {
         const signupResult = await runWithTimeoutRetry(
           () => supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } }),
           12_000,
-          1
+          2
         );
 
         if (signupResult.error) {
           const msg = String(signupResult.error?.message || "Gagal daftar");
-          const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+          const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
           toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : (msg.includes("already registered") ? "Sudah terdaftar." : msg));
         } else {
           toast.success("Berhasil!");
@@ -111,15 +111,22 @@ const ViewerAuth = () => {
         const signinResult = await runWithTimeoutRetry(
           () => supabase.auth.signInWithPassword({ email: authEmail, password }),
           12_000,
-          1
+          2
         );
 
         if (signinResult.error) {
+          const sessionCheck = await withTimeout(supabase.auth.getSession(), 5_000, "Session timeout").catch(() => null);
+          if (sessionCheck?.data?.session?.user) {
+            navigate("/coins");
+            return;
+          }
+
           const msg = String(signinResult.error?.message || "Login gagal");
-          const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+          const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
           toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : "Nomor/email atau password salah.");
+        } else {
+          navigate("/coins");
         }
-        else navigate("/coins");
       }
     } catch {
       toast.error("Koneksi bermasalah, coba lagi.");

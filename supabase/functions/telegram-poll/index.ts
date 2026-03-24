@@ -1030,13 +1030,21 @@ async function sendTelegramMessage(botToken: string, chatId: string | number, te
 async function acquireLock(supabase: any): Promise<{ acquired: boolean; update_offset: number }> {
   const nowIso = new Date().toISOString();
   const staleBeforeIso = new Date(Date.now() - LOCK_WINDOW_MS).toISOString();
-  const { data, error } = await supabase.from('telegram_bot_state').update({ updated_at: nowIso }).eq('id', 1).lt('updated_at', staleBeforeIso).select('update_offset').maybeSingle();
+  const { data, error } = await supabase
+    .from('telegram_bot_state')
+    .update({ updated_at: nowIso })
+    .eq('id', 1)
+    .lt('updated_at', staleBeforeIso)
+    .select('update_offset')
+    .maybeSingle();
+
   if (error) {
-    if (isTimeoutLikeError(error)) {
-      return { acquired: false, update_offset: 0 };
+    if (!isTimeoutLikeError(error)) {
+      console.error('acquireLock non-timeout error:', error);
     }
-    throw new Error(`lock failed: ${error.message}`);
+    return { acquired: false, update_offset: 0 };
   }
+
   if (!data) return { acquired: false, update_offset: 0 };
   return { acquired: true, update_offset: Number(data.update_offset ?? 0) };
 }
@@ -1054,9 +1062,9 @@ async function releaseLock(supabase: any) {
 }
 
 function isTimeoutLikeError(error: any): boolean {
-  const code = String(error?.code ?? "").toUpperCase();
-  const msg = String(error?.message ?? "").toLowerCase();
-  return code === "504" || msg.includes("timeout") || msg.includes("deadline exceeded") || msg.includes("upstream request timeout");
+  const code = String(error?.code ?? error?.status ?? '').toUpperCase();
+  const message = String(error?.message ?? error ?? '').toLowerCase();
+  return code === '504' || message.includes('timeout') || message.includes('deadline exceeded') || message.includes('upstream request timeout');
 }
 
 function sleep(ms: number): Promise<void> { return new Promise(resolve => setTimeout(resolve, ms)); }

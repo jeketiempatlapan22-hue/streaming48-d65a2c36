@@ -64,12 +64,18 @@ const AdminDashboard = () => {
         const sessionResult = await runWithTimeoutRetry(
           async () => await supabase.auth.getSession(),
           10_000,
-          1
+          2
         );
 
         if (cancelled) return;
-        const session = (sessionResult.data as any)?.session;
 
+        if (sessionResult.error) {
+          setAuthError("Server sedang sibuk, gagal memuat session admin. Silakan coba lagi.");
+          setLoading(false);
+          return;
+        }
+
+        const session = (sessionResult.data as any)?.session;
         if (!session?.user) { navigate("/admin"); return; }
 
         const roleResult = await runWithTimeoutRetry(
