@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { withTimeout } from "@/lib/queryCache";
 import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -24,24 +25,42 @@ const ViewerProfile = () => {
 
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { navigate("/auth"); return; }
-      const u = session.user;
-      setUser(u);
-      const [profileRes, balRes, ordersRes, subRes, tokensRes] = await Promise.all([
-        supabase.from("profiles").select("username").eq("id", u.id).maybeSingle(),
-        supabase.from("coin_balances").select("balance").eq("user_id", u.id).maybeSingle(),
-        supabase.from("coin_orders").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30),
-        supabase.from("subscription_orders").select("*, shows(title)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30),
-        supabase.from("tokens").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30),
-      ]);
-      const name = profileRes.data?.username || u.user_metadata?.username || "";
-      setUsername(name); setOriginalUsername(name);
-      setBalance(balRes.data?.balance || 0);
-      setOrders(ordersRes.data || []);
-      setSubOrders(subRes.data || []);
-      setTokens(tokensRes.data || []);
-      setLoading(false);
+      try {
+        const { data: { session } } = await withTimeout(
+          supabase.auth.getSession(),
+          10_000,
+          "Session timeout"
+        );
+
+        if (!session?.user) { navigate("/auth"); return; }
+
+        const u = session.user;
+        setUser(u);
+
+        const [profileRes, balRes, ordersRes, subRes, tokensRes] = await Promise.allSettled([
+          withTimeout((async () => await supabase.from("profiles").select("username").eq("id", u.id).maybeSingle())(), 8_000, "Profile timeout"),
+          withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", u.id).maybeSingle())(), 8_000, "Balance timeout"),
+          withTimeout((async () => await supabase.from("coin_orders").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Orders timeout"),
+          withTimeout((async () => await supabase.from("subscription_orders").select("*, shows(title)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Subscriptions timeout"),
+          withTimeout((async () => await supabase.from("tokens").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Tokens timeout"),
+        ]);
+
+        const name =
+          (profileRes.status === "fulfilled" ? profileRes.value.data?.username : "") ||
+          u.user_metadata?.username ||
+          "";
+
+        setUsername(name);
+        setOriginalUsername(name);
+        setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
+        setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
+        setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
+        setTokens(tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : []);
+      } catch {
+        toast.error("Server sedang sibuk, coba muat ulang halaman.");
+      } finally {
+        setLoading(false);
+      }
     };
     init();
   }, [navigate]);
