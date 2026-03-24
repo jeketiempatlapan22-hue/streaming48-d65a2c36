@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Eye, EyeOff, Upload, Crown, Film, Copy, ExternalLink } from "lucide-react";
+import { Plus, Trash2, GripVertical, Eye, EyeOff, Upload, Crown, Film, Copy, ExternalLink, Image } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
+import MediaPickerDialog from "./MediaPickerDialog";
 
 interface Show {
   id: string; title: string; price: string; lineup: string;
@@ -30,6 +31,8 @@ const ShowManager = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [editing, setEditing] = useState<Show | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryTarget, setGalleryTarget] = useState<"bg" | "qris">("bg");
   const { toast } = useToast();
 
   const fetchShows = async () => {
@@ -86,6 +89,19 @@ const ShowManager = () => {
     setEditing(updated);
     await updateShow(updated);
     setUploading(false);
+  };
+
+  const handleGallerySelect = (url: string) => {
+    if (!editing) return;
+    const field = galleryTarget === "bg" ? "background_image_url" : "qris_image_url";
+    const updated = { ...editing, [field]: url };
+    setEditing(updated);
+    updateShow(updated);
+  };
+
+  const openGallery = (target: "bg" | "qris") => {
+    setGalleryTarget(target);
+    setGalleryOpen(true);
   };
 
   return (
@@ -266,23 +282,39 @@ const ShowManager = () => {
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Background Image</label>
                 {editing.background_image_url && <img src={editing.background_image_url} alt="" className="mb-2 h-24 w-full rounded-lg object-cover" />}
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-background px-4 py-3 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary">
-                  <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload Background"}
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, "bg")} disabled={uploading} />
-                </label>
+                <div className="flex gap-2">
+                  <label className="flex-1 cursor-pointer">
+                    <span className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-background px-4 py-3 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary">
+                      <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload"}
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, "bg")} disabled={uploading} />
+                  </label>
+                  <Button variant="outline" className="gap-1.5 py-3 h-auto" onClick={() => openGallery("bg")}>
+                    <Image className="h-4 w-4" /> Galeri
+                  </Button>
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">QRIS Image</label>
                 {editing.qris_image_url && <img src={editing.qris_image_url} alt="" className="mb-2 h-24 w-24 rounded-lg object-contain" />}
-                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-background px-4 py-3 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary">
-                  <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload QRIS"}
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, "qris")} disabled={uploading} />
-                </label>
+                <div className="flex gap-2">
+                  <label className="flex-1 cursor-pointer">
+                    <span className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border bg-background px-4 py-3 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary">
+                      <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload QRIS"}
+                    </span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, "qris")} disabled={uploading} />
+                  </label>
+                  <Button variant="outline" className="gap-1.5 py-3 h-auto" onClick={() => openGallery("qris")}>
+                    <Image className="h-4 w-4" /> Galeri
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={handleGallerySelect} />
     </div>
   );
 };

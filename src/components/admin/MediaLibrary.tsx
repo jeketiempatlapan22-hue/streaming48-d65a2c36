@@ -116,8 +116,10 @@ const MediaLibrary = () => {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           <label className="cursor-pointer">
-            <Button size="sm" className="gap-1.5 pointer-events-none" disabled={uploading}>
-              <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload"}
+            <Button size="sm" className="gap-1.5" asChild>
+              <span>
+                <Upload className="h-4 w-4" /> {uploading ? "Mengupload..." : "Upload"}
+              </span>
             </Button>
             <input
               type="file"

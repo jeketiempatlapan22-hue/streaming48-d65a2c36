@@ -3,8 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Coins, Plus, Trash2, Edit2, X, Save, Upload } from "lucide-react";
+import { Coins, Plus, Trash2, Edit2, X, Save, Upload, Image } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import MediaPickerDialog from "./MediaPickerDialog";
 
 interface CoinPackage {
   id: string; name: string; coin_amount: number; price: string;
@@ -17,6 +18,8 @@ const CoinPackageManager = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [newPkg, setNewPkg] = useState({ name: "", coin_amount: 10, price: "25000", qris_image_url: "" });
   const [uploadingQris, setUploadingQris] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryTarget, setGalleryTarget] = useState<"new" | "edit">("new");
   const { toast } = useToast();
 
   const fetchPackages = async () => {
@@ -75,6 +78,19 @@ const CoinPackageManager = () => {
     setUploadingQris(false);
   };
 
+  const handleGallerySelect = (url: string) => {
+    if (galleryTarget === "new") {
+      setNewPkg(prev => ({ ...prev, qris_image_url: url }));
+    } else if (editing) {
+      setEditing(prev => prev ? { ...prev, qris_image_url: url } : null);
+    }
+  };
+
+  const openGallery = (target: "new" | "edit") => {
+    setGalleryTarget(target);
+    setGalleryOpen(true);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -97,8 +113,14 @@ const CoinPackageManager = () => {
                 <Upload className="h-3 w-3" /> Upload
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrisUpload(e, "new")} />
               </label>
+              <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={() => openGallery("new")}>
+                <Image className="h-3 w-3" /> Galeri
+              </Button>
             </div>
           </div>
+          {newPkg.qris_image_url && (
+            <img src={newPkg.qris_image_url} alt="QRIS Preview" className="h-20 w-20 rounded-lg border border-border object-contain bg-white" />
+          )}
           <Button onClick={createPackage} disabled={!newPkg.name.trim()} className="gap-1.5">
             <Plus className="h-4 w-4" /> Simpan Paket
           </Button>
@@ -120,6 +142,9 @@ const CoinPackageManager = () => {
                       <Upload className="h-3 w-3" /> {uploadingQris ? "..." : "Upload"}
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrisUpload(e, "edit")} disabled={uploadingQris} />
                     </label>
+                    <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={() => openGallery("edit")}>
+                      <Image className="h-3 w-3" /> Galeri
+                    </Button>
                   </div>
                 </div>
                 {editing.qris_image_url && (
@@ -156,6 +181,8 @@ const CoinPackageManager = () => {
         ))}
         {packages.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Belum ada paket koin</p>}
       </div>
+
+      <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={handleGallerySelect} />
     </div>
   );
 };
