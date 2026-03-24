@@ -13,6 +13,7 @@ const DURATION_TABS = [
   { key: "daily", label: "Harian", emoji: "📅" },
   { key: "weekly", label: "Mingguan", emoji: "📆" },
   { key: "monthly", label: "Bulanan", emoji: "🗓️" },
+  { key: "custom", label: "Custom", emoji: "⚙️" },
 ] as const;
 
 type DurationKey = "daily" | "weekly" | "monthly" | "custom";
@@ -82,7 +83,7 @@ const TokenFactory = () => {
       durationLabel = "30 hari";
     }
 
-    const storedDuration = duration === "custom" ? "daily" : duration;
+    const storedDuration = duration;
 
     const rows = Array.from({ length: count }, () => ({
       code: `rt48_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
@@ -325,6 +326,11 @@ const TokenFactory = () => {
                     {t.status === "blocked" ? "BLOCKED" : isExpired(t) ? "EXPIRED" : "ACTIVE"}
                   </span>
                   {!t.is_public && <span className="text-[10px] text-muted-foreground">{t.max_devices} device</span>}
+                  {t.duration_type === "custom" && t.expires_at && (
+                    <span className="text-[10px] text-muted-foreground">
+                      s/d {new Date(t.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  )}
                   {(sessions[t.id] || 0) > 0 && (
                     <span className="flex items-center gap-0.5 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                       👤 {sessions[t.id]} aktif
@@ -333,8 +339,15 @@ const TokenFactory = () => {
                 </div>
               </div>
               <div className="flex gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyLink(t.code)} title="Copy link">
-                  <Copy className="h-3 w-3" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => copyLink(t.code)}
+                  title={copiedTokens.has(t.code) ? "Sudah disalin" : "Copy link"}
+                  disabled={copiedTokens.has(t.code)}
+                >
+                  {copiedTokens.has(t.code) ? <CheckCircle className="h-3 w-3 text-muted-foreground" /> : <Copy className="h-3 w-3" />}
                 </Button>
                 {!t.is_public && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => resetSessions(t.id)} title="Reset session">
@@ -427,7 +440,7 @@ const TokenFactory = () => {
 
       {/* Duration Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabKey); setStatusFilter("all"); }}>
-        <TabsList className="w-full grid grid-cols-4">
+        <TabsList className="w-full grid grid-cols-5">
           {DURATION_TABS.map(({ key, label, emoji }) => (
             <TabsTrigger key={key} value={key} className="gap-1 text-xs">
               <span>{emoji}</span> {label}
