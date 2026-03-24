@@ -13,6 +13,7 @@ const DURATION_TABS = [
   { key: "daily", label: "Harian", emoji: "📅" },
   { key: "weekly", label: "Mingguan", emoji: "📆" },
   { key: "monthly", label: "Bulanan", emoji: "🗓️" },
+  { key: "custom", label: "Custom", emoji: "⚙️" },
 ] as const;
 
 type DurationKey = "daily" | "weekly" | "monthly" | "custom";
