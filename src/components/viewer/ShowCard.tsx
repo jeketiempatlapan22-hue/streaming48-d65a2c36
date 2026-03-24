@@ -108,47 +108,53 @@ const ShowCard = ({
             <Ticket className="h-16 w-16 text-primary/30" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
 
-        {/* Category badge removed from image overlay - now in content section */}
+        {/* Category badge on image - top left */}
+        {show.category && (() => {
+          const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
+          return (
+            <div className="absolute top-2.5 left-2.5 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 border border-white/10">
+              <span className="text-[10px] font-bold text-white">{cat.label}</span>
+            </div>
+          );
+        })()}
 
-        {/* Countdown badge - hide for replay shows */}
-        {showCountdown && countdown && !countdown.live && !show.is_replay && (
-          <div className="absolute top-3 right-3 rounded-xl bg-background/90 backdrop-blur-md px-3 py-2 shadow-lg border border-primary/10">
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <Timer className="h-3 w-3 text-primary animate-pulse" />
-              <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-semibold">Mulai dalam</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {countdown.d > 0 && (
-                <>
-                  <CountdownDigit value={countdown.d} label="Hari" />
-                  <span className="text-primary/40 font-bold text-xs pb-3">:</span>
-                </>
-              )}
-              <CountdownDigit value={countdown.h} label="Jam" />
-              <span className="text-primary/40 font-bold text-xs pb-3">:</span>
-              <CountdownDigit value={countdown.m} label="Min" />
-              <span className="text-primary/40 font-bold text-xs pb-3">:</span>
-              <CountdownDigit value={countdown.s} label="Det" />
-            </div>
-          </div>
-        )}
+        {/* LIVE badge */}
         {showCountdown && countdown?.live && !show.is_replay && (
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-2.5 right-2.5">
             <motion.div
               animate={{ scale: [1, 1.05, 1] }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 shadow-lg shadow-destructive/30"
+              className="flex items-center gap-1.5 rounded-full bg-destructive px-2.5 py-1 shadow-lg shadow-destructive/30"
             >
-              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-              <span className="text-xs font-bold text-destructive-foreground">LIVE!</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+              <span className="text-[10px] font-bold text-destructive-foreground">LIVE!</span>
             </motion.div>
           </div>
         )}
 
-        <div className="absolute bottom-3 left-4 right-4">
-          <h3 className="text-xl font-bold text-foreground">{show.title}</h3>
+        {/* Title + countdown strip at bottom of image */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-card via-card/80 to-transparent">
+          <h3 className="text-lg font-bold text-foreground leading-tight">{show.title}</h3>
+          {showCountdown && countdown && !countdown.live && !show.is_replay && (
+            <div className="mt-1.5 flex items-center gap-2">
+              <Timer className="h-3 w-3 text-primary/70 animate-pulse shrink-0" />
+              <div className="flex items-center gap-1.5">
+                {countdown.d > 0 && (
+                  <>
+                    <CountdownDigit value={countdown.d} label="h" />
+                    <span className="text-white/30 text-[10px]">:</span>
+                  </>
+                )}
+                <CountdownDigit value={countdown.h} label="j" />
+                <span className="text-white/30 text-[10px]">:</span>
+                <CountdownDigit value={countdown.m} label="m" />
+                <span className="text-white/30 text-[10px]">:</span>
+                <CountdownDigit value={countdown.s} label="s" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
