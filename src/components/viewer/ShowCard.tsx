@@ -113,12 +113,37 @@ const ShowCard = ({
         {/* Category badge removed from image overlay - now in content section */}
 
         {/* Countdown badge - hide for replay shows */}
-        {showCountdown && countdown && !show.is_replay && (
-          <div className="absolute top-3 right-3 rounded-lg bg-background/80 backdrop-blur-sm px-2.5 py-1.5 text-center">
-            <Timer className="mx-auto mb-0.5 h-3 w-3 text-primary" />
-            <p className={`font-mono text-[10px] font-bold ${countdown === "LIVE!" ? "text-destructive animate-pulse" : "text-primary"}`}>
-              {countdown}
-            </p>
+        {showCountdown && countdown && !countdown.live && !show.is_replay && (
+          <div className="absolute top-3 right-3 rounded-xl bg-background/90 backdrop-blur-md px-3 py-2 shadow-lg border border-primary/10">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Timer className="h-3 w-3 text-primary animate-pulse" />
+              <span className="text-[8px] uppercase tracking-widest text-muted-foreground font-semibold">Mulai dalam</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {countdown.d > 0 && (
+                <>
+                  <CountdownDigit value={countdown.d} label="Hari" />
+                  <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+                </>
+              )}
+              <CountdownDigit value={countdown.h} label="Jam" />
+              <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+              <CountdownDigit value={countdown.m} label="Min" />
+              <span className="text-primary/40 font-bold text-xs pb-3">:</span>
+              <CountdownDigit value={countdown.s} label="Det" />
+            </div>
+          </div>
+        )}
+        {showCountdown && countdown?.live && !show.is_replay && (
+          <div className="absolute top-3 right-3">
+            <motion.div
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="flex items-center gap-1.5 rounded-full bg-destructive px-3 py-1.5 shadow-lg shadow-destructive/30"
+            >
+              <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              <span className="text-xs font-bold text-destructive-foreground">LIVE!</span>
+            </motion.div>
           </div>
         )}
 
