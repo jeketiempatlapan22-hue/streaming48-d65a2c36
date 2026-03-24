@@ -68,17 +68,17 @@ function useCountdown(dateStr: string, timeStr: string) {
 }
 
 const CountdownDigit = ({ value, label }: { value: number; label: string }) => (
-  <div className="flex flex-col items-center">
-    <motion.div
+  <div className="flex items-center gap-0.5">
+    <motion.span
       key={value}
-      initial={{ rotateX: -90, opacity: 0 }}
-      animate={{ rotateX: 0, opacity: 1 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-      className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 backdrop-blur-sm border border-primary/20"
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className="font-mono text-xs font-bold text-white tabular-nums"
     >
-      <span className="font-mono text-sm font-bold text-primary">{value.toString().padStart(2, "0")}</span>
-    </motion.div>
-    <span className="mt-0.5 text-[8px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      {value.toString().padStart(2, "0")}
+    </motion.span>
+    <span className="text-[7px] uppercase text-white/60 font-medium">{label}</span>
   </div>
 );
 
