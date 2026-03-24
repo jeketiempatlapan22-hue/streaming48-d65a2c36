@@ -154,6 +154,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const isTopUsers = /^\/topusers$/i.test(rawText);
   const setpriceMatch = rawText.match(/^\/setprice\s+(.+?)\s+(coin|replay)\s+(\d+)$/i);
   const createtokenMatch = rawText.match(/^\/createtoken\s+(.+?)(?:\s+(\d+))?$/i);
+  const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
