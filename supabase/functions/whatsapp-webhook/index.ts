@@ -1219,6 +1219,65 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
   }
 }
 
+async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput: string, maxDevices: number): Promise<string> {
+  try {
+    if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
+
+    // Find user by username
+    const { data: profiles } = await supabase.from('profiles').select('id, username').ilike('username', usernameInput).limit(5);
+    if (!profiles || profiles.length === 0) return `⚠️ User "${usernameInput}" tidak ditemukan`;
+    const profile = profiles.find((p: any) => p.username?.toLowerCase() === usernameInput.toLowerCase()) || profiles[0];
+
+    // Find show by short ID or name
+    const shortIdMatch = showInput.match(/^#?([a-f0-9]{6})$/i);
+    let show: any = null;
+
+    if (shortIdMatch) {
+      const shortId = shortIdMatch[1].toLowerCase();
+      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password');
+      show = (shows || []).find((s: any) => s.id.replace(/-/g, '').slice(0, 6).toLowerCase() === shortId);
+    } else {
+      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password').ilike('title', `%${showInput}%`).limit(1);
+      show = shows?.[0];
+    }
+
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
+
+    // Generate token
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+
+    // Calculate expiry
+    let expiresAt: string | null = null;
+    if (show.schedule_date && show.schedule_time) {
+      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
+      if (parsed) {
+        const showDt = new Date(parsed);
+        const endOfDay = new Date(showDt);
+        endOfDay.setHours(23, 59, 59, 0);
+        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code,
+      show_id: show.id,
+      user_id: profile.id,
+      max_devices: maxDevices,
+      expires_at: expiresAt,
+      status: 'active',
+    });
+
+    if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: streaming48.lovable.app/live?t=${code}`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
