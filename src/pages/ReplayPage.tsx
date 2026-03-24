@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
+import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
