@@ -236,6 +236,8 @@ TIDAK <id> - Tolak order
 /deletetoken <4digit> - Hapus token
 /createtoken <nama/ID> - Buat token untuk show (1 device)
 /createtoken <nama/ID> <max> - Buat token + max device
+/givetoken <user> <show> - Beri token ke user
+/givetoken <user> <show> <max> - Beri token + max device
 
 🔐 *Password Reset:*
 RESET <id> - Setujui reset password
