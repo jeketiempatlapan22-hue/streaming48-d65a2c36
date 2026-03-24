@@ -539,7 +539,7 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
   }
 }
 
-async function processSubscriptionOrder(supabase: any, botToken: string, chatId: string, order: any, action: 'approve' | 'reject', isBulk: boolean) {
+async function processSubscriptionOrder(supabase: any, botToken: string, chatId: string, order: any, action: 'approve' | 'reject', isBulk: boolean): Promise<{ success: boolean; message: string }> {
   try {
     const sid = order.short_id || order.id.substring(0, 6);
     const { data: show } = await supabase.from('shows').select('title, group_link').eq('id', order.show_id).single();
@@ -547,13 +547,23 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
 
     if (action === 'approve') {
       const { data: confirmed } = await supabase.from('subscription_orders').update({ status: 'confirmed' }).eq('id', order.id).eq('status', 'pending').select('id').maybeSingle();
-      if (!confirmed) { if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Subscription \`${escapeMarkdown(sid)}\` sudah diproses\.`); return; }
+      if (!confirmed) {
+        const msg = `Subscription ${sid} sudah diproses.`;
+        if (!isBulk) await sendTelegramMessage(botToken, chatId, `⚠️ Subscription \`${escapeMarkdown(sid)}\` sudah diproses\\.`);
+        return { success: false, message: msg };
+      }
       if (!isBulk) await sendTelegramMessage(botToken, chatId, `✅ Subscription \`${escapeMarkdown(sid)}\` untuk "${escapeMarkdown(showTitle)}" berhasil dikonfirmasi\\!`);
+      return { success: true, message: `✅ Subscription ${sid} untuk "${showTitle}" dikonfirmasi!` };
     } else {
       await supabase.from('subscription_orders').update({ status: 'rejected' }).eq('id', order.id).eq('status', 'pending');
-      if (!isBulk) await sendTelegramMessage(botToken, chatId, `❌ Subscription \`${escapeMarkdown(sid)}\` untuk "${escapeMarkdown(showTitle)}" telah ditolak\.`);
+      if (!isBulk) await sendTelegramMessage(botToken, chatId, `❌ Subscription \`${escapeMarkdown(sid)}\` untuk "${escapeMarkdown(showTitle)}" telah ditolak\\.`);
+      return { success: true, message: `❌ Subscription ${sid} ditolak.` };
     }
-  } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`); }
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : 'Unknown';
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${escapeMarkdown(errMsg)}`);
+    return { success: false, message: errMsg };
+  }
 }
 async function handleAddCoinCommand(supabase: any, botToken: string, chatId: string, username: string, amount: number, reason: string | null) {
   try {
