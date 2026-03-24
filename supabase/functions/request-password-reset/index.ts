@@ -17,48 +17,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-
-    // Look up user by email (phone users use <phone>@rt48.user format)
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Use admin API to find user by email
-    const listRes = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_KEY}`,
-          'apikey': SERVICE_KEY,
-        },
-      }
-    );
+    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Search by email using admin API
-    const searchRes = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=5`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_KEY}`,
-          'apikey': SERVICE_KEY,
-        },
-      }
-    );
-
-    // Alternative: use a direct lookup approach
-    // Try signing in with wrong password to check if user exists — but that's hacky.
-    // Instead, query the profiles table and match.
-
-    // Look for user in profiles or check if identifier matches any known pattern
-    // For phone users: identifier = phone@rt48.user
-    // For email users: identifier = actual email
-
-    // Check if there's already a pending request for this identifier (prevent spam)
+    // Prevent spam: check for recent pending request
     const { data: existingPending } = await supabase
       .from('password_reset_requests')
       .select('id, created_at')
@@ -73,17 +37,17 @@ Deno.serve(async (req) => {
       if (Date.now() - createdAt < 30 * 60 * 1000) {
         return new Response(JSON.stringify({
           success: false,
-          error: 'Permintaan reset sudah dikirim sebelumnya. Tunggu admin menyetujui.',
+          error: 'Permintaan reset sudah dikirim. Tunggu admin menyetujui (max 30 menit).',
         }), {
           status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
 
-    // Find user via admin API by email
-    // Supabase GoTrue admin endpoint supports filtering
+    // Find user by email via admin API (supports email filter)
+    const encodedEmail = encodeURIComponent(identifier.toLowerCase());
     const userLookupRes = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=50`,
+      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodedEmail}`,
       {
         method: 'GET',
         headers: {
@@ -93,20 +57,18 @@ Deno.serve(async (req) => {
       }
     );
 
-    if (!userLookupRes.ok) {
-      const body = await userLookupRes.text();
-      console.error('Admin user lookup failed:', body);
-      return new Response(JSON.stringify({ success: false, error: 'Gagal mencari akun.' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    let foundUser: any = null;
+
+    if (userLookupRes.ok) {
+      const usersData = await userLookupRes.json();
+      const allUsers = usersData.users || usersData || [];
+      foundUser = allUsers.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase());
+    } else {
+      await userLookupRes.text();
     }
 
-    const usersData = await userLookupRes.json();
-    const allUsers = usersData.users || usersData || [];
-    const foundUser = allUsers.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase());
-
     if (!foundUser) {
-      // Don't reveal whether user exists — show generic success
+      // Don't reveal whether user exists — always show success
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -119,7 +81,7 @@ Deno.serve(async (req) => {
       .eq('id', foundUser.id)
       .maybeSingle();
 
-    // Generate secure token
+    // Generate 64-char secure token
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
     const secureToken = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -145,7 +107,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get the short_id of the just-created request
+    // Get the short_id
     const { data: newReq } = await supabase
       .from('password_reset_requests')
       .select('short_id')
@@ -156,18 +118,18 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     // Notify admin via Telegram + WhatsApp
-    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
+    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/notify-password-reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${ANON_KEY}`,
         },
         body: JSON.stringify({
           short_id: newReq?.short_id || 'unknown',
-          identifier: identifier,
-          username: profile?.username || foundUser.email?.split('@')[0] || 'Unknown',
+          identifier,
+          username: profile?.username || (identifier.endsWith('@rt48.user') ? identifier.replace('@rt48.user', '') : identifier.split('@')[0]),
         }),
       });
     } catch (e) {
