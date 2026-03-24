@@ -127,7 +127,6 @@ const ViewerAuth = () => {
           recordAuthMetric(isTimeout ? "signup_timeout" : "signup_error", ms, "viewer", msg);
 
           if (isTimeout) {
-            // Server might have created the account anyway — check session
             const sessionCheck = await Promise.race([
               supabase.auth.getSession(),
               new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 4000)),
@@ -141,14 +140,48 @@ const ViewerAuth = () => {
               return;
             }
             toast.error("Server sedang sibuk, coba lagi sebentar.");
+          } else if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("User already registered")) {
+            // Auto-try login with the same credentials
+            const loginResult = await authWithRetry(
+              () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+              15_000, 1
+            );
+            if (!loginResult.error && loginResult.data) {
+              recordAuthMetric("login_success", ms, "viewer");
+              toast.success("Akun sudah ada, berhasil login!");
+              navigate("/coins");
+              return;
+            }
+            // Login failed too — switch to login mode
+            toast.error("Nomor/email sudah terdaftar. Password tidak cocok, silakan login ulang.");
+            setMode("login");
           } else {
-            toast.error(msg.includes("already registered") ? "Nomor/email sudah terdaftar. Silakan login." : msg);
+            toast.error(msg);
           }
         } else {
-          recordAuthMetric("signup_success", ms, "viewer");
-          toast.success("Berhasil mendaftar!");
-          if (refCode) await claimReferral(refCode);
-          navigate("/coins");
+          // Check if signup returned a user without session (unconfirmed — shouldn't happen now)
+          const signupData = result.data as any;
+          if (signupData?.user && !signupData?.session) {
+            // Try login immediately (auto-confirm should have confirmed it)
+            const loginRetry = await authWithRetry(
+              () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+              10_000, 1
+            );
+            if (!loginRetry.error) {
+              recordAuthMetric("signup_success", ms, "viewer");
+              toast.success("Berhasil mendaftar!");
+              if (refCode) await claimReferral(refCode);
+              navigate("/coins");
+              return;
+            }
+            toast.success("Akun berhasil dibuat! Silakan login.");
+            setMode("login");
+          } else {
+            recordAuthMetric("signup_success", ms, "viewer");
+            toast.success("Berhasil mendaftar!");
+            if (refCode) await claimReferral(refCode);
+            navigate("/coins");
+          }
         }
       } else {
         // LOGIN
