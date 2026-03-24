@@ -82,7 +82,7 @@ const AdminDashboard = () => {
 
         for (let attempt = 0; attempt < 3; attempt++) {
           const roleResult = await raceTimeout(
-            supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
+            Promise.resolve(supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" })),
             8_000,
             { data: null, error: { message: "Role check timeout" } } as any
           );
