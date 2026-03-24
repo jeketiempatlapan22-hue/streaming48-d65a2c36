@@ -24,28 +24,39 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
   try {
-    // Fonnte webhook sends form-urlencoded or JSON
+    // Fonnte webhook can send JSON, x-www-form-urlencoded, or form-data
     let sender = '';
     let message = '';
 
-    const contentType = req.headers.get('content-type') || '';
+    const contentType = (req.headers.get('content-type') || '').toLowerCase();
+
     if (contentType.includes('application/json')) {
-      const body = await req.json();
-      sender = body.sender || '';
-      message = body.message || body.text || '';
+      const body = await req.json().catch(() => ({} as Record<string, unknown>));
+      sender = String((body as any).sender || '');
+      message = String((body as any).message || (body as any).text || '');
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const text = await req.text();
+      const params = new URLSearchParams(text);
+      sender = params.get('sender') || '';
+      message = params.get('message') || params.get('text') || '';
     } else {
+      // Important: use clone for fallback so body is not consumed twice
+      const reqClone = req.clone();
       const formData = await req.formData().catch(() => null);
+
       if (formData) {
         sender = formData.get('sender')?.toString() || '';
         message = formData.get('message')?.toString() || formData.get('text')?.toString() || '';
       } else {
-        const text = await req.text();
+        const text = await reqClone.text();
         try {
           const body = JSON.parse(text);
-          sender = body.sender || '';
-          message = body.message || body.text || '';
+          sender = String(body?.sender || '');
+          message = String(body?.message || body?.text || '');
         } catch {
-          return jsonResponse({ error: 'Invalid request body' }, 400);
+          const params = new URLSearchParams(text);
+          sender = params.get('sender') || '';
+          message = params.get('message') || params.get('text') || '';
         }
       }
     }
