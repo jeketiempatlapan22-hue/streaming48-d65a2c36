@@ -75,7 +75,7 @@ const AdminLogin = () => {
       }
 
       const adminCheck = await runWithTimeoutRetry(
-        () => supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
+        async () => await supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
         8_000,
         2
       );
