@@ -23,7 +23,7 @@ const TokenFactory = () => {
   const [coinTokens, setCoinTokens] = useState<any[]>([]);
   const [sessions, setSessions] = useState<Record<string, number>>({});
   const [duration, setDuration] = useState<DurationKey>("daily");
-  const [customHours, setCustomHours] = useState("24");
+  const [customDays, setCustomDays] = useState("3");
   const [maxDevices, setMaxDevices] = useState("1");
   const [bulkCount, setBulkCount] = useState("1");
   const [isPublic, setIsPublic] = useState(false);
@@ -67,9 +67,9 @@ const TokenFactory = () => {
     let expiresAt: Date;
     let durationLabel: string;
     if (duration === "custom") {
-      const hours = Math.max(1, Math.min(8760, parseInt(customHours) || 24));
-      expiresAt = new Date(now.getTime() + hours * 3600000);
-      durationLabel = `${hours} jam`;
+      const days = Math.max(1, Math.min(365, parseInt(customDays) || 3));
+      expiresAt = new Date(now.getTime() + days * 86400000);
+      durationLabel = `${days} hari`;
     } else if (duration === "daily") {
       expiresAt = new Date(now.getTime() + 86400000);
       durationLabel = "1 hari";
@@ -368,15 +368,15 @@ const TokenFactory = () => {
         </div>
         {duration === "custom" && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi (jam)</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi (hari)</label>
             <Input
               type="number"
               min="1"
-              max="8760"
-              value={customHours}
-              onChange={(e) => setCustomHours(e.target.value)}
+              max="365"
+              value={customDays}
+              onChange={(e) => setCustomDays(e.target.value)}
               className="w-24 bg-background"
-              placeholder="24"
+              placeholder="3"
             />
           </div>
         )}

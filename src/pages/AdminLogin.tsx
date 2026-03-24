@@ -22,24 +22,24 @@ const AdminLogin = () => {
 
   // Check if already logged in as admin — skip login page
   useEffect(() => {
-    Promise.race([
-      supabase.auth.getSession(),
-      new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 5000)),
-    ])
-      .then(async ({ data: { session } }) => {
-        if (!session?.user) { setCheckingSession(false); return; }
-        // Quick admin check
-        const { data: isAdmin } = await Promise.race([
-          Promise.resolve(supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" })),
-          new Promise<{ data: false }>((r) => setTimeout(() => r({ data: false }), 5000)),
+    const check = async () => {
+      try {
+        const { data: { session } } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 2000)),
         ]);
-        if (isAdmin) {
-          navigate("/admin/dashboard");
-        } else {
-          setCheckingSession(false);
-        }
-      })
-      .catch(() => setCheckingSession(false));
+        if (!session?.user) { setCheckingSession(false); return; }
+        const { data: isAdmin } = await Promise.race([
+          supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
+          new Promise<{ data: false }>((r) => setTimeout(() => r({ data: false }), 3000)),
+        ]);
+        if (isAdmin) navigate("/admin/dashboard");
+        else setCheckingSession(false);
+      } catch {
+        setCheckingSession(false);
+      }
+    };
+    check();
   }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
