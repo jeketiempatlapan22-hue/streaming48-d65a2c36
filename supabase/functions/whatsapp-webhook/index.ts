@@ -185,6 +185,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (isTopUsers) return await handleTopUsersWa(supabase);
   if (setpriceMatch) return await handleSetPriceWa(supabase, setpriceMatch[1].trim(), setpriceMatch[2].toLowerCase() as 'coin' | 'replay', parseInt(setpriceMatch[3], 10));
   if (createtokenMatch) return await handleCreateTokenWa(supabase, createtokenMatch[1].trim(), createtokenMatch[2] ? parseInt(createtokenMatch[2], 10) : 1);
+  if (givetokenMatch) return await handleGiveTokenWa(supabase, givetokenMatch[1], givetokenMatch[2].trim(), givetokenMatch[3] ? parseInt(givetokenMatch[3], 10) : 1);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
