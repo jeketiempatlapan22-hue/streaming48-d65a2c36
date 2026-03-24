@@ -7,6 +7,8 @@ import { withTimeout } from "@/lib/queryCache";
 import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import BannedScreen from "@/components/viewer/BannedScreen";
+import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 
 const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
 
