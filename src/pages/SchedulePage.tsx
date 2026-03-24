@@ -16,10 +16,10 @@ const SchedulePage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [settings, setSettings] = useState<{ whatsapp_number: string }>({ whatsapp_number: "" });
-  const [coinUser, setCoinUser] = useState<any>(null);
-  const [redeemedTokens, setRedeemedTokens] = useState<Record<string, string>>({});
-  const [accessPasswords, setAccessPasswords] = useState<Record<string, string>>({});
-  const [replayPasswords, setReplayPasswords] = useState<Record<string, string>>({});
+  const {
+    coinUser, redeemedTokens, accessPasswords, replayPasswords,
+    addRedeemedToken, addAccessPassword,
+  } = usePurchasedShows();
 
   useEffect(() => {
     const fetchData = async () => {
