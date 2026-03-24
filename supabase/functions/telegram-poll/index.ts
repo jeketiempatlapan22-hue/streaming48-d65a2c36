@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 const MAX_RUNTIME_MS = 50_000;
 const MIN_REMAINING_MS = 5_000;
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 30_000;
 const LOCK_WINDOW_MS = 60_000;
-const TOUCH_STATE_INTERVAL_MS = 15_000;
+const TOUCH_STATE_INTERVAL_MS = 30_000;
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
