@@ -43,30 +43,44 @@ function parseShowDateTime(dateStr: string, timeStr: string): number | null {
 }
 
 function useCountdown(dateStr: string, timeStr: string) {
-  const [text, setText] = useState("");
-  const [now, setNow] = useState(Date.now());
+  const [parts, setParts] = useState<{ d: number; h: number; m: number; s: number; live: boolean } | null>(null);
 
   useEffect(() => {
     const target = parseShowDateTime(dateStr, timeStr);
     if (!target) return;
     const update = () => {
-      const current = Date.now();
-      setNow(current);
-      const diff = target - current;
-      if (diff <= 0) { setText("LIVE!"); return; }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setText(d > 0 ? `${d}h ${h}j ${m}m` : `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+      const diff = target - Date.now();
+      if (diff <= 0) { setParts({ d: 0, h: 0, m: 0, s: 0, live: true }); return; }
+      setParts({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+        live: false,
+      });
     };
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, [dateStr, timeStr]);
 
-  return { text, now };
+  return parts;
 }
+
+const CountdownDigit = ({ value, label }: { value: number; label: string }) => (
+  <div className="flex flex-col items-center">
+    <motion.div
+      key={value}
+      initial={{ rotateX: -90, opacity: 0 }}
+      animate={{ rotateX: 0, opacity: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 backdrop-blur-sm border border-primary/20"
+    >
+      <span className="font-mono text-sm font-bold text-primary">{value.toString().padStart(2, "0")}</span>
+    </motion.div>
+    <span className="mt-0.5 text-[8px] uppercase tracking-wider text-muted-foreground">{label}</span>
+  </div>
+);
 
 const ShowCard = ({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
