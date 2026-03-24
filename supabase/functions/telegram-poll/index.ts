@@ -104,15 +104,20 @@ Deno.serve(async (req) => {
         const callbackUpdates = updates.filter((u: any) => u.callback_query);
         for (const cu of callbackUpdates) {
           const cb = cu.callback_query;
-          if (String(cb.message?.chat?.id) === ADMIN_CHAT_ID) {
-            await processCallbackQuery(supabase, BOT_TOKEN, ADMIN_CHAT_ID, cb);
-            totalProcessed++;
-          }
-          // Answer callback to remove loading state
+          // Answer callback ASAP to avoid Telegram client timeout spinner
           await fetch(`${TELEGRAM_API}${BOT_TOKEN}/answerCallbackQuery`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callback_query_id: cb.id }),
+            body: JSON.stringify({ callback_query_id: cb.id, text: 'Memproses...' }),
           });
+
+          const callbackChatId = String(cb.message?.chat?.id ?? '').trim();
+          const adminChatId = String(ADMIN_CHAT_ID).trim();
+          if (callbackChatId === adminChatId) {
+            await processCallbackQuery(supabase, BOT_TOKEN, ADMIN_CHAT_ID, cb);
+            totalProcessed++;
+          } else {
+            console.warn('Ignored callback from non-admin chat:', callbackChatId);
+          }
         }
 
         const adminMessages = rows.filter((r: any) => String(r.chat_id) === ADMIN_CHAT_ID && r.text);
@@ -515,15 +520,19 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
     if (action === 'approve') {
       // Use atomic RPC to prevent double-credit race conditions
       const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
-      if (rpcError || !rpcResult?.success) {
-        const errMsg = rpcResult?.error || rpcError?.message || 'Gagal konfirmasi';
+      const parsedRpcResult = typeof rpcResult === 'string'
+        ? (() => { try { return JSON.parse(rpcResult); } catch { return null; } })()
+        : rpcResult;
+
+      if (rpcError || !parsedRpcResult?.success) {
+        const errMsg = parsedRpcResult?.error || rpcError?.message || 'Gagal konfirmasi';
         const msg = `⚠️ Order koin \`${escapeMarkdown(sid)}\`: ${escapeMarkdown(errMsg)}`;
         if (!isBulk) await sendTelegramMessage(botToken, chatId, msg);
         return { success: false, message: errMsg };
       }
 
       const { data: profile } = await supabase.from('profiles').select('username').eq('id', order.user_id).single();
-      const newBalance = rpcResult.new_balance ?? order.coin_amount;
+      const newBalance = parsedRpcResult.new_balance ?? order.coin_amount;
 
       if (order.phone) {
         const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
@@ -985,8 +994,10 @@ async function notifyWhatsAppAdmins(supabase: any, command: string) {
 async function processCallbackQuery(supabase: any, botToken: string, chatId: string, cb: any) {
   const data = cb.data as string;
   const messageId = cb.message?.message_id;
+  const targetChatId = cb.message?.chat?.id ?? chatId;
 
   try {
+    console.log('Callback received:', data);
     // Parse callback: approve_coin_<shortId>, reject_coin_<shortId>, approve_sub_<shortId>, reject_sub_<shortId>
     const match = data.match(/^(approve|reject)_(coin|sub)_(.+)$/);
     if (!match) return;
@@ -1039,23 +1050,29 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
           const originalCaption = cb.message?.caption || '';
           // Strip MarkdownV2 from original caption too
           const cleanCaption = originalCaption.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1');
-          await fetch(`${TELEGRAM_API}${botToken}/editMessageCaption`, {
+          const editRes = await fetch(`${TELEGRAM_API}${botToken}/editMessageCaption`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, message_id: messageId, caption: cleanCaption + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
+            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, caption: cleanCaption + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
           });
+          const editData = await editRes.json();
+          if (!editData?.ok) throw new Error(editData?.description || 'Gagal edit caption');
         } else {
           const originalText = cb.message?.text || '';
           const cleanText = originalText.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1');
-          await fetch(`${TELEGRAM_API}${botToken}/editMessageText`, {
+          const editRes = await fetch(`${TELEGRAM_API}${botToken}/editMessageText`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: cleanText + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
+            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, text: cleanText + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
           });
+          const editData = await editRes.json();
+          if (!editData?.ok) throw new Error(editData?.description || 'Gagal edit pesan');
         }
       } catch (editErr) {
         console.warn('Failed to edit message:', editErr);
         // Still send result as separate message
-        await sendTelegramMessage(botToken, chatId, escapeMarkdown(resultText));
+        await sendTelegramMessage(botToken, targetChatId, escapeMarkdown(resultText));
       }
+    } else {
+      await sendTelegramMessage(botToken, targetChatId, escapeMarkdown(resultText));
     }
 
     // Cross-notify WhatsApp
