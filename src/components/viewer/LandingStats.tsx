@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, useInView } from "framer-motion";
 import { Users, Ticket, Coins, Film } from "lucide-react";
+import { cachedQuery } from "@/lib/queryCache";
 
 const useCountUp = (target: number, duration: number, inView: boolean) => {
   const [current, setCurrent] = useState(0);
@@ -26,12 +27,17 @@ const LandingStats = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [showsRpc, balances] = await Promise.all([
-        supabase.rpc("get_public_shows"),
-        supabase.from("coin_balances").select("balance"),
-      ]);
-      const showsList = showsRpc.data || [];
-      const totalCoins = (balances.data || []).reduce((s, r) => s + (r.balance || 0), 0);
+      // Use cached shows data (shared with Index page) to avoid duplicate RPC call
+      const showsList = await cachedQuery("public_shows", async () => {
+        const { data } = await supabase.rpc("get_public_shows");
+        return data || [];
+      }, 60_000);
+
+      // Coin balances query is lightweight - but delay it slightly to stagger load
+      await new Promise(r => setTimeout(r, 500));
+      const { data: balances } = await supabase.from("coin_balances").select("balance");
+      const totalCoins = (balances || []).reduce((s, r) => s + (r.balance || 0), 0);
+
       setStats(prev => ({
         ...prev,
         shows: showsList.length,

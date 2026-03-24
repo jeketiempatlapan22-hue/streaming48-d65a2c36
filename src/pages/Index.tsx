@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
+import { cachedQuery, invalidateCache } from "@/lib/queryCache";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 
@@ -78,20 +79,30 @@ const Index = () => {
   const [isStandalone, setIsStandalone] = useState(false);
 
   const fetchData = async () => {
-    const [showsRes, settingsRes, streamRes, descRes] = await Promise.all([
-      supabase.rpc("get_public_shows"),
-      supabase.from("site_settings").select("*"),
+    // Batch 1: Critical data (shows + stream status)
+    const [showsData, streamRes] = await Promise.all([
+      cachedQuery("public_shows", async () => {
+        const { data } = await supabase.rpc("get_public_shows");
+        return data || [];
+      }, 30_000),
       supabase.from("streams").select("is_live").limit(1).single(),
-      supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
     ]);
     if (streamRes.data) setIsStreamLive(streamRes.data.is_live);
-    if (showsRes.data) setShows(showsRes.data as Show[]);
-    if (descRes.data) setDescriptions(descRes.data as any[]);
-    if (settingsRes.data) {
-      const s: any = {};
-      settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
-      setSettings((prev) => ({ ...prev, ...s }));
-    }
+    setShows(showsData as Show[]);
+
+    // Batch 2: Non-critical data (staggered to reduce DB load)
+    setTimeout(async () => {
+      const [settingsRes, descRes] = await Promise.all([
+        supabase.from("site_settings").select("*"),
+        supabase.from("landing_descriptions").select("*").eq("is_active", true).order("sort_order"),
+      ]);
+      if (descRes.data) setDescriptions(descRes.data as any[]);
+      if (settingsRes.data) {
+        const s: any = {};
+        settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
+        setSettings((prev) => ({ ...prev, ...s }));
+      }
+    }, 300);
   };
 
   useEffect(() => {
@@ -150,7 +161,7 @@ const Index = () => {
     const cleanupBalance = fetchCoinUser();
 
     const showCh = supabase.channel("idx-shows")
-      .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => { invalidateCache("public_shows"); fetchData(); })
       .subscribe();
     const streamCh = supabase.channel("idx-streams")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (payload: any) => {

@@ -42,7 +42,8 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     window.addEventListener("beforeinstallprompt", handler);
     window.addEventListener("appinstalled", () => setIsStandalone(true));
 
-    const checkAuth = async () => {
+    // Delay auth check slightly so it doesn't compete with page-level queries
+    const timer = setTimeout(async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setCoinUser(session.user);
@@ -53,10 +54,12 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
         setCoinBalance(balRes.data?.balance || 0);
         setCoinUsername(profileRes.data?.username || "");
       }
-    };
-    checkAuth();
+    }, 200);
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      clearTimeout(timer);
+    };
   }, []);
 
   const handleInstallClick = async () => {
