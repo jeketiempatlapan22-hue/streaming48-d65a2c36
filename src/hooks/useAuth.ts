@@ -1,14 +1,26 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { checkBanStatus } from "@/lib/suspiciousActivity";
 import type { User } from "@supabase/supabase-js";
 
 // In-memory session cache to avoid redundant getSession() calls
 let cachedUser: User | null = null;
 let cachedIsAdmin: boolean = false;
-let cachedIsBanned: boolean = false;
-let cachedBanReason: string = "";
 let cacheReady = false;
+
+// Lightweight ban check — non-blocking, with timeout and graceful fallback
+async function checkBanSafe(userId: string): Promise<{ banned: boolean; reason: string }> {
+  try {
+    const result = await Promise.race([
+      (supabase.rpc as any)('get_ban_info', { _user_id: userId }),
+      new Promise<{ data: null }>((resolve) => setTimeout(() => resolve({ data: null }), 3000)),
+    ]);
+    const info = result?.data as any;
+    if (info?.banned) return { banned: true, reason: info.reason || '' };
+    return { banned: false, reason: '' };
+  } catch {
+    return { banned: false, reason: '' };
+  }
+}
 
 async function checkAdminSafe(userId: string): Promise<boolean> {
   try {
@@ -28,8 +40,8 @@ async function checkAdminSafe(userId: string): Promise<boolean> {
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(cachedUser);
   const [isAdmin, setIsAdmin] = useState(cachedIsAdmin);
-  const [isBanned, setIsBanned] = useState(cachedIsBanned);
-  const [banReason, setBanReason] = useState(cachedBanReason);
+  const [isBanned, setIsBanned] = useState(false);
+  const [banReason, setBanReason] = useState("");
   const [loading, setLoading] = useState(!cacheReady);
   const adminCheckRef = useRef<string | null>(null);
 
@@ -44,22 +56,19 @@ export const useAuth = () => {
         if (currentUser) {
           if (adminCheckRef.current !== currentUser.id) {
             adminCheckRef.current = currentUser.id;
-            const [isAdm, banStatus] = await Promise.all([
-              checkAdminSafe(currentUser.id),
-              checkBanStatus(currentUser.id),
-            ]);
+            // Admin check is critical — ban check is deferred
+            const isAdm = await checkAdminSafe(currentUser.id);
             cachedIsAdmin = isAdm;
             setIsAdmin(isAdm);
-            cachedIsBanned = banStatus.banned;
-            cachedBanReason = banStatus.reason || "";
-            setIsBanned(banStatus.banned);
-            setBanReason(banStatus.reason || "");
+            // Ban check runs in background — doesn't block login
+            checkBanSafe(currentUser.id).then((b) => {
+              setIsBanned(b.banned);
+              setBanReason(b.reason);
+            });
           }
         } else {
           adminCheckRef.current = null;
           cachedIsAdmin = false;
-          cachedIsBanned = false;
-          cachedBanReason = "";
           setIsAdmin(false);
           setIsBanned(false);
           setBanReason("");
@@ -82,16 +91,13 @@ export const useAuth = () => {
         setUser(currentUser);
         if (currentUser && adminCheckRef.current !== currentUser.id) {
           adminCheckRef.current = currentUser.id;
-          const [isAdm, banStatus] = await Promise.all([
-            checkAdminSafe(currentUser.id),
-            checkBanStatus(currentUser.id),
-          ]);
+          const isAdm = await checkAdminSafe(currentUser.id);
           cachedIsAdmin = isAdm;
           setIsAdmin(isAdm);
-          cachedIsBanned = banStatus.banned;
-          cachedBanReason = banStatus.reason || "";
-          setIsBanned(banStatus.banned);
-          setBanReason(banStatus.reason || "");
+          checkBanSafe(currentUser.id).then((b) => {
+            setIsBanned(b.banned);
+            setBanReason(b.reason);
+          });
         }
         cacheReady = true;
         setLoading(false);
@@ -109,8 +115,6 @@ export const useAuth = () => {
     await supabase.auth.signOut();
     cachedUser = null;
     cachedIsAdmin = false;
-    cachedIsBanned = false;
-    cachedBanReason = "";
     cacheReady = false;
     adminCheckRef.current = null;
     setUser(null);
