@@ -181,22 +181,7 @@ const LandingDescriptionManager = () => {
       </div>
       {uploading && <p className="text-xs text-primary">Mengupload...</p>}
 
-      {showGallery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="mx-4 max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-card p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">📸 Galeri Foto</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowGallery(false)}>Tutup</Button>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              {galleryImages.map((url) => (
-                <img key={url} src={url} alt="" className="h-28 w-full cursor-pointer rounded-lg object-cover transition hover:ring-2 hover:ring-primary" onClick={() => selectFromGallery(url)} />
-              ))}
-            </div>
-            {galleryImages.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Belum ada foto</p>}
-          </div>
-        </div>
-      )}
+      <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={selectFromGallery} />
     </div>
   );
 };
