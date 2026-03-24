@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
+import { withRetry, withTimeout } from "@/lib/queryCache";
 import logo from "@/assets/logo.png";
 
 const AdminLogin = () => {
@@ -34,35 +35,71 @@ const AdminLogin = () => {
 
     setLoading(true);
 
+    const runWithTimeoutRetry = async <T,>(
+      request: () => Promise<{ data: T | null; error: any }>,
+      timeoutMs: number,
+      retries: number
+    ) => {
+      return withRetry(
+        () =>
+          withTimeout(request(), timeoutMs, "Permintaan ke server timeout")
+            .then((result) => ({ data: result.data, error: result.error }))
+            .catch((error) => ({ data: null, error })),
+        retries,
+        700
+      );
+    };
+
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        toast({ title: "Login gagal", description: error.message, variant: "destructive" });
-        setLoading(false);
-        submitRef.current = false;
+      const authResult = await runWithTimeoutRetry(
+        () => supabase.auth.signInWithPassword({ email, password }),
+        12_000,
+        1
+      );
+
+      if (authResult.error || !authResult.data?.session?.user) {
+        const msg = String(authResult.error?.message || "Login gagal");
+        const isTimeout = /timeout|timed out|deadline exceeded/i.test(msg);
+        toast({
+          title: "Login gagal",
+          description: isTimeout ? "Server sedang sibuk, silakan coba lagi." : msg,
+          variant: "destructive",
+        });
         return;
       }
 
-      const userId = authData.session?.user?.id;
+      const userId = authResult.data.session.user.id;
       if (!userId) {
         toast({ title: "Error", description: "User not found", variant: "destructive" });
-        setLoading(false);
-        submitRef.current = false;
         return;
       }
 
-      const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-      if (!isAdmin) {
+      const adminCheck = await runWithTimeoutRetry(
+        () => supabase.rpc("has_role", { _user_id: userId, _role: "admin" }),
+        8_000,
+        2
+      );
+
+      if (adminCheck.error) {
+        await supabase.auth.signOut();
+        toast({
+          title: "Server sibuk",
+          description: "Gagal memverifikasi akses admin. Coba lagi sebentar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!adminCheck.data) {
         await supabase.auth.signOut();
         toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
-        setLoading(false);
-        submitRef.current = false;
         return;
       }
 
       navigate("/admin/dashboard");
     } catch {
       toast({ title: "Error", description: "Koneksi bermasalah, coba lagi.", variant: "destructive" });
+    } finally {
       setLoading(false);
       submitRef.current = false;
     }
