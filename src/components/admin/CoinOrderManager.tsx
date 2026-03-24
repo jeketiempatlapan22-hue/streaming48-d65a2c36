@@ -15,6 +15,7 @@ const CoinOrderManager = () => {
   const [packages, setPackages] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"pending" | "confirmed" | "rejected" | "all">("pending");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -31,14 +32,31 @@ const CoinOrderManager = () => {
   useEffect(() => { fetchOrders(); }, []);
 
   const confirmOrder = async (id: string) => {
-    const { data, error } = await (supabase.rpc as any)("confirm_coin_order", { _order_id: id });
-    const result = data as any;
-    if (error || !result?.success) {
-      toast({ title: "Gagal konfirmasi", description: result?.error || error?.message, variant: "destructive" });
-      return;
+    try {
+      setConfirmingId(id);
+      const { data, error } = await supabase.rpc("confirm_coin_order", { _order_id: id });
+      const result = (typeof data === "string" ? JSON.parse(data) : data) as any;
+
+      if (error || !result?.success) {
+        toast({
+          title: "Gagal konfirmasi",
+          description: result?.error || error?.message || "Terjadi kesalahan saat konfirmasi order",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await fetchOrders();
+      toast({ title: `Dikonfirmasi! Saldo baru: ${result.new_balance} koin` });
+    } catch (err) {
+      toast({
+        title: "Gagal konfirmasi",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan tak terduga",
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmingId(null);
     }
-    await fetchOrders();
-    toast({ title: `Dikonfirmasi! Saldo baru: ${result.new_balance} koin` });
   };
 
   const rejectOrder = async (id: string) => {
@@ -95,7 +113,7 @@ const CoinOrderManager = () => {
                 )}
                 {order.status === "pending" && (
                   <div className="flex gap-1">
-                    <Button size="sm" onClick={() => confirmOrder(order.id)} className="h-7 text-xs"><CheckCircle className="mr-1 h-3 w-3" /> Konfirmasi</Button>
+                    <Button size="sm" onClick={() => confirmOrder(order.id)} disabled={confirmingId === order.id} className="h-7 text-xs"><CheckCircle className="mr-1 h-3 w-3" /> {confirmingId === order.id ? "Memproses..." : "Konfirmasi"}</Button>
                     <Button size="sm" variant="destructive" onClick={() => rejectOrder(order.id)} className="h-7 text-xs"><XCircle className="mr-1 h-3 w-3" /> Tolak</Button>
                   </div>
                 )}
