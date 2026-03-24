@@ -77,7 +77,7 @@ const LandingDescriptionManager = () => {
     const url = supabase.storage.from("show-images").getPublicUrl(fileName).data.publicUrl;
     const item = items.find((i) => i.id === itemId);
     if (item) { const updated = { ...item, image_url: url }; setItems(items.map((i) => i.id === itemId ? updated : i)); await update(updated); }
-    await fetchGallery();
+    
     setUploading(false);
   };
 
