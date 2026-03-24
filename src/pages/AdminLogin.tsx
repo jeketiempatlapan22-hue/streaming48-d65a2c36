@@ -8,6 +8,8 @@ import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import { recordAuthMetric } from "@/lib/authMetrics";
 import logo from "@/assets/logo.png";
 
+const TRANSIENT_AUTH_ERROR = /timeout|timed out|deadline|504|500|failed to fetch|networkerror|network request failed|load failed|connection/i;
+
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -67,14 +69,14 @@ const AdminLogin = () => {
           ),
         ]);
         if (!authResult.error) break;
-        if (!/timeout|timed out|deadline|504|500/i.test(String(authResult.error?.message))) break;
+        if (!TRANSIENT_AUTH_ERROR.test(String(authResult.error?.message || ""))) break;
         if (attempt < 2) await new Promise((r) => setTimeout(r, 1000));
       }
 
       if (authResult.error || !authResult.data?.session?.user) {
         const ms = Math.round(performance.now() - loginStart);
         const msg = String(authResult.error?.message || "Login gagal");
-        const isTimeout = /timeout|timed out|deadline|504|500/i.test(msg);
+        const isTimeout = TRANSIENT_AUTH_ERROR.test(msg);
         
         // If timeout, check if session was actually created
         if (isTimeout) {
