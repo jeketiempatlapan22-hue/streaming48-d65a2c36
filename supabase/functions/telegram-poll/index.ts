@@ -272,6 +272,14 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleTopUsersCommand(supabase, botToken, chatId);
   } else if (setpriceMatch) {
     await handleSetPriceCommand(supabase, botToken, chatId, `#${setpriceMatch[1]}`, setpriceMatch[2].toLowerCase() as 'coin' | 'replay', parseInt(setpriceMatch[3], 10));
+  } else if (banuserMatch) {
+    await handleBanUserCommand(supabase, botToken, chatId, banuserMatch[1], banuserMatch[2]?.trim() || 'Diblokir oleh admin');
+  } else if (unbanuserMatch) {
+    await handleUnbanUserCommand(supabase, botToken, chatId, unbanuserMatch[1]);
+  } else if (isBanlist) {
+    await handleBanlistCommand(supabase, botToken, chatId);
+  } else if (suspiciousMatch) {
+    await handleSuspiciousCommand(supabase, botToken, chatId, suspiciousMatch[1] || null);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
