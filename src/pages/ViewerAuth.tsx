@@ -194,7 +194,6 @@ const ViewerAuth = () => {
         const ms = Math.round(performance.now() - authStart);
 
         if (result.error) {
-          // Even if signIn returned an error, check if session was actually created
           const sessionCheck = await Promise.race([
             supabase.auth.getSession(),
             new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 4000)),
@@ -210,7 +209,18 @@ const ViewerAuth = () => {
           const isTimeout = TRANSIENT_AUTH_ERROR.test(msg);
           recordAuthMetric(isTimeout ? "login_timeout" : "login_error", ms, "viewer", msg);
           trackFailedLogin();
-          toast.error(isTimeout ? "Server sedang sibuk, coba lagi sebentar." : "Nomor/email atau password salah.");
+
+          if (isTimeout) {
+            toast.error("Server sedang sibuk, coba lagi sebentar.");
+          } else if (msg.includes("Invalid login credentials") || msg.includes("invalid_credentials")) {
+            toast.error("Password salah atau akun tidak ditemukan. Periksa kembali nomor HP/email dan password kamu.");
+          } else if (msg.includes("Email not confirmed")) {
+            // Edge case: account exists but unconfirmed (shouldn't happen with auto-confirm)
+            toast.error("Akun belum diverifikasi. Coba daftar ulang dengan nomor/email yang sama.");
+            setMode("signup");
+          } else {
+            toast.error(msg);
+          }
         } else {
           recordAuthMetric("login_success", ms, "viewer");
           navigate("/coins");
