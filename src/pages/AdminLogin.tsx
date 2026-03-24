@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { recordAuthMetric } from "@/lib/authMetrics";
 import logo from "@/assets/logo.png";
 
 const AdminLogin = () => {
@@ -51,6 +52,7 @@ const AdminLogin = () => {
     };
 
     try {
+      const loginStart = performance.now();
       const authResult = await runWithTimeoutRetry(
         () => supabase.auth.signInWithPassword({ email, password }),
         12_000,
@@ -58,8 +60,10 @@ const AdminLogin = () => {
       );
 
       if (authResult.error || !authResult.data?.session?.user) {
+        const ms = Math.round(performance.now() - loginStart);
         const msg = String(authResult.error?.message || "Login gagal");
         const isTimeout = /timeout|timed out|deadline exceeded|upstream request timeout/i.test(msg);
+        recordAuthMetric(isTimeout ? "login_timeout" : "login_error", ms, "admin", msg);
         toast({
           title: "Login gagal",
           description: isTimeout ? "Server sedang sibuk, silakan coba lagi." : msg,
@@ -67,6 +71,8 @@ const AdminLogin = () => {
         });
         return;
       }
+      const loginMs = Math.round(performance.now() - loginStart);
+      recordAuthMetric("login_success", loginMs, "admin");
 
       const userId = authResult.data.session.user.id;
       if (!userId) {
@@ -81,6 +87,7 @@ const AdminLogin = () => {
       );
 
       if (adminCheck.error) {
+        recordAuthMetric("role_check_timeout", undefined, "admin", String(adminCheck.error?.message));
         toast({
           title: "Verifikasi admin tertunda",
           description: "Session login tersimpan. Kami arahkan ke dashboard untuk verifikasi ulang otomatis.",
@@ -90,6 +97,7 @@ const AdminLogin = () => {
       }
 
       if (!adminCheck.data) {
+        recordAuthMetric("role_check_fail", undefined, "admin", "Not admin");
         await supabase.auth.signOut();
         toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
         return;
