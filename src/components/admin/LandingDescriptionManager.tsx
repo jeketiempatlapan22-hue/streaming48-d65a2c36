@@ -70,8 +70,9 @@ const LandingDescriptionManager = () => {
     toast({ title: "Deskripsi dihapus" });
   };
 
-  const uploadImage = async (file: File, itemId: string) => {
+  const uploadImage = async (rawFile: File, itemId: string) => {
     setUploading(true);
+    const file = await compressImage(rawFile);
     const fileName = `${crypto.randomUUID()}.${file.name.split(".").pop()}`;
     const { error } = await supabase.storage.from("show-images").upload(fileName, file);
     if (error) { toast({ title: "Upload gagal", variant: "destructive" }); setUploading(false); return; }
