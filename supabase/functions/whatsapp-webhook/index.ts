@@ -1169,16 +1169,21 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
   try {
     if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
 
-    // Find show by short ID or name
-    const shortIdMatch = showInput.match(/^#?([a-f0-9]{6})$/i);
-    let show: any = null;
+    const cleanInput = showInput.replace(/^#/, '').trim();
+    const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+    const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
 
-    if (shortIdMatch) {
-      const shortId = shortIdMatch[1].toLowerCase();
+    if (isHexId) {
       const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password');
-      show = (shows || []).find((s: any) => s.id.replace(/-/g, '').slice(0, 6).toLowerCase() === shortId);
+      // Try exact full UUID match first
+      show = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+      // Then try prefix match
+      if (!show && hexOnly.length >= 6) {
+        const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+        if (prefixMatches.length === 1) show = prefixMatches[0];
+      }
     } else {
-      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password').ilike('title', `%${showInput}%`).limit(1);
+      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password').ilike('title', `%${cleanInput}%`).limit(1);
       show = shows?.[0];
     }
 
