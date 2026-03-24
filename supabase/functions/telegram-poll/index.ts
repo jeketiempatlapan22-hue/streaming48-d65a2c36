@@ -352,7 +352,9 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/blocktoken <4digit>\` \\- Blokir token \\(4 digit belakang\\)\n` +
     `\`/unblocktoken <4digit>\` \\- Buka blokir token\n` +
     `\`/resettoken <4digit>\` \\- Reset sesi token\n` +
-    `\`/deletetoken <4digit>\` \\- Hapus token\n\n` +
+    `\`/deletetoken <4digit>\` \\- Hapus token\n` +
+    `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
+    `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n\n` +
     `🔐 *Password Reset:*\n` +
     `\`RESET <id>\` \\- Setujui reset password\n` +
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
