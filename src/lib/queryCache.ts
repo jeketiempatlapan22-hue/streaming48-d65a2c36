@@ -11,11 +11,9 @@ const timeoutPattern = /timeout|timed out|deadline exceeded|upstream request tim
 
 function isRetryableError(error: any): boolean {
   if (!error) return false;
-
   const code = String(error?.code ?? error?.status ?? "").toUpperCase();
   const message = String(error?.message ?? error?.error_description ?? "").toLowerCase();
-
-  if (["PGRST301", "504", "ETIMEDOUT", "ECONNRESET"].includes(code)) return true;
+  if (["PGRST301", "504", "ETIMEDOUT", "ECONNRESET", "500"].includes(code)) return true;
   return timeoutPattern.test(message);
 }
 
@@ -50,17 +48,11 @@ export async function cachedQuery<T>(
   return request;
 }
 
-/**
- * Invalidate a specific cache key
- */
 export function invalidateCache(key: string) {
   cache.delete(key);
   inFlight.delete(key);
 }
 
-/**
- * Invalidate all cache entries
- */
 export function clearCache() {
   cache.clear();
   inFlight.clear();
@@ -88,7 +80,6 @@ export async function withTimeout<T>(
 
 /**
  * Retry a function with exponential backoff on failure.
- * Useful for handling 504 upstream timeouts.
  */
 export async function withRetry<T>(
   fn: () => Promise<{ data: T | null; error: any }>,
@@ -97,18 +88,38 @@ export async function withRetry<T>(
 ): Promise<{ data: T | null; error: any }> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const result = await fn();
-    if (!result.error) {
-      return result;
-    }
-
-    if (!isRetryableError(result.error) || attempt >= maxRetries) {
-      return result;
-    }
-
+    if (!result.error) return result;
+    if (!isRetryableError(result.error) || attempt >= maxRetries) return result;
     if (attempt < maxRetries) {
       await new Promise(r => setTimeout(r, baseDelay * Math.pow(2, attempt)));
     }
   }
-
   return { data: null, error: new Error("Retry limit reached") };
+}
+
+/**
+ * Fetch data from cached edge function (server-side cache).
+ * Falls back to null on failure — caller should use direct DB as fallback.
+ */
+export async function fetchCachedEndpoint(
+  type: "landing" | "shows" | "stats" | "all" = "landing"
+): Promise<any | null> {
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  if (!projectId) return null;
+
+  const cacheKey = `edge_${type}`;
+  return cachedQuery(cacheKey, async () => {
+    const res = await fetch(
+      `https://${projectId}.supabase.co/functions/v1/cached-landing-data?type=${type}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      }
+    );
+    if (!res.ok) return null;
+    return res.json();
+  }, 20_000).catch(() => null);
 }
