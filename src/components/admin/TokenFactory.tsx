@@ -67,9 +67,9 @@ const TokenFactory = () => {
     let expiresAt: Date;
     let durationLabel: string;
     if (duration === "custom") {
-      const hours = Math.max(1, Math.min(8760, parseInt(customHours) || 24));
-      expiresAt = new Date(now.getTime() + hours * 3600000);
-      durationLabel = `${hours} jam`;
+      const days = Math.max(1, Math.min(365, parseInt(customDays) || 3));
+      expiresAt = new Date(now.getTime() + days * 86400000);
+      durationLabel = `${days} hari`;
     } else if (duration === "daily") {
       expiresAt = new Date(now.getTime() + 86400000);
       durationLabel = "1 hari";
