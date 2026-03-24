@@ -26,6 +26,7 @@ const sections = [
   { id: "moderators", label: "Akun Moderator", icon: UsersRound },
   { id: "users", label: "Manajemen User", icon: UserCog },
   { id: "media", label: "Media Library", icon: Image },
+  { id: "auth-metrics", label: "Auth Metrics", icon: BarChart3 },
 ];
 
 const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, onMobileOpenChange }: AdminSidebarProps) => {

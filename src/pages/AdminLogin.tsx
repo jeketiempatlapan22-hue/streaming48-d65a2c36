@@ -87,6 +87,7 @@ const AdminLogin = () => {
       );
 
       if (adminCheck.error) {
+        recordAuthMetric("role_check_timeout", undefined, "admin", String(adminCheck.error?.message));
         toast({
           title: "Verifikasi admin tertunda",
           description: "Session login tersimpan. Kami arahkan ke dashboard untuk verifikasi ulang otomatis.",
@@ -96,6 +97,7 @@ const AdminLogin = () => {
       }
 
       if (!adminCheck.data) {
+        recordAuthMetric("role_check_fail", undefined, "admin", "Not admin");
         await supabase.auth.signOut();
         toast({ title: "Akses ditolak", description: "Anda tidak memiliki akses admin.", variant: "destructive" });
         return;
