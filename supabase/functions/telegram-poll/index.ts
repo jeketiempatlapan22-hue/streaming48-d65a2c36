@@ -213,6 +213,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const isBanlist = /^\/banlist$/i.test(rawText);
   const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
   const createtokenMatch = rawText.match(/^\/createtoken\s+#([a-f0-9]{6})(?:\s+(\d+))?$/i);
+  const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
