@@ -380,7 +380,6 @@ const TokenFactory = () => {
             />
           </div>
         )}
-        </div>
         {!isPublic && (
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Max Device</label>
