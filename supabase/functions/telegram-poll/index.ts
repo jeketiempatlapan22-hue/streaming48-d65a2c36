@@ -542,9 +542,11 @@ async function handleStatusCommand(supabase: any, botToken: string, chatId: stri
 async function processCoinOrder(supabase: any, botToken: string, chatId: string, order: any, action: 'approve' | 'reject', isBulk: boolean): Promise<{ success: boolean; message: string }> {
   try {
     const sid = order.short_id || order.id.substring(0, 6);
+    console.log(`processCoinOrder: ${action} order ${sid}, isBulk=${isBulk}`);
     if (action === 'approve') {
       // Use atomic RPC to prevent double-credit race conditions
       const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_coin_order', { _order_id: order.id });
+      console.log('confirm_coin_order RPC result:', JSON.stringify(rpcResult), 'error:', rpcError?.message);
       const parsedRpcResult = typeof rpcResult === 'string'
         ? (() => { try { return JSON.parse(rpcResult); } catch { return null; } })()
         : rpcResult;
@@ -575,6 +577,7 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
     }
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'Unknown';
+    console.error('processCoinOrder error:', errMsg);
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${escapeMarkdown(errMsg)}`);
     return { success: false, message: errMsg };
   }
@@ -1022,10 +1025,13 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
   const targetChatId = cb.message?.chat?.id ?? chatId;
 
   try {
-    console.log('Callback received:', data);
+    console.log('Callback received:', data, 'from chat:', targetChatId, 'messageId:', messageId);
     // Parse callback: approve_coin_<shortId>, reject_coin_<shortId>, approve_sub_<shortId>, reject_sub_<shortId>
     const match = data.match(/^(approve|reject)_(coin|sub)_(.+)$/);
-    if (!match) return;
+    if (!match) {
+      console.warn('Callback data did not match pattern:', data);
+      return;
+    }
 
     const [, actionStr, orderType, rawOrderId] = match;
     const action = actionStr === 'approve' ? 'approve' : 'reject';
@@ -1037,13 +1043,15 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
     if (orderType === 'coin') {
       let coinQuery = supabase.from('coin_orders').select('id, user_id, coin_amount, status, package_id, phone, short_id');
       coinQuery = isUuid ? coinQuery.eq('id', orderId) : coinQuery.eq('short_id', orderId);
-      const { data: coinOrder } = await coinQuery.maybeSingle();
+      const { data: coinOrder, error: coinErr } = await coinQuery.maybeSingle();
+      console.log('Coin order lookup:', orderId, 'found:', !!coinOrder, 'status:', coinOrder?.status, 'error:', coinErr?.message);
       if (!coinOrder) {
         resultText = `⚠️ Order koin ${orderId} tidak ditemukan.`;
       } else if (coinOrder.status !== 'pending') {
         resultText = `⚠️ Order koin ${orderId} sudah diproses (${coinOrder.status}).`;
       } else {
         const result = await processCoinOrder(supabase, botToken, chatId, coinOrder, action, true);
+        console.log('processCoinOrder result:', JSON.stringify(result));
         resultText = result.success
           ? result.message
           : `⚠️ Gagal: ${result.message}`;
@@ -1051,7 +1059,8 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
     } else {
       let subQuery = supabase.from('subscription_orders').select('id, show_id, phone, email, status, short_id');
       subQuery = isUuid ? subQuery.eq('id', orderId) : subQuery.eq('short_id', orderId);
-      const { data: subOrder } = await subQuery.maybeSingle();
+      const { data: subOrder, error: subErr } = await subQuery.maybeSingle();
+      console.log('Sub order lookup:', orderId, 'found:', !!subOrder, 'status:', subOrder?.status, 'error:', subErr?.message);
       if (!subOrder) {
         resultText = `⚠️ Order subscription ${orderId} tidak ditemukan.`;
       } else if (subOrder.status !== 'pending') {
@@ -1064,47 +1073,45 @@ async function processCallbackQuery(supabase: any, botToken: string, chatId: str
       }
     }
 
-    // Edit the original message to show result and remove buttons
+    console.log('Callback resultText:', resultText);
+
+    // Always send a separate response message first (guaranteed delivery)
+    try {
+      await sendTelegramMessage(botToken, targetChatId, escapeMarkdown(resultText));
+    } catch (sendErr) {
+      console.error('Failed to send callback result message:', sendErr);
+    }
+
+    // Then try to edit the original message to remove buttons (best effort)
     if (messageId) {
       try {
-        // Strip MarkdownV2 escapes from result for clean display
-        const cleanResult = resultText.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1');
-        
         if (cb.message?.photo) {
-          // For photo messages, get original caption and append result (no parse_mode to avoid MarkdownV2 issues)
           const originalCaption = cb.message?.caption || '';
-          // Strip MarkdownV2 from original caption too
-          const cleanCaption = originalCaption.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1');
-          const editRes = await fetch(`${TELEGRAM_API}${botToken}/editMessageCaption`, {
+          await fetch(`${TELEGRAM_API}${botToken}/editMessageCaption`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, caption: cleanCaption + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
+            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, caption: originalCaption + `\n\n${resultText}`, reply_markup: { inline_keyboard: [] } }),
           });
-          const editData = await editRes.json();
-          if (!editData?.ok) throw new Error(editData?.description || 'Gagal edit caption');
         } else {
           const originalText = cb.message?.text || '';
-          const cleanText = originalText.replace(/\\([_*\[\]()~`>#+\-=|{}.!])/g, '$1');
-          const editRes = await fetch(`${TELEGRAM_API}${botToken}/editMessageText`, {
+          await fetch(`${TELEGRAM_API}${botToken}/editMessageText`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, text: cleanText + `\n\n${cleanResult}`, reply_markup: { inline_keyboard: [] } }),
+            body: JSON.stringify({ chat_id: targetChatId, message_id: messageId, text: originalText + `\n\n${resultText}`, reply_markup: { inline_keyboard: [] } }),
           });
-          const editData = await editRes.json();
-          if (!editData?.ok) throw new Error(editData?.description || 'Gagal edit pesan');
         }
       } catch (editErr) {
-        console.warn('Failed to edit message:', editErr);
-        // Still send result as separate message
-        await sendTelegramMessage(botToken, targetChatId, escapeMarkdown(resultText));
+        console.warn('Failed to edit original message (non-critical):', editErr);
       }
-    } else {
-      await sendTelegramMessage(botToken, targetChatId, escapeMarkdown(resultText));
     }
 
     // Cross-notify WhatsApp
     await notifyWhatsAppAdmins(supabase, `${action === 'approve' ? 'YA' : 'TIDAK'} ${orderId} (via tombol)`);
   } catch (e) {
     console.error('processCallbackQuery error:', e);
-    await sendTelegramMessage(botToken, chatId, `⚠️ Error callback: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+    try {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Error callback: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+    } catch (sendErr) {
+      console.error('Failed to send error message:', sendErr);
+    }
   }
 }
 
