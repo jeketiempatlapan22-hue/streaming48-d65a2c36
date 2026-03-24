@@ -41,6 +41,36 @@ export type Database = {
         }
         Relationships: []
       }
+      auth_metrics: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          event_type: string
+          id: string
+          source: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          source?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          source?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           created_at: string
@@ -718,6 +748,51 @@ export type Database = {
           },
         ]
       }
+      suspicious_activity_log: {
+        Row: {
+          activity_type: string
+          created_at: string
+          description: string
+          id: string
+          ip_hint: string | null
+          metadata: Json | null
+          resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          description?: string
+          id?: string
+          ip_hint?: string | null
+          metadata?: Json | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          description?: string
+          id?: string
+          ip_hint?: string | null
+          metadata?: Json | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       telegram_bot_state: {
         Row: {
           id: number
@@ -848,6 +923,39 @@ export type Database = {
           },
         ]
       }
+      user_bans: {
+        Row: {
+          banned_by: string
+          created_at: string
+          evidence: Json | null
+          id: string
+          is_active: boolean
+          reason: string
+          unbanned_at: string | null
+          user_id: string
+        }
+        Insert: {
+          banned_by?: string
+          created_at?: string
+          evidence?: Json | null
+          id?: string
+          is_active?: boolean
+          reason?: string
+          unbanned_at?: string | null
+          user_id: string
+        }
+        Update: {
+          banned_by?: string
+          created_at?: string
+          evidence?: Json | null
+          id?: string
+          is_active?: boolean
+          reason?: string
+          unbanned_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -886,6 +994,7 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string; _user_agent: string }
         Returns: Json
       }
+      get_ban_info: { Args: { _user_id: string }; Returns: Json }
       get_my_password_reset_status: { Args: never; Returns: Json }
       get_or_create_referral_code: { Args: never; Returns: Json }
       get_order_count: { Args: { _show_id: string }; Returns: number }
@@ -942,6 +1051,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       parse_show_datetime: {
         Args: { _date: string; _time: string }
         Returns: string

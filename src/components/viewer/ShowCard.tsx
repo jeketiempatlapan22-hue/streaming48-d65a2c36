@@ -96,17 +96,7 @@ const ShowCard = ({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
 
-        {/* Category badge */}
-        {show.category && show.category !== "regular" && (() => {
-          const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
-          const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show")
-            ? ` — ${show.category_member}` : "";
-          return (
-            <span className={`absolute top-3 left-3 rounded-full px-3 py-1 text-[10px] font-bold backdrop-blur-sm ${cat.color}`}>
-              {cat.label}{memberText}
-            </span>
-          );
-        })()}
+        {/* Category badge removed from image overlay - now in content section */}
 
         {/* Countdown badge - hide for replay shows */}
         {showCountdown && countdown && !show.is_replay && (
@@ -125,6 +115,19 @@ const ShowCard = ({
 
       {/* Content */}
       <div className="space-y-3 p-4">
+        {/* Category info - prominent display */}
+        {show.category && show.category !== "regular" && (() => {
+          const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
+          const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show")
+            ? show.category_member : "";
+          return (
+            <div className={`rounded-xl border px-3 py-2.5 ${cat.color} border-current/20`}>
+              <p className="text-sm font-bold">{cat.label}</p>
+              {memberText && <p className="text-xs opacity-80 mt-0.5">{memberText}</p>}
+            </div>
+          );
+        })()}
+
         {isReplayMode && show.replay_coin_price > 0 ? (
           <div className="flex items-center gap-1.5 text-sm text-accent">
             <Film className="h-4 w-4" />
