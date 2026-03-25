@@ -230,7 +230,7 @@ const SubscriptionOrderManager = () => {
                       <Input
                         value={editPhones[order.id]}
                         onChange={(e) => setEditPhones((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                        placeholder="08xxxxxxxxxx"
+                        placeholder="+628xx / +60xx"
                         className="h-7 text-xs w-48"
                       />
                       <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingPhone === order.id}
