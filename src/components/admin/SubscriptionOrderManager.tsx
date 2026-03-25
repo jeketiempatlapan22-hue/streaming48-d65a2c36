@@ -76,6 +76,17 @@ const SubscriptionOrderManager = () => {
     }
   };
 
+  const savePhone = async (id: string) => {
+    const newPhone = editPhones[id]?.trim();
+    if (!newPhone) return;
+    setSavingPhone(id);
+    await (supabase as any).from("subscription_orders").update({ phone: newPhone }).eq("id", id);
+    await fetchOrders();
+    setSavingPhone(null);
+    setEditPhones((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    toast({ title: "Nomor HP berhasil diperbarui" });
+  };
+
   const saveEmail = async (id: string) => {
     const newEmail = editEmails[id]?.trim();
     if (!newEmail) return;
