@@ -41,6 +41,17 @@ const MembershipPage = () => {
   const [resultGroupLink, setResultGroupLink] = useState("");
   const [coinOnly, setCoinOnly] = useState(false);
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
+  const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
+
+  const fetchMyOrders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const { data } = await supabase
+      .from("subscription_orders")
+      .select("show_id")
+      .eq("user_id", session.user.id);
+    if (data) setMyOrderedShows(new Set(data.map((o: any) => o.show_id)));
+  };
 
   const fetchData = async () => {
     const { data: allShows } = await supabase.rpc("get_public_shows");
@@ -66,6 +77,7 @@ const MembershipPage = () => {
   useEffect(() => {
     fetchData();
     fetchBalance();
+    fetchMyOrders();
     supabase.from("site_settings").select("value").eq("key", "membership_coin_only").maybeSingle()
       .then(({ data }) => { if (data?.value === "true") setCoinOnly(true); });
 
@@ -145,6 +157,7 @@ const MembershipPage = () => {
     setResultGroupLink(selectedShow.group_link || "");
     setPurchaseStep("done");
     setSubmitting(false);
+    fetchMyOrders();
 
     if (orderData?.id) {
       supabase.functions.invoke("notify-subscription-order", {
@@ -166,6 +179,7 @@ const MembershipPage = () => {
     setResultGroupLink((data as any).group_link || selectedShow.group_link || "");
     setCoinBalance((data as any).remaining_balance || 0);
     setPurchaseStep("done");
+    fetchMyOrders();
   };
 
   return (
@@ -187,12 +201,13 @@ const MembershipPage = () => {
             const confirmed = subscriberCounts[show.id] || 0;
             const spotsLeft = show.max_subscribers > 0 ? show.max_subscribers - confirmed : null;
             const isFull = (spotsLeft !== null && spotsLeft <= 0) || show.is_order_closed;
+            const alreadyOrdered = myOrderedShows.has(show.id);
             return (
               <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15 }}
-                className={`group relative overflow-hidden rounded-2xl border-2 transition-all ${isFull ? "border-muted bg-muted/30 opacity-75" : "border-yellow-500/50 bg-gradient-to-b from-yellow-500/5 to-card hover:border-yellow-500 hover:shadow-2xl hover:shadow-yellow-500/10"}`}>
-                <div className={`absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${isFull ? "bg-destructive text-destructive-foreground" : "bg-yellow-500 text-background"}`}>
+                className={`group relative overflow-hidden rounded-2xl border-2 transition-all ${alreadyOrdered ? "border-[hsl(var(--success))]/50 bg-gradient-to-b from-[hsl(var(--success))]/5 to-card" : isFull ? "border-muted bg-muted/30 opacity-75" : "border-yellow-500/50 bg-gradient-to-b from-yellow-500/5 to-card hover:border-yellow-500 hover:shadow-2xl hover:shadow-yellow-500/10"}`}>
+                <div className={`absolute right-3 top-3 z-10 flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${alreadyOrdered ? "bg-[hsl(var(--success))] text-primary-foreground" : isFull ? "bg-destructive text-destructive-foreground" : "bg-yellow-500 text-background"}`}>
                   <Sparkles className="h-3 w-3" />
-                  {show.is_order_closed ? "PENDAFTARAN DITUTUP" : isFull ? "MEMBERSHIP PENUH" : "MEMBERSHIP"}
+                  {alreadyOrdered ? "TERDAFTAR" : show.is_order_closed ? "PENDAFTARAN DITUTUP" : isFull ? "MEMBERSHIP PENUH" : "MEMBERSHIP"}
                 </div>
                 <div className="relative h-48 overflow-hidden">
                   {show.background_image_url ? (
@@ -204,36 +219,53 @@ const MembershipPage = () => {
                   <div className="absolute bottom-3 left-4 right-4"><h3 className="text-xl font-bold text-foreground">{show.title}</h3></div>
                 </div>
                 <div className="space-y-3 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="rounded-full bg-yellow-500/15 px-3 py-1 text-sm font-bold text-yellow-500">{show.price}</span>
-                    {spotsLeft !== null && <span className="text-xs text-muted-foreground">{confirmed}/{show.max_subscribers} terdaftar</span>}
-                  </div>
-                  {show.coin_price > 0 && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-                      <Coins className="h-3.5 w-3.5" /> {coinOnly ? `${show.coin_price} Koin` : `atau ${show.coin_price} Koin`}
+                  {alreadyOrdered ? (
+                    <div className="space-y-3 text-center py-2">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--success))]/15">
+                        <CheckCircle className="h-8 w-8 text-[hsl(var(--success))]" />
+                      </div>
+                      <h4 className="text-base font-bold text-foreground">Kamu Telah Berhasil Membeli Membership! 🎉</h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Tunggu konfirmasi admin untuk link grup dan informasi lebih lanjutnya.
+                      </p>
+                      <div className="rounded-xl border border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5 px-4 py-3">
+                        <p className="text-xs font-medium text-[hsl(var(--success))]">⏳ Menunggu konfirmasi admin...</p>
+                      </div>
                     </div>
-                  )}
-                  {show.max_subscribers > 0 && (
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                      <div className={`h-full rounded-full transition-all duration-500 ${isFull ? "bg-destructive" : "bg-yellow-500"}`} style={{ width: `${Math.min((confirmed / show.max_subscribers) * 100, 100)}%` }} />
-                    </div>
-                  )}
-                  {show.subscription_benefits && (
-                    <div className="space-y-1.5">
-                      {show.subscription_benefits.split("\n").filter(Boolean).map((b, idx) => (
-                        <div key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
-                          <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-500" /><span>{b}</span>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="rounded-full bg-yellow-500/15 px-3 py-1 text-sm font-bold text-yellow-500">{show.price}</span>
+                        {spotsLeft !== null && <span className="text-xs text-muted-foreground">{confirmed}/{show.max_subscribers} terdaftar</span>}
+                      </div>
+                      {show.coin_price > 0 && (
+                        <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
+                          <Coins className="h-3.5 w-3.5" /> {coinOnly ? `${show.coin_price} Koin` : `atau ${show.coin_price} Koin`}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                      {show.max_subscribers > 0 && (
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                          <div className={`h-full rounded-full transition-all duration-500 ${isFull ? "bg-destructive" : "bg-yellow-500"}`} style={{ width: `${Math.min((confirmed / show.max_subscribers) * 100, 100)}%` }} />
+                        </div>
+                      )}
+                      {show.subscription_benefits && (
+                        <div className="space-y-1.5">
+                          {show.subscription_benefits.split("\n").filter(Boolean).map((b, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-sm text-muted-foreground">
+                              <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-yellow-500" /><span>{b}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {show.schedule_date && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Calendar className="h-4 w-4 text-yellow-500" />{show.schedule_date}</div>}
+                      {show.lineup && <div className="flex items-start gap-2 text-sm text-muted-foreground"><Users className="mt-0.5 h-4 w-4 text-yellow-500" /><span className="line-clamp-2">{show.lineup}</span></div>}
+                      <button onClick={() => handleBuy(show)} disabled={isFull}
+                        className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-background hover:shadow-lg hover:shadow-yellow-500/25"}`}>
+                        <Star className="h-4 w-4" />
+                        {show.is_order_closed ? "🔒 Pendaftaran Ditutup" : isFull ? "🔒 Membership Penuh" : "Berlangganan"}
+                      </button>
+                    </>
                   )}
-                  {show.schedule_date && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Calendar className="h-4 w-4 text-yellow-500" />{show.schedule_date}</div>}
-                  {show.lineup && <div className="flex items-start gap-2 text-sm text-muted-foreground"><Users className="mt-0.5 h-4 w-4 text-yellow-500" /><span className="line-clamp-2">{show.lineup}</span></div>}
-                  <button onClick={() => handleBuy(show)} disabled={isFull}
-                    className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-background hover:shadow-lg hover:shadow-yellow-500/25"}`}>
-                    <Star className="h-4 w-4" />
-                    {show.is_order_closed ? "🔒 Pendaftaran Ditutup" : isFull ? "🔒 Membership Penuh" : "Berlangganan"}
-                  </button>
                 </div>
               </motion.div>
             );
