@@ -70,6 +70,17 @@ const SubscriptionOrderManager = () => {
     }
   };
 
+  const saveEmail = async (id: string) => {
+    const newEmail = editEmails[id]?.trim();
+    if (!newEmail) return;
+    setSavingEmail(id);
+    await (supabase as any).from("subscription_orders").update({ email: newEmail }).eq("id", id);
+    await fetchOrders();
+    setSavingEmail(null);
+    setEditEmails((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    toast({ title: "Email berhasil diperbarui" });
+  };
+
   const copyBulkData = (field: "phone" | "email") => {
     const targetOrders = filter === "all" ? orders : orders.filter((o) => o.status === filter);
     const data = targetOrders.map((o) => field === "phone" ? o.phone : o.email).filter(Boolean).join("\n");
