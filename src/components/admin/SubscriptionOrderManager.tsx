@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save, Search, UserPlus, Phone } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Order {
@@ -29,6 +29,10 @@ const SubscriptionOrderManager = () => {
   const [bulkMessage, setBulkMessage] = useState("");
   const [showBulk, setShowBulk] = useState(false);
   const [copiedField, setCopiedField] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newOrder, setNewOrder] = useState({ show_id: "", phone: "", email: "" });
+  const [addingOrder, setAddingOrder] = useState(false);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -90,18 +94,67 @@ const SubscriptionOrderManager = () => {
     toast({ title: `${targetOrders.length} ${field === "phone" ? "nomor HP" : "email"} disalin` });
   };
 
-  const filtered = filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  const addManualOrder = async () => {
+    if (!newOrder.show_id || !newOrder.phone.trim()) {
+      toast({ title: "Show dan nomor HP wajib diisi", variant: "destructive" });
+      return;
+    }
+    setAddingOrder(true);
+    const { error } = await (supabase as any).from("subscription_orders").insert({
+      show_id: newOrder.show_id,
+      phone: newOrder.phone.trim(),
+      email: newOrder.email.trim() || null,
+      payment_method: "manual",
+      status: "confirmed",
+    });
+    if (error) {
+      toast({ title: "Gagal menambahkan order", variant: "destructive" });
+    } else {
+      toast({ title: "Order manual berhasil ditambahkan" });
+      setNewOrder({ show_id: "", phone: "", email: "" });
+      setShowAddDialog(false);
+      await fetchOrders();
+    }
+    setAddingOrder(false);
+  };
+
+  // Apply search + status filter
+  const statusFiltered = filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  const filtered = searchQuery.trim()
+    ? statusFiltered.filter((o) => {
+        const q = searchQuery.toLowerCase();
+        return (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
+      })
+    : statusFiltered;
+
   const confirmedCount = orders.filter((o) => o.status === "confirmed").length;
+  const subscriptionShows = Object.entries(shows);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-foreground">📋 Order Langganan</h2>
-        {confirmedCount > 0 && (
-          <Button size="sm" variant="outline" onClick={() => setShowBulk(true)} className="gap-1.5">
-            <SendHorizonal className="h-3.5 w-3.5" /> Kirim Massal ({confirmedCount})
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
+            <UserPlus className="h-3.5 w-3.5" /> Tambah Manual
           </Button>
-        )}
+          {confirmedCount > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setShowBulk(true)} className="gap-1.5">
+              <SendHorizonal className="h-3.5 w-3.5" /> Kirim Massal ({confirmedCount})
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Cari email, nomor HP, atau nama show..."
+          className="pl-9"
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -146,6 +199,11 @@ const SubscriptionOrderManager = () => {
                       <Coins className="h-2.5 w-2.5" /> KOIN
                     </span>
                   )}
+                  {order.payment_method === "manual" && (
+                    <span className="flex items-center gap-1 rounded-sm bg-accent/60 px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">
+                      <UserPlus className="h-2.5 w-2.5" /> MANUAL
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">📞 {order.phone}</p>
                 <div className="flex items-center gap-1.5">
@@ -179,7 +237,7 @@ const SubscriptionOrderManager = () => {
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-1">
-                  {order.payment_method !== "coin" && order.payment_proof_url && (
+                  {order.payment_method !== "coin" && order.payment_method !== "manual" && order.payment_proof_url && (
                     <button onClick={() => setPreviewImage(order.payment_proof_url)}
                       className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80">
                       <Image className="h-3 w-3" /> Lihat Bukti
@@ -214,9 +272,10 @@ const SubscriptionOrderManager = () => {
             </div>
           </div>
         ))}
-        {filtered.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Tidak ada order</p>}
+        {filtered.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{searchQuery ? "Tidak ditemukan hasil pencarian" : "Tidak ada order"}</p>}
       </div>
 
+      {/* Preview bukti */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Bukti Pembayaran</DialogTitle><DialogDescription>Preview bukti transfer</DialogDescription></DialogHeader>
@@ -224,6 +283,7 @@ const SubscriptionOrderManager = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Kirim massal */}
       <Dialog open={showBulk} onOpenChange={setShowBulk}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Kirim Pesan Massal</DialogTitle><DialogDescription>Pesan akan dikirim ke {confirmedCount} user yang telah dikonfirmasi via WhatsApp.</DialogDescription></DialogHeader>
@@ -231,6 +291,54 @@ const SubscriptionOrderManager = () => {
             <Textarea value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)} placeholder="Tulis pesan..." className="bg-background" rows={4} />
             <Button onClick={() => { const confirmed = orders.filter(o => o.status === "confirmed"); confirmed.forEach(o => { if (bulkMessage.trim()) sendWhatsApp(o.phone, bulkMessage); }); toast({ title: `Mengirim ke ${confirmed.length} user` }); setShowBulk(false); }} disabled={!bulkMessage.trim()} className="w-full gap-2">
               <SendHorizonal className="h-4 w-4" /> Kirim ke Semua ({confirmedCount})
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tambah manual */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tambah Member Manual</DialogTitle>
+            <DialogDescription>Tambahkan user baru ke daftar membership secara manual (langsung dikonfirmasi).</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Show / Membership *</label>
+              <select
+                value={newOrder.show_id}
+                onChange={(e) => setNewOrder((p) => ({ ...p, show_id: e.target.value }))}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              >
+                <option value="">Pilih show...</option>
+                {subscriptionShows.map(([id, s]) => (
+                  <option key={id} value={id}>{s.title}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">
+                <Phone className="inline h-3 w-3 mr-1" />Nomor WhatsApp *
+              </label>
+              <Input
+                value={newOrder.phone}
+                onChange={(e) => setNewOrder((p) => ({ ...p, phone: e.target.value }))}
+                placeholder="08xxxxxxxxxx"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">
+                <Mail className="inline h-3 w-3 mr-1" />Email (opsional)
+              </label>
+              <Input
+                value={newOrder.email}
+                onChange={(e) => setNewOrder((p) => ({ ...p, email: e.target.value }))}
+                placeholder="user@email.com"
+              />
+            </div>
+            <Button onClick={addManualOrder} disabled={addingOrder || !newOrder.show_id || !newOrder.phone.trim()} className="w-full gap-2">
+              <UserPlus className="h-4 w-4" /> {addingOrder ? "Menyimpan..." : "Tambah Member"}
             </Button>
           </div>
         </DialogContent>
