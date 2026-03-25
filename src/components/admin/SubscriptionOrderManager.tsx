@@ -175,6 +175,7 @@ const SubscriptionOrderManager = () => {
                     </button>
                   )}
                 </div>
+                <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-1">
