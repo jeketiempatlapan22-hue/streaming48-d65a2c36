@@ -41,6 +41,17 @@ const MembershipPage = () => {
   const [resultGroupLink, setResultGroupLink] = useState("");
   const [coinOnly, setCoinOnly] = useState(false);
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
+  const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
+
+  const fetchMyOrders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return;
+    const { data } = await supabase
+      .from("subscription_orders")
+      .select("show_id")
+      .eq("user_id", session.user.id);
+    if (data) setMyOrderedShows(new Set(data.map((o: any) => o.show_id)));
+  };
 
   const fetchData = async () => {
     const { data: allShows } = await supabase.rpc("get_public_shows");
