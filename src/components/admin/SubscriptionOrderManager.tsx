@@ -63,10 +63,15 @@ const SubscriptionOrderManager = () => {
   const sendWhatsApp = async (phone: string, message: string) => {
     let cleanPhone = phone.replace(/[^0-9+]/g, "");
     if (cleanPhone.startsWith("+")) {
+      // Keep international format as-is (without +), Fonnte accepts country code directly
       cleanPhone = cleanPhone.substring(1);
     } else if (cleanPhone.startsWith("0")) {
+      // Indonesian local number → convert to international
       cleanPhone = "62" + cleanPhone.substring(1);
     }
+    // For non-Indonesian international numbers, prefix with + so Fonnte doesn't auto-add 62
+    const isIndonesian = cleanPhone.startsWith("62");
+    const target = isIndonesian ? cleanPhone : "+" + cleanPhone;
     try {
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
         body: { target: cleanPhone, message },
