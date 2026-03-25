@@ -74,7 +74,7 @@ const SubscriptionOrderManager = () => {
     const target = isIndonesian ? cleanPhone : "+" + cleanPhone;
     try {
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-        body: { target: cleanPhone, message },
+        body: { target, message },
       });
       if (error || !data?.success) {
         toast({ title: "Gagal mengirim WA", variant: "destructive" });
