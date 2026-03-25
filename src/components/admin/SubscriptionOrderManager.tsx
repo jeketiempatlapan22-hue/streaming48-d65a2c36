@@ -24,7 +24,9 @@ const SubscriptionOrderManager = () => {
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("pending");
   const [waMessages, setWaMessages] = useState<Record<string, string>>({});
   const [editEmails, setEditEmails] = useState<Record<string, string>>({});
+  const [editPhones, setEditPhones] = useState<Record<string, string>>({});
   const [savingEmail, setSavingEmail] = useState<string | null>(null);
+  const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [showBulk, setShowBulk] = useState(false);
