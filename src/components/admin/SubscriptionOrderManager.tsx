@@ -61,7 +61,12 @@ const SubscriptionOrderManager = () => {
   };
 
   const sendWhatsApp = async (phone: string, message: string) => {
-    const cleanPhone = phone.replace(/^0/, "62").replace(/[^0-9]/g, "");
+    let cleanPhone = phone.replace(/[^0-9+]/g, "");
+    if (cleanPhone.startsWith("+")) {
+      cleanPhone = cleanPhone.substring(1);
+    } else if (cleanPhone.startsWith("0")) {
+      cleanPhone = "62" + cleanPhone.substring(1);
+    }
     try {
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
         body: { target: cleanPhone, message },
