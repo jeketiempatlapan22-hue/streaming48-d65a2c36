@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Order {
@@ -22,6 +23,8 @@ const SubscriptionOrderManager = () => {
   const [shows, setShows] = useState<Record<string, { title: string; group_link: string }>>({});
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("pending");
   const [waMessages, setWaMessages] = useState<Record<string, string>>({});
+  const [editEmails, setEditEmails] = useState<Record<string, string>>({});
+  const [savingEmail, setSavingEmail] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [showBulk, setShowBulk] = useState(false);
@@ -65,6 +68,17 @@ const SubscriptionOrderManager = () => {
     } catch {
       toast({ title: "Gagal mengirim WA", variant: "destructive" });
     }
+  };
+
+  const saveEmail = async (id: string) => {
+    const newEmail = editEmails[id]?.trim();
+    if (!newEmail) return;
+    setSavingEmail(id);
+    await (supabase as any).from("subscription_orders").update({ email: newEmail }).eq("id", id);
+    await fetchOrders();
+    setSavingEmail(null);
+    setEditEmails((prev) => { const n = { ...prev }; delete n[id]; return n; });
+    toast({ title: "Email berhasil diperbarui" });
   };
 
   const copyBulkData = (field: "phone" | "email") => {
@@ -133,7 +147,34 @@ const SubscriptionOrderManager = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">📞 {order.phone} · 📧 {order.email}</p>
+                <p className="text-xs text-muted-foreground">📞 {order.phone}</p>
+                <div className="flex items-center gap-1.5">
+                  <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                  {editEmails[order.id] !== undefined ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={editEmails[order.id]}
+                        onChange={(e) => setEditEmails((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                        placeholder="Ketik email user..."
+                        className="h-7 text-xs w-48"
+                      />
+                      <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingEmail === order.id}
+                        onClick={() => saveEmail(order.id)}>
+                        <Save className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                        onClick={() => setEditEmails((prev) => { const n = { ...prev }; delete n[order.id]; return n; })}>
+                        Batal
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEditEmails((prev) => ({ ...prev, [order.id]: order.email || "" }))}
+                      className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
+                      {order.email || <span className="italic text-muted-foreground/60">Belum ada email — klik untuk isi</span>}
+                    </button>
+                  )}
+                </div>
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
               </div>
               <div className="flex flex-col items-end gap-2">
