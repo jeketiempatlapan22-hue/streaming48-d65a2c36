@@ -1,0 +1,1 @@
+UPDATE playlists SET url = 'rEKifG2XUZg', title = 'Tom and jerry' WHERE id = 'd71c929f-a840-490b-a49c-0cde7357c7c7';
