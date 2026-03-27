@@ -249,9 +249,12 @@ const LivePage = () => {
           const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
           const activeShow = allShows?.find((s: any) => s.id === activeShowId);
           setShowMismatch(true);
-          setMismatchShowTitle(
-            `Token kamu untuk show "${tokenShow?.title || "lain"}", sedangkan yang sedang live adalah "${activeShow?.title || "show lain"}".`
-          );
+          setMismatchShowTitle(JSON.stringify({
+            tokenShowTitle: tokenShow?.title || "Show Lain",
+            tokenShowDate: tokenShow?.schedule_date || "",
+            tokenShowTime: tokenShow?.schedule_time || "",
+            activeShowTitle: activeShow?.title || "Show Lain",
+          }));
         }
       } catch {
         setError("Server sedang sibuk, coba muat ulang halaman.");
