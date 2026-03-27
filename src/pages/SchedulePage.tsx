@@ -123,15 +123,21 @@ const SchedulePage = () => {
       const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
       signedUrl = urlData?.signedUrl || "";
     }
-    const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null,
-    }).select("id").single();
-    setPurchaseStep("done");
-    if (orderData?.id) {
-      supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show" },
-      }).catch(() => {});
+    let orderId: string | null = null;
+    try {
+      const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
+        show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null,
+      }).select("id").single();
+      if (insertErr) console.warn("Order insert error:", insertErr.message);
+      orderId = orderData?.id || null;
+    } catch (e) {
+      console.warn("Order insert exception:", e);
     }
+    setPurchaseStep("done");
+    // Always send notification regardless of insert success
+    supabase.functions.invoke("notify-subscription-order", {
+      body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email: email || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show" },
+    }).catch((e) => console.warn("Notify error:", e));
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
