@@ -592,7 +592,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             className={`h-full w-full border-0 ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            referrerPolicy="no-referrer"
           />
         </>
       )}
