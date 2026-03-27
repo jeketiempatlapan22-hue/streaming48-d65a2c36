@@ -127,11 +127,18 @@ const SchedulePage = () => {
     try {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess?.session?.user?.id || null;
-      const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
-        show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null, user_id: uid,
-      }).select("id").single();
-      if (insertErr) console.warn("Order insert error:", insertErr.message);
-      orderId = orderData?.id || null;
+      if (uid) {
+        const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
+          show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null, user_id: uid,
+        }).select("id").single();
+        if (insertErr) console.warn("Order insert error:", insertErr.message);
+        orderId = orderData?.id || null;
+      } else {
+        const { error: insertErr } = await supabase.from("subscription_orders").insert({
+          show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null, user_id: null,
+        });
+        if (insertErr) console.warn("Order insert error:", insertErr.message);
+      }
     } catch (e) {
       console.warn("Order insert exception:", e);
     }
