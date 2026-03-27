@@ -363,7 +363,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 const iframe = container.querySelector("iframe");
                 if (iframe) {
                   iframe.removeAttribute("title");
-                  iframe.setAttribute("referrerpolicy", "no-referrer");
                 }
               } catch {}
 
