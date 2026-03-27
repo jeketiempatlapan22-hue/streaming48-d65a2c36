@@ -602,7 +602,7 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
 
       // Send WhatsApp notification to user
       if (order.phone) {
-        const siteUrl = 'https://streaming48.lovable.app';
+        const siteUrl = 'https://realtime48show.my.id';
         if (result.type === 'regular' && result.token_code) {
           // Regular show: send live link + token + replay info
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
@@ -931,7 +931,7 @@ async function handlePasswordResetCommand(supabase: any, botToken: string, chatI
       await supabase.from('password_reset_requests').update({ status: 'approved', processed_at: new Date().toISOString() }).eq('id', request.id);
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && request.phone) {
-        const resetLink = `https://streaming48.lovable.app/reset-password?token=${request.secure_token || request.short_id}`;
+        const resetLink = `https://realtime48show.my.id/reset-password?token=${request.secure_token || request.short_id}`;
         await sendFonnteWhatsApp(request.phone, `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 2 jam.`);
       }
       await sendTelegramMessage(botToken, chatId, `✅ Reset password ${escapeMarkdown(shortId)} disetujui\\! Link dikirim ke user\\.`);
@@ -1806,7 +1806,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       `📱 Max Device: *${maxDevices}*\n` +
       `⏰ Kedaluwarsa: ${escapedExpDate}\n` +
       `🔢 4 Digit: \`${last4}\`\n\n` +
-      `💡 Link: streaming48\\.lovable\\.app/live?t\\=${escapedCode}`
+      `💡 Link: realtime48show\\.my\\.id/live?t\\=${escapedCode}`
     );
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
@@ -1875,7 +1875,7 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
       `🔑 Kode: \`${escapedCode}\`\n` +
       `📱 Max Device: *${maxDevices}*\n` +
       `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n` +
-      `💡 Link: streaming48\\.lovable\\.app/live?t\\=${escapedCode}`
+      `💡 Link: realtime48show\\.my\\.id/live?t\\=${escapedCode}`
     );
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);

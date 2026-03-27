@@ -580,7 +580,7 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
       // Send WhatsApp notification to user
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && order.phone) {
-        const siteUrl = 'https://streaming48.lovable.app';
+        const siteUrl = 'https://realtime48show.my.id';
         if (result.type === 'regular' && result.token_code) {
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
           let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
@@ -632,7 +632,7 @@ async function handlePasswordReset(supabase: any, shortId: string, action: 'appr
       // Send reset link via WhatsApp if phone exists
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && request.phone) {
-        const resetLink = `https://streaming48.lovable.app/reset-password?token=${request.secure_token || request.short_id}`;
+        const resetLink = `https://realtime48show.my.id/reset-password?token=${request.secure_token || request.short_id}`;
         const waMsg = `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 2 jam.`;
         await sendFonnteMessage(FONNTE_TOKEN, request.phone, waMsg);
       }
@@ -1251,7 +1251,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     const last4 = code.slice(-4);
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-    return `✅ *Token Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n🔢 4 Digit: ${last4}\n\n💡 Link: streaming48.lovable.app/live?t=${code}`;
+    return `✅ *Token Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n🔢 4 Digit: ${last4}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
@@ -1314,7 +1314,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: streaming48.lovable.app/live?t=${code}`;
+    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }

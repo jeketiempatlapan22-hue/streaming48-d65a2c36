@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { withTimeout } from "@/lib/queryCache";
-import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy } from "lucide-react";
+import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
@@ -191,6 +191,20 @@ const ViewerProfile = () => {
         <Suspense fallback={null}>
           <ReferralSection />
         </Suspense>
+
+        {/* Logout */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <Button
+            variant="destructive"
+            className="w-full gap-2"
+            onClick={async () => {
+              await authSignOut();
+              navigate("/");
+            }}
+          >
+            <LogOut className="h-4 w-4" /> Keluar dari Akun
+          </Button>
+        </motion.div>
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 // Used by edge functions for consistent protection
 
 export const ALLOWED_ORIGINS = [
+  'https://realtime48show.my.id',
+  'https://www.realtime48show.my.id',
   'https://streaming48.lovable.app',
   'https://id-preview--4387c5bf-8d85-41f4-b11e-91993da6d859.lovable.app',
   'http://localhost:5173',
