@@ -904,9 +904,8 @@ const Index = () => {
                   className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
                   onClick={() => {
                     const input = document.createElement("input");
-                    input.type = "file";
-                    input.accept = "image/*,.heic,.heif";
-                    input.capture = "environment";
+                     input.type = "file";
+                     input.accept = "image/*,.heic,.heif";
                     input.onchange = (e) => handleUploadProof(e as any);
                     input.click();
                   }}
