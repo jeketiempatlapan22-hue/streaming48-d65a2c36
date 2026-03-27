@@ -10,6 +10,7 @@ import { Coins, Mail, Lock, ArrowLeft, Phone, User, Gift, Eye, EyeOff } from "lu
 import { checkClientRateLimit, getRateLimitRemaining } from "@/lib/rateLimiter";
 import { recordAuthMetric } from "@/lib/authMetrics";
 import { trackFailedLogin } from "@/lib/suspiciousDetector";
+import { Turnstile } from "@marsidev/react-turnstile";
 
 type AuthMethod = "phone" | "email";
 const TRANSIENT_AUTH_ERROR = /timeout|timed out|deadline|504|500|failed to fetch|networkerror|network request failed|load failed|connection/i;
