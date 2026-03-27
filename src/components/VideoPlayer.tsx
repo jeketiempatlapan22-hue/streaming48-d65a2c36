@@ -39,6 +39,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const hlsInitRef = useRef(false);
+  const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Stable references to avoid re-triggering effects on every render
   const playlistUrl = playlist.url;
@@ -51,14 +52,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   useImperativeHandle(ref, () => ({
     play: () => {
-      if (playlist.type === "youtube" && isYTReady()) {
+      if (playlistType === "youtube" && isYTReady()) {
         const player = ytPlayerRef.current;
         try {
           const duration = player.getDuration?.();
           if (duration && duration > 0) player.seekTo(duration, true);
         } catch {}
         player.playVideo();
-      } else if (playlist.type === "m3u8" && hlsRef.current && videoRef.current) {
+      } else if (playlistType === "m3u8" && hlsRef.current && videoRef.current) {
         if (hlsRef.current.liveSyncPosition) {
           videoRef.current.currentTime = hlsRef.current.liveSyncPosition;
         }
@@ -70,7 +71,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       }
     },
     pause: () => {
-      if (playlist.type === "youtube" && isYTReady()) {
+      if (playlistType === "youtube" && isYTReady()) {
         ytPlayerRef.current.pauseVideo();
       } else if (videoRef.current) {
         videoRef.current.pause();
@@ -78,19 +79,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       }
     },
     seekTo: (time: number) => {
-      if (playlist.type === "youtube" && isYTReady()) {
+      if (playlistType === "youtube" && isYTReady()) {
         ytPlayerRef.current.seekTo(time, true);
       } else if (videoRef.current) {
         videoRef.current.currentTime = time;
       }
     },
     getCurrentTime: () => {
-      if (playlist.type === "youtube" && isYTReady()) {
+      if (playlistType === "youtube" && isYTReady()) {
         try { return ytPlayerRef.current.getCurrentTime() || 0; } catch { return 0; }
       }
       return videoRef.current?.currentTime || 0;
     },
-  }), [playlist.type, isYTReady]);
+  }), [playlistType, isYTReady]);
 
   // Hide controls after 3s
   useEffect(() => {
@@ -111,7 +112,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // Cleanup HLS on playlist change
+  // Cleanup on playlist change
   useEffect(() => {
     hlsInitRef.current = false;
     setYtFallback(false);
@@ -139,9 +140,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return new TextDecoder().decode(result);
   }, []);
 
+  // Extract YouTube video ID from any format
+  const extractVideoId = useCallback((url: string): string => {
+    const decrypted = decryptUrl(url);
+    const match = decrypted.match(/(?:youtu\.be\/|v=|\/embed\/|\/v\/)([a-zA-Z0-9_-]{11})/);
+    if (match) return match[1];
+    // If it's already an 11-char ID
+    if (/^[a-zA-Z0-9_-]{11}$/.test(decrypted)) return decrypted;
+    return decrypted;
+  }, [decryptUrl]);
+
   // Init HLS for m3u8
   useEffect(() => {
-    if (playlist.type !== "m3u8" || !videoRef.current || hlsInitRef.current) return;
+    if (playlistType !== "m3u8" || !videoRef.current || hlsInitRef.current) return;
     hlsInitRef.current = true;
     let destroyed = false;
     let hls: any = null;
@@ -150,7 +161,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const initHls = async () => {
       const Hls = (await import("hls.js")).default;
       if (destroyed) return;
-      const decodedUrl = deobfuscate(obfuscate(playlist.url));
+      const decodedUrl = deobfuscate(obfuscate(playlistUrl));
       if (!Hls.isSupported()) {
         videoRef.current!.src = decodedUrl;
         setIsLoading(false);
@@ -183,7 +194,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(decodedUrl);
       hls.attachMedia(videoRef.current!);
 
-      // Hide URL from DOM inspection
       try {
         const videoEl = videoRef.current!;
         const origSrc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
@@ -239,12 +249,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       destroyed = true;
       if (hls) { hls.destroy(); hlsRef.current = null; }
     };
-  }, [playlist, autoPlay, obfuscate, deobfuscate]);
+  }, [playlistUrl, playlistType, autoPlay, obfuscate, deobfuscate]);
 
-  // Load YouTube IFrame API
+  // Load YouTube IFrame API with fallback to direct iframe
   useEffect(() => {
-    if (playlist.type !== "youtube") return;
+    if (playlistType !== "youtube") return;
     let destroyed = false;
+
+    const videoId = extractVideoId(playlistUrl);
+
+    // Fallback: if YT API doesn't fire onReady within 6 seconds, use direct iframe
+    ytFallbackTimerRef.current = setTimeout(() => {
+      if (destroyed || ytReadyRef.current) return;
+      console.warn("[VideoPlayer] YT IFrame API timeout, switching to direct iframe embed");
+      setYtFallback(true);
+      setIsLoading(false);
+      setIsPlaying(autoPlay);
+    }, 6000);
 
     const loadYTApi = () => {
       if ((window as any).YT && (window as any).YT.Player) {
@@ -254,29 +275,45 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
         const tag = document.createElement("script");
         tag.src = "https://www.youtube.com/iframe_api";
+        tag.onerror = () => {
+          if (!destroyed) {
+            console.warn("[VideoPlayer] YT API script failed to load, using direct iframe");
+            setYtFallback(true);
+            setIsLoading(false);
+          }
+        };
         document.head.appendChild(tag);
       }
+      // If API was already loaded by another instance but callback already fired
+      const checkInterval = setInterval(() => {
+        if (destroyed) { clearInterval(checkInterval); return; }
+        if ((window as any).YT && (window as any).YT.Player) {
+          clearInterval(checkInterval);
+          createYTPlayer();
+        }
+      }, 200);
+      // Also set the callback for fresh loads
       (window as any).onYouTubeIframeAPIReady = () => {
+        clearInterval(checkInterval);
         if (!destroyed) createYTPlayer();
       };
+      // Cleanup interval after 6s
+      setTimeout(() => clearInterval(checkInterval), 6500);
     };
 
     const createYTPlayer = () => {
-      if (destroyed) return;
+      if (destroyed || ytFallback) return;
       const container = ytContainerRef.current;
-      if (!container) return;
+      if (!container) {
+        console.warn("[VideoPlayer] ytContainerRef is null, falling back to iframe");
+        setYtFallback(true);
+        setIsLoading(false);
+        return;
+      }
       container.innerHTML = "";
       const playerDiv = document.createElement("div");
       playerDiv.id = `_p${Math.random().toString(36).slice(2, 10)}`;
       container.appendChild(playerDiv);
-
-      const _decrypted = decryptUrl(playlist.url);
-      const _raw = (() => {
-        const match = _decrypted.match(/(?:youtu\.be\/|v=|\/embed\/|\/v\/)([a-zA-Z0-9_-]{11})/);
-        return match ? match[1] : _decrypted;
-      })();
-      const _enc = obfuscate(_raw);
-      const videoId = deobfuscate(_enc);
 
       try {
         ytPlayerRef.current = new (window as any).YT.Player(playerDiv, {
@@ -302,8 +339,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (destroyed) return;
               ytReadyRef.current = true;
               setIsLoading(false);
+              clearTimeout(ytFallbackTimerRef.current);
 
-              // Force highest quality initially
               try {
                 const ytQuals = e.target.getAvailableQualityLevels?.() || [];
                 if (ytQuals.length > 0) {
@@ -311,7 +348,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 }
               } catch {}
 
-              // Fallback: release quality lock after 8s
               const releaseQuality = () => {
                 try {
                   if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackQuality === 'function') {
@@ -340,9 +376,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (destroyed) return;
               const state = e.data;
               setIsPlaying(state === 1);
-              setIsLoading(state === 3); // Only show loading on buffering
+              setIsLoading(state === 3);
 
-              // If buffering >4s, release quality lock
               if (state === 3) {
                 const bufferTimeout = setTimeout(() => {
                   if (destroyed) return;
@@ -362,12 +397,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (destroyed) return;
               console.warn("YT Player error code:", e.data);
               setIsLoading(false);
+              // On error, fall back to direct iframe
+              setYtFallback(true);
             },
           },
         });
       } catch (err) {
         console.warn("Failed to create YT player:", err);
         setIsLoading(false);
+        setYtFallback(true);
       }
     };
 
@@ -375,21 +413,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => {
       destroyed = true;
       ytReadyRef.current = false;
+      clearTimeout(ytFallbackTimerRef.current);
       try { if (ytPlayerRef.current?.destroy) ytPlayerRef.current.destroy(); } catch {}
       ytPlayerRef.current = null;
     };
-  }, [playlist, autoPlay, decryptUrl, obfuscate, deobfuscate]);
+  }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
   // Cloudflare loading
   useEffect(() => {
-    if (playlist.type === "cloudflare") {
+    if (playlistType === "cloudflare") {
       setIsLoading(false);
     }
-  }, [playlist]);
+  }, [playlistType]);
 
   const togglePlay = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (playlist.type === "youtube") {
+    if (playlistType === "youtube") {
+      if (ytFallback) {
+        // Can't control iframe directly
+        setIsPlaying(prev => !prev);
+        return;
+      }
       const player = ytPlayerRef.current;
       if (!player || !ytReadyRef.current) return;
       try {
@@ -406,12 +450,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           setIsPlaying(true);
         }
       } catch {}
-    } else if (playlist.type === "cloudflare") {
+    } else if (playlistType === "cloudflare") {
       setIsPlaying(prev => !prev);
     } else if (videoRef.current) {
       const video = videoRef.current;
       if (video.paused) {
-        if (playlist.type === "m3u8" && hlsRef.current?.liveSyncPosition) {
+        if (playlistType === "m3u8" && hlsRef.current?.liveSyncPosition) {
           video.currentTime = hlsRef.current.liveSyncPosition;
         }
         video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
@@ -420,7 +464,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setIsPlaying(false);
       }
     }
-  }, [playlist.type]);
+  }, [playlistType, ytFallback]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
@@ -445,7 +489,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   const handleQualityChange = useCallback((index: number, ytKey?: string) => {
-    if (playlist.type === "youtube" && isYTReady() && ytKey) {
+    if (playlistType === "youtube" && isYTReady() && ytKey) {
       try {
         ytPlayerRef.current.setPlaybackQuality(ytKey === "auto" ? "default" : ytKey);
         setCurrentQuality(index);
@@ -456,7 +500,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       setCurrentQuality(index);
     }
     setShowQualityMenu(false);
-  }, [playlist.type, isYTReady]);
+  }, [playlistType, isYTReady]);
 
   const toggleYtMute = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -479,9 +523,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
+  // Compute YouTube direct embed URL for fallback
+  const ytEmbedSrc = useMemo(() => {
+    if (playlistType !== "youtube") return "";
+    const videoId = extractVideoId(playlistUrl);
+    return `https://www.youtube.com/embed/${videoId}?autoplay=${autoPlay ? 1 : 0}&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
+  }, [playlistType, playlistUrl, autoPlay, extractVideoId]);
+
   const cloudflareSrc = useMemo(() => {
-    if (playlist.type !== "cloudflare") return "";
-    const url = playlist.url;
+    if (playlistType !== "cloudflare") return "";
+    const url = playlistUrl;
     let base = "";
     if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
       base = url;
@@ -491,17 +542,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } else {
       base = `https://iframe.videodelivery.net/${url}`;
     }
-    // Add autoplay params
     const sep = base.includes("?") ? "&" : "?";
     return `${base}${sep}autoplay=true&preload=auto`;
-  }, [playlist.type, playlist.url]);
+  }, [playlistType, playlistUrl]);
 
   return (
     <div
       ref={containerRef}
       className={`relative w-full bg-card overflow-hidden ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
     >
-      {/* Loading overlay - only shown when actually buffering */}
+      {/* Loading overlay */}
       {isLoading && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
           <div className="flex flex-col items-center gap-2">
@@ -521,13 +571,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
-      {playlist.type === "youtube" && (
+      {playlistType === "youtube" && !ytFallback && (
         <>
           <div
             ref={ytContainerRef}
             className={`w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full ${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0 [&_iframe]:!absolute [&_iframe]:!inset-0"}`}
           />
-          {/* Full overlay to block all YouTube UI navigation and links */}
           <div
             className="absolute inset-0 z-10 cursor-pointer"
             onClick={togglePlay}
@@ -536,7 +585,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </>
       )}
 
-      {playlist.type === "m3u8" && (
+      {/* YouTube fallback: direct iframe embed */}
+      {playlistType === "youtube" && ytFallback && (
+        <>
+          <iframe
+            src={ytEmbedSrc}
+            className={`h-full w-full border-0 ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="no-referrer"
+          />
+        </>
+      )}
+
+      {playlistType === "m3u8" && (
         <video
           ref={videoRef}
           onClick={togglePlay}
@@ -545,7 +607,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         />
       )}
 
-      {playlist.type === "cloudflare" && (
+      {playlistType === "cloudflare" && (
         <>
           <iframe
             src={cloudflareSrc}
@@ -591,7 +653,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </button>
 
         {/* YouTube volume toggle */}
-        {playlist.type === "youtube" && (
+        {playlistType === "youtube" && !ytFallback && (
           <button
             onClick={toggleYtMute}
             className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground backdrop-blur-sm transition hover:bg-secondary"
