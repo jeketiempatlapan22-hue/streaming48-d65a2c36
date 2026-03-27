@@ -51,6 +51,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [newOrder, setNewOrder] = useState({ show_id: "", phone: "", email: "" });
   const [addingOrder, setAddingOrder] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -205,6 +207,79 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     setAddingOrder(false);
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const pendingIds = filteredOrders.filter((o) => o.status === "pending").map((o) => o.id);
+    if (pendingIds.every((id) => selectedIds.has(id))) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pendingIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pendingIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const bulkUpdateStatus = async (status: "confirmed" | "rejected") => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkProcessing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+      try {
+        if (status === "confirmed") {
+          const { data, error } = await supabase.rpc("confirm_regular_order" as any, { _order_id: id });
+          const result = data as any;
+          if (error || !result?.success) { failCount++; continue; }
+
+          const order = orders.find((o) => o.id === id);
+          const showInfo = order ? shows[order.show_id] : null;
+          const siteUrl = window.location.origin;
+
+          if (result.token_code && order?.phone && showInfo) {
+            const liveLink = `${siteUrl}/live?t=${result.token_code}`;
+            let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
+            if (showInfo.access_password) {
+              message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+            }
+            message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+            sendWhatsApp(order.phone, message);
+          } else if (!result.token_code && order?.phone && showInfo) {
+            const message = `✅ *Membership Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n${showInfo.group_link ? `🔗 Link Grup: ${showInfo.group_link}\n` : ""}\nTerima kasih! 🎉`;
+            sendWhatsApp(order.phone, message);
+          }
+          successCount++;
+        } else {
+          await (supabase as any).from("subscription_orders").update({ status }).eq("id", id);
+          successCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    await fetchOrders();
+    toast({
+      title: `${status === "confirmed" ? "Dikonfirmasi" : "Ditolak"}: ${successCount} berhasil${failCount > 0 ? `, ${failCount} gagal` : ""}`,
+    });
+  };
+
   // Filter orders by mode (membership vs regular)
   const modeOrders = orders.filter((o) => {
     const showInfo = shows[o.show_id];
@@ -232,6 +307,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     : statusFiltered;
 
   const confirmedCount = showFiltered.filter((o) => o.status === "confirmed").length;
+  const pendingInView = filteredOrders.filter((o) => o.status === "pending");
+  const selectedPendingCount = pendingInView.filter((o) => selectedIds.has(o.id)).length;
 
   return (
     <div className="space-y-6">
@@ -296,6 +373,32 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         ))}
       </div>
 
+      {/* Bulk action bar */}
+      {pendingInView.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 flex-wrap">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={pendingInView.length > 0 && pendingInView.every((o) => selectedIds.has(o.id))}
+              onChange={toggleSelectAll}
+              className="rounded border-input"
+            />
+            Pilih Semua Pending ({pendingInView.length})
+          </label>
+          {selectedPendingCount > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-muted-foreground">{selectedPendingCount} dipilih</span>
+              <Button size="sm" onClick={() => bulkUpdateStatus("confirmed")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi Semua"}
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => bulkUpdateStatus("rejected")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                <XCircle className="h-3 w-3" /> Tolak Semua
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {filteredOrders.length > 0 && (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => copyBulkData("phone")} className="gap-1.5 text-xs">
@@ -311,9 +414,18 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       <div className="space-y-3">
         {filteredOrders.map((order) => (
-          <div key={order.id} className="rounded-xl border border-border bg-card p-4">
+          <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : "border-border"}`}>
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 space-y-1.5">
+              <div className="flex items-start gap-3 flex-1">
+                {order.status === "pending" && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(order.id)}
+                    onChange={() => toggleSelect(order.id)}
+                    className="mt-1 rounded border-input cursor-pointer"
+                  />
+                )}
+                <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-foreground">{shows[order.show_id]?.title || "Unknown"}</p>
                   <span className={`flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-bold ${
@@ -393,6 +505,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
+              </div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-1">
