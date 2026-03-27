@@ -23,7 +23,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const table = order_type === 'replay' ? 'subscription_orders' : 'subscription_orders';
     const { data: orderData } = await supabase
       .from('subscription_orders')
       .select('short_id')
@@ -31,8 +30,8 @@ serve(async (req) => {
       .single();
 
     const shortId = orderData?.short_id || order_id;
-    const typeLabel = order_type === 'replay' ? 'REPLAY' : 'MEMBERSHIP';
-    const emoji = order_type === 'replay' ? '🔄' : '🎬';
+    const typeLabel = order_type === 'replay' ? 'REPLAY' : order_type === 'show' ? 'SHOW' : 'MEMBERSHIP';
+    const emoji = order_type === 'replay' ? '🔄' : order_type === 'show' ? '🎫' : '🎬';
 
     const caption = `${emoji} *Order ${escapeMarkdown(typeLabel)} Baru\\!*\n\n🎭 Show: ${escapeMarkdown(show_title)}\n📱 Phone: ${escapeMarkdown(phone || '-')}\n📧 Email: ${escapeMarkdown(email || '-')}\n🆔 ID: \`${escapeMarkdown(shortId)}\``;
 
