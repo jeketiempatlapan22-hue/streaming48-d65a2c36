@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 interface Order {
   id: string;
+  short_id: string | null;
   show_id: string;
   phone: string;
   email: string;
