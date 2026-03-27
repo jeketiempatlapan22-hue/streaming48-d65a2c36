@@ -952,6 +952,14 @@ const Index = () => {
                 <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                 <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
                 <p className="text-sm text-muted-foreground">Admin akan mengirimkan informasi akses ke nomor <strong>{phone}</strong> setelah pembayaran dikonfirmasi.</p>
+                {settings.whatsapp_number && (
+                  <Button
+                    onClick={() => openWhatsAppOrderDetail(selectedShow, phone, email)}
+                    className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Kirim Ulang ke WhatsApp Admin
+                  </Button>
+                )}
                 <div className="rounded-xl border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3">
                   <p className="text-xs text-muted-foreground">
                     📱 Nomor HP salah? Anda dapat mengubahnya di halaman <a href="/profile" className="text-primary underline font-medium">Profil</a> atau hubungi admin.
