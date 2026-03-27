@@ -496,22 +496,24 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                         </Button>
                       </div>
                     ) : (
-                      <button
-500:                         onClick={() => setEditEmails((prev) => ({ ...prev, [order.id]: order.email || "" }))}
-501:                         className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
-502:                         {order.email || <span className="italic text-muted-foreground/60">Belum ada email — klik untuk isi</span>}
-503:                       </button>
-504:                       {order.email && (
-505:                         <button
-506:                           onClick={() => { navigator.clipboard.writeText(order.email); setCopiedField("email-" + order.id); setTimeout(() => setCopiedField(""), 1500); }}
-507:                           className="ml-1 text-xs text-primary hover:underline"
-508:                         >
-509:                           {copiedField === "email-" + order.id ? "✓" : <Copy className="h-3 w-3 inline" />}
-510:                         </button>
-511:                       )}
-512:                     )}
-513:                   </div>
-514:                 )}
+                      <>
+                        <button
+                          onClick={() => setEditEmails((prev) => ({ ...prev, [order.id]: order.email || "" }))}
+                          className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
+                          {order.email || <span className="italic text-muted-foreground/60">Belum ada email — klik untuk isi</span>}
+                        </button>
+                        {order.email && (
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(order.email); setCopiedField("email-" + order.id); setTimeout(() => setCopiedField(""), 1500); }}
+                            className="ml-1 text-xs text-primary hover:underline"
+                          >
+                            {copiedField === "email-" + order.id ? "✓" : <Copy className="h-3 w-3 inline" />}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
               </div>
               </div>
