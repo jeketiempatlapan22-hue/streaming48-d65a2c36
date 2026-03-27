@@ -155,26 +155,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return new TextDecoder().decode(result);
   }, []);
 
-  // Helper: create a protected iframe imperatively and hide its src from DevTools
+  // Helper: create iframe imperatively
   const createProtectedIframe = useCallback((container: HTMLElement, url: string, opts: { allow?: string; allowFullscreen?: boolean; className?: string }) => {
     container.innerHTML = "";
     const iframe = document.createElement("iframe");
     iframe.setAttribute("allow", opts.allow || "");
     if (opts.allowFullscreen) iframe.allowFullscreen = true;
     iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
-    iframe.loading = "lazy";
-    // Set src first
     iframe.src = url;
     container.appendChild(iframe);
-    // Override src/currentSrc getters to hide the real URL from DOM inspection
-    try {
-      Object.defineProperty(iframe, 'src', {
-        get: () => 'about:blank',
-        set: (v: string) => { iframe.setAttribute('src', v); },
-        configurable: true,
-      });
-      Object.defineProperty(iframe, 'currentSrc', { get: () => '', configurable: true });
-    } catch {}
     return iframe;
   }, []);
 
