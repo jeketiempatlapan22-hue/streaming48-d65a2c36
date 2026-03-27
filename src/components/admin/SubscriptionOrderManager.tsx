@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 interface Order {
   id: string;
+  short_id: string | null;
   show_id: string;
   phone: string;
   email: string;
@@ -427,7 +428,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const filteredOrders = searchQuery.trim()
     ? statusFiltered.filter((o) => {
         const q = searchQuery.toLowerCase();
-        return (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
+        return (o.short_id?.toLowerCase().includes(q)) || (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
       })
     : statusFiltered;
 
@@ -552,6 +553,15 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 )}
                 <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
+                  {order.short_id && (
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(order.short_id!); setCopiedField("sid-" + order.id); setTimeout(() => setCopiedField(""), 1500); }}
+                      className="inline-flex items-center gap-1 rounded bg-primary/15 px-1.5 py-0.5 text-[11px] font-mono font-bold text-primary cursor-pointer hover:bg-primary/25 transition-colors"
+                      title="Klik untuk menyalin ID"
+                    >
+                      {order.short_id} {copiedField === "sid-" + order.id ? "✓" : <Copy className="h-2.5 w-2.5" />}
+                    </button>
+                  )}
                   <p className="font-semibold text-foreground">{shows[order.show_id]?.title || "Unknown"}</p>
                   {shows[order.show_id]?.schedule_date && (
                     <span className="text-[10px] text-muted-foreground">📅 {shows[order.show_id].schedule_date}{shows[order.show_id].schedule_time ? ` ${shows[order.show_id].schedule_time}` : ""}</span>
