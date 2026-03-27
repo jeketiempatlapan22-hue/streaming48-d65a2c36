@@ -216,12 +216,12 @@ const LivePage = () => {
         setTokenData({ id: result.id, code: result.code, show_id: result.show_id });
 
         const [streamRes, playlistRes, settingsRes] = await Promise.allSettled([
-          withTimeout((async () => await supabase.from("streams").select("*").limit(1).single())(), 8_000, "Stream timeout"),
+          withTimeout((async () => await (supabase.rpc as any)("get_stream_status"))(), 8_000, "Stream timeout"),
           withTimeout((async () => await (supabase.rpc as any)("get_safe_playlists"))(), 8_000, "Playlist timeout"),
           withTimeout((async () => await supabase.from("site_settings").select("*"))(), 8_000, "Settings timeout"),
         ]);
 
-        if (streamRes.status === "fulfilled" && streamRes.value.data) setStream(streamRes.value.data);
+        if (streamRes.status === "fulfilled" && streamRes.value.data?.length) setStream(streamRes.value.data[0]);
         if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
           setPlaylists(playlistRes.value.data);
           setActivePlaylist(playlistRes.value.data[0]);

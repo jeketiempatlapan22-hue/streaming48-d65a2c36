@@ -1057,6 +1057,14 @@ export type Database = {
           url: string
         }[]
       }
+      get_stream_status: {
+        Args: never
+        Returns: {
+          description: string
+          is_live: boolean
+          title: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
