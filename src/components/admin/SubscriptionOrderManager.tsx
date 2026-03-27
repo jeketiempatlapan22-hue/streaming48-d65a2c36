@@ -296,6 +296,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       email: newOrder.email.trim() || null,
       payment_method: "manual",
       status: "confirmed",
+      user_id: null,
     });
     if (error) {
       toast({ title: "Gagal menambahkan order", variant: "destructive" });
