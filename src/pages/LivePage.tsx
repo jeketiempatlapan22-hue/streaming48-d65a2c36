@@ -359,7 +359,7 @@ const LivePage = () => {
     };
 
     void checkBlockedStatus();
-    const i = window.setInterval(() => { void checkBlockedStatus(); }, 5000);
+    const i = window.setInterval(() => { void checkBlockedStatus(); }, 30000);
     return () => window.clearInterval(i);
   }, [tokenCode, blocked]);
 
