@@ -1875,7 +1875,7 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
       `🔑 Kode: \`${escapedCode}\`\n` +
       `📱 Max Device: *${maxDevices}*\n` +
       `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n` +
-      `💡 Link: streaming48\\.lovable\\.app/live?t\\=${escapedCode}`
+      `💡 Link: realtime48show\\.my\\.id/live?t\\=${escapedCode}`
     );
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
