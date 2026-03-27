@@ -173,32 +173,30 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     }
   };
 
-  const sendShowLink = async (order: Order) => {
+  const sendAllLinks = async (order: Order) => {
     const showInfo = shows[order.show_id];
     const token = orderTokens[order.id];
     if (!order.phone || !showInfo) { toast({ title: "Data tidak lengkap", variant: "destructive" }); return; }
-    setSendingWaAction("show-" + order.id);
+    setSendingWaAction("all-" + order.id);
     const siteUrl = window.location.origin;
-    let message = `📺 *Link Show: ${showInfo.title}*\n\n`;
+    let message = `📺 *Info Show: ${showInfo.title}*\n\n`;
+
     if (token) {
       const liveLink = `${siteUrl}/live?t=${token.code}`;
-      message += `🎫 Token: \`${token.code}\`\n📺 Link Nonton: ${liveLink}\n\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.`;
+      message += `🎫 Token: \`${token.code}\`\n📺 Link Nonton: ${liveLink}\n`;
     } else if (showInfo.is_subscription && showInfo.group_link) {
-      message += `🔗 Link Grup: ${showInfo.group_link}`;
-    } else {
-      message += `ℹ️ Belum ada token untuk pesanan ini.`;
+      message += `🔗 Link Grup: ${showInfo.group_link}\n`;
     }
-    await sendWhatsApp(order.phone, message);
-    setSendingWaAction(null);
-  };
 
-  const sendReplayLink = async (order: Order) => {
-    const showInfo = shows[order.show_id];
-    if (!order.phone || !showInfo) { toast({ title: "Data tidak lengkap", variant: "destructive" }); return; }
-    if (!showInfo.access_password) { toast({ title: "Show ini belum memiliki sandi replay", variant: "destructive" }); return; }
-    setSendingWaAction("replay-" + order.id);
-    const siteUrl = window.location.origin;
-    const message = `🔄 *Akses Replay: ${showInfo.title}*\n\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n\nGunakan sandi di atas untuk membuka replay show ini. Selamat menonton! 🎬`;
+    if (showInfo.access_password) {
+      message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+    }
+
+    if (token) {
+      message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.`;
+    }
+    message += `\nTerima kasih! 🎉`;
+
     await sendWhatsApp(order.phone, message);
     setSendingWaAction(null);
   };
