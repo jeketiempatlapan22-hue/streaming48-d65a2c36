@@ -428,7 +428,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const filteredOrders = searchQuery.trim()
     ? statusFiltered.filter((o) => {
         const q = searchQuery.toLowerCase();
-        return (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
+        return (o.short_id?.toLowerCase().includes(q)) || (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
       })
     : statusFiltered;
 
