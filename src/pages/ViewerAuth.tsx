@@ -109,6 +109,27 @@ const ViewerAuth = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid() || submitRef.current || loading) return;
+
+    // Turnstile verification (if configured)
+    if (turnstileSiteKey && !turnstileToken) {
+      toast.error("Silakan selesaikan verifikasi keamanan terlebih dahulu");
+      return;
+    }
+    if (turnstileSiteKey && turnstileToken) {
+      try {
+        const { data: verifyResult } = await supabase.functions.invoke("verify-turnstile", {
+          body: { token: turnstileToken },
+        });
+        if (!verifyResult?.success) {
+          toast.error("Verifikasi keamanan gagal. Coba lagi.");
+          setTurnstileToken(null);
+          return;
+        }
+      } catch {
+        // If verification fails, allow through (graceful degradation)
+      }
+    }
+
     submitRef.current = true;
 
     const rlKey = `viewer-auth-${mode}`;
