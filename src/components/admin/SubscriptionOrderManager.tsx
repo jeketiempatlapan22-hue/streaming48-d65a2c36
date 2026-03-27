@@ -668,7 +668,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 {modeShows.map(([id, s]) => {
                   const cnt = modeOrders.filter((o) => o.show_id === id && o.status === "confirmed" && o.phone).length;
                   return (
-                    <option key={id} value={id}>{s.title} ({cnt} user)</option>
+                    <option key={id} value={id}>{s.title}{s.schedule_date ? ` (${s.schedule_date})` : ""} ({cnt} user)</option>
                   );
                 })}
               </select>
