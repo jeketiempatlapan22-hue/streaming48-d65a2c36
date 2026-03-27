@@ -415,7 +415,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 onClick={() => setShowFilter(id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${showFilter === id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
               >
-                {s.title} ({count})
+                {s.title}{s.schedule_date ? ` (${s.schedule_date})` : ""} ({count})
               </button>
             );
           })}
@@ -662,13 +662,13 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               >
                 <option value="__current__">
                   {showFilter !== "all" && shows[showFilter]
-                    ? `${shows[showFilter].title} (filter saat ini)`
+                    ? `${shows[showFilter].title}${shows[showFilter].schedule_date ? ` (${shows[showFilter].schedule_date})` : ""} (filter saat ini)`
                     : "Semua show (filter saat ini)"}
                 </option>
                 {modeShows.map(([id, s]) => {
                   const cnt = modeOrders.filter((o) => o.show_id === id && o.status === "confirmed" && o.phone).length;
                   return (
-                    <option key={id} value={id}>{s.title} ({cnt} user)</option>
+                    <option key={id} value={id}>{s.title}{s.schedule_date ? ` (${s.schedule_date})` : ""} ({cnt} user)</option>
                   );
                 })}
               </select>
@@ -717,7 +717,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               >
                 <option value="">Pilih show...</option>
                 {modeShows.map(([id, s]) => (
-                  <option key={id} value={id}>{s.title}</option>
+                  <option key={id} value={id}>{s.title}{s.schedule_date ? ` — ${s.schedule_date}` : ""}</option>
                 ))}
               </select>
             </div>
