@@ -92,26 +92,15 @@ const PurchaseModal = ({
               <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia</div>
             )}
             <p className="text-xs text-muted-foreground text-center">Setelah melakukan pembayaran, upload bukti transfer:</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
-                onClick={() => galleryInputRef.current?.click()}
-                disabled={uploadingProof}
-              >
-                <Upload className="h-4 w-4" />
-                {uploadingProof ? "..." : "Galeri"}
-              </button>
-              <button
-                type="button"
-                className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
-                onClick={() => cameraInputRef.current?.click()}
-                disabled={uploadingProof}
-              >
-                📷
-                {uploadingProof ? "..." : "Kamera"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploadingProof}
+            >
+              <Upload className="h-4 w-4" />
+              {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
+            </button>
           </div>
         )}
 
