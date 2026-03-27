@@ -1051,6 +1051,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      hash_token: { Args: { _token: string }; Returns: string }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       parse_show_datetime: {
         Args: { _date: string; _time: string }
