@@ -41,6 +41,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const hlsInitRef = useRef(false);
   const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const ytFallbackContainerRef = useRef<HTMLDivElement>(null);
+  const cfContainerRef = useRef<HTMLDivElement>(null);
 
   // Stable references to avoid re-triggering effects on every render
   const playlistUrl = playlist.url;
@@ -151,6 +153,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       result[i] = bytes[i] ^ _k[i % _k.length];
     }
     return new TextDecoder().decode(result);
+  }, []);
+
+  // Helper: create a protected iframe imperatively and hide its src from DevTools
+  const createProtectedIframe = useCallback((container: HTMLElement, url: string, opts: { allow?: string; allowFullscreen?: boolean; className?: string }) => {
+    container.innerHTML = "";
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("allow", opts.allow || "");
+    if (opts.allowFullscreen) iframe.allowFullscreen = true;
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
+    iframe.loading = "lazy";
+    // Set src first
+    iframe.src = url;
+    container.appendChild(iframe);
+    // Override src/currentSrc getters to hide the real URL from DOM inspection
+    try {
+      Object.defineProperty(iframe, 'src', {
+        get: () => 'about:blank',
+        set: (v: string) => { iframe.setAttribute('src', v); },
+        configurable: true,
+      });
+      Object.defineProperty(iframe, 'currentSrc', { get: () => '', configurable: true });
+    } catch {}
+    return iframe;
   }, []);
 
   // Extract YouTube video ID from any format
@@ -376,6 +401,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 const iframe = container.querySelector("iframe");
                 if (iframe) {
                   iframe.removeAttribute("title");
+                  // Hide YouTube URL from DOM inspection
+                  Object.defineProperty(iframe, 'src', { get: () => 'about:blank', set: (v: string) => { iframe.setAttribute('src', v); }, configurable: true });
+                  Object.defineProperty(iframe, 'currentSrc', { get: () => '', configurable: true });
                 }
               } catch {}
 
@@ -431,12 +459,39 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
-  // Cloudflare loading
+  // Cloudflare: imperatively create protected iframe
   useEffect(() => {
-    if (playlistType === "cloudflare") {
-      setIsLoading(false);
+    if (playlistType !== "cloudflare") return;
+    setIsLoading(false);
+    const container = cfContainerRef.current;
+    if (!container) return;
+    const url = playlistUrl;
+    let base = "";
+    if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
+      base = url;
+    } else if (url.includes("cloudflarestream.com")) {
+      const id = url.split("/").filter(Boolean).pop();
+      base = `https://iframe.videodelivery.net/${id}`;
+    } else {
+      base = `https://iframe.videodelivery.net/${url}`;
     }
-  }, [playlistType]);
+    const sep = base.includes("?") ? "&" : "?";
+    const cfUrl = `${base}${sep}autoplay=true&preload=auto`;
+    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
+  }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
+
+  // YouTube fallback: imperatively create protected iframe
+  useEffect(() => {
+    if (playlistType !== "youtube" || !ytFallback) return;
+    const container = ytFallbackContainerRef.current;
+    if (!container) return;
+    const videoId = extractVideoId(playlistUrl);
+    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
+    createProtectedIframe(container, ytUrl, {
+      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+      allowFullscreen: true,
+    });
+  }, [playlistType, playlistUrl, ytFallback, iframeRefreshKey, extractVideoId, createProtectedIframe]);
 
   const togglePlay = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -542,28 +597,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
-  // Compute YouTube direct embed URL for fallback
-  const ytEmbedSrc = useMemo(() => {
-    if (playlistType !== "youtube") return "";
-    const videoId = extractVideoId(playlistUrl);
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
-  }, [playlistType, playlistUrl, extractVideoId]);
-
-  const cloudflareSrc = useMemo(() => {
-    if (playlistType !== "cloudflare") return "";
-    const url = playlistUrl;
-    let base = "";
-    if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
-      base = url;
-    } else if (url.includes("cloudflarestream.com")) {
-      const id = url.split("/").filter(Boolean).pop();
-      base = `https://iframe.videodelivery.net/${id}`;
-    } else {
-      base = `https://iframe.videodelivery.net/${url}`;
-    }
-    const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}autoplay=true&preload=auto`;
-  }, [playlistType, playlistUrl]);
+  // (YouTube and Cloudflare URLs are now built imperatively in effects above)
 
   return (
     <div
@@ -604,15 +638,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </>
       )}
 
-      {/* YouTube fallback: direct iframe embed */}
+      {/* YouTube fallback: protected iframe container */}
       {playlistType === "youtube" && ytFallback && (
         <>
-          <iframe
-            key={iframeRefreshKey}
-            src={ytEmbedSrc}
-            className={`h-full w-full border-0 ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
+          <div
+            ref={ytFallbackContainerRef}
+            className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
           />
         </>
       )}
@@ -628,13 +659,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {playlistType === "cloudflare" && (
         <>
-          <iframe
-            key={iframeRefreshKey}
-            src={cloudflareSrc}
+          <div
+            ref={cfContainerRef}
             className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
-            allow="autoplay; fullscreen"
-            allowFullScreen
-            loading="lazy"
           />
           <div className="absolute inset-0 z-10 cursor-pointer" onClick={togglePlay} style={{ pointerEvents: "auto" }} />
         </>
