@@ -141,21 +141,38 @@ export function useShowPurchase() {
     const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
     const signedUrl = urlData?.signedUrl || "";
     let orderId: string | null = null;
+    let insertSuccess = false;
     try {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess?.session?.user?.id || null;
       if (uid) {
-        const { data: orderData } = await supabase.from("subscription_orders").insert({
+        const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: uid,
         }).select("id").single();
-        orderId = orderData?.id || null;
+        if (insertErr) {
+          console.error("Order insert error:", insertErr.message);
+          toast.error("Gagal menyimpan pesanan: " + insertErr.message);
+        } else {
+          orderId = orderData?.id || null;
+          insertSuccess = true;
+        }
       } else {
-        await supabase.from("subscription_orders").insert({
+        const { error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: null,
         });
+        if (insertErr) {
+          console.error("Order insert error:", insertErr.message);
+          toast.error("Gagal menyimpan pesanan: " + insertErr.message);
+        } else {
+          insertSuccess = true;
+        }
       }
-    } catch (e) {
-      console.warn("Order insert error:", e);
+    } catch (e: any) {
+      console.error("Order insert exception:", e);
+      toast.error("Gagal menyimpan pesanan: " + (e?.message || "Coba lagi"));
+    }
+    if (insertSuccess) {
+      toast.success("✅ Pesanan berhasil dikirim! Admin akan segera memproses.");
     }
     setPurchaseStep("done");
     if (orderId || true) {
