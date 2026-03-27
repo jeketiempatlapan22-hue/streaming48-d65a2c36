@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles } from "lucide-react";
 import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
+import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
