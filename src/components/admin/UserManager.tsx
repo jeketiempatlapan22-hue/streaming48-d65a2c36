@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -25,6 +25,11 @@ const UserManager = () => {
   const [coinAmount, setCoinAmount] = useState("");
   const [coinReason, setCoinReason] = useState("");
   const [adjusting, setAdjusting] = useState(false);
+  // Password reset state
+  const [resetUser, setResetUser] = useState<UserProfile | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -97,6 +102,30 @@ const UserManager = () => {
     setCoinAmount("");
     setCoinReason("");
     fetchUsers();
+  };
+
+  const resetPassword = async () => {
+    if (!resetUser || !newPassword || newPassword.length < 6) {
+      toast.error("Password minimal 6 karakter");
+      return;
+    }
+    setResetting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-password", {
+        body: { target_user_id: resetUser.id, new_password: newPassword },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || "Gagal mereset password");
+      } else {
+        toast.success(`Password ${resetUser.username || resetUser.id.slice(0, 8)} berhasil diubah`);
+        setResetUser(null);
+        setNewPassword("");
+        setShowPassword(false);
+      }
+    } catch {
+      toast.error("Gagal menghubungi server");
+    }
+    setResetting(false);
   };
 
   const toggleSort = (field: typeof sortField) => {
@@ -177,9 +206,14 @@ const UserManager = () => {
                       {new Date(u.created_at).toLocaleDateString("id-ID")}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="outline" size="sm" onClick={() => { setSelectedUser(u); setCoinAmount(""); setCoinReason(""); }}>
-                        <Coins className="mr-1 h-3 w-3" /> Kelola
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="outline" size="sm" onClick={() => { setSelectedUser(u); setCoinAmount(""); setCoinReason(""); }}>
+                          <Coins className="mr-1 h-3 w-3" /> Koin
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => { setResetUser(u); setNewPassword(""); setShowPassword(false); }}>
+                          <KeyRound className="mr-1 h-3 w-3" /> Sandi
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -190,6 +224,7 @@ const UserManager = () => {
         {filtered.length > 100 && <p className="px-4 py-2 text-xs text-muted-foreground text-center border-t border-border">Menampilkan 100 dari {filtered.length} user</p>}
       </div>
 
+      {/* Kelola Koin Dialog */}
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -217,6 +252,49 @@ const UserManager = () => {
                 <Minus className="h-4 w-4" /> Kurangi
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetUser} onOpenChange={() => { setResetUser(null); setNewPassword(""); setShowPassword(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Ubah password untuk <span className="font-semibold text-foreground">{resetUser?.username || resetUser?.id.slice(0, 8)}</span>. Password lama akan langsung tergantikan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Password Baru</label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              ⚠️ Setelah direset, user harus login dengan password baru ini. Beritahu user password barunya melalui WhatsApp.
+            </p>
+            <Button
+              className="w-full gap-2"
+              onClick={resetPassword}
+              disabled={resetting || !newPassword || newPassword.length < 6}
+            >
+              <KeyRound className="h-4 w-4" /> {resetting ? "Mereset..." : "Reset Password"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
