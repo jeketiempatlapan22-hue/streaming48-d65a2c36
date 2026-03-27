@@ -249,9 +249,12 @@ const LivePage = () => {
           const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
           const activeShow = allShows?.find((s: any) => s.id === activeShowId);
           setShowMismatch(true);
-          setMismatchShowTitle(
-            `Token kamu untuk show "${tokenShow?.title || "lain"}", sedangkan yang sedang live adalah "${activeShow?.title || "show lain"}".`
-          );
+          setMismatchShowTitle(JSON.stringify({
+            tokenShowTitle: tokenShow?.title || "Show Lain",
+            tokenShowDate: tokenShow?.schedule_date || "",
+            tokenShowTime: tokenShow?.schedule_time || "",
+            activeShowTitle: activeShow?.title || "Show Lain",
+          }));
         }
       } catch {
         setError("Server sedang sibuk, coba muat ulang halaman.");
@@ -428,32 +431,44 @@ const LivePage = () => {
 
   const isLive = stream?.is_live || false;
 
-  if (showMismatch) return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center shadow-lg">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
-          <span className="text-4xl">⏳</span>
-        </div>
-        <h2 className="mb-3 text-xl font-bold text-foreground">Token Kamu Belum Bisa Digunakan Saat Ini</h2>
-        <div className="mb-4 rounded-xl bg-[hsl(var(--warning))]/5 border border-[hsl(var(--warning))]/20 p-4">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            Gunakan token ini sesuai pada show yang kamu pesan. Kembali lagi ketika show yang kamu pesan live sesuai jadwalnya.
-          </p>
-        </div>
-        {mismatchShowTitle && (
-          <div className="mb-4 rounded-lg bg-secondary p-3">
-            <p className="text-xs text-muted-foreground mb-1">Show yang sedang live:</p>
-            <p className="text-sm font-semibold text-foreground">{mismatchShowTitle}</p>
+  if (showMismatch) {
+    let mismatchInfo = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
+    try { mismatchInfo = JSON.parse(mismatchShowTitle); } catch {}
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center shadow-lg">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+            <span className="text-4xl">🎫</span>
           </div>
-        )}
-        <p className="text-xs text-muted-foreground mb-6">Token kamu hanya berlaku untuk show yang kamu beli. Pastikan kembali saat show tersebut sudah live.</p>
-        <div className="flex flex-col gap-3">
-          <button onClick={() => navigate("/schedule")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">📅 Lihat Jadwal Show</button>
-          <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80 active:scale-[0.97] transition-transform">🏠 Kembali ke Beranda</button>
+          <h2 className="mb-3 text-xl font-bold text-foreground">Token Kamu Berbeda</h2>
+          <div className="mb-4 rounded-xl bg-[hsl(var(--warning))]/5 border border-[hsl(var(--warning))]/20 p-4 space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              Token kamu adalah untuk show:
+            </p>
+            <p className="text-lg font-bold text-primary">
+              🎭 {mismatchInfo.tokenShowTitle}
+            </p>
+            {mismatchInfo.tokenShowDate && (
+              <p className="text-sm text-muted-foreground">
+                📅 {mismatchInfo.tokenShowDate} {mismatchInfo.tokenShowTime ? `• 🕐 ${mismatchInfo.tokenShowTime}` : ""}
+              </p>
+            )}
+          </div>
+          <div className="mb-4 rounded-lg bg-secondary p-3">
+            <p className="text-xs text-muted-foreground mb-1">Show yang sedang live saat ini:</p>
+            <p className="text-sm font-semibold text-foreground">🔴 {mismatchInfo.activeShowTitle}</p>
+          </div>
+          <p className="text-xs text-muted-foreground mb-6">
+            Kembali lagi untuk menonton live show-mu sesuai tanggalnya. Token hanya berlaku untuk show yang kamu beli.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button onClick={() => navigate("/schedule")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">📅 Lihat Jadwal Show</button>
+            <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80 active:scale-[0.97] transition-transform">🏠 Kembali ke Beranda</button>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col bg-background lg:flex-row">

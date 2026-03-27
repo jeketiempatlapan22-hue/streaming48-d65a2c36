@@ -44,6 +44,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [bulkMessage, setBulkMessage] = useState("");
   const [showBulk, setShowBulk] = useState(false);
+  const [bulkShowTarget, setBulkShowTarget] = useState("__current__");
   const [copiedField, setCopiedField] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -441,15 +442,57 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         </DialogContent>
       </Dialog>
 
-      {/* Kirim massal */}
+      {/* Kirim massal per show */}
       <Dialog open={showBulk} onOpenChange={setShowBulk}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Kirim Pesan Massal</DialogTitle><DialogDescription>Pesan akan dikirim ke {confirmedCount} user yang telah dikonfirmasi via WhatsApp.</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Kirim Pesan Massal per Show</DialogTitle>
+            <DialogDescription>Pilih show, lalu kirim pesan ke semua pembeli yang telah dikonfirmasi via WhatsApp.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
-            <Textarea value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)} placeholder="Tulis pesan..." className="bg-background" rows={4} />
-            <Button onClick={() => { const confirmed = showFiltered.filter(o => o.status === "confirmed"); confirmed.forEach(o => { if (bulkMessage.trim()) sendWhatsApp(o.phone, bulkMessage); }); toast({ title: `Mengirim ke ${confirmed.length} user` }); setShowBulk(false); }} disabled={!bulkMessage.trim()} className="w-full gap-2">
-              <SendHorizonal className="h-4 w-4" /> Kirim ke Semua ({confirmedCount})
-            </Button>
+            <div>
+              <label className="text-xs font-medium text-foreground mb-1 block">Pilih Show *</label>
+              <select
+                value={bulkShowTarget}
+                onChange={(e) => setBulkShowTarget(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              >
+                <option value="__current__">
+                  {showFilter !== "all" && shows[showFilter]
+                    ? `${shows[showFilter].title} (filter saat ini)`
+                    : "Semua show (filter saat ini)"}
+                </option>
+                {modeShows.map(([id, s]) => {
+                  const cnt = modeOrders.filter((o) => o.show_id === id && o.status === "confirmed" && o.phone).length;
+                  return (
+                    <option key={id} value={id}>{s.title} ({cnt} user)</option>
+                  );
+                })}
+              </select>
+            </div>
+            {(() => {
+              const targetOrders = bulkShowTarget === "__current__"
+                ? showFiltered.filter((o) => o.status === "confirmed" && o.phone)
+                : modeOrders.filter((o) => o.show_id === bulkShowTarget && o.status === "confirmed" && o.phone);
+              const targetCount = targetOrders.length;
+              return (
+                <>
+                  <p className="text-xs text-muted-foreground">📱 {targetCount} user dengan nomor HP akan menerima pesan.</p>
+                  <Textarea value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)} placeholder="Tulis pesan untuk semua pembeli show ini..." className="bg-background" rows={4} />
+                  <Button
+                    onClick={() => {
+                      targetOrders.forEach((o) => { if (bulkMessage.trim()) sendWhatsApp(o.phone, bulkMessage); });
+                      toast({ title: `Mengirim ke ${targetCount} user` });
+                      setShowBulk(false);
+                    }}
+                    disabled={!bulkMessage.trim() || targetCount === 0}
+                    className="w-full gap-2"
+                  >
+                    <SendHorizonal className="h-4 w-4" /> Kirim ke {targetCount} User
+                  </Button>
+                </>
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>
