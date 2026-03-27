@@ -31,6 +31,7 @@ const AdminBroadcast = lazy(() => import("@/components/admin/AdminBroadcast"));
 const MediaLibrary = lazy(() => import("@/components/admin/MediaLibrary"));
 const AdminAuthMetrics = lazy(() => import("@/components/admin/AdminAuthMetrics"));
 const AdminTrafficMonitor = lazy(() => import("@/components/admin/AdminTrafficMonitor"));
+const PasswordResetManager = lazy(() => import("@/components/admin/PasswordResetManager"));
 
 /** Safe race: returns result or fallback after timeout */
 async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
