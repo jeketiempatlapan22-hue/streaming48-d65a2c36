@@ -24,10 +24,12 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
-    if (userError || !user) {
+    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
+    const userId = claimsData.claims.sub as string;
 
     // Check admin role
     const adminClient = createClient(
