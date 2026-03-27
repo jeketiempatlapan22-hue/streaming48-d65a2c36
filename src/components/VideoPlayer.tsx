@@ -53,13 +53,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   useImperativeHandle(ref, () => ({
     play: () => {
-      if (playlistType === "youtube" && isYTReady()) {
-        const player = ytPlayerRef.current;
-        try {
-          const duration = player.getDuration?.();
-          if (duration && duration > 0) player.seekTo(duration, true);
-        } catch {}
-        player.playVideo();
+      if (playlistType === "youtube") {
+        if (ytFallback) {
+          setIframeRefreshKey(k => k + 1);
+          setIsPlaying(true);
+          return;
+        }
+        if (isYTReady()) {
+          const player = ytPlayerRef.current;
+          try {
+            const duration = player.getDuration?.();
+            if (duration && duration > 0) player.seekTo(duration, true);
+          } catch {}
+          player.playVideo();
+          setIsPlaying(true);
+        }
+      } else if (playlistType === "cloudflare") {
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
       } else if (playlistType === "m3u8" && hlsRef.current && videoRef.current) {
         if (hlsRef.current.liveSyncPosition) {
           videoRef.current.currentTime = hlsRef.current.liveSyncPosition;
@@ -74,6 +85,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     pause: () => {
       if (playlistType === "youtube" && isYTReady()) {
         ytPlayerRef.current.pauseVideo();
+        setIsPlaying(false);
       } else if (videoRef.current) {
         videoRef.current.pause();
         setIsPlaying(false);
@@ -92,7 +104,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       }
       return videoRef.current?.currentTime || 0;
     },
-  }), [playlistType, isYTReady]);
+  }), [playlistType, isYTReady, ytFallback]);
 
   // Hide controls after 3s
   useEffect(() => {
