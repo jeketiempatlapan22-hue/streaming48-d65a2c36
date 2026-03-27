@@ -360,10 +360,10 @@ Deno.serve(async (req) => {
         );
       }
 
-      // For cloudflare or other types, also proxy
-      const signedUrl = await generateYouTubeSignedUrl(playlist_id, functionUrl);
+      // For cloudflare, return the actual URL directly (Cloudflare has its own protection)
+      const realUrl = await getPlaylistData(playlist_id);
       return new Response(
-        JSON.stringify({ signed_url: signedUrl, expires_in: YT_TOKEN_TTL, type: playlist.type }),
+        JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: "cloudflare" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
