@@ -41,6 +41,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const hlsInitRef = useRef(false);
   const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const ytFallbackContainerRef = useRef<HTMLDivElement>(null);
+  const cfContainerRef = useRef<HTMLDivElement>(null);
 
   // Stable references to avoid re-triggering effects on every render
   const playlistUrl = playlist.url;
