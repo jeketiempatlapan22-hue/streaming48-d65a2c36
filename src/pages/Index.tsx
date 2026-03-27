@@ -906,9 +906,18 @@ const Index = () => {
                 <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))]">
                   <CheckCircle className="h-4 w-4" /> Bukti pembayaran berhasil diupload
                 </div>
+                <div className="rounded-xl border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3">
+                  <p className="text-xs font-semibold text-[hsl(var(--warning))] mb-1">⚠️ Penting!</p>
+                  <p className="text-xs text-muted-foreground">
+                    Masukkan nomor HP WhatsApp yang <strong>aktif dan benar</strong>. Admin akan mengirimkan <strong>informasi akses</strong> ke nomor ini setelah pembayaran dikonfirmasi.
+                  </p>
+                </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Nomor HP</label>
+                  <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Phone className="h-3.5 w-3.5" /> Nomor WhatsApp <span className="text-destructive">*</span>
+                  </label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                  <p className="mt-1 text-[10px] text-muted-foreground">Contoh: 081234567890 atau 628123456789</p>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
@@ -924,7 +933,12 @@ const Index = () => {
               <div className="space-y-4 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                 <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
-                <p className="text-sm text-muted-foreground">Admin akan mengkonfirmasi pembayaran Anda.</p>
+                <p className="text-sm text-muted-foreground">Admin akan mengirimkan informasi akses ke nomor <strong>{phone}</strong> setelah pembayaran dikonfirmasi.</p>
+                <div className="rounded-xl border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    📱 Nomor HP salah? Anda dapat mengubahnya di halaman <a href="/profile" className="text-primary underline font-medium">Profil</a> atau hubungi admin.
+                  </p>
+                </div>
               </div>
             )}
 
