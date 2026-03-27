@@ -456,12 +456,39 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
-  // Cloudflare loading
+  // Cloudflare: imperatively create protected iframe
   useEffect(() => {
-    if (playlistType === "cloudflare") {
-      setIsLoading(false);
+    if (playlistType !== "cloudflare") return;
+    setIsLoading(false);
+    const container = cfContainerRef.current;
+    if (!container) return;
+    const url = playlistUrl;
+    let base = "";
+    if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
+      base = url;
+    } else if (url.includes("cloudflarestream.com")) {
+      const id = url.split("/").filter(Boolean).pop();
+      base = `https://iframe.videodelivery.net/${id}`;
+    } else {
+      base = `https://iframe.videodelivery.net/${url}`;
     }
-  }, [playlistType]);
+    const sep = base.includes("?") ? "&" : "?";
+    const cfUrl = `${base}${sep}autoplay=true&preload=auto`;
+    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
+  }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
+
+  // YouTube fallback: imperatively create protected iframe
+  useEffect(() => {
+    if (playlistType !== "youtube" || !ytFallback) return;
+    const container = ytFallbackContainerRef.current;
+    if (!container) return;
+    const videoId = extractVideoId(playlistUrl);
+    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
+    createProtectedIframe(container, ytUrl, {
+      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+      allowFullscreen: true,
+    });
+  }, [playlistType, playlistUrl, ytFallback, iframeRefreshKey, extractVideoId, createProtectedIframe]);
 
   const togglePlay = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
