@@ -209,7 +209,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     const trimmed = newMessage.trim().slice(0, 200); // 200 char limit
     lastSentRef.current = now;
     setSending(true);
-    const insertData: any = { username, message: newMessage.trim(), token_id: tokenId || null };
+    const insertData: any = { username, message: trimmed, token_id: tokenId || null };
     if (currentUserId) insertData.user_id = currentUserId;
     if (isAdmin) insertData.is_admin = true;
     await supabase.from("chat_messages").insert(insertData);
