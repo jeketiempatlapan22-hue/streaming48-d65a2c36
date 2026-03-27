@@ -498,6 +498,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-foreground">{shows[order.show_id]?.title || "Unknown"}</p>
+                  {shows[order.show_id]?.schedule_date && (
+                    <span className="text-[10px] text-muted-foreground">📅 {shows[order.show_id].schedule_date}{shows[order.show_id].schedule_time ? ` ${shows[order.show_id].schedule_time}` : ""}</span>
+                  )}
                   <span className={`flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-bold ${
                     order.status === "pending" ? "bg-[hsl(var(--warning))]/20 text-[hsl(var(--warning))]"
                     : order.status === "confirmed" ? "bg-[hsl(var(--success))]/20 text-[hsl(var(--success))]"
