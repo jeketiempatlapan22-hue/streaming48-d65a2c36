@@ -415,7 +415,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 onClick={() => setShowFilter(id)}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${showFilter === id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
               >
-                {s.title} ({count})
+                {s.title}{s.schedule_date ? ` (${s.schedule_date})` : ""} ({count})
               </button>
             );
           })}
