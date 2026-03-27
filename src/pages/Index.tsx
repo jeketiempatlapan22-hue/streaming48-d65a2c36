@@ -208,15 +208,19 @@ const Index = () => {
     }
   };
 
-  const handleConfirmRegular = () => {
-    if (!selectedShow || !settings.whatsapp_number) return;
-    const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
-    const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
-    const msg = encodeURIComponent(
-      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN TIKET BARU*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${selectedShow.title}\n💰 *Harga:* ${selectedShow.price}\n${selectedShow.schedule_date ? `📅 *Jadwal:* ${selectedShow.schedule_date} ${selectedShow.schedule_time}\n` : ""}${selectedShow.lineup ? `👥 *Lineup:* ${selectedShow.lineup}\n` : ""}\n📋 *DATA PEMBELI*\n📧 Email: ${email}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
-    );
-    window.open(`https://wa.me/${settings.whatsapp_number}?text=${msg}`, "_blank");
-    setSelectedShow(null);
+  const handleSubmitRegular = async () => {
+    if (!selectedShow || !proofFilePath) return;
+    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
+    const signedUrl = urlData?.signedUrl || "";
+    const { data: orderData } = await supabase.from("subscription_orders").insert({
+      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl,
+    }).select("id").single();
+    setPurchaseStep("done");
+    if (orderData?.id) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "regular" },
+      }).catch(() => {});
+    }
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
