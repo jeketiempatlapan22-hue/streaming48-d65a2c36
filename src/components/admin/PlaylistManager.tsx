@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, GripVertical, Pencil, Check, X } from "lucide-react";
+import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
 
 const PlaylistManager = () => {
   const [playlists, setPlaylists] = useState<any[]>([]);
