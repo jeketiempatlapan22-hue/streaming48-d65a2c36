@@ -273,7 +273,7 @@ const CoinShop = () => {
           {purchaseStep === "upload" && (
             <div className="space-y-3">
               <button type="button" className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 hover:border-primary transition-colors"
-                onClick={() => { const input = document.createElement("input"); input.type = "file"; onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"; input.onchange = (e: any) => handleUploadProof(e); input.click(); }} input.onchange = (e: any) => handleUploadProof(e); input.click(); }}
+                onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"; input.onchange = (e: any) => handleUploadProof(e); input.click(); }}
                 disabled={uploading}>
                 <Upload className={`h-8 w-8 ${uploading ? "animate-pulse text-primary" : "text-muted-foreground"}`} />
                 <span className="text-sm text-muted-foreground">{uploading ? "Mengupload..." : "Tap untuk upload bukti bayar"}</span>
