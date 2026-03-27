@@ -23,6 +23,8 @@ interface ShowInfo {
   title: string;
   group_link: string;
   is_subscription: boolean;
+  access_password: string;
+  is_replay: boolean;
 }
 
 interface SubscriptionOrderManagerProps {
