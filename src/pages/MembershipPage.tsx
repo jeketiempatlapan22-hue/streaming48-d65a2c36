@@ -146,6 +146,12 @@ const MembershipPage = () => {
     setUploadingProof(false);
   };
 
+  const openWhatsAppOrderDetail = (show: Show, orderPhone: string, orderEmail: string) => {
+    if (!whatsappNumber) return;
+    const msg = `📋 *Pendaftaran Membership Baru*\n\n🎭 Paket: ${show.title}\n💰 Harga: ${show.price}\n📱 HP: ${orderPhone}\n📧 Email: ${orderEmail}\n\nSaya sudah melakukan pembayaran dan mengirim bukti transfer. Mohon dikonfirmasi 🙏`;
+    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
     setSubmitting(true);
@@ -167,6 +173,7 @@ const MembershipPage = () => {
         body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "coin-proofs", order_type: "membership" },
       }).catch(() => {});
     }
+    openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
   const handleCoinPurchase = async () => {
