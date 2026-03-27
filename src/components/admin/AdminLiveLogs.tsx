@@ -47,23 +47,13 @@ const AdminLiveLogs = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/admin-live-logs`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({}),
-        }
-      );
+      const { data: result, error: fnError } = await supabase.functions.invoke("admin-live-logs", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        body: {},
+      });
 
-      if (!response.ok) {
-        const errBody = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errBody}`);
-      }
-
-      const result = await response.json();
-      if (result.error) throw new Error(result.error);
+      if (fnError) throw new Error(fnError.message || "Function error");
+      if (result?.error) throw new Error(result.error);
       setData(result);
     } catch (e: any) {
       setError(e.message);
