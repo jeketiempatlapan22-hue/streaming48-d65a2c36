@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save, Search, UserPlus, Phone } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save, Search, UserPlus, Phone, Ticket } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Order {
@@ -16,12 +16,24 @@ interface Order {
   payment_method: string;
   status: string;
   created_at: string;
+  user_id: string | null;
 }
 
-const SubscriptionOrderManager = () => {
+interface ShowInfo {
+  title: string;
+  group_link: string;
+  is_subscription: boolean;
+}
+
+interface SubscriptionOrderManagerProps {
+  mode?: "membership" | "regular";
+}
+
+const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderManagerProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [shows, setShows] = useState<Record<string, { title: string; group_link: string }>>({});
+  const [shows, setShows] = useState<Record<string, ShowInfo>>({});
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("pending");
+  const [showFilter, setShowFilter] = useState<string>("all");
   const [waMessages, setWaMessages] = useState<Record<string, string>>({});
   const [editEmails, setEditEmails] = useState<Record<string, string>>({});
   const [editPhones, setEditPhones] = useState<Record<string, string>>({});
@@ -35,13 +47,14 @@ const SubscriptionOrderManager = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newOrder, setNewOrder] = useState({ show_id: "", phone: "", email: "" });
   const [addingOrder, setAddingOrder] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
     const { data: ordersData } = await (supabase as any).from("subscription_orders").select("*").order("created_at", { ascending: false });
-    const { data: showsData } = await supabase.from("shows").select("id, title, group_link");
-    const showMap: Record<string, { title: string; group_link: string }> = {};
-    showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "" }; });
+    const { data: showsData } = await supabase.from("shows").select("id, title, group_link, is_subscription");
+    const showMap: Record<string, ShowInfo> = {};
+    showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "", is_subscription: s.is_subscription }; });
     setShows(showMap);
     setOrders((ordersData as Order[]) || []);
   };
@@ -49,9 +62,26 @@ const SubscriptionOrderManager = () => {
   useEffect(() => { fetchOrders(); }, []);
 
   const updateStatus = async (id: string, status: string) => {
-    await (supabase as any).from("subscription_orders").update({ status }).eq("id", id);
+    if (status === "confirmed") {
+      setConfirmingId(id);
+      // Use the new RPC that auto-creates tokens for regular shows
+      const { data, error } = await supabase.rpc("confirm_regular_order" as any, { _order_id: id });
+      setConfirmingId(null);
+      const result = data as any;
+      if (error || !result?.success) {
+        toast({ title: result?.error || error?.message || "Gagal mengkonfirmasi", variant: "destructive" });
+        return;
+      }
+      if (result.token_code) {
+        toast({ title: `Order dikonfirmasi! Token: ${result.token_code}` });
+      } else {
+        toast({ title: "Order dikonfirmasi" });
+      }
+    } else {
+      await (supabase as any).from("subscription_orders").update({ status }).eq("id", id);
+      toast({ title: `Order ${status === "rejected" ? "ditolak" : status}` });
+    }
     await fetchOrders();
-    toast({ title: `Order ${status === "confirmed" ? "dikonfirmasi" : "ditolak"}` });
   };
 
   const deleteOrder = async (id: string) => {
@@ -63,13 +93,10 @@ const SubscriptionOrderManager = () => {
   const sendWhatsApp = async (phone: string, message: string) => {
     let cleanPhone = phone.replace(/[^0-9+]/g, "");
     if (cleanPhone.startsWith("+")) {
-      // Keep international format as-is (without +), Fonnte accepts country code directly
       cleanPhone = cleanPhone.substring(1);
     } else if (cleanPhone.startsWith("0")) {
-      // Indonesian local number → convert to international
       cleanPhone = "62" + cleanPhone.substring(1);
     }
-    // For non-Indonesian international numbers, prefix with + so Fonnte doesn't auto-add 62
     const isIndonesian = cleanPhone.startsWith("62");
     const target = isIndonesian ? cleanPhone : "+" + cleanPhone;
     try {
@@ -109,12 +136,11 @@ const SubscriptionOrderManager = () => {
   };
 
   const copyBulkData = (field: "phone" | "email") => {
-    const targetOrders = filter === "all" ? orders : orders.filter((o) => o.status === filter);
-    const data = targetOrders.map((o) => field === "phone" ? o.phone : o.email).filter(Boolean).join("\n");
+    const data = filteredOrders.map((o) => field === "phone" ? o.phone : o.email).filter(Boolean).join("\n");
     navigator.clipboard.writeText(data);
     setCopiedField(field);
     setTimeout(() => setCopiedField(""), 2000);
-    toast({ title: `${targetOrders.length} ${field === "phone" ? "nomor HP" : "email"} disalin` });
+    toast({ title: `${filteredOrders.length} ${field === "phone" ? "nomor HP" : "email"} disalin` });
   };
 
   const addManualOrder = async () => {
@@ -141,22 +167,40 @@ const SubscriptionOrderManager = () => {
     setAddingOrder(false);
   };
 
-  // Apply search + status filter
-  const statusFiltered = filter === "all" ? orders : orders.filter((o) => o.status === filter);
-  const filtered = searchQuery.trim()
+  // Filter orders by mode (membership vs regular)
+  const modeOrders = orders.filter((o) => {
+    const showInfo = shows[o.show_id];
+    if (!showInfo) return false;
+    return mode === "membership" ? showInfo.is_subscription : !showInfo.is_subscription;
+  });
+
+  // Get available shows for this mode
+  const modeShows = Object.entries(shows).filter(([, s]) =>
+    mode === "membership" ? s.is_subscription : !s.is_subscription
+  );
+
+  // Apply show filter
+  const showFiltered = showFilter === "all" ? modeOrders : modeOrders.filter((o) => o.show_id === showFilter);
+
+  // Apply status filter
+  const statusFiltered = filter === "all" ? showFiltered : showFiltered.filter((o) => o.status === filter);
+
+  // Apply search
+  const filteredOrders = searchQuery.trim()
     ? statusFiltered.filter((o) => {
         const q = searchQuery.toLowerCase();
         return (o.email?.toLowerCase().includes(q)) || (o.phone?.toLowerCase().includes(q)) || (shows[o.show_id]?.title?.toLowerCase().includes(q));
       })
     : statusFiltered;
 
-  const confirmedCount = orders.filter((o) => o.status === "confirmed").length;
-  const subscriptionShows = Object.entries(shows);
+  const confirmedCount = showFiltered.filter((o) => o.status === "confirmed").length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-xl font-bold text-foreground">📋 Order Langganan</h2>
+        <h2 className="text-xl font-bold text-foreground">
+          {mode === "membership" ? "📋 Order Membership" : "🎫 Order Show"}
+        </h2>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowAddDialog(true)} className="gap-1.5">
             <UserPlus className="h-3.5 w-3.5" /> Tambah Manual
@@ -169,13 +213,37 @@ const SubscriptionOrderManager = () => {
         </div>
       </div>
 
+      {/* Show filter for regular shows */}
+      {mode === "regular" && modeShows.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowFilter("all")}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${showFilter === "all" ? "bg-accent text-accent-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
+          >
+            Semua Show ({modeOrders.length})
+          </button>
+          {modeShows.map(([id, s]) => {
+            const count = modeOrders.filter((o) => o.show_id === id).length;
+            return (
+              <button
+                key={id}
+                onClick={() => setShowFilter(id)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${showFilter === id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}
+              >
+                {s.title} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Cari email, nomor HP, atau nama show..."
+          placeholder={mode === "membership" ? "Cari email, nomor HP, atau nama show..." : "Cari nomor HP atau nama show..."}
           className="pl-9"
         />
       </div>
@@ -185,24 +253,26 @@ const SubscriptionOrderManager = () => {
           <button key={f} onClick={() => setFilter(f)}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>
             {f === "pending" ? "Menunggu" : f === "confirmed" ? "Dikonfirmasi" : f === "rejected" ? "Ditolak" : "Semua"}
-            {f !== "all" && ` (${orders.filter((o) => o.status === f).length})`}
+            {f !== "all" && ` (${showFiltered.filter((o) => o.status === f).length})`}
           </button>
         ))}
       </div>
 
-      {filtered.length > 0 && (
+      {filteredOrders.length > 0 && (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => copyBulkData("phone")} className="gap-1.5 text-xs">
-            <Copy className="h-3 w-3" /> {copiedField === "phone" ? "✓ Disalin!" : `Salin Semua HP (${filtered.length})`}
+            <Copy className="h-3 w-3" /> {copiedField === "phone" ? "✓ Disalin!" : `Salin Semua HP (${filteredOrders.length})`}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => copyBulkData("email")} className="gap-1.5 text-xs">
-            <Copy className="h-3 w-3" /> {copiedField === "email" ? "✓ Disalin!" : `Salin Semua Email (${filtered.length})`}
-          </Button>
+          {mode === "membership" && (
+            <Button size="sm" variant="outline" onClick={() => copyBulkData("email")} className="gap-1.5 text-xs">
+              <Copy className="h-3 w-3" /> {copiedField === "email" ? "✓ Disalin!" : `Salin Semua Email (${filteredOrders.length})`}
+            </Button>
+          )}
         </div>
       )}
 
       <div className="space-y-3">
-        {filtered.map((order) => (
+        {filteredOrders.map((order) => (
           <div key={order.id} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 space-y-1.5">
@@ -255,33 +325,35 @@ const SubscriptionOrderManager = () => {
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
-                  {editEmails[order.id] !== undefined ? (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        value={editEmails[order.id]}
-                        onChange={(e) => setEditEmails((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                        placeholder="Ketik email user..."
-                        className="h-7 text-xs w-48"
-                      />
-                      <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingEmail === order.id}
-                        onClick={() => saveEmail(order.id)}>
-                        <Save className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
-                        onClick={() => setEditEmails((prev) => { const n = { ...prev }; delete n[order.id]; return n; })}>
-                        Batal
-                      </Button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setEditEmails((prev) => ({ ...prev, [order.id]: order.email || "" }))}
-                      className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
-                      {order.email || <span className="italic text-muted-foreground/60">Belum ada email — klik untuk isi</span>}
-                    </button>
-                  )}
-                </div>
+                {mode === "membership" && (
+                  <div className="flex items-center gap-1.5">
+                    <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                    {editEmails[order.id] !== undefined ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={editEmails[order.id]}
+                          onChange={(e) => setEditEmails((prev) => ({ ...prev, [order.id]: e.target.value }))}
+                          placeholder="Ketik email user..."
+                          className="h-7 text-xs w-48"
+                        />
+                        <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingEmail === order.id}
+                          onClick={() => saveEmail(order.id)}>
+                          <Save className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs"
+                          onClick={() => setEditEmails((prev) => { const n = { ...prev }; delete n[order.id]; return n; })}>
+                          Batal
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditEmails((prev) => ({ ...prev, [order.id]: order.email || "" }))}
+                        className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
+                        {order.email || <span className="italic text-muted-foreground/60">Belum ada email — klik untuk isi</span>}
+                      </button>
+                    )}
+                  </div>
+                )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -299,8 +371,8 @@ const SubscriptionOrderManager = () => {
                 </div>
                 {order.status === "pending" && (
                   <div className="flex gap-1">
-                    <Button size="sm" variant="default" onClick={() => updateStatus(order.id, "confirmed")} className="h-7 text-xs">
-                      <CheckCircle className="mr-1 h-3 w-3" /> Konfirmasi
+                    <Button size="sm" variant="default" onClick={() => updateStatus(order.id, "confirmed")} disabled={confirmingId === order.id} className="h-7 text-xs">
+                      <CheckCircle className="mr-1 h-3 w-3" /> {confirmingId === order.id ? "..." : "Konfirmasi"}
                     </Button>
                     <Button size="sm" variant="destructive" onClick={() => updateStatus(order.id, "rejected")} className="h-7 text-xs">
                       <XCircle className="mr-1 h-3 w-3" /> Tolak
@@ -321,7 +393,7 @@ const SubscriptionOrderManager = () => {
             </div>
           </div>
         ))}
-        {filtered.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{searchQuery ? "Tidak ditemukan hasil pencarian" : "Tidak ada order"}</p>}
+        {filteredOrders.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{searchQuery ? "Tidak ditemukan hasil pencarian" : "Tidak ada order"}</p>}
       </div>
 
       {/* Preview bukti */}
@@ -338,7 +410,7 @@ const SubscriptionOrderManager = () => {
           <DialogHeader><DialogTitle>Kirim Pesan Massal</DialogTitle><DialogDescription>Pesan akan dikirim ke {confirmedCount} user yang telah dikonfirmasi via WhatsApp.</DialogDescription></DialogHeader>
           <div className="space-y-3">
             <Textarea value={bulkMessage} onChange={(e) => setBulkMessage(e.target.value)} placeholder="Tulis pesan..." className="bg-background" rows={4} />
-            <Button onClick={() => { const confirmed = orders.filter(o => o.status === "confirmed"); confirmed.forEach(o => { if (bulkMessage.trim()) sendWhatsApp(o.phone, bulkMessage); }); toast({ title: `Mengirim ke ${confirmed.length} user` }); setShowBulk(false); }} disabled={!bulkMessage.trim()} className="w-full gap-2">
+            <Button onClick={() => { const confirmed = showFiltered.filter(o => o.status === "confirmed"); confirmed.forEach(o => { if (bulkMessage.trim()) sendWhatsApp(o.phone, bulkMessage); }); toast({ title: `Mengirim ke ${confirmed.length} user` }); setShowBulk(false); }} disabled={!bulkMessage.trim()} className="w-full gap-2">
               <SendHorizonal className="h-4 w-4" /> Kirim ke Semua ({confirmedCount})
             </Button>
           </div>
@@ -349,19 +421,19 @@ const SubscriptionOrderManager = () => {
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Tambah Member Manual</DialogTitle>
-            <DialogDescription>Tambahkan user baru ke daftar membership secara manual (langsung dikonfirmasi).</DialogDescription>
+            <DialogTitle>{mode === "membership" ? "Tambah Member Manual" : "Tambah Order Manual"}</DialogTitle>
+            <DialogDescription>{mode === "membership" ? "Tambahkan user baru ke daftar membership secara manual (langsung dikonfirmasi)." : "Tambahkan order show secara manual (langsung dikonfirmasi)."}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">Show / Membership *</label>
+              <label className="text-xs font-medium text-foreground mb-1 block">Show *</label>
               <select
                 value={newOrder.show_id}
                 onChange={(e) => setNewOrder((p) => ({ ...p, show_id: e.target.value }))}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               >
                 <option value="">Pilih show...</option>
-                {subscriptionShows.map(([id, s]) => (
+                {modeShows.map(([id, s]) => (
                   <option key={id} value={id}>{s.title}</option>
                 ))}
               </select>
@@ -376,18 +448,20 @@ const SubscriptionOrderManager = () => {
                 placeholder="+628xxxxxxxxxx atau +60xxxxxxxxxx"
               />
             </div>
-            <div>
-              <label className="text-xs font-medium text-foreground mb-1 block">
-                <Mail className="inline h-3 w-3 mr-1" />Email (opsional)
-              </label>
-              <Input
-                value={newOrder.email}
-                onChange={(e) => setNewOrder((p) => ({ ...p, email: e.target.value }))}
-                placeholder="user@email.com"
-              />
-            </div>
+            {mode === "membership" && (
+              <div>
+                <label className="text-xs font-medium text-foreground mb-1 block">
+                  <Mail className="inline h-3 w-3 mr-1" />Email (opsional)
+                </label>
+                <Input
+                  value={newOrder.email}
+                  onChange={(e) => setNewOrder((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="user@email.com"
+                />
+              </div>
+            )}
             <Button onClick={addManualOrder} disabled={addingOrder || !newOrder.show_id || !newOrder.phone.trim()} className="w-full gap-2">
-              <UserPlus className="h-4 w-4" /> {addingOrder ? "Menyimpan..." : "Tambah Member"}
+              <UserPlus className="h-4 w-4" /> {addingOrder ? "Menyimpan..." : mode === "membership" ? "Tambah Member" : "Tambah Order"}
             </Button>
           </div>
         </DialogContent>
