@@ -996,6 +996,7 @@ export type Database = {
         Returns: Json
       }
       get_ban_info: { Args: { _user_id: string }; Returns: Json }
+      get_confirmed_order_count: { Args: { _show_id: string }; Returns: number }
       get_my_password_reset_status: { Args: never; Returns: Json }
       get_or_create_referral_code: { Args: never; Returns: Json }
       get_order_count: { Args: { _show_id: string }; Returns: number }

@@ -8,14 +8,15 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Webhook secret validation — prevents spoofed requests
+  // Webhook secret validation — MANDATORY to prevent spoofed requests
   const WEBHOOK_SECRET = Deno.env.get('WHATSAPP_WEBHOOK_SECRET');
-  if (WEBHOOK_SECRET) {
-    const url = new URL(req.url);
-    const providedSecret = url.searchParams.get('secret');
-    if (providedSecret !== WEBHOOK_SECRET) {
-      return jsonResponse({ error: 'Forbidden' }, 403);
-    }
+  if (!WEBHOOK_SECRET) {
+    return jsonResponse({ error: 'WHATSAPP_WEBHOOK_SECRET not configured' }, 500);
+  }
+  const url = new URL(req.url);
+  const providedSecret = url.searchParams.get('secret');
+  if (providedSecret !== WEBHOOK_SECRET) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
   const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
