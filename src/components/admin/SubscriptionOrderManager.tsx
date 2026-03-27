@@ -182,16 +182,49 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     setSendingWaAction("all-" + order.id);
     const siteUrl = "https://realtime48show.my.id";
 
-    // If no token exists and it's a regular (non-subscription) show, create one via confirm_regular_order or directly
-    if (!token && !showInfo.is_subscription && order.user_id) {
-      // Create a token linked to the show and user
+    // If no token exists and it's a regular (non-subscription) show, create one
+    if (!token && !showInfo.is_subscription) {
       const newCode = "ADM-" + Math.random().toString(36).slice(2, 14).toUpperCase();
-      const { error: tokenErr } = await supabase.from("tokens").insert({
-        code: newCode, show_id: order.show_id, user_id: order.user_id, max_devices: 1,
-      });
+
+      // Calculate expires_at based on show schedule
+      let expiresAt: string | null = null;
+      if (showInfo.schedule_date) {
+        try {
+          const { data: parsedDt } = await supabase.rpc("parse_show_datetime" as any, {
+            _date: showInfo.schedule_date,
+            _time: showInfo.schedule_time || "23.59 WIB",
+          });
+          if (parsedDt) {
+            const showDate = new Date(parsedDt as string);
+            // Set to end of show day (23:59:59 WIB)
+            showDate.setHours(23, 59, 59, 0);
+            // If already past, give 24h from now
+            if (showDate.getTime() < Date.now()) {
+              expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            } else {
+              expiresAt = showDate.toISOString();
+            }
+          }
+        } catch { /* fallback to 24h */ }
+      }
+      if (!expiresAt) {
+        expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      const insertData: any = {
+        code: newCode,
+        show_id: order.show_id,
+        max_devices: 1,
+        expires_at: expiresAt,
+        user_id: order.user_id || null,
+      };
+
+      const { error: tokenErr } = await supabase.from("tokens").insert(insertData);
       if (!tokenErr) {
-        token = { code: newCode, expires_at: null };
+        token = { code: newCode, expires_at: expiresAt };
         setOrderTokens(prev => ({ ...prev, [order.id]: token! }));
+      } else {
+        toast({ title: "Gagal membuat token: " + tokenErr.message, variant: "destructive" });
       }
     }
 
