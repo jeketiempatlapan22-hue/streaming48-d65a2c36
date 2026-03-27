@@ -28,11 +28,15 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Find approved reset request by cryptographic secure_token
+    // Hash the incoming token to compare with stored hash
+    const { data: hashResult } = await supabase.rpc('hash_token', { _token: secure_token });
+    const hashedToken = hashResult as string;
+
+    // Find approved reset request by hashed secure_token
     const { data: request, error: findErr } = await supabase
       .from('password_reset_requests')
       .select('id, user_id, status, processed_at')
-      .eq('secure_token', secure_token)
+      .eq('secure_token', hashedToken)
       .eq('status', 'approved')
       .maybeSingle();
 
