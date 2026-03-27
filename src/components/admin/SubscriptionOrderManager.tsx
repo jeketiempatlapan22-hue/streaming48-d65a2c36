@@ -64,6 +64,24 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "", is_subscription: s.is_subscription, access_password: s.access_password || "", is_replay: s.is_replay || false }; });
     setShows(showMap);
     setOrders((ordersData as Order[]) || []);
+
+    // Fetch tokens for confirmed orders to enable quick-send buttons
+    const confirmedOrders = (ordersData as Order[] || []).filter(o => o.status === "confirmed" && o.user_id);
+    if (confirmedOrders.length > 0) {
+      const userIds = [...new Set(confirmedOrders.map(o => o.user_id!))];
+      const showIds = [...new Set(confirmedOrders.map(o => o.show_id))];
+      const { data: tokensData } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("user_id", userIds).in("show_id", showIds);
+      const tokenMap: Record<string, { code: string; expires_at: string | null }> = {};
+      if (tokensData) {
+        for (const order of confirmedOrders) {
+          const token = tokensData.find((t: any) => t.user_id === order.user_id && t.show_id === order.show_id && t.status === "active");
+          if (token) {
+            tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+          }
+        }
+      }
+      setOrderTokens(tokenMap);
+    }
   };
 
   useEffect(() => { fetchOrders(); }, []);
