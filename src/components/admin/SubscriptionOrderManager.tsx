@@ -207,6 +207,79 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     setAddingOrder(false);
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const pendingIds = filteredOrders.filter((o) => o.status === "pending").map((o) => o.id);
+    if (pendingIds.every((id) => selectedIds.has(id))) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pendingIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pendingIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const bulkUpdateStatus = async (status: "confirmed" | "rejected") => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkProcessing(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of ids) {
+      try {
+        if (status === "confirmed") {
+          const { data, error } = await supabase.rpc("confirm_regular_order" as any, { _order_id: id });
+          const result = data as any;
+          if (error || !result?.success) { failCount++; continue; }
+
+          const order = orders.find((o) => o.id === id);
+          const showInfo = order ? shows[order.show_id] : null;
+          const siteUrl = window.location.origin;
+
+          if (result.token_code && order?.phone && showInfo) {
+            const liveLink = `${siteUrl}/live?t=${result.token_code}`;
+            let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
+            if (showInfo.access_password) {
+              message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+            }
+            message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+            sendWhatsApp(order.phone, message);
+          } else if (!result.token_code && order?.phone && showInfo) {
+            const message = `✅ *Membership Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n${showInfo.group_link ? `🔗 Link Grup: ${showInfo.group_link}\n` : ""}\nTerima kasih! 🎉`;
+            sendWhatsApp(order.phone, message);
+          }
+          successCount++;
+        } else {
+          await (supabase as any).from("subscription_orders").update({ status }).eq("id", id);
+          successCount++;
+        }
+      } catch {
+        failCount++;
+      }
+    }
+
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    await fetchOrders();
+    toast({
+      title: `${status === "confirmed" ? "Dikonfirmasi" : "Ditolak"}: ${successCount} berhasil${failCount > 0 ? `, ${failCount} gagal` : ""}`,
+    });
+  };
+
   // Filter orders by mode (membership vs regular)
   const modeOrders = orders.filter((o) => {
     const showInfo = shows[o.show_id];
@@ -234,6 +307,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     : statusFiltered;
 
   const confirmedCount = showFiltered.filter((o) => o.status === "confirmed").length;
+  const pendingInView = filteredOrders.filter((o) => o.status === "pending");
+  const selectedPendingCount = pendingInView.filter((o) => selectedIds.has(o.id)).length;
 
   return (
     <div className="space-y-6">
