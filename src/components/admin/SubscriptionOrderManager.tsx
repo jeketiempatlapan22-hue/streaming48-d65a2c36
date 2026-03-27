@@ -506,6 +506,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
               </div>
+              </div>
               <div className="flex flex-col items-end gap-2">
                 <div className="flex gap-1">
                   {order.payment_method !== "coin" && order.payment_method !== "manual" && order.payment_proof_url && (
