@@ -43,7 +43,7 @@ const PurchaseModal = ({
         {/* Hidden file input for gallery */}
         <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
 
-        {/* Regular show: QRIS + WhatsApp */}
+        {/* Regular show: QRIS + Phone only */}
         {!show.is_subscription && purchaseStep === "info" && (
           <div className="space-y-4">
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -60,9 +60,10 @@ const PurchaseModal = ({
             )}
             <div>
               <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <Mail className="h-3.5 w-3.5" /> Email Anda
+                <MessageCircle className="h-3.5 w-3.5" /> Nomor WhatsApp <span className="text-destructive">*</span>
               </label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" className="bg-background" />
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Contoh: 081234567890 atau 628123456789</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
@@ -73,7 +74,7 @@ const PurchaseModal = ({
                 {show.lineup && <p>👥 {show.lineup}</p>}
               </div>
             </div>
-            <Button onClick={onConfirmRegular} disabled={!email.trim()} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
+            <Button onClick={onConfirmRegular} disabled={!phone.trim()} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
               <MessageCircle className="h-4 w-4" /> Kirim Pesanan via WhatsApp
             </Button>
             <p className="text-[10px] text-center text-muted-foreground">
