@@ -124,7 +124,7 @@ const SchedulePage = () => {
       signedUrl = urlData?.signedUrl || "";
     }
     const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl || null,
+      show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null,
     }).select("id").single();
     setPurchaseStep("done");
     if (orderData?.id) {

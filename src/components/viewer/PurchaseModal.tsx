@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
-import { MessageCircle, Upload, CheckCircle, Mail } from "lucide-react";
+import { MessageCircle, Upload, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Show } from "@/types/show";

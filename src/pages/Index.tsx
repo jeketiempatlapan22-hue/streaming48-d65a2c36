@@ -837,7 +837,7 @@ const Index = () => {
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
                   <p className="mt-1 text-[10px] text-muted-foreground">Contoh: 081234567890 atau 628123456789</p>
                 </div>
-                {/* Optional proof upload */}
+                {/* Optional proof upload - gallery only */}
                 {proofFilePath ? (
                   <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))]">
                     <CheckCircle className="h-4 w-4" /> Bukti pembayaran berhasil diupload
