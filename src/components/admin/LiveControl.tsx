@@ -102,7 +102,8 @@ const LiveControl = () => {
   const addPlaylist = async () => {
     if (!newLabel || !newUrl) return;
     setPlLoading(true);
-    await supabase.from("playlists").insert({ title: newLabel, type: newType, url: newUrl, sort_order: playlists.length });
+    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : newUrl;
+    await supabase.from("playlists").insert({ title: newLabel, type: newType, url: urlToSave, sort_order: playlists.length });
     setNewLabel(""); setNewUrl("");
     await fetchPlaylists();
     toast({ title: "Playlist ditambahkan!" });
