@@ -54,9 +54,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
   const fetchOrders = async () => {
     const { data: ordersData } = await (supabase as any).from("subscription_orders").select("*").order("created_at", { ascending: false });
-    const { data: showsData } = await supabase.from("shows").select("id, title, group_link, is_subscription");
+    const { data: showsData } = await supabase.from("shows").select("id, title, group_link, is_subscription, access_password, is_replay");
     const showMap: Record<string, ShowInfo> = {};
-    showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "", is_subscription: s.is_subscription }; });
+    showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "", is_subscription: s.is_subscription, access_password: s.access_password || "", is_replay: s.is_replay || false }; });
     setShows(showMap);
     setOrders((ordersData as Order[]) || []);
   };
