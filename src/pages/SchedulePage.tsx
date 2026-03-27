@@ -154,15 +154,27 @@ const SchedulePage = () => {
     if (!selectedShow || !proofFilePath) return;
     const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
     const signedUrl = urlData?.signedUrl || "";
-    const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl,
-    }).select("id").single();
-    setPurchaseStep("done");
-    if (orderData?.id) {
-      supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription" },
-      }).catch(() => {});
+    let orderId: string | null = null;
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const uid = sess?.session?.user?.id || null;
+      if (uid) {
+        const { data: orderData } = await supabase.from("subscription_orders").insert({
+          show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: uid,
+        }).select("id").single();
+        orderId = orderData?.id || null;
+      } else {
+        await supabase.from("subscription_orders").insert({
+          show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: null,
+        });
+      }
+    } catch (e) {
+      console.warn("Order insert error:", e);
     }
+    setPurchaseStep("done");
+    supabase.functions.invoke("notify-subscription-order", {
+      body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
+    }).catch(() => {});
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
