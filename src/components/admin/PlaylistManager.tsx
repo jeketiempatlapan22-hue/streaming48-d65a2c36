@@ -29,7 +29,8 @@ const PlaylistManager = () => {
   const addPlaylist = async () => {
     if (!newTitle || !newUrl) return;
     setLoading(true);
-    await supabase.from("playlists").insert({ title: newTitle, type: newType, url: newUrl, sort_order: playlists.length });
+    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : newUrl;
+    await supabase.from("playlists").insert({ title: newTitle, type: newType, url: urlToSave, sort_order: playlists.length });
     setNewTitle(""); setNewUrl("");
     await fetchPlaylists();
     toast({ title: "Playlist ditambahkan!" });
