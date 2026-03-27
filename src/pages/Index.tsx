@@ -838,12 +838,6 @@ const Index = () => {
                   </label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
                 </div>
-                <div>
-                  <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5" /> Email
-                  </label>
-                  <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" className="bg-background" />
-                </div>
                 <div className="rounded-xl border border-border bg-card p-4">
                   <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
                   <div className="space-y-1 text-xs text-muted-foreground">
@@ -853,7 +847,7 @@ const Index = () => {
                     {selectedShow.lineup && <p>👥 {selectedShow.lineup}</p>}
                   </div>
                 </div>
-                <Button onClick={handleSubmitRegular} disabled={!phone.trim() || !email.trim()} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
+                <Button onClick={handleSubmitRegular} disabled={!phone.trim()} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
                   <CheckCircle className="h-4 w-4" /> Kirim Pesanan
                 </Button>
               </div>

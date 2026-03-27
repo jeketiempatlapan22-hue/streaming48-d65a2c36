@@ -170,7 +170,8 @@ const AdminDashboard = () => {
       case "live": return <><AdminDashboardStats /><div className="mt-6"><LiveControl /></div></>;
       case "tokens": return <TokenFactory />;
       case "shows": return <ShowManager />;
-      case "orders": return <SubscriptionOrderManager />;
+      case "orders": return <SubscriptionOrderManager mode="membership" />;
+      case "show-orders": return <SubscriptionOrderManager mode="regular" />;
       case "coin-packages": return <CoinPackageManager />;
       case "coin-orders": return <CoinOrderManager />;
       case "descriptions": return <LandingDescriptionManager />;
