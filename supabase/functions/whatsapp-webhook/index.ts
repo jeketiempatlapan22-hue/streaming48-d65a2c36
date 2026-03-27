@@ -1251,7 +1251,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     const last4 = code.slice(-4);
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-    return `✅ *Token Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n🔢 4 Digit: ${last4}\n\n💡 Link: streaming48.lovable.app/live?t=${code}`;
+    return `✅ *Token Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n🔢 4 Digit: ${last4}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
@@ -1314,7 +1314,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
-    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: streaming48.lovable.app/live?t=${code}`;
+    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
