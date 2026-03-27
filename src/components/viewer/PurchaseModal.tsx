@@ -23,7 +23,14 @@ const PurchaseModal = ({
   show, purchaseStep, uploadingProof, phone, setPhone, email, setEmail,
   onClose, onConfirmRegular, onUploadProof, onSubmitSubscription,
 }: PurchaseModalProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onUploadProof(e);
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
@@ -35,18 +42,9 @@ const PurchaseModal = ({
         <h3 className="mb-1 text-lg font-bold text-foreground">{show.title}</h3>
         <p className="mb-4 text-sm text-muted-foreground">{show.price}</p>
 
-        {/* Hidden real DOM file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            onUploadProof(e);
-            // Reset so the same file can be re-selected
-            if (fileInputRef.current) fileInputRef.current.value = "";
-          }}
-        />
+        {/* Hidden file inputs: one for gallery (no capture), one for camera */}
+        <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={handleFileChange} />
 
         {/* Regular show: QRIS + WhatsApp */}
         {!show.is_subscription && purchaseStep === "info" && (
