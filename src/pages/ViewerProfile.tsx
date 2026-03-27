@@ -61,7 +61,7 @@ const ViewerProfile = () => {
   }, [authUser, authLoading, navigate]);
 
   const handleSave = async () => {
-    if (!user || !username.trim()) return;
+    if (!authUser || !username.trim()) return;
     setSaving(true);
     const { error } = await supabase.from("profiles").upsert({ id: user.id, username: username.trim() }, { onConflict: "id" });
     setSaving(false);
