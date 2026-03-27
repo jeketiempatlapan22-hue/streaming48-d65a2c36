@@ -430,8 +430,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     e?.stopPropagation();
     if (playlistType === "youtube") {
       if (ytFallback) {
-        // Can't control iframe directly
-        setIsPlaying(prev => !prev);
+        // Reload iframe to get latest content
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
         return;
       }
       const player = ytPlayerRef.current;
@@ -451,7 +452,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       } catch {}
     } else if (playlistType === "cloudflare") {
-      setIsPlaying(prev => !prev);
+      if (!isPlaying) {
+        // Reload iframe to get latest content
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(false);
+      }
     } else if (videoRef.current) {
       const video = videoRef.current;
       if (video.paused) {
@@ -464,7 +471,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setIsPlaying(false);
       }
     }
-  }, [playlistType, ytFallback]);
+  }, [playlistType, ytFallback, isPlaying]);
 
   const toggleFullscreen = useCallback(async () => {
     if (!containerRef.current) return;
