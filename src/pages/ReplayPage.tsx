@@ -62,7 +62,7 @@ const ReplayPage = () => {
     const fetchData = async () => {
       const [showsRes, streamRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
-        supabase.rpc("get_stream_status"),
+        (supabase.rpc as any)("get_stream_status"),
         supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
       ]);
       if (settingsRes.data) {
