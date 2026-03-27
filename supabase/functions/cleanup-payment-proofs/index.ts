@@ -22,6 +22,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Rate limit: 3 per minute (cron job)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'cron';
+  if (!edgeRL(`cleanup:${ip}`, 3, 60_000)) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,

@@ -20,6 +20,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
+  // Rate limit: 5 attempts per minute per IP
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!edgeRL(`pw_apply:${ip}`, 5, 60_000)) {
+    return new Response(JSON.stringify({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' }), {
+      status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const { secure_token, new_password } = await req.json();
 

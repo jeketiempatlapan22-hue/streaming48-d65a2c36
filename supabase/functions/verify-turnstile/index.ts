@@ -21,6 +21,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Rate limit: 20 verifications per minute per IP
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!edgeRL(`turnstile:${ip}`, 20, 60_000)) {
+    return new Response(JSON.stringify({ success: false, error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const { token } = await req.json();
     if (!token) {

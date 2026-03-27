@@ -20,6 +20,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  // Rate limit: 30 per minute per IP (polling endpoint)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!edgeRL(`admin_logs:${ip}`, 30, 60_000)) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "No auth" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -21,6 +21,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Rate limit: 10 notifications per minute per IP
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  if (!edgeRL(`notify_sub:${ip}`, 10, 60_000)) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
     if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is not configured');

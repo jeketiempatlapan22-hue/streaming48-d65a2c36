@@ -20,6 +20,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
+  // Rate limit: 5 per minute (cron job)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'cron';
+  if (!edgeRL(`reminder:${ip}`, 5, 60_000)) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
