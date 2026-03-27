@@ -469,6 +469,48 @@ const LivePage = () => {
           
           <PipButton />
           {isLive ? <span className="flex items-center gap-1.5 rounded-full bg-destructive/20 px-3 py-1 text-xs font-semibold text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />LIVE</span> : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">OFFLINE</span>}
+          
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]">
+                <Menu className="h-5 w-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72 border-border bg-card p-0">
+              <SheetHeader className="px-6 pt-6 pb-4">
+                <SheetTitle className="flex items-center gap-2 text-foreground">
+                  <img src={logo} alt="RT48" className="h-7 w-7 rounded-full border border-border/60 object-cover" />
+                  RealTime48
+                </SheetTitle>
+              </SheetHeader>
+              <div className="px-6 pb-6 space-y-2">
+                {whatsappNumber && (
+                  <a
+                    href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-[hsl(var(--success))]/40 hover:bg-[hsl(var(--success))]/5"
+                  >
+                    <Phone className="h-5 w-5 text-[hsl(var(--success))]" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Hubungi Admin</p>
+                      <p className="text-xs text-muted-foreground">Chat via WhatsApp</p>
+                    </div>
+                  </a>
+                )}
+                <a
+                  href="/"
+                  className="flex w-full items-center gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                >
+                  <Home className="h-5 w-5 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Beranda</p>
+                    <p className="text-xs text-muted-foreground">Kembali ke halaman utama</p>
+                  </div>
+                </a>
+              </div>
+            </SheetContent>
+          </Sheet>
         </header>
         <div className="player-area relative z-10">
           {isLive && activePlaylist ? (
