@@ -124,6 +124,7 @@ const SchedulePage = () => {
       signedUrl = urlData?.signedUrl || "";
     }
     let orderId: string | null = null;
+    let insertSuccess = false;
     try {
       const { data: sess } = await supabase.auth.getSession();
       const uid = sess?.session?.user?.id || null;
@@ -131,19 +132,32 @@ const SchedulePage = () => {
         const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null, user_id: uid,
         }).select("id").single();
-        if (insertErr) console.warn("Order insert error:", insertErr.message);
-        orderId = orderData?.id || null;
+        if (insertErr) {
+          console.error("Order insert error:", insertErr.message);
+          toast.error("Gagal menyimpan pesanan: " + insertErr.message);
+        } else {
+          orderId = orderData?.id || null;
+          insertSuccess = true;
+        }
       } else {
         const { error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null, user_id: null,
         });
-        if (insertErr) console.warn("Order insert error:", insertErr.message);
+        if (insertErr) {
+          console.error("Order insert error:", insertErr.message);
+          toast.error("Gagal menyimpan pesanan: " + insertErr.message);
+        } else {
+          insertSuccess = true;
+        }
       }
-    } catch (e) {
-      console.warn("Order insert exception:", e);
+    } catch (e: any) {
+      console.error("Order insert exception:", e);
+      toast.error("Gagal menyimpan pesanan: " + (e?.message || "Coba lagi"));
+    }
+    if (insertSuccess) {
+      toast.success("✅ Pesanan berhasil dikirim! Admin akan segera memproses.");
     }
     setPurchaseStep("done");
-    // Always send notification regardless of insert success
     supabase.functions.invoke("notify-subscription-order", {
       body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email: email || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
     }).catch((e) => console.warn("Notify error:", e));
