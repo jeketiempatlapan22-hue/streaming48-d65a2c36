@@ -68,20 +68,41 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     setOrders((ordersData as Order[]) || []);
 
     // Fetch tokens for confirmed orders to enable quick-send buttons
-    const confirmedOrders = (ordersData as Order[] || []).filter(o => o.status === "confirmed" && o.user_id);
+    const confirmedOrders = (ordersData as Order[] || []).filter(o => o.status === "confirmed");
     if (confirmedOrders.length > 0) {
-      const userIds = [...new Set(confirmedOrders.map(o => o.user_id!))];
-      const showIds = [...new Set(confirmedOrders.map(o => o.show_id))];
-      const { data: tokensData } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("user_id", userIds).in("show_id", showIds);
       const tokenMap: Record<string, { code: string; expires_at: string | null }> = {};
-      if (tokensData) {
-        for (const order of confirmedOrders) {
-          const token = tokensData.find((t: any) => t.user_id === order.user_id && t.show_id === order.show_id && t.status === "active");
-          if (token) {
-            tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+
+      // Fetch tokens for orders with user_id
+      const withUser = confirmedOrders.filter(o => o.user_id);
+      if (withUser.length > 0) {
+        const userIds = [...new Set(withUser.map(o => o.user_id!))];
+        const showIds = [...new Set(withUser.map(o => o.show_id))];
+        const { data: tokensData } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("user_id", userIds).in("show_id", showIds);
+        if (tokensData) {
+          for (const order of withUser) {
+            const token = tokensData.find((t: any) => t.user_id === order.user_id && t.show_id === order.show_id && t.status === "active");
+            if (token) {
+              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+            }
           }
         }
       }
+
+      // Fetch tokens for guest/manual orders (user_id is null) — match by show_id + null user_id
+      const guestOrders = confirmedOrders.filter(o => !o.user_id);
+      if (guestOrders.length > 0) {
+        const guestShowIds = [...new Set(guestOrders.map(o => o.show_id))];
+        const { data: guestTokens } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("show_id", guestShowIds).is("user_id", null);
+        if (guestTokens) {
+          for (const order of guestOrders) {
+            const token = guestTokens.find((t: any) => t.show_id === order.show_id && t.status === "active");
+            if (token && !tokenMap[order.id]) {
+              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+            }
+          }
+        }
+      }
+
       setOrderTokens(tokenMap);
     }
   };
