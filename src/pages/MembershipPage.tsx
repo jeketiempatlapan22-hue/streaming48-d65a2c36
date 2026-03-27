@@ -346,10 +346,25 @@ const MembershipPage = () => {
                   <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia</div>
                 )}
                 <p className="text-xs text-muted-foreground">Setelah transfer, upload bukti pembayaran</p>
-                <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 py-4 text-sm font-medium text-primary transition hover:bg-primary/5 ${uploadingProof ? "opacity-50" : ""}`}>
+                <input
+                  ref={proofInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,.heic,.heif"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    handleUploadProof(e);
+                    if (proofInputRef.current) proofInputRef.current.value = "";
+                  }}
+                  disabled={uploadingProof}
+                />
+                <button
+                  type="button"
+                  className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 py-4 text-sm font-medium text-primary transition hover:bg-primary/5 ${uploadingProof ? "opacity-50" : ""}`}
+                  onClick={() => proofInputRef.current?.click()}
+                  disabled={uploadingProof}
+                >
                   <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                  <input type="file" className="hidden" onChange={handleUploadProof} disabled={uploadingProof} />
-                </label>
+                </button>
               </div>
             )}
 
