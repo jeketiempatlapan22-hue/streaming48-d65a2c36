@@ -87,6 +87,40 @@ const AdminMonitor = () => {
     }
   };
 
+  const handleBanByUsername = async (chatUsername: string) => {
+    // Look up user_id from profiles table
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("username", chatUsername)
+      .single();
+
+    if (!profile) {
+      toast.error(`User "${chatUsername}" tidak ditemukan di database`);
+      return;
+    }
+
+    const userId = profile.id;
+
+    // Upsert ban
+    const { error: banError } = await supabase
+      .from("user_bans")
+      .upsert(
+        { user_id: userId, is_active: true, reason: "Diblokir dari live chat oleh admin", banned_by: "admin" },
+        { onConflict: "user_id" }
+      );
+
+    if (banError) {
+      toast.error("Gagal memblokir user: " + banError.message);
+      return;
+    }
+
+    // Block all active tokens for this user
+    await supabase.from("tokens").update({ status: "blocked" } as any).eq("user_id", userId).eq("status", "active");
+
+    toast.success(`User "${chatUsername}" telah diblokir dan semua tokennya dicabut`);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-foreground">📺 Monitor & Poll</h2>
