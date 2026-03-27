@@ -81,6 +81,8 @@ const MembershipPage = () => {
     fetchMyOrders();
     supabase.from("site_settings").select("value").eq("key", "membership_coin_only").maybeSingle()
       .then(({ data }) => { if (data?.value === "true") setCoinOnly(true); });
+    supabase.from("site_settings").select("value").eq("key", "whatsapp_number").maybeSingle()
+      .then(({ data }) => { if (data?.value) setWhatsappNumber(data.value); });
 
     const showChannel = supabase.channel("membership-shows")
       .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
