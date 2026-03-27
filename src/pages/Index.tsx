@@ -266,6 +266,8 @@ const Index = () => {
         body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription" },
       }).catch(() => {});
     }
+    // Auto-open WhatsApp with order details
+    openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
   // Parse Indonesian date format like "28 Juni 2025" + "20.00 WIB" into a timestamp
