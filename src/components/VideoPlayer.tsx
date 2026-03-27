@@ -258,14 +258,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     const videoId = extractVideoId(playlistUrl);
 
-    // Fallback: if YT API doesn't fire onReady within 6 seconds, use direct iframe
+    // Fallback: if YT API doesn't fire onReady within 3 seconds, use direct iframe
     ytFallbackTimerRef.current = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
       console.warn("[VideoPlayer] YT IFrame API timeout, switching to direct iframe embed");
       setYtFallback(true);
       setIsLoading(false);
       setIsPlaying(autoPlay);
-    }, 6000);
+    }, 3000);
 
     const loadYTApi = () => {
       if ((window as any).YT && (window as any).YT.Player) {
