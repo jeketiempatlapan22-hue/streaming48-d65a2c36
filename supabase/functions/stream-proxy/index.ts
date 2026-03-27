@@ -463,9 +463,9 @@ Deno.serve(async (req) => {
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
 
-      const clientIpSub = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-      if (encoded && !edgeRateLimit(`sub:${clientIpSub}:${encoded.slice(0, 20)}`, 300, 60000)) {
-        return getRateLimitResponse();
+      // Sub-playlists are fetched frequently by HLS; 500/min is safe
+      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 500, 60000)) {
+        return getRateLimitResponse(true);
       }
 
       if (!encoded || !exp || !sig) {

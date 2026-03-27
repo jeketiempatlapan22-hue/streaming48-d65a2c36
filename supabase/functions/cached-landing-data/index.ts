@@ -103,11 +103,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Rate limit: max 30 requests per minute per IP
+    // Rate limit: max 60 requests per minute per IP (generous for page loads + API calls)
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-    if (!edgeRL(`landing:${ip}`, 30, 60_000)) {
+    if (!edgeRL(`landing:${ip}`, 60, 60_000)) {
       return new Response(JSON.stringify({ error: 'Rate limited' }), {
-        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': '10' },
       });
     }
 
