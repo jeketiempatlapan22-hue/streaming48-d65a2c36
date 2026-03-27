@@ -373,6 +373,32 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         ))}
       </div>
 
+      {/* Bulk action bar */}
+      {pendingInView.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 flex-wrap">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={pendingInView.length > 0 && pendingInView.every((o) => selectedIds.has(o.id))}
+              onChange={toggleSelectAll}
+              className="rounded border-input"
+            />
+            Pilih Semua Pending ({pendingInView.length})
+          </label>
+          {selectedPendingCount > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-muted-foreground">{selectedPendingCount} dipilih</span>
+              <Button size="sm" onClick={() => bulkUpdateStatus("confirmed")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi Semua"}
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => bulkUpdateStatus("rejected")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                <XCircle className="h-3 w-3" /> Tolak Semua
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {filteredOrders.length > 0 && (
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => copyBulkData("phone")} className="gap-1.5 text-xs">
