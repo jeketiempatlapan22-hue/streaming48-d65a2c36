@@ -347,7 +347,7 @@ const MembershipPage = () => {
                 <p className="text-xs text-muted-foreground">Setelah transfer, upload bukti pembayaran</p>
                 <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 py-4 text-sm font-medium text-primary transition hover:bg-primary/5 ${uploadingProof ? "opacity-50" : ""}`}>
                   <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} disabled={uploadingProof} />
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif" className="hidden" onChange={handleUploadProof} disabled={uploadingProof} />
                 </label>
               </div>
             )}

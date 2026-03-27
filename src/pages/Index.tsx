@@ -823,7 +823,7 @@ const Index = () => {
                   onClick={() => {
                     const input = document.createElement("input");
                      input.type = "file";
-                     input.accept = "image/*,.heic,.heif";
+                      input.accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif";
                     input.onchange = (e) => handleUploadProof(e as any);
                     input.click();
                   }}
@@ -905,7 +905,7 @@ const Index = () => {
                   onClick={() => {
                     const input = document.createElement("input");
                      input.type = "file";
-                     input.accept = "image/*,.heic,.heif";
+                      input.accept = "image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif";
                     input.onchange = (e) => handleUploadProof(e as any);
                     input.click();
                   }}
