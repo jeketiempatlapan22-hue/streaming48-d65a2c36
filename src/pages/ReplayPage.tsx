@@ -53,7 +53,8 @@ const ReplayPage = () => {
   // QRIS flow state
   const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "done">("scan");
   const [uploadingProof, setUploadingProof] = useState(false);
-  const proofInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [proofUrl, setProofUrl] = useState("");
   const [proofFilePath, setProofFilePath] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
