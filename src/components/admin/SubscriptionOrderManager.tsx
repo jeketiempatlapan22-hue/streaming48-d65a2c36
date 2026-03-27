@@ -591,9 +591,25 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   </div>
                 )}
                 {order.status === "confirmed" && (
-                  <div className="w-full space-y-1">
+                  <div className="w-full space-y-1.5">
+                    {/* Quick-send buttons */}
+                    <div className="flex flex-wrap gap-1">
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                        disabled={sendingWaAction === "show-" + order.id || !order.phone}
+                        onClick={() => sendShowLink(order)}>
+                        <Link className="h-3 w-3" /> {sendingWaAction === "show-" + order.id ? "Mengirim..." : orderTokens[order.id] ? "Kirim Link Show" : shows[order.show_id]?.is_subscription ? "Kirim Link Grup" : "Kirim Info Show"}
+                      </Button>
+                      {shows[order.show_id]?.access_password && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                          disabled={sendingWaAction === "replay-" + order.id || !order.phone}
+                          onClick={() => sendReplayLink(order)}>
+                          <KeyRound className="h-3 w-3" /> {sendingWaAction === "replay-" + order.id ? "Mengirim..." : "Kirim Link Replay"}
+                        </Button>
+                      )}
+                    </div>
+                    {/* Custom message */}
                     <Textarea value={waMessages[order.id] || ""} onChange={(e) => setWaMessages((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                      placeholder="Tulis pesan untuk user ini..." className="h-16 bg-background text-xs" />
+                      placeholder="Tulis pesan kustom untuk user ini..." className="h-16 bg-background text-xs" />
                     <Button size="sm" variant="outline" className="h-7 w-full gap-1 text-xs" disabled={!waMessages[order.id]?.trim()}
                       onClick={() => sendWhatsApp(order.phone, waMessages[order.id])}>
                       <Send className="h-3 w-3" /> Kirim via WA
