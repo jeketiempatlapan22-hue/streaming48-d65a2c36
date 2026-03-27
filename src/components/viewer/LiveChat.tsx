@@ -92,6 +92,19 @@ const ChatMessageItem = memo(({ msg, isAdmin, isChatMod, chatModUsernames, onPin
               {isMsgFromMod ? <ShieldMinus className="h-3 w-3" /> : <ShieldPlus className="h-3 w-3" />}
             </button>
           )}
+          {isAdmin && !msg.is_admin && onBanUser && (
+            <button
+              onClick={() => {
+                if (confirm(`Ban user "${msg.username}"? User akan langsung dikeluarkan dan tidak bisa akses lagi.`)) {
+                  onBanUser(msg.username);
+                }
+              }}
+              className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+              title="Ban User"
+            >
+              <UserX className="h-3 w-3" />
+            </button>
+          )}
         </div>
       )}
     </div>
