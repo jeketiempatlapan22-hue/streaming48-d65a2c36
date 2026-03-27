@@ -30,7 +30,6 @@ const CoinShop = () => {
   const [buyerPhone, setBuyerPhone] = useState("");
   const [uploading, setUploading] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [redeemingShow, setRedeemingShow] = useState<string | null>(null);
   const [redeemResult, setRedeemResult] = useState<{ token_code: string; remaining_balance: number; access_password?: string } | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
