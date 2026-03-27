@@ -224,12 +224,12 @@ const Index = () => {
       signedUrl = urlData?.signedUrl || "";
     }
     const { data: orderData } = await supabase.from("subscription_orders").insert({
-      show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl || null,
+      show_id: selectedShow.id, phone, email: email || null, payment_proof_url: signedUrl || null,
     }).select("id").single();
     setPurchaseStep("done");
     if (orderData?.id) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show" },
+        body: { order_id: orderData.id, show_title: selectedShow.title, phone, email: email || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show" },
       }).catch(() => {});
     }
     openWhatsAppOrderDetail(selectedShow, phone, email);
