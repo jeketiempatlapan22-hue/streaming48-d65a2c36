@@ -717,7 +717,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               >
                 <option value="">Pilih show...</option>
                 {modeShows.map(([id, s]) => (
-                  <option key={id} value={id}>{s.title}</option>
+                  <option key={id} value={id}>{s.title}{s.schedule_date ? ` — ${s.schedule_date}` : ""}</option>
                 ))}
               </select>
             </div>
