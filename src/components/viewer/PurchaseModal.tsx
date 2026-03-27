@@ -87,7 +87,6 @@ const PurchaseModal = ({
               const input = document.createElement("input");
               input.type = "file";
               input.accept = "image/*,.heic,.heif";
-              input.capture = "environment";
               input.onchange = (e: any) => onUploadProof(e);
               input.click();
             }}
