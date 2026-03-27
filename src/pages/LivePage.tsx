@@ -8,6 +8,10 @@ import PipButton from "@/components/viewer/PipButton";
 import SecurityAlert from "@/components/viewer/SecurityAlert";
 import PlayerAnimations, { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
+import { Menu, X, MessageCircle, Home, Phone } from "lucide-react";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+} from "@/components/ui/sheet";
 
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { withRetry, withTimeout } from "@/lib/queryCache";
