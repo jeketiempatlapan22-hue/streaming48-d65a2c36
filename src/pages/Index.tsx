@@ -821,7 +821,7 @@ const Index = () => {
                 <input
                   ref={proofInputRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,.heic,.heif"
+                  accept="image/*"
                   style={{ display: "none" }}
                   onChange={(e) => {
                     handleUploadProof(e as any);

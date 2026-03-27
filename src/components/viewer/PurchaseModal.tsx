@@ -39,7 +39,7 @@ const PurchaseModal = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,.heic,.heif"
+          accept="image/*"
           style={{ display: "none" }}
           onChange={(e) => {
             onUploadProof(e);
