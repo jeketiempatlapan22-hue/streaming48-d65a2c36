@@ -177,11 +177,29 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
   const sendAllLinks = async (order: Order) => {
     const showInfo = shows[order.show_id];
-    const token = orderTokens[order.id];
+    let token = orderTokens[order.id];
     if (!order.phone || !showInfo) { toast({ title: "Data tidak lengkap", variant: "destructive" }); return; }
     setSendingWaAction("all-" + order.id);
-    const siteUrl = window.location.origin;
-    let message = `📺 *Info Show: ${showInfo.title}*\n\n`;
+    const siteUrl = "https://realtime48show.my.id";
+
+    // If no token exists and it's a regular (non-subscription) show, create one via confirm_regular_order or directly
+    if (!token && !showInfo.is_subscription && order.user_id) {
+      // Create a token linked to the show and user
+      const newCode = "ADM-" + Math.random().toString(36).slice(2, 14).toUpperCase();
+      const { error: tokenErr } = await supabase.from("tokens").insert({
+        code: newCode, show_id: order.show_id, user_id: order.user_id, max_devices: 1,
+      });
+      if (!tokenErr) {
+        token = { code: newCode, expires_at: null };
+        setOrderTokens(prev => ({ ...prev, [order.id]: token! }));
+      }
+    }
+
+    let message = `📺 *Info Show: ${showInfo.title}*\n`;
+    if (showInfo.schedule_date) {
+      message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
+    }
+    message += "\n";
 
     if (token) {
       const liveLink = `${siteUrl}/live?t=${token.code}`;
