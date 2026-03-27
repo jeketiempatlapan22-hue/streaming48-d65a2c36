@@ -155,26 +155,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return new TextDecoder().decode(result);
   }, []);
 
-  // Helper: create a protected iframe imperatively and hide its src from DevTools
+  // Helper: create iframe imperatively
   const createProtectedIframe = useCallback((container: HTMLElement, url: string, opts: { allow?: string; allowFullscreen?: boolean; className?: string }) => {
     container.innerHTML = "";
     const iframe = document.createElement("iframe");
     iframe.setAttribute("allow", opts.allow || "");
     if (opts.allowFullscreen) iframe.allowFullscreen = true;
     iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
-    iframe.loading = "lazy";
-    // Set src first
     iframe.src = url;
     container.appendChild(iframe);
-    // Override src/currentSrc getters to hide the real URL from DOM inspection
-    try {
-      Object.defineProperty(iframe, 'src', {
-        get: () => 'about:blank',
-        set: (v: string) => { iframe.setAttribute('src', v); },
-        configurable: true,
-      });
-      Object.defineProperty(iframe, 'currentSrc', { get: () => '', configurable: true });
-    } catch {}
     return iframe;
   }, []);
 
@@ -232,19 +221,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(decodedUrl);
       hls.attachMedia(videoRef.current!);
 
-      try {
-        const videoEl = videoRef.current!;
-        const origSrc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-        Object.defineProperty(videoEl, 'src', {
-          get: () => '',
-          set: (v: string) => origSrc?.set?.call(videoEl, v),
-          configurable: true,
-        });
-        Object.defineProperty(videoEl, 'currentSrc', {
-          get: () => '',
-          configurable: true,
-        });
-      } catch {}
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
@@ -399,12 +375,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
               try {
                 const iframe = container.querySelector("iframe");
-                if (iframe) {
-                  iframe.removeAttribute("title");
-                  // Hide YouTube URL from DOM inspection
-                  Object.defineProperty(iframe, 'src', { get: () => 'about:blank', set: (v: string) => { iframe.setAttribute('src', v); }, configurable: true });
-                  Object.defineProperty(iframe, 'currentSrc', { get: () => '', configurable: true });
-                }
+                if (iframe) iframe.removeAttribute("title");
               } catch {}
 
               if (autoPlay) {
