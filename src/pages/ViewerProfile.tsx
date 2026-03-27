@@ -13,8 +13,7 @@ import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
 
 const ViewerProfile = () => {
-  const { isBanned, banReason, signOut: authSignOut } = useProtectedAuth();
-  const [user, setUser] = useState<any>(null);
+  const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
   const [username, setUsername] = useState("");
   const [originalUsername, setOriginalUsername] = useState("");
   const [balance, setBalance] = useState(0);
@@ -27,19 +26,12 @@ const ViewerProfile = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const init = async () => {
+    if (authLoading) return;
+    if (!authUser) { navigate("/auth"); return; }
+
+    const loadData = async () => {
       try {
-        const { data: { session } } = await withTimeout(
-          supabase.auth.getSession(),
-          10_000,
-          "Session timeout"
-        );
-
-        if (!session?.user) { navigate("/auth"); return; }
-
-        const u = session.user;
-        setUser(u);
-
+        const u = authUser;
         const [profileRes, balRes, ordersRes, subRes, tokensRes] = await Promise.allSettled([
           withTimeout((async () => await supabase.from("profiles").select("username").eq("id", u.id).maybeSingle())(), 8_000, "Profile timeout"),
           withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", u.id).maybeSingle())(), 8_000, "Balance timeout"),
@@ -60,18 +52,18 @@ const ViewerProfile = () => {
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
         setTokens(tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : []);
       } catch {
-        toast.error("Server sedang sibuk, coba muat ulang halaman.");
+        toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
         setLoading(false);
       }
     };
-    init();
-  }, [navigate]);
+    loadData();
+  }, [authUser, authLoading, navigate]);
 
   const handleSave = async () => {
-    if (!user || !username.trim()) return;
+    if (!authUser || !username.trim()) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, username: username.trim() }, { onConflict: "id" });
+    const { error } = await supabase.from("profiles").upsert({ id: authUser.id, username: username.trim() }, { onConflict: "id" });
     setSaving(false);
     if (error) toast.error(error.message);
     else { setOriginalUsername(username.trim()); toast.success("Username diperbarui!"); }
@@ -105,7 +97,7 @@ const ViewerProfile = () => {
       <div className="mx-auto max-w-lg px-4 py-6 space-y-5">
         {/* Profile Card */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-5 flex flex-col items-center gap-3"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><User className="h-8 w-8 text-primary" /></div><p className="text-xs text-muted-foreground">{user?.email || ""}</p></div>
+          <div className="mb-5 flex flex-col items-center gap-3"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><User className="h-8 w-8 text-primary" /></div><p className="text-xs text-muted-foreground">{authUser?.email || ""}</p></div>
           <div className="space-y-3">
             <label className="block text-xs font-medium text-muted-foreground">Username</label>
             <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Masukkan username" className="bg-background" maxLength={30} />
