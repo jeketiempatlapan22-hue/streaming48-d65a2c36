@@ -529,14 +529,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, [playlistType, ytFallback, isPlaying]);
 
   const toggleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else {
-        await containerRef.current.requestFullscreen();
+      } else if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if ((el as any).webkitRequestFullscreen) {
+        (el as any).webkitRequestFullscreen();
+      } else if ((el as any).webkitEnterFullscreen) {
+        (el as any).webkitEnterFullscreen();
       }
-    } catch {}
+    } catch {
+      // iOS: try fullscreen on the video element directly
+      try {
+        const video = videoRef.current || el.querySelector("video") || el.querySelector("iframe");
+        if (video && (video as any).webkitEnterFullscreen) {
+          (video as any).webkitEnterFullscreen();
+        }
+      } catch {}
+    }
   }, []);
 
   const toggleOrientation = useCallback(async () => {
