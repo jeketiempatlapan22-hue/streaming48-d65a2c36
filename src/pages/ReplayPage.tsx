@@ -147,20 +147,41 @@ const ReplayPage = () => {
     setUploadingProof(false);
   };
 
-  const handleSendWhatsApp = () => {
-    if (!purchaseShow || !whatsappNumber) return;
-    const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
-    const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
-    const msg = encodeURIComponent(
-      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN REPLAY*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${purchaseShow.title}\n💰 *Harga:* ${purchaseShow.price}\n${purchaseShow.schedule_date ? `📅 *Jadwal:* ${purchaseShow.schedule_date} ${purchaseShow.schedule_time}\n` : ""}${purchaseShow.lineup ? `👥 *Lineup:* ${purchaseShow.lineup}\n` : ""}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
-    );
-    window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
-    setQrisStep("done");
-    // Also send Telegram/WA notification to admin
+  const handleSubmitReplayOrder = async () => {
+    if (!purchaseShow) return;
+    let signedUrl = "";
     if (proofFilePath) {
+      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
+      signedUrl = urlData?.signedUrl || "";
+    }
+    let orderId: string | null = null;
+    try {
+      const { data, error } = await supabase.rpc("create_show_order", {
+        _show_id: purchaseShow.id, _phone: qrisPhone, _email: qrisEmail || null, _payment_proof_url: signedUrl || null,
+      });
+      const result = data as any;
+      if (!error && result?.success) {
+        orderId = result.order_id;
+        setOrderShortId(result.short_id || "");
+      }
+    } catch (e) {
+      console.error("Order insert error:", e);
+    }
+    setQrisStep("done");
+    // Send bot notification
+    if (orderId) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: "", show_title: purchaseShow.title, phone: "", email: "", proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "replay" },
+        body: { order_id: orderId, show_title: purchaseShow.title, phone: qrisPhone, email: qrisEmail || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "replay", schedule_date: purchaseShow.schedule_date || null, schedule_time: purchaseShow.schedule_time || null },
       }).catch(() => {});
+    }
+    // Also open WhatsApp
+    if (whatsappNumber) {
+      const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+      const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
+      const msg = encodeURIComponent(
+        `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN REPLAY*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${purchaseShow.title}\n💰 *Harga:* ${purchaseShow.price}\n${purchaseShow.schedule_date ? `📅 *Jadwal:* ${purchaseShow.schedule_date} ${purchaseShow.schedule_time}\n` : ""}${purchaseShow.lineup ? `👥 *Lineup:* ${purchaseShow.lineup}\n` : ""}📱 HP: ${qrisPhone}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
+      );
+      window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
     }
   };
 
