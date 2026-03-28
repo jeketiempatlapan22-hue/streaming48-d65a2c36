@@ -395,6 +395,12 @@ const MembershipPage = () => {
               <div className="space-y-4 text-center">
                 <div className="text-4xl">🎉</div>
                 <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
+                {orderShortId && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">🆔 ID Pesanan</p>
+                    <p className="font-mono text-lg font-bold text-primary">{orderShortId}</p>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar. Admin akan menghubungi Anda." : "Admin akan memverifikasi pembayaran Anda"}</p>
                 {resultGroupLink && (
                   <a href={resultGroupLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
