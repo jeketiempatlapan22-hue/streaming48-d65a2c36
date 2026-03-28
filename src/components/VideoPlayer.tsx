@@ -56,6 +56,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   useImperativeHandle(ref, () => ({
     play: () => {
+      if (playlistType === "youtube_proxy") {
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
+        return;
+      }
       if (playlistType === "youtube") {
         if (ytFallback) {
           setIframeRefreshKey(k => k + 1);
@@ -91,6 +96,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setIsPlaying(false);
       } else if (videoRef.current) {
         videoRef.current.pause();
+        setIsPlaying(false);
+      }
+      // youtube_proxy and cloudflare: just toggle state (iframe handles its own playback)
+      if (playlistType === "youtube_proxy" || playlistType === "cloudflare") {
         setIsPlaying(false);
       }
     },
