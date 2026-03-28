@@ -125,6 +125,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       const order = orders.find((o) => o.id === id);
       const showInfo = order ? shows[order.show_id] : null;
       const siteUrl = "https://realtime48show.my.id";
+      const replayUrl = "https://replaytime.lovable.app";
 
       if (result.token_code && order?.phone && showInfo) {
         const liveLink = `${siteUrl}/live?t=${result.token_code}`;
@@ -137,9 +138,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           `📺 Link Nonton: ${liveLink}\n`;
 
         if (showInfo.access_password) {
-          const replayLink = `${siteUrl}/replay`;
           message += `\n🔄 *Akses Replay:*\n` +
-            `🔗 Link Replay: ${replayLink}\n` +
+            `🔗 Link Replay: ${replayUrl}\n` +
             `🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
         }
 
@@ -161,6 +161,22 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         }
         toast({ title: "Order dikonfirmasi" });
       }
+
+      // Send bot notification about confirmation
+      const shortId = order?.short_id || id.slice(0, 8);
+      const statusEmoji = "✅";
+      supabase.functions.invoke("notify-subscription-order", {
+        body: {
+          order_id: id,
+          show_title: showInfo?.title || "Unknown",
+          phone: order?.phone || "",
+          email: order?.email || "",
+          order_type: showInfo?.is_subscription ? "membership" : "show",
+          schedule_date: showInfo?.schedule_date || null,
+          schedule_time: showInfo?.schedule_time || null,
+          is_confirmation: true,
+        },
+      }).catch(() => {});
     } else {
       await (supabase as any).from("subscription_orders").update({ status }).eq("id", id);
       toast({ title: `Order ${status === "rejected" ? "ditolak" : status}` });

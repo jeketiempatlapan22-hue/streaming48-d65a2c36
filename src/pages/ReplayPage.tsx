@@ -51,13 +51,16 @@ const ReplayPage = () => {
   const [replayResult, setReplayResult] = useState<{ replay_password: string; remaining_balance: number } | null>(null);
 
   // QRIS flow state
-  const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "done">("scan");
+  const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "info" | "done">("scan");
   const [uploadingProof, setUploadingProof] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [proofUrl, setProofUrl] = useState("");
   const [proofFilePath, setProofFilePath] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [loginPopup, setLoginPopup] = useState(false);
+  const [qrisPhone, setQrisPhone] = useState("");
+  const [qrisEmail, setQrisEmail] = useState("");
+  const [orderShortId, setOrderShortId] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -106,6 +109,9 @@ const ReplayPage = () => {
     setQrisStep("scan");
     setProofUrl("");
     setProofFilePath("");
+    setQrisPhone("");
+    setQrisEmail("");
+    setOrderShortId("");
   };
 
   const handleCoinRedeem = async () => {
@@ -144,20 +150,41 @@ const ReplayPage = () => {
     setUploadingProof(false);
   };
 
-  const handleSendWhatsApp = () => {
-    if (!purchaseShow || !whatsappNumber) return;
-    const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
-    const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
-    const msg = encodeURIComponent(
-      `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN REPLAY*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${purchaseShow.title}\n💰 *Harga:* ${purchaseShow.price}\n${purchaseShow.schedule_date ? `📅 *Jadwal:* ${purchaseShow.schedule_date} ${purchaseShow.schedule_time}\n` : ""}${purchaseShow.lineup ? `👥 *Lineup:* ${purchaseShow.lineup}\n` : ""}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
-    );
-    window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
-    setQrisStep("done");
-    // Also send Telegram/WA notification to admin
+  const handleSubmitReplayOrder = async () => {
+    if (!purchaseShow) return;
+    let signedUrl = "";
     if (proofFilePath) {
+      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
+      signedUrl = urlData?.signedUrl || "";
+    }
+    let orderId: string | null = null;
+    try {
+      const { data, error } = await supabase.rpc("create_show_order", {
+        _show_id: purchaseShow.id, _phone: qrisPhone, _email: qrisEmail || null, _payment_proof_url: signedUrl || null,
+      });
+      const result = data as any;
+      if (!error && result?.success) {
+        orderId = result.order_id;
+        setOrderShortId(result.short_id || "");
+      }
+    } catch (e) {
+      console.error("Order insert error:", e);
+    }
+    setQrisStep("done");
+    // Send bot notification
+    if (orderId) {
       supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: "", show_title: purchaseShow.title, phone: "", email: "", proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "replay" },
+        body: { order_id: orderId, show_title: purchaseShow.title, phone: qrisPhone, email: qrisEmail || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "replay", schedule_date: purchaseShow.schedule_date || null, schedule_time: purchaseShow.schedule_time || null },
       }).catch(() => {});
+    }
+    // Also open WhatsApp
+    if (whatsappNumber) {
+      const now = new Date().toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+      const proofText = proofUrl ? `\n📎 *Bukti Transfer:* ${proofUrl}` : "";
+      const msg = encodeURIComponent(
+        `━━━━━━━━━━━━━━━━━━━━\n🎬 *PESANAN REPLAY*\n━━━━━━━━━━━━━━━━━━━━\n\n🎭 *Show:* ${purchaseShow.title}\n💰 *Harga:* ${purchaseShow.price}\n${purchaseShow.schedule_date ? `📅 *Jadwal:* ${purchaseShow.schedule_date} ${purchaseShow.schedule_time}\n` : ""}${purchaseShow.lineup ? `👥 *Lineup:* ${purchaseShow.lineup}\n` : ""}📱 HP: ${qrisPhone}${proofText}\n🕐 Waktu Order: ${now}\n\n━━━━━━━━━━━━━━━━━━━━\n_Dikirim dari RealTime48_ ✨`
+      );
+      window.open(`https://wa.me/${whatsappNumber}?text=${msg}`, "_blank");
     }
   };
 
@@ -209,6 +236,18 @@ const ReplayPage = () => {
             <span className="flex items-center gap-1.5 font-bold text-primary"><Coins className="h-4 w-4" /> {coinBalance} Koin</span>
           </div>
         )}
+
+        {/* Button for users who already purchased */}
+        <div className="mx-auto mb-6 max-w-md">
+          <a
+            href="https://replaytime.lovable.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3.5 text-sm font-bold text-primary transition-all hover:bg-primary/20 active:scale-[0.97]"
+          >
+            <Play className="h-5 w-5" /> Klik Disini Jika Sudah Membeli Show
+          </a>
+        </div>
 
         {filteredShows.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-12 text-center">
@@ -410,6 +449,16 @@ const ReplayPage = () => {
                   <div className="flex items-center gap-2 text-sm text-[hsl(var(--success))]">
                     <CheckCircle className="h-4 w-4" /> Bukti pembayaran berhasil diupload
                   </div>
+                  <div>
+                    <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <MessageCircle className="h-3.5 w-3.5" /> Nomor WhatsApp <span className="text-destructive">*</span>
+                    </label>
+                    <Input value={qrisPhone} onChange={(e) => setQrisPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Email (opsional)</label>
+                    <Input value={qrisEmail} onChange={(e) => setQrisEmail(e.target.value)} placeholder="email@contoh.com" className="bg-background" />
+                  </div>
                   <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
                     <p className="text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
                     <div className="space-y-1 text-xs text-muted-foreground">
@@ -418,7 +467,7 @@ const ReplayPage = () => {
                       {purchaseShow?.schedule_date && <p>📅 {purchaseShow.schedule_date} {purchaseShow.schedule_time}</p>}
                     </div>
                   </div>
-                  <Button onClick={handleSendWhatsApp} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
+                  <Button onClick={handleSubmitReplayOrder} disabled={!qrisPhone.trim()} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
                     <MessageCircle className="h-4 w-4" /> Kirim Pesanan via WhatsApp
                   </Button>
                   <p className="text-[10px] text-center text-muted-foreground">
@@ -431,6 +480,7 @@ const ReplayPage = () => {
                 <div className="space-y-4 text-center">
                   <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                   <h4 className="text-lg font-bold text-foreground">Pesanan Terkirim!</h4>
+                  {orderShortId && <p className="text-sm text-muted-foreground">ID Pesanan: <span className="font-bold text-primary">{orderShortId}</span></p>}
                   <p className="text-sm text-muted-foreground">Admin akan memproses pesanan Anda dan mengirimkan sandi replay via WhatsApp.</p>
                 </div>
               )}

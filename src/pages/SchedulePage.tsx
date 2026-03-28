@@ -145,9 +145,11 @@ const SchedulePage = () => {
       toast.error("Gagal menyimpan pesanan: " + (e?.message || "Coba lagi"));
     }
     setPurchaseStep("done");
-    supabase.functions.invoke("notify-subscription-order", {
-      body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email: email || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
-    }).catch((e) => console.warn("Notify error:", e));
+    if (orderId) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: orderId, show_title: selectedShow.title, phone, email: email || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "show", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
+      }).catch((e) => console.warn("Notify error:", e));
+    }
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
@@ -176,9 +178,11 @@ const SchedulePage = () => {
       toast.error("Gagal menyimpan pesanan: " + (e?.message || "Coba lagi"));
     }
     setPurchaseStep("done");
-    supabase.functions.invoke("notify-subscription-order", {
-      body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
-    }).catch(() => {});
+    if (orderId) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: { order_id: orderId, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
+      }).catch(() => {});
+    }
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
 
