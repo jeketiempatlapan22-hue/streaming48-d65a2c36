@@ -43,6 +43,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const ytFallbackContainerRef = useRef<HTMLDivElement>(null);
   const cfContainerRef = useRef<HTMLDivElement>(null);
+  const ytProxyContainerRef = useRef<HTMLDivElement>(null);
 
   // Stable references to avoid re-triggering effects on every render
   const playlistUrl = playlist.url;
@@ -55,6 +56,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   useImperativeHandle(ref, () => ({
     play: () => {
+      if (playlistType === "youtube_proxy") {
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
+        return;
+      }
       if (playlistType === "youtube") {
         if (ytFallback) {
           setIframeRefreshKey(k => k + 1);
@@ -90,6 +96,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setIsPlaying(false);
       } else if (videoRef.current) {
         videoRef.current.pause();
+        setIsPlaying(false);
+      }
+      // youtube_proxy and cloudflare: just toggle state (iframe handles its own playback)
+      if (playlistType === "youtube_proxy" || playlistType === "cloudflare") {
         setIsPlaying(false);
       }
     },
@@ -451,6 +461,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
+  // YouTube proxy: load signed proxy URL as iframe (real ID never reaches client)
+  useEffect(() => {
+    if (playlistType !== "youtube_proxy") return;
+    setIsLoading(false);
+    const container = ytProxyContainerRef.current;
+    if (!container) return;
+    createProtectedIframe(container, playlistUrl, {
+      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+      allowFullscreen: true,
+    });
+    setIsPlaying(autoPlay);
+  }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe, autoPlay]);
+
   // YouTube fallback: imperatively create protected iframe
   useEffect(() => {
     if (playlistType !== "youtube" || !ytFallback) return;
@@ -466,6 +489,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   const togglePlay = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (playlistType === "youtube_proxy") {
+      if (!isPlaying) {
+        setIframeRefreshKey(k => k + 1);
+        setIsPlaying(true);
+      } else {
+        setIsPlaying(false);
+      }
+      return;
+    }
     if (playlistType === "youtube") {
       if (ytFallback) {
         // Reload iframe to get latest content
@@ -616,6 +648,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             ref={ytFallbackContainerRef}
             className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
           />
+        </>
+      )}
+
+      {/* YouTube proxy: iframe loaded from signed proxy URL */}
+      {playlistType === "youtube_proxy" && (
+        <>
+          <div
+            ref={ytProxyContainerRef}
+            className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
+          />
+          <div className="absolute inset-0 z-10 cursor-pointer" onClick={togglePlay} style={{ pointerEvents: "auto" }} />
         </>
       )}
 
