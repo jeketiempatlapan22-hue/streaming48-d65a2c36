@@ -237,6 +237,18 @@ const ReplayPage = () => {
           </div>
         )}
 
+        {/* Button for users who already purchased */}
+        <div className="mx-auto mb-6 max-w-md">
+          <a
+            href="https://replaytime.lovable.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3.5 text-sm font-bold text-primary transition-all hover:bg-primary/20 active:scale-[0.97]"
+          >
+            <Play className="h-5 w-5" /> Klik Disini Jika Sudah Membeli Show
+          </a>
+        </div>
+
         {filteredShows.length === 0 ? (
           <div className="rounded-2xl border border-border bg-card p-12 text-center">
             <Ticket className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
