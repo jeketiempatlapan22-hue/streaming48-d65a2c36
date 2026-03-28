@@ -374,6 +374,12 @@ const SchedulePage = () => {
               <div className="space-y-4 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                 <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
+                {orderShortId && (
+                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">🆔 ID Pesanan</p>
+                    <p className="font-mono text-lg font-bold text-primary">{orderShortId}</p>
+                  </div>
+                )}
                 <p className="text-sm text-muted-foreground">Data dan bukti pembayaran Anda telah dikirim. Admin akan mengkonfirmasi pembayaran Anda.</p>
               </div>
             )}
