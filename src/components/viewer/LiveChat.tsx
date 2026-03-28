@@ -160,38 +160,59 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   // Load messages + realtime
   useEffect(() => {
     const fetchMessages = async () => {
-      const { data } = await supabase.from("chat_messages").select("*").order("created_at", { ascending: true }).limit(50);
+      const { data } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(20);
       if (data) {
+        const sorted = (data as unknown as ChatMessage[]).reverse();
         startTransition(() => {
-          setMessages(data as unknown as ChatMessage[]);
-          setPinnedMessages((data as unknown as ChatMessage[]).filter((m) => m.is_pinned));
+          setMessages(sorted);
+          setPinnedMessages(sorted.filter((m) => m.is_pinned));
         });
       }
     };
     fetchMessages();
-    const channel = supabase.channel("chat-realtime").on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, (payload) => {
-      startTransition(() => {
-        if (payload.eventType === "INSERT") {
-          const newMsg = payload.new as ChatMessage;
-          setMessages((prev) => { const next = [...prev, newMsg]; return next.length > 100 ? next.slice(-100) : next; });
-          if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
-        } else if (payload.eventType === "DELETE") {
-          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-          setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-        } else if (payload.eventType === "UPDATE") {
-          const updated = payload.new as ChatMessage;
-          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-          if (updated.is_pinned) {
-            setPinnedMessages((prev) => {
-              const exists = prev.find((m) => m.id === updated.id);
-              return exists ? prev.map((m) => (m.id === updated.id ? updated : m)) : [...prev, updated];
+
+    const channel = supabase
+      .channel("chat-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, (payload) => {
+        startTransition(() => {
+          if (payload.eventType === "INSERT") {
+            const newMsg = payload.new as ChatMessage;
+            if (newMsg.is_deleted) return;
+            setMessages((prev) => {
+              const next = [...prev, newMsg];
+              // Keep only latest 20 messages
+              return next.length > 20 ? next.slice(-20) : next;
             });
-          } else {
-            setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
+            if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
+          } else if (payload.eventType === "DELETE") {
+            setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+            setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as ChatMessage;
+            if (updated.is_deleted) {
+              setMessages((prev) => prev.filter((m) => m.id !== updated.id));
+              setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
+              return;
+            }
+            setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+            if (updated.is_pinned) {
+              setPinnedMessages((prev) => {
+                const exists = prev.find((m) => m.id === updated.id);
+                return exists ? prev.map((m) => (m.id === updated.id ? updated : m)) : [...prev, updated];
+              });
+            } else {
+              setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
+            }
           }
-        }
-      });
-    }).subscribe();
+        });
+      })
+      .subscribe();
+
     return () => { supabase.removeChannel(channel); };
   }, []);
 
