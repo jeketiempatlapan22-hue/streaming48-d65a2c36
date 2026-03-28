@@ -127,6 +127,11 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       const siteUrl = "https://realtime48show.my.id";
       const replayUrl = "https://replaytime.lovable.app";
 
+      // Save token to state immediately so it shows in the panel
+      if (result.token_code) {
+        setOrderTokens(prev => ({ ...prev, [id]: { code: result.token_code, expires_at: result.expires_at || null } }));
+      }
+
       if (result.token_code && order?.phone && showInfo) {
         const liveLink = `${siteUrl}/live?t=${result.token_code}`;
         let message = `✅ *Pesanan Dikonfirmasi!*\n\n` +
