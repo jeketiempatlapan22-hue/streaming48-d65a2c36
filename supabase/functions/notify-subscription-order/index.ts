@@ -91,14 +91,7 @@ serve(async (req) => {
           .download(proof_file_path);
 
         if (!downloadError && fileData) {
-          const photoPayload: any = {
-            chat_id: ADMIN_CHAT_ID,
-            caption: caption,
-            parse_mode: 'MarkdownV2',
-          };
-          if (inline_keyboard.length > 0) {
-            photoPayload.reply_markup = JSON.stringify({ inline_keyboard });
-          }
+          const formData = new FormData();
           formData.append('chat_id', ADMIN_CHAT_ID);
           formData.append('caption', caption);
           formData.append('parse_mode', 'MarkdownV2');
