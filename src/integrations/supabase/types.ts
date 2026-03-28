@@ -994,6 +994,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_cleanup_chat: { Args: never; Returns: undefined }
       change_poll_vote: {
         Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
         Returns: undefined
