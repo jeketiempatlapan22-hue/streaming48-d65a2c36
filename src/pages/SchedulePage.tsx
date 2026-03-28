@@ -30,6 +30,7 @@ const SchedulePage = () => {
   const [proofFilePath, setProofFilePath] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [orderShortId, setOrderShortId] = useState("");
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
