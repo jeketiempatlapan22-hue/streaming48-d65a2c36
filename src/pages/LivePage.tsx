@@ -101,7 +101,7 @@ const LivePage = () => {
     fp
   );
 
-  const effectiveType = proxyType === "youtube_proxy" ? "youtube" : (activePlaylist?.type || "m3u8");
+  const effectiveType = proxyType || activePlaylist?.type || "m3u8";
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
