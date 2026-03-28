@@ -342,7 +342,7 @@ const LivePage = () => {
     return () => { supabase.removeChannel(ch); };
   }, [tokenData?.show_id, tokenData?.id]);
 
-  // Fallback checker: ensures blocked screen appears quickly even when realtime subscription is delayed/denied
+  // Fallback blocked-check: 60s interval (reduced from 30s for scalability)
   useEffect(() => {
     if (!tokenCode || blocked) return;
 
@@ -355,7 +355,7 @@ const LivePage = () => {
     };
 
     void checkBlockedStatus();
-    const i = window.setInterval(() => { void checkBlockedStatus(); }, 30000);
+    const i = window.setInterval(() => { void checkBlockedStatus(); }, 60_000);
     return () => window.clearInterval(i);
   }, [tokenCode, blocked]);
 
