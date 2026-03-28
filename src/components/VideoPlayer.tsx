@@ -650,20 +650,40 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       )}
 
       {playlistType === "youtube" && !ytFallback && (
-        <div
-          ref={ytContainerRef}
-          className={`w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full ${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0 [&_iframe]:!absolute [&_iframe]:!inset-0"}`}
-          onContextMenu={(e) => e.preventDefault()}
-        />
+        <div className={`${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0"}`}>
+          <div
+            ref={ytContainerRef}
+            className="w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0"
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          {/* Protective overlay - blocks inspect/right-click on iframe */}
+          <div
+            className="absolute inset-0 z-10"
+            style={{ background: "transparent" }}
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+            onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
+          />
+        </div>
       )}
 
       {/* YouTube fallback: protected iframe container */}
       {playlistType === "youtube" && ytFallback && (
-        <div
-          ref={ytFallbackContainerRef}
-          className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
-          onContextMenu={(e) => e.preventDefault()}
-        />
+        <div className={`${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0"}`}>
+          <div
+            ref={ytFallbackContainerRef}
+            className="h-full w-full"
+            onContextMenu={(e) => e.preventDefault()}
+          />
+          {/* Protective overlay */}
+          <div
+            className="absolute inset-0 z-10"
+            style={{ background: "transparent" }}
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+            onClick={(e) => { e.stopPropagation(); togglePlay(e); }}
+          />
+        </div>
       )}
 
 
