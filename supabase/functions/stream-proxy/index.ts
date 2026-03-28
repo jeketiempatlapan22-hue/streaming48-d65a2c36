@@ -366,10 +366,18 @@ Deno.serve(async (req) => {
         );
       }
 
-      // For cloudflare, return the actual URL directly (Cloudflare has its own protection)
+      if (playlist.type === "cloudflare") {
+        const cfSignedUrl = await generateCloudflareSignedUrl(playlist_id, functionUrl);
+        return new Response(
+          JSON.stringify({ signed_url: cfSignedUrl, expires_in: YT_TOKEN_TTL, type: "cloudflare" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Fallback for unknown types
       const realUrl = await getPlaylistData(playlist_id);
       return new Response(
-        JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: "cloudflare" }),
+        JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: playlist.type }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
