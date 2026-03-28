@@ -146,17 +146,16 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Presence
+  // Poll viewer count from DB (replaces heavy presence channel)
   useEffect(() => {
-    if (!username) return;
-    const channel = supabase.channel("online-users", { config: { presence: { key: username } } });
-    channel.on("presence", { event: "sync" }, () => {
-      startTransition(() => setOnlineCount(Object.keys(channel.presenceState()).length));
-    }).subscribe(async (status) => {
-      if (status === "SUBSCRIBED") await channel.track({ user: username, joined_at: new Date().toISOString() });
-    });
-    return () => { supabase.removeChannel(channel); };
-  }, [username]);
+    const fetchCount = async () => {
+      const { data } = await supabase.rpc("get_viewer_count");
+      if (typeof data === "number") startTransition(() => setOnlineCount(data));
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 20_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Load messages + realtime
   useEffect(() => {

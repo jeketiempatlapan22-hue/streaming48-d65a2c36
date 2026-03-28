@@ -1,53 +1,66 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const LiveViewerCount = ({ isLive }: { isLive: boolean }) => {
   const [count, setCount] = useState(0);
+  const viewerKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!isLive) { setCount(0); return; }
 
-    // Use a unique channel name to avoid conflict with LiveChat's "online-users" channel
-    const channelName = `viewer-count-${Date.now()}`;
-    const channel = supabase.channel(channelName, {
-      config: { presence: { key: "viewer-count-observer" } },
+    // Generate a unique viewer key for heartbeat
+    if (!viewerKeyRef.current) {
+      viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
+    }
+    const key = viewerKeyRef.current;
+
+    // Send initial heartbeat
+    supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+
+    // Poll viewer count every 15s + send heartbeat every 30s
+    let tick = 0;
+    const interval = setInterval(async () => {
+      tick++;
+      // Heartbeat every 30s (every 2nd tick)
+      if (tick % 2 === 0) {
+        supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+      }
+      // Count every 15s
+      const { data } = await supabase.rpc("get_viewer_count");
+      if (typeof data === "number") setCount(data);
+    }, 15_000);
+
+    // Initial count fetch
+    supabase.rpc("get_viewer_count").then(({ data }) => {
+      if (typeof data === "number") setCount(data);
     });
 
-    channel
-      .on("presence", { event: "sync" }, () => {
-        // Read from the main online-users channel if possible, otherwise use this channel
-        try {
-          const mainChannel = supabase.channel("online-users");
-          const state = mainChannel.presenceState();
-          const keys = Object.keys(state);
-          if (keys.length > 0) {
-            setCount(keys.length);
-            return;
-          }
-        } catch {}
-        const state = channel.presenceState();
-        setCount(Object.keys(state).length);
-      })
-      .subscribe();
-
-    // Poll presence state periodically as a fallback
-    const interval = setInterval(() => {
-      try {
-        const channels = (supabase as any).getChannels?.() || [];
-        const mainCh = channels.find((c: any) => c.topic === "realtime:online-users");
-        if (mainCh) {
-          const state = mainCh.presenceState();
-          setCount(Object.keys(state).length);
-        }
-      } catch {}
-    }, 5000);
-
+    // Leave on unmount
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
+      supabase.rpc("viewer_leave", { _key: key }).then(() => {});
     };
+  }, [isLive]);
+
+  // Also leave on page unload
+  useEffect(() => {
+    if (!isLive) return;
+    const handleUnload = () => {
+      if (viewerKeyRef.current) {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/viewer_leave`;
+        navigator.sendBeacon?.(url) ||
+        fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+          body: JSON.stringify({ _key: viewerKeyRef.current }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
   }, [isLive]);
 
   if (!isLive || count === 0) return null;

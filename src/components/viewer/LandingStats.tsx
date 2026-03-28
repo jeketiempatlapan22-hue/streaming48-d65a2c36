@@ -27,9 +27,7 @@ const LandingStats = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Try edge function cache first (0 DB queries from client)
       const cached = await fetchCachedEndpoint("all");
-
       if (cached?.shows) {
         const showsList = cached.shows as any[];
         setStats(prev => ({
@@ -40,13 +38,10 @@ const LandingStats = () => {
         }));
         return;
       }
-
-      // Fallback: direct DB (only if edge function failed)
       const showsList = await cachedQuery("public_shows", async () => {
         const { data } = await supabase.rpc("get_public_shows");
         return data || [];
       }, 60_000);
-
       setStats(prev => ({
         ...prev,
         shows: showsList.length,
@@ -56,16 +51,15 @@ const LandingStats = () => {
     fetchData();
   }, []);
 
-  // Presence channel for online users — lightweight, no DB query
+  // Poll viewer count from DB instead of presence (much lighter for 1000+ users)
   useEffect(() => {
-    const channel = supabase.channel("online-users");
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState();
-        setStats(prev => ({ ...prev, viewers: Object.keys(state).length }));
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const fetchCount = async () => {
+      const { data } = await supabase.rpc("get_viewer_count");
+      if (typeof data === "number") setStats(prev => ({ ...prev, viewers: data }));
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 20_000);
+    return () => clearInterval(interval);
   }, []);
 
   const cards = [
