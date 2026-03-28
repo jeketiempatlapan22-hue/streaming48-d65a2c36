@@ -109,6 +109,9 @@ const ReplayPage = () => {
     setQrisStep("scan");
     setProofUrl("");
     setProofFilePath("");
+    setQrisPhone("");
+    setQrisEmail("");
+    setOrderShortId("");
   };
 
   const handleCoinRedeem = async () => {
