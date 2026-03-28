@@ -381,6 +381,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
+                setYtMuted(true);
+                // Auto-unmute after a short delay
+                setTimeout(() => {
+                  try {
+                    if (ytPlayerRef.current && typeof ytPlayerRef.current.unMute === 'function') {
+                      ytPlayerRef.current.unMute();
+                      setYtMuted(false);
+                    }
+                  } catch {}
+                }, 1500);
               }
             },
             onStateChange: (e: any) => {
