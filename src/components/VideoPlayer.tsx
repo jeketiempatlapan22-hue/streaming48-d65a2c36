@@ -340,9 +340,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           videoId,
           playerVars: {
             autoplay: autoPlay ? 1 : 0,
-            mute: 1, // Must start muted for autoplay to work (browser policy)
+            mute: 1,
             enablejsapi: 1,
-            controls: 1, // Show native controls as fallback
+            controls: 0, // Hide native controls, use custom controls
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
