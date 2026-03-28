@@ -464,7 +464,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } else {
       cfUrl = `https://iframe.videodelivery.net/${url}?autoplay=true&preload=auto`;
     }
-    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
+    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
 
