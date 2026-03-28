@@ -279,11 +279,9 @@ if(window.top!==window.self){
 </head>
 <body>
 <iframe 
-  src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&showinfo=0&fs=1&playsinline=1&enablejsapi=0&origin=${encodeURIComponent(SUPABASE_URL)}" 
+  src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&showinfo=0&fs=1&playsinline=1&enablejsapi=0&controls=1" 
   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" 
   allowfullscreen
-  sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
-  referrerpolicy="no-referrer"
   loading="eager">
 </iframe>
 <div class="overlay"></div>

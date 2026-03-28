@@ -28,7 +28,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [ytMuted, setYtMuted] = useState(false);
+  const [ytMuted, setYtMuted] = useState(true); // Start muted for autoplay compliance
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [ytFallback, setYtFallback] = useState(false);
   const [iframeRefreshKey, setIframeRefreshKey] = useState(0);
@@ -337,9 +337,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           videoId,
           playerVars: {
             autoplay: autoPlay ? 1 : 0,
-            mute: 0,
+            mute: 1, // Must start muted for autoplay to work (browser policy)
             enablejsapi: 1,
-            controls: 0,
+            controls: 1, // Show native controls as fallback
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
@@ -347,7 +347,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             iv_load_policy: 3,
             playsinline: 1,
             showinfo: 0,
-            origin: window.location.origin,
           },
           events: {
             onReady: (e: any) => {
@@ -382,6 +381,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
+                setYtMuted(true);
+                // Auto-unmute after a short delay
+                setTimeout(() => {
+                  try {
+                    if (ytPlayerRef.current && typeof ytPlayerRef.current.unMute === 'function') {
+                      ytPlayerRef.current.unMute();
+                      setYtMuted(false);
+                    }
+                  } catch {}
+                }, 1500);
               }
             },
             onStateChange: (e: any) => {
@@ -462,7 +471,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const container = ytFallbackContainerRef.current;
     if (!container) return;
     const videoId = extractVideoId(playlistUrl);
-    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
+    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=1`;
     createProtectedIframe(container, ytUrl, {
       allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
       allowFullscreen: true,
