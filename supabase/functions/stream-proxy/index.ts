@@ -156,6 +156,12 @@ async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string)
   return `${functionUrl}/stream-proxy?mode=yt&pid=${playlistId}&exp=${exp}&sig=${sig}`;
 }
 
+async function generateCloudflareSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + YT_TOKEN_TTL;
+  const sig = await hmacSign(`cf:${playlistId}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=cf&pid=${playlistId}&exp=${exp}&sig=${sig}`;
+}
+
 async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string): Promise<string> {
   const lines = content.split("\n");
   const result: string[] = [];
@@ -360,10 +366,18 @@ Deno.serve(async (req) => {
         );
       }
 
-      // For cloudflare, return the actual URL directly (Cloudflare has its own protection)
+      if (playlist.type === "cloudflare") {
+        const cfSignedUrl = await generateCloudflareSignedUrl(playlist_id, functionUrl);
+        return new Response(
+          JSON.stringify({ signed_url: cfSignedUrl, expires_in: YT_TOKEN_TTL, type: "cloudflare" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Fallback for unknown types
       const realUrl = await getPlaylistData(playlist_id);
       return new Response(
-        JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: "cloudflare" }),
+        JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: playlist.type }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -443,6 +457,71 @@ Deno.serve(async (req) => {
 
       const videoId = extractYouTubeId(plData.url);
       const html = generateYouTubeEmbedPage(videoId);
+
+      return new Response(html, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "X-Content-Type-Options": "nosniff",
+          "X-Frame-Options": "ALLOWALL",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+
+    // MODE: cf (GET) - Cloudflare Stream embed proxy
+    if (req.method === "GET" && mode === "cf") {
+      const pid = url.searchParams.get("pid");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+
+      if (pid && !edgeRateLimit(`cf:${clientIp}:${pid}`, 30, 60000)) {
+        return getRateLimitResponse();
+      }
+
+      if (!pid || !exp || !sig) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Token expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`cf:${pid}:${exp}`, sig))) {
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const plData = await getPlaylistData(pid);
+      if (!plData) {
+        return new Response("Playlist not found", { status: 404, headers: corsHeaders });
+      }
+
+      // Build Cloudflare embed URL server-side
+      const cfUrl = plData.url;
+      let embedUrl = "";
+      if (cfUrl.includes("cloudflarestream.com") && cfUrl.includes("/iframe")) {
+        embedUrl = cfUrl;
+      } else if (cfUrl.includes("cloudflarestream.com")) {
+        const id = cfUrl.split("/").filter(Boolean).pop();
+        embedUrl = `https://iframe.videodelivery.net/${id}`;
+      } else {
+        embedUrl = `https://iframe.videodelivery.net/${cfUrl}`;
+      }
+      const sep = embedUrl.includes("?") ? "&" : "?";
+      embedUrl = `${embedUrl}${sep}autoplay=true&preload=auto`;
+
+      const html = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>RT48 Player</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#000}
+iframe{width:100%;height:100%;border:none;position:absolute;top:0;left:0}</style>
+<script>document.addEventListener('contextmenu',function(e){e.preventDefault()});
+document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'))||(e.ctrlKey&&e.key==='u'))e.preventDefault();});
+</script></head><body>
+<iframe src="${embedUrl}" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe>
+</body></html>`;
 
       return new Response(html, {
         status: 200,

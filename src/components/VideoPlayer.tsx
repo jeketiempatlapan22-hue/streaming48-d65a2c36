@@ -432,23 +432,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
   // Cloudflare: imperatively create protected iframe
+  // If URL is a proxy URL (from stream-proxy), use it directly
+  // If URL is a direct Cloudflare URL/ID (admin monitor), build the embed URL
   useEffect(() => {
     if (playlistType !== "cloudflare") return;
     setIsLoading(false);
     const container = cfContainerRef.current;
     if (!container) return;
     const url = playlistUrl;
-    let base = "";
-    if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
-      base = url;
+    let cfUrl = "";
+    if (url.includes("stream-proxy") || url.includes("/functions/v1/")) {
+      // Proxy URL - use directly
+      cfUrl = url;
+    } else if (url.includes("cloudflarestream.com") && url.includes("/iframe")) {
+      cfUrl = url.includes("autoplay") ? url : `${url}${url.includes("?") ? "&" : "?"}autoplay=true&preload=auto`;
     } else if (url.includes("cloudflarestream.com")) {
       const id = url.split("/").filter(Boolean).pop();
-      base = `https://iframe.videodelivery.net/${id}`;
+      cfUrl = `https://iframe.videodelivery.net/${id}?autoplay=true&preload=auto`;
     } else {
-      base = `https://iframe.videodelivery.net/${url}`;
+      cfUrl = `https://iframe.videodelivery.net/${url}?autoplay=true&preload=auto`;
     }
-    const sep = base.includes("?") ? "&" : "?";
-    const cfUrl = `${base}${sep}autoplay=true&preload=auto`;
     createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
