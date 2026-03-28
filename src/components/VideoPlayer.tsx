@@ -162,7 +162,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const iframe = document.createElement("iframe");
     iframe.setAttribute("allow", opts.allow || "");
     if (opts.allowFullscreen) iframe.allowFullscreen = true;
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
+    iframe.setAttribute("playsinline", "");
+    iframe.setAttribute("webkit-playsinline", "");
+    iframe.setAttribute("loading", "eager");
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
     iframe.src = url;
     container.appendChild(iframe);
     return iframe;
