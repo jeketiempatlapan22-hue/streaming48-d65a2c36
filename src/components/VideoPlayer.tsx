@@ -162,7 +162,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const iframe = document.createElement("iframe");
     iframe.setAttribute("allow", opts.allow || "");
     if (opts.allowFullscreen) iframe.allowFullscreen = true;
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;";
+    iframe.setAttribute("playsinline", "");
+    iframe.setAttribute("webkit-playsinline", "");
+    iframe.setAttribute("loading", "eager");
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
     iframe.src = url;
     container.appendChild(iframe);
     return iframe;
@@ -461,7 +464,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } else {
       cfUrl = `https://iframe.videodelivery.net/${url}?autoplay=true&preload=auto`;
     }
-    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
+    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
 
@@ -471,9 +474,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const container = ytFallbackContainerRef.current;
     if (!container) return;
     const videoId = extractVideoId(playlistUrl);
-    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=1`;
+    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=1&fs=1`;
     createProtectedIframe(container, ytUrl, {
-      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share",
       allowFullscreen: true,
     });
   }, [playlistType, playlistUrl, ytFallback, iframeRefreshKey, extractVideoId, createProtectedIframe]);
@@ -526,14 +529,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, [playlistType, ytFallback, isPlaying]);
 
   const toggleFullscreen = useCallback(async () => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else {
-        await containerRef.current.requestFullscreen();
+      } else if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if ((el as any).webkitRequestFullscreen) {
+        (el as any).webkitRequestFullscreen();
+      } else if ((el as any).webkitEnterFullscreen) {
+        (el as any).webkitEnterFullscreen();
       }
-    } catch {}
+    } catch {
+      // iOS: try fullscreen on the video element directly
+      try {
+        const video = videoRef.current || el.querySelector("video") || el.querySelector("iframe");
+        if (video && (video as any).webkitEnterFullscreen) {
+          (video as any).webkitEnterFullscreen();
+        }
+      } catch {}
+    }
   }, []);
 
   const toggleOrientation = useCallback(async () => {
@@ -579,7 +595,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("webkitfullscreenchange", onFsChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+    };
   }, []);
 
   // (YouTube and Cloudflare URLs are now built imperatively in effects above)
@@ -630,28 +650,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       )}
 
       {playlistType === "youtube" && !ytFallback && (
-        <>
-          <div
-            ref={ytContainerRef}
-            className={`w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full ${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0 [&_iframe]:!absolute [&_iframe]:!inset-0"}`}
-          />
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            onClick={togglePlay}
-            onContextMenu={(e) => e.preventDefault()}
-          />
-        </>
+        <div
+          ref={ytContainerRef}
+          className={`w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full ${isFullscreen ? "relative max-h-screen aspect-video" : "absolute inset-0 [&_iframe]:!absolute [&_iframe]:!inset-0"}`}
+          onContextMenu={(e) => e.preventDefault()}
+        />
       )}
 
       {/* YouTube fallback: protected iframe container */}
       {playlistType === "youtube" && ytFallback && (
-        <>
-          <div
-            ref={ytFallbackContainerRef}
-            className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
-          />
-          <div className="absolute inset-0 z-10 cursor-pointer" onClick={togglePlay} onContextMenu={(e) => e.preventDefault()} />
-        </>
+        <div
+          ref={ytFallbackContainerRef}
+          className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
+          onContextMenu={(e) => e.preventDefault()}
+        />
       )}
 
 
@@ -665,13 +677,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       )}
 
       {playlistType === "cloudflare" && (
-        <>
-          <div
-            ref={cfContainerRef}
-            className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
-          />
-          <div className="absolute inset-0 z-10 cursor-pointer" onClick={togglePlay} style={{ pointerEvents: "auto" }} />
-        </>
+        <div
+          ref={cfContainerRef}
+          className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}
+          onContextMenu={(e) => e.preventDefault()}
+        />
       )}
 
       {/* Token code watermark */}
