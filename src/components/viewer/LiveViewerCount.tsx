@@ -50,13 +50,18 @@ const LiveViewerCount = ({ isLive }: { isLive: boolean }) => {
     const handleUnload = () => {
       if (viewerKeyRef.current) {
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/viewer_leave`;
-        navigator.sendBeacon?.(url) ||
-        fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-          body: JSON.stringify({ _key: viewerKeyRef.current }),
-          keepalive: true,
-        }).catch(() => {});
+        const body = JSON.stringify({ _key: viewerKeyRef.current });
+        const headers = {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        };
+        // sendBeacon with Blob to include content-type
+        const blob = new Blob([body], { type: "application/json" });
+        const sent = navigator.sendBeacon?.(url + `?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
+        if (!sent) {
+          fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+        }
       }
     };
     window.addEventListener("beforeunload", handleUnload);
