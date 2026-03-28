@@ -474,7 +474,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const container = ytFallbackContainerRef.current;
     if (!container) return;
     const videoId = extractVideoId(playlistUrl);
-    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=1&fs=1`;
+    const ytUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=0&fs=0&iv_load_policy=3`;
     createProtectedIframe(container, ytUrl, {
       allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share",
       allowFullscreen: true,
