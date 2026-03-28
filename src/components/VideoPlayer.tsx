@@ -461,6 +461,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
+  // YouTube proxy: load signed proxy URL as iframe (real ID never reaches client)
+  useEffect(() => {
+    if (playlistType !== "youtube_proxy") return;
+    setIsLoading(false);
+    const container = ytProxyContainerRef.current;
+    if (!container) return;
+    createProtectedIframe(container, playlistUrl, {
+      allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture",
+      allowFullscreen: true,
+    });
+    setIsPlaying(autoPlay);
+  }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe, autoPlay]);
+
   // YouTube fallback: imperatively create protected iframe
   useEffect(() => {
     if (playlistType !== "youtube" || !ytFallback) return;
