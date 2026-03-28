@@ -314,37 +314,33 @@ const LivePage = () => {
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint, blocked]);
 
+  // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
-    const ch = supabase.channel("stream-rt").on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => { if (p.new) setStream(p.new); }).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, []);
-
-  // Realtime animation sync from admin panel
-  useEffect(() => {
-    const ch = supabase.channel("animation-rt")
+    const ch = supabase.channel("live-combined-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
+        if (p.new) setStream(p.new);
+      })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
           setPlayerAnimation((p.new.value || "none") as AnimationType);
         }
-      }).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, []);
+      });
 
-  // Realtime: block access when show becomes replay
-  useEffect(() => {
-    if (!tokenData?.show_id) return;
-    const ch = supabase.channel("show-replay-block")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows", filter: `id=eq.${tokenData.show_id}` }, (p: any) => {
+    // Only add show/token filters if we have token data
+    if (tokenData?.show_id) {
+      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows", filter: `id=eq.${tokenData.show_id}` }, (p: any) => {
         if (p.new?.is_replay === true) setShowReplayBlocked(true);
-      }).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id]);
+      });
+    }
+    if (tokenData?.id) {
+      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "tokens", filter: `id=eq.${tokenData.id}` }, (p: any) => {
+        if (p.new.status === "blocked") setBlocked(true);
+      });
+    }
 
-  useEffect(() => {
-    if (!tokenData?.id || blocked) return;
-    const ch = supabase.channel("token-block").on("postgres_changes", { event: "UPDATE", schema: "public", table: "tokens", filter: `id=eq.${tokenData.id}` }, (p: any) => { if (p.new.status === "blocked") setBlocked(true); }).subscribe();
+    ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.id, blocked]);
+  }, [tokenData?.show_id, tokenData?.id]);
 
   // Fallback checker: ensures blocked screen appears quickly even when realtime subscription is delayed/denied
   useEffect(() => {
