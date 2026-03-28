@@ -333,22 +333,48 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       return;
     }
     setAddingOrder(true);
-    const { error } = await (supabase as any).from("subscription_orders").insert({
+    // Insert as pending first, then confirm via RPC to create a unique token
+    const { data: insertData, error: insertErr } = await (supabase as any).from("subscription_orders").insert({
       show_id: newOrder.show_id,
       phone: newOrder.phone.trim(),
       email: newOrder.email.trim() || null,
       payment_method: "manual",
-      status: "confirmed",
+      status: "pending",
       user_id: null,
-    });
-    if (error) {
+    }).select("id").single();
+    if (insertErr || !insertData?.id) {
       toast({ title: "Gagal menambahkan order", variant: "destructive" });
-    } else {
-      toast({ title: "Order manual berhasil ditambahkan" });
-      setNewOrder({ show_id: "", phone: "", email: "" });
-      setShowAddDialog(false);
-      await fetchOrders();
+      setAddingOrder(false);
+      return;
     }
+    // Confirm via RPC to auto-create unique token
+    const { data: confirmData, error: confirmErr } = await supabase.rpc("confirm_regular_order" as any, { _order_id: insertData.id });
+    const result = confirmData as any;
+    if (confirmErr || !result?.success) {
+      toast({ title: "Order dibuat tapi gagal membuat token: " + (result?.error || confirmErr?.message), variant: "destructive" });
+    } else {
+      const showInfo = shows[newOrder.show_id];
+      const tokenMsg = result.token_code ? ` | Token: ${result.token_code}` : "";
+      toast({ title: `Order manual berhasil ditambahkan${tokenMsg}` });
+
+      // Auto-send WhatsApp if phone provided and token created
+      if (result.token_code && newOrder.phone.trim() && showInfo) {
+        const siteUrl = "https://realtime48show.my.id";
+        const replayUrl = "https://replaytime.lovable.app";
+        const liveLink = `${siteUrl}/live?t=${result.token_code}`;
+        let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
+        if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
+        message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
+        if (showInfo.access_password) {
+          message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${replayUrl}\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+        }
+        message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+        sendWhatsApp(newOrder.phone.trim(), message);
+      }
+    }
+    setNewOrder({ show_id: "", phone: "", email: "" });
+    setShowAddDialog(false);
+    await fetchOrders();
     setAddingOrder(false);
   };
 
