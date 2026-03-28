@@ -36,7 +36,7 @@ serve(async (req) => {
     const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
     if (!ADMIN_CHAT_ID) throw new Error('ADMIN_TELEGRAM_CHAT_ID is not configured');
 
-    const { order_id, show_title, phone, email, proof_file_path, proof_bucket, order_type, schedule_date, schedule_time } = await req.json();
+    const { order_id, show_title, phone, email, proof_file_path, proof_bucket, order_type, schedule_date, schedule_time, is_confirmation } = await req.json();
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -45,15 +45,27 @@ serve(async (req) => {
 
     let shortId = order_id;
     if (order_id && !String(order_id).startsWith('manual_')) {
-      const { data: orderData } = await supabase
+      // Try subscription_orders first
+      const { data: subData } = await supabase
         .from('subscription_orders')
         .select('short_id')
         .eq('id', order_id)
         .single();
-      shortId = orderData?.short_id || order_id;
+      if (subData?.short_id) {
+        shortId = subData.short_id;
+      } else {
+        // Fallback: try coin_orders
+        const { data: coinData } = await supabase
+          .from('coin_orders')
+          .select('short_id')
+          .eq('id', order_id)
+          .single();
+        shortId = coinData?.short_id || order_id;
+      }
     }
     const typeLabel = order_type === 'replay' ? 'REPLAY' : order_type === 'show' ? 'SHOW' : 'MEMBERSHIP';
-    const emoji = order_type === 'replay' ? '🔄' : order_type === 'show' ? '🎫' : '🎬';
+    const emoji = is_confirmation ? '✅' : order_type === 'replay' ? '🔄' : order_type === 'show' ? '🎫' : '🎬';
+    const actionLabel = is_confirmation ? 'Dikonfirmasi' : 'Baru';
 
     const scheduleInfo = schedule_date ? `\n📅 Jadwal: ${escapeMarkdown(schedule_date)}${schedule_time ? ' ' + escapeMarkdown(schedule_time) : ''}` : '';
     const caption = `${emoji} *Order ${escapeMarkdown(typeLabel)} Baru\\!*\n\n🎭 Show: ${escapeMarkdown(show_title)}${scheduleInfo}\n📱 Phone: ${escapeMarkdown(phone || '-')}\n📧 Email: ${escapeMarkdown(email || '-')}\n🆔 ID: \`${escapeMarkdown(shortId)}\``;
