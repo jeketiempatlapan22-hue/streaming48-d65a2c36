@@ -232,14 +232,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
-      // Auto-correct drift on every segment load — keep within 2s of live edge
+      // Only correct drift if VERY far behind (>15s) — let HLS playback rate handle the rest
       hls.on(Hls.Events.LEVEL_LOADED, (_: any, d: any) => {
         if (destroyed) return;
         const details = d.details;
         if (details?.live && videoRef.current && videoRef.current.buffered.length) {
           const edge = details.edge;
-          if (edge && edge - videoRef.current.currentTime > 2) {
-            videoRef.current.currentTime = edge - 1;
+          if (edge && edge - videoRef.current.currentTime > 15) {
+            videoRef.current.currentTime = edge - 3;
           }
         }
       });
