@@ -703,9 +703,12 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          payment_gateway_order_id: string | null
           payment_method: string | null
           payment_proof_url: string | null
+          payment_status: string | null
           phone: string | null
+          qr_string: string | null
           short_id: string | null
           show_id: string
           status: string
@@ -715,9 +718,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          payment_gateway_order_id?: string | null
           payment_method?: string | null
           payment_proof_url?: string | null
+          payment_status?: string | null
           phone?: string | null
+          qr_string?: string | null
           short_id?: string | null
           show_id: string
           status?: string
@@ -727,9 +733,12 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          payment_gateway_order_id?: string | null
           payment_method?: string | null
           payment_proof_url?: string | null
+          payment_status?: string | null
           phone?: string | null
+          qr_string?: string | null
           short_id?: string | null
           show_id?: string
           status?: string
