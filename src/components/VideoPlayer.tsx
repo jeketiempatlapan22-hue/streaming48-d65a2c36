@@ -901,6 +901,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           </button>
         )}
 
+        {/* Sync to Live button */}
+        <button
+          onClick={syncToLive}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${
+            isBehindLive
+              ? "bg-destructive/90 text-destructive-foreground animate-pulse hover:bg-destructive"
+              : "bg-secondary/80 text-secondary-foreground hover:bg-secondary"
+          }`}
+          title="Sync ke Live"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+          LIVE
+        </button>
+
         <div className="flex-1" />
 
         {qualities.length > 0 && (
