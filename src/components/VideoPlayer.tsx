@@ -204,11 +204,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 5,
         liveDurationInfinity: true,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
-        maxBufferSize: 15 * 1000 * 1000,
-        maxBufferHole: 0.3,
-        backBufferLength: 10,
+        maxBufferLength: 15,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 20 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        backBufferLength: 15,
         abrEwmaDefaultEstimate: 500_000,
         abrEwmaDefaultEstimateMax: 5_000_000,
         abrBandWidthFactor: 0.95,
@@ -236,6 +236,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(decodedUrl);
       hls.attachMedia(videoRef.current!);
 
+      // Quality lock system: prevents unwanted ABR switching
+      let userLockedLevel = false;
+      let autoLockTimer: any = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
@@ -246,42 +249,86 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setQualities([{ label: "Auto", index: -1 }, ...levels]);
         hls.currentLevel = -1;
         setCurrentQuality(-1);
+        userLockedLevel = false;
         setIsLoading(false);
+
+        // Auto-lock: after 8s, lock ABR-selected level so it won't jump around
+        autoLockTimer = setTimeout(() => {
+          if (destroyed || userLockedLevel) return;
+          const detectedLevel = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+          if (detectedLevel >= 0 && detectedLevel < data.levels.length) {
+            hls.currentLevel = detectedLevel;
+            hls.nextAutoLevel = detectedLevel;
+            userLockedLevel = true;
+            setCurrentQuality(detectedLevel);
+          }
+        }, 8000);
+
         if (autoPlay) {
           videoRef.current!.muted = true;
           videoRef.current!.play().then(() => {
-            // Unmute after autoplay succeeds
             setTimeout(() => {
-              if (!destroyed && videoRef.current) {
-                videoRef.current.muted = false;
-              }
+              if (!destroyed && videoRef.current) videoRef.current.muted = false;
             }, 500);
           }).catch(() => {});
           setIsPlaying(true);
         }
       });
+
       hls.on(Hls.Events.LEVEL_SWITCHING, () => { if (!destroyed) setIsSwitchingQuality(true); });
-      hls.on(Hls.Events.LEVEL_SWITCHED, () => { if (!destroyed) setIsSwitchingQuality(false); });
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
+        if (destroyed) return;
+        setIsSwitchingQuality(false);
+        if (userLockedLevel && hls.currentLevel >= 0 && data.level !== hls.currentLevel) {
+          hls.currentLevel = hls.currentLevel;
+        }
+      });
       hls.on(Hls.Events.FRAG_BUFFERED, () => { if (!destroyed) setIsSwitchingQuality(false); });
 
-      // Stall recovery: if video stalls, nudge it forward
+      // Expose lock control for handleQualityChange
+      (hls as any).__setUserLocked = (level: number) => {
+        clearTimeout(autoLockTimer);
+        if (level === -1) {
+          userLockedLevel = false;
+          hls.currentLevel = -1;
+          autoLockTimer = setTimeout(() => {
+            if (destroyed || userLockedLevel) return;
+            const detected = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+            if (detected >= 0) {
+              hls.currentLevel = detected;
+              hls.nextAutoLevel = detected;
+              userLockedLevel = true;
+              setCurrentQuality(detected);
+            }
+          }, 8000);
+        } else {
+          userLockedLevel = true;
+          hls.currentLevel = level;
+          hls.nextAutoLevel = level;
+        }
+      };
+
+      // Stall recovery
       let stallCheckInterval: any = null;
+      let lastPlayPos = 0;
+      let stallCount = 0;
       const startStallCheck = () => {
         if (stallCheckInterval) clearInterval(stallCheckInterval);
         stallCheckInterval = setInterval(() => {
           if (destroyed || !videoRef.current || !hls) return;
           const vid = videoRef.current;
-          if (!vid.paused && vid.readyState >= 2 && vid.buffered.length > 0) {
-            const currentTime = vid.currentTime;
-            const bufferedEnd = vid.buffered.end(vid.buffered.length - 1);
-            // If we have buffer ahead but playback is stuck
-            if (bufferedEnd - currentTime > 1 && vid.playbackRate === 0) {
-              vid.currentTime = currentTime + 0.1;
+          if (vid.paused) { lastPlayPos = vid.currentTime; stallCount = 0; return; }
+          if (Math.abs(vid.currentTime - lastPlayPos) < 0.1 && vid.readyState < 4) {
+            stallCount++;
+            if (stallCount >= 2) {
+              if (hls.liveSyncPosition) vid.currentTime = hls.liveSyncPosition;
+              else if (vid.buffered.length > 0) vid.currentTime = vid.buffered.end(vid.buffered.length - 1) - 0.5;
+              stallCount = 0;
             }
-            // For live streams, sync to live edge if too far behind
-            if (hls.liveSyncPosition && (hls.liveSyncPosition - currentTime > 15)) {
-              vid.currentTime = hls.liveSyncPosition;
-            }
+          } else { stallCount = 0; }
+          lastPlayPos = vid.currentTime;
+          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 12)) {
+            vid.currentTime = hls.liveSyncPosition;
           }
         }, 3000);
       };
@@ -310,17 +357,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               break;
           }
         } else if (data.details === 'bufferStalledError') {
-          // Non-fatal stall: try to recover
-          if (videoRef.current && hls.liveSyncPosition) {
-            videoRef.current.currentTime = hls.liveSyncPosition;
-          }
+          if (videoRef.current && hls.liveSyncPosition) videoRef.current.currentTime = hls.liveSyncPosition;
         }
       });
 
-      // Cleanup stall checker
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         clearInterval(stallCheckInterval);
+        clearTimeout(autoLockTimer);
         origDestroy();
       };
     };
@@ -633,7 +677,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     } else if (hlsRef.current) {
       setIsSwitchingQuality(true);
-      hlsRef.current.currentLevel = index;
+      // Use the lock system to prevent ABR from overriding user choice
+      if (typeof (hlsRef.current as any).__setUserLocked === "function") {
+        (hlsRef.current as any).__setUserLocked(index);
+      } else {
+        hlsRef.current.currentLevel = index;
+      }
       setCurrentQuality(index);
     }
     setShowQualityMenu(false);
