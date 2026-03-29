@@ -32,6 +32,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [ytFallback, setYtFallback] = useState(false);
   const [iframeRefreshKey, setIframeRefreshKey] = useState(0);
+  const [isBehindLive, setIsBehindLive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const ytPlayerRef = useRef<any>(null);
@@ -202,34 +203,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls = new Hls({
         enableWorker: true,
         liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 5,
+        liveMaxLatencyDurationCount: 6,
         liveDurationInfinity: true,
         maxBufferLength: 15,
         maxMaxBufferLength: 30,
         maxBufferSize: 20 * 1000 * 1000,
         maxBufferHole: 0.5,
-        backBufferLength: 15,
+        backBufferLength: 10,
         abrEwmaDefaultEstimate: 500_000,
         abrEwmaDefaultEstimateMax: 5_000_000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 8,
+        fragLoadingRetryDelay: 500,
         fragLoadingMaxRetryTimeout: 8000,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetry: 6,
+        manifestLoadingRetryDelay: 500,
+        levelLoadingMaxRetry: 6,
+        levelLoadingRetryDelay: 500,
         startFragPrefetch: true,
         testBandwidth: true,
-        progressive: false,
+        progressive: true,
         lowLatencyMode: false,
         capLevelToPlayerSize: true,
         capLevelOnFPSDrop: true,
         fpsDroppedMonitoringPeriod: 5000,
         fpsDroppedMonitoringThreshold: 0.3,
-        nudgeOffset: 0.1,
+        nudgeOffset: 0.2,
         nudgeMaxRetry: 5,
+        xhrSetup: (xhr: XMLHttpRequest) => {
+          xhr.timeout = 15000;
+        },
         debug: false,
       });
       hlsRef.current = hls;
@@ -317,6 +321,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         stallCheckInterval = setInterval(() => {
           if (destroyed || !videoRef.current || !hls) return;
           const vid = videoRef.current;
+          // Track if behind live edge
+          if (hls.liveSyncPosition && !vid.paused) {
+            const lag = hls.liveSyncPosition - vid.currentTime;
+            setIsBehindLive(lag > 5);
+          }
           if (vid.paused) { lastPlayPos = vid.currentTime; stallCount = 0; return; }
           if (Math.abs(vid.currentTime - lastPlayPos) < 0.1 && vid.readyState < 4) {
             stallCount++;
@@ -327,7 +336,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             }
           } else { stallCount = 0; }
           lastPlayPos = vid.currentTime;
-          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 12)) {
+          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 15)) {
             vid.currentTime = hls.liveSyncPosition;
           }
         }, 3000);
@@ -703,6 +712,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } catch {}
   }, [isYTReady]);
 
+  const syncToLive = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (playlistType === "m3u8" && hlsRef.current && videoRef.current) {
+      const hls = hlsRef.current;
+      if (hls.liveSyncPosition) {
+        videoRef.current.currentTime = hls.liveSyncPosition;
+      } else if (videoRef.current.buffered.length > 0) {
+        videoRef.current.currentTime = videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - 0.5;
+      }
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+      setIsBehindLive(false);
+    } else if (playlistType === "youtube") {
+      if (ytFallback) {
+        setIframeRefreshKey(k => k + 1);
+      } else if (isYTReady()) {
+        const p = ytPlayerRef.current;
+        try {
+          const d = p.getDuration?.();
+          if (d && d > 0) p.seekTo(d, true);
+        } catch {}
+        p.playVideo();
+      }
+      setIsPlaying(true);
+    } else if (playlistType === "cloudflare") {
+      setIframeRefreshKey(k => k + 1);
+      setIsPlaying(true);
+    }
+  }, [playlistType, ytFallback, isYTReady]);
+
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
@@ -802,6 +843,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           onClick={togglePlay}
           className={`h-full w-full object-contain cursor-pointer ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
+          // @ts-ignore - webkit attribute for iOS Safari
+          webkit-playsinline=""
+          x-webkit-airplay="allow"
+          preload="auto"
         />
       )}
 
@@ -859,6 +904,20 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             )}
           </button>
         )}
+
+        {/* Sync to Live button */}
+        <button
+          onClick={syncToLive}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${
+            isBehindLive
+              ? "bg-destructive/90 text-destructive-foreground animate-pulse hover:bg-destructive"
+              : "bg-secondary/80 text-secondary-foreground hover:bg-secondary"
+          }`}
+          title="Sync ke Live"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
+          LIVE
+        </button>
 
         <div className="flex-1" />
 
