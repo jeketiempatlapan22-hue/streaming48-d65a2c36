@@ -171,38 +171,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false,
-        // Larger live sync window = more stable, less rebuffering
-        liveSyncDurationCount: 4,
-        liveMaxLatencyDurationCount: 8,
-        maxLiveSyncPlaybackRate: 1.05,
+        lowLatencyMode: true,
         liveDurationInfinity: true,
-        backBufferLength: 10,
-        // Bigger buffers = smoother playback for many concurrent users
-        maxBufferLength: 20,
-        maxMaxBufferLength: 30,
-        maxBufferSize: 30 * 1024 * 1024,
-        maxBufferHole: 0.3,
-        // Conservative ABR: prefer stability over max quality
-        abrEwmaFastLive: 3,
-        abrEwmaSlowLive: 9,
-        abrBandWidthFactor: 0.8,
-        abrBandWidthUpFactor: 0.6,
+        // Tight live sync = minimal delay from live edge
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 2,
+        maxLiveSyncPlaybackRate: 1.08,
+        // Small back buffer to save memory
+        backBufferLength: 4,
+        // Lean buffers = fast start, low memory, near-live
+        maxBufferLength: 6,
+        maxMaxBufferLength: 8,
+        maxBufferSize: 10 * 1024 * 1024,
+        maxBufferHole: 0.1,
+        // ABR: favor stability, cap to player size & FPS
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.8,
         startLevel: -1,
         capLevelToPlayerSize: true,
-        testBandwidth: true,
-        fragLoadingMaxRetry: 5,
-        fragLoadingRetryDelay: 500,
-        fragLoadingMaxRetryTimeout: 8000,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 500,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 500,
+        capLevelOnFPSDrop: true,
         startFragPrefetch: true,
         progressive: true,
-        nudgeOffset: 0.2,
-        nudgeMaxRetry: 5,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 15000; },
+        // Retry settings
+        fragLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3,
+        manifestLoadingMaxRetry: 2,
+        fragLoadingRetryDelay: 300,
+        manifestLoadingRetryDelay: 500,
+        levelLoadingRetryDelay: 500,
+        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 8000; },
         debug: false,
       });
       hlsRef.current = hls;
@@ -219,7 +216,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         const levels = data.levels.map((l: any, i: number) => ({ label: `${l.height}p`, index: i }));
         setQualities([{ label: "Auto", index: -1 }, ...levels]);
         hls.currentLevel = -1;
-        hls.nextAutoLevel = -1;
+        hls.autoLevelEnabled = true;
         setCurrentQuality(-1);
         userLocked = false;
         autoLocked = false;
@@ -234,7 +231,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
-      // Auto-lock: after ABR settles on a level for 8s, lock it to prevent jumping
+      // Auto-correct drift on every segment load — keep within 2s of live edge
+      hls.on(Hls.Events.LEVEL_LOADED, (_: any, d: any) => {
+        if (destroyed) return;
+        const details = d.details;
+        if (details?.live && videoRef.current && videoRef.current.buffered.length) {
+          const edge = details.edge;
+          if (edge && edge - videoRef.current.currentTime > 2) {
+            videoRef.current.currentTime = edge - 1;
+          }
+        }
+      });
+
+      // Auto-lock: after ABR settles on a level for 8s, lock it
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
         if (destroyed || userLocked || autoLocked || d.level < 0) return;
         if (stableTimer) clearTimeout(stableTimer);
@@ -249,17 +258,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }, 8000);
       });
 
-      // Expose lock control for handleQualityChange
       (hls as any).__setUserLocked = (level: number) => {
         if (stableTimer) clearTimeout(stableTimer);
         if (level === -1) {
-          // Back to Auto: unlock everything, let ABR decide, then re-lock after stable
           userLocked = false;
           autoLocked = false;
           hls.currentLevel = -1;
           hls.nextAutoLevel = -1;
         } else {
-          // User picked a specific quality: hard-lock it
           userLocked = true;
           autoLocked = false;
           hls.currentLevel = level;
@@ -267,7 +273,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       };
 
-      // Throttled UI sync via rAF — only updates React state at ~2fps (500ms)
+      // Throttled UI sync — ~2fps
       let lastPlayPos = 0;
       let stallCount = 0;
       let behindRef = false;
@@ -281,21 +287,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         const vid = videoRef.current;
         if (!vid || !hls) return;
 
-        // Behind-live check — only setState when actually changed
         if (hls.liveSyncPosition && !vid.paused) {
           const lag = hls.liveSyncPosition - vid.currentTime;
-          const behind = lag > 5;
+          const behind = lag > 3;
           if (behind !== behindRef) {
             behindRef = behind;
             setIsBehindLive(behind);
           }
         }
 
-        // Stall detection — nudge if stuck
         if (!vid.paused) {
           if (Math.abs(vid.currentTime - lastPlayPos) < 0.1 && vid.readyState < 4) {
             stallCount++;
-            if (stallCount >= 4) { // ~2s stalled
+            if (stallCount >= 3) {
               if (hls.liveSyncPosition) vid.currentTime = hls.liveSyncPosition;
               else if (vid.buffered.length > 0) vid.currentTime = vid.buffered.end(vid.buffered.length - 1) - 0.5;
               stallCount = 0;
@@ -305,8 +309,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           }
           lastPlayPos = vid.currentTime;
 
-          // Force sync if too far behind live edge
-          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 15)) {
+          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 5)) {
             vid.currentTime = hls.liveSyncPosition;
           }
         } else {
