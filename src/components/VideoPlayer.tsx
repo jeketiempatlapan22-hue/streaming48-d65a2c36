@@ -342,7 +342,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
-        clearTimeout(autoLockTimer);
+        if (stableTimer) clearTimeout(stableTimer);
         origDestroy();
       };
     };
