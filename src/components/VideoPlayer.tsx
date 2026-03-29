@@ -368,9 +368,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         ytPlayerRef.current = new (window as any).YT.Player(playerDiv, {
           width: "100%", height: "100%", videoId,
           playerVars: {
-            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 0,
+            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 1,
             disablekb: 1, fs: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
-            playsinline: 1, showinfo: 0,
+            playsinline: 1, showinfo: 0, origin: window.location.origin,
           },
           events: {
             onReady: (e: any) => {
