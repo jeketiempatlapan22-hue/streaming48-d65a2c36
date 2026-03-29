@@ -586,7 +586,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "no-cache, no-store",
+          "Cache-Control": "public, max-age=2",
         },
       });
     }

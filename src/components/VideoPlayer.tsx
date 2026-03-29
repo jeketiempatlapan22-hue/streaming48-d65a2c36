@@ -274,48 +274,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       };
 
-      // Throttled UI sync — ~2fps
-      let lastPlayPos = 0;
-      let stallCount = 0;
+      // Lightweight UI sync — only update "behind live" indicator every 2s
       let behindRef = false;
       const syncLoop = (timestamp: number) => {
         if (destroyed) return;
         rafRef.current = requestAnimationFrame(syncLoop);
 
-        if (timestamp - lastUiUpdateRef.current < 500) return;
+        // Only check every 2 seconds — no need for frequent updates
+        if (timestamp - lastUiUpdateRef.current < 2000) return;
         lastUiUpdateRef.current = timestamp;
 
         const vid = videoRef.current;
-        if (!vid || !hls) return;
+        if (!vid || !hls || vid.paused) return;
 
-        if (hls.liveSyncPosition && !vid.paused) {
+        if (hls.liveSyncPosition) {
           const lag = hls.liveSyncPosition - vid.currentTime;
-          const behind = lag > 3;
+          const behind = lag > 8;
           if (behind !== behindRef) {
             behindRef = behind;
             setIsBehindLive(behind);
           }
-        }
-
-        if (!vid.paused) {
-          if (Math.abs(vid.currentTime - lastPlayPos) < 0.1 && vid.readyState < 4) {
-            stallCount++;
-            if (stallCount >= 3) {
-              if (hls.liveSyncPosition) vid.currentTime = hls.liveSyncPosition;
-              else if (vid.buffered.length > 0) vid.currentTime = vid.buffered.end(vid.buffered.length - 1) - 0.5;
-              stallCount = 0;
-            }
-          } else {
-            stallCount = 0;
-          }
-          lastPlayPos = vid.currentTime;
-
-          if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 5)) {
-            vid.currentTime = hls.liveSyncPosition;
-          }
-        } else {
-          lastPlayPos = vid.currentTime;
-          stallCount = 0;
         }
       };
       rafRef.current = requestAnimationFrame(syncLoop);
