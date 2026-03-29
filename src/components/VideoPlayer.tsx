@@ -140,7 +140,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.setAttribute("playsinline", "");
     iframe.setAttribute("webkit-playsinline", "");
     iframe.setAttribute("loading", "eager");
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;pointer-events:none;";
+    iframe.setAttribute("tabindex", "-1");
+    iframe.setAttribute("aria-hidden", "true");
     iframe.src = url;
     container.appendChild(iframe);
     return iframe;
@@ -256,6 +258,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           if (hls.currentLevel === d.level) {
             hls.currentLevel = d.level;
             hls.nextAutoLevel = d.level;
+            hls.autoLevelEnabled = false;
             autoLocked = true;
             setCurrentQuality(d.level);
           }
@@ -269,11 +272,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           autoLocked = false;
           hls.currentLevel = -1;
           hls.nextAutoLevel = -1;
+          hls.autoLevelEnabled = true;
         } else {
           userLocked = true;
           autoLocked = false;
           hls.currentLevel = level;
           hls.nextAutoLevel = level;
+          hls.autoLevelEnabled = false;
         }
       };
 
@@ -366,9 +371,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         ytPlayerRef.current = new (window as any).YT.Player(playerDiv, {
           width: "100%", height: "100%", videoId,
           playerVars: {
-            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 0,
+            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 1,
             disablekb: 1, fs: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
-            playsinline: 1, showinfo: 0,
+            playsinline: 1, showinfo: 0, origin: window.location.origin,
           },
           events: {
             onReady: (e: any) => {
@@ -441,7 +446,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const container = ytFallbackContainerRef.current;
     if (!container) return;
     const videoId = extractVideoId(playlistUrl);
-    createProtectedIframe(container, `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=0&fs=0&iv_load_policy=3`, {
+    createProtectedIframe(container, `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=0&controls=0&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`, {
       allow: "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share",
       allowFullscreen: true,
     });
@@ -561,25 +566,46 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
       {isLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
-            <p className="text-xs text-muted-foreground">Memuat...</p>
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-primary/30 border-t-primary" />
+              <svg className="absolute inset-0 m-auto h-5 w-5 text-primary" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.5,7.5 16.5,12 9.5,16.5"/></svg>
+            </div>
+            <p className="text-sm text-muted-foreground animate-pulse">Menghubungkan...</p>
           </div>
         </div>
       )}
 
       {playlistType === "youtube" && !ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0" />
-          <div className="absolute inset-0 z-10 cursor-pointer" style={{ background: "transparent" }} onContextMenu={e => e.preventDefault()} onDragStart={e => e.preventDefault()} onClick={e => { e.stopPropagation(); togglePlay(e); }} />
+          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0 [&_iframe]:pointer-events-none" />
+          {/* Full blocking overlay — prevents ALL clicks/touches to YouTube iframe */}
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
+            onClick={e => { e.stopPropagation(); togglePlay(e); }}
+            onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+            onTouchStart={e => e.stopPropagation()}
+          />
         </div>
       )}
 
       {playlistType === "youtube" && ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full" />
-          <div className="absolute inset-0 z-10 cursor-pointer" style={{ background: "transparent" }} onContextMenu={e => e.preventDefault()} onDragStart={e => e.preventDefault()} onClick={e => { e.stopPropagation(); togglePlay(e); }} />
+          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full [&_iframe]:pointer-events-none" />
+          {/* Full blocking overlay for fallback iframe */}
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
+            onClick={e => { e.stopPropagation(); togglePlay(e); }}
+            onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+            onTouchStart={e => e.stopPropagation()}
+          />
         </div>
       )}
 
