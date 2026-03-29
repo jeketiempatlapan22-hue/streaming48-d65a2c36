@@ -172,23 +172,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
+        // Larger live sync window = more stable, less rebuffering
+        liveSyncDurationCount: 4,
+        liveMaxLatencyDurationCount: 8,
+        maxLiveSyncPlaybackRate: 1.05,
         liveDurationInfinity: true,
         backBufferLength: 10,
-        maxBufferLength: 12,
-        maxMaxBufferLength: 20,
-        maxBufferSize: 15 * 1024 * 1024,
-        maxBufferHole: 0.5,
-        abrEwmaDefaultEstimate: 500_000,
-        abrEwmaDefaultEstimateMax: 5_000_000,
-        abrBandWidthFactor: 0.9,
-        abrBandWidthUpFactor: 0.7,
+        // Bigger buffers = smoother playback for many concurrent users
+        maxBufferLength: 20,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 30 * 1024 * 1024,
+        maxBufferHole: 0.3,
+        // Conservative ABR: prefer stability over max quality
+        abrEwmaFastLive: 3,
+        abrEwmaSlowLive: 9,
+        abrBandWidthFactor: 0.8,
+        abrBandWidthUpFactor: 0.6,
+        startLevel: -1,
         capLevelToPlayerSize: true,
-        capLevelOnFPSDrop: true,
-        fpsDroppedMonitoringPeriod: 5000,
-        fpsDroppedMonitoringThreshold: 0.3,
-        fragLoadingMaxRetry: 6,
+        testBandwidth: true,
+        fragLoadingMaxRetry: 5,
         fragLoadingRetryDelay: 500,
         fragLoadingMaxRetryTimeout: 8000,
         manifestLoadingMaxRetry: 4,
@@ -206,30 +209,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(playlistUrl);
       hls.attachMedia(videoRef.current!);
 
-      // Quality lock system
-      let userLockedLevel = false;
-      let autoLockTimer: any = null;
+      // Quality lock: auto stays unlocked until user picks or ABR stabilizes
+      let autoLocked = false;
+      let userLocked = false;
+      let stableTimer: ReturnType<typeof setTimeout> | null = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
         const levels = data.levels.map((l: any, i: number) => ({ label: `${l.height}p`, index: i }));
         setQualities([{ label: "Auto", index: -1 }, ...levels]);
         hls.currentLevel = -1;
+        hls.nextAutoLevel = -1;
         setCurrentQuality(-1);
-        userLockedLevel = false;
+        userLocked = false;
+        autoLocked = false;
         setIsLoading(false);
-
-        // Auto-lock after 8s of stable ABR
-        autoLockTimer = setTimeout(() => {
-          if (destroyed || userLockedLevel) return;
-          const detected = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
-          if (detected >= 0 && detected < data.levels.length) {
-            hls.currentLevel = detected;
-            hls.nextAutoLevel = detected;
-            userLockedLevel = true;
-            setCurrentQuality(detected);
-          }
-        }, 8000);
 
         if (autoPlay) {
           videoRef.current!.muted = true;
@@ -240,62 +234,68 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
-        if (destroyed) return;
-        if (userLockedLevel && hls.currentLevel >= 0 && data.level !== hls.currentLevel) {
-          hls.currentLevel = hls.currentLevel;
-        }
+      // Auto-lock: after ABR settles on a level for 8s, lock it to prevent jumping
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
+        if (destroyed || userLocked || autoLocked || d.level < 0) return;
+        if (stableTimer) clearTimeout(stableTimer);
+        stableTimer = setTimeout(() => {
+          if (destroyed || userLocked || !hls.autoLevelEnabled) return;
+          if (hls.currentLevel === d.level) {
+            hls.currentLevel = d.level;
+            hls.nextAutoLevel = d.level;
+            autoLocked = true;
+            setCurrentQuality(d.level);
+          }
+        }, 8000);
       });
 
-      // Lock control for quality change
+      // Expose lock control for handleQualityChange
       (hls as any).__setUserLocked = (level: number) => {
-        clearTimeout(autoLockTimer);
+        if (stableTimer) clearTimeout(stableTimer);
         if (level === -1) {
-          userLockedLevel = false;
+          // Back to Auto: unlock everything, let ABR decide, then re-lock after stable
+          userLocked = false;
+          autoLocked = false;
           hls.currentLevel = -1;
-          autoLockTimer = setTimeout(() => {
-            if (destroyed || userLockedLevel) return;
-            const detected = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
-            if (detected >= 0) {
-              hls.currentLevel = detected;
-              hls.nextAutoLevel = detected;
-              userLockedLevel = true;
-              setCurrentQuality(detected);
-            }
-          }, 8000);
+          hls.nextAutoLevel = -1;
         } else {
-          userLockedLevel = true;
+          // User picked a specific quality: hard-lock it
+          userLocked = true;
+          autoLocked = false;
           hls.currentLevel = level;
           hls.nextAutoLevel = level;
         }
       };
 
-      // Throttled UI sync via rAF — avoids excessive React re-renders
+      // Throttled UI sync via rAF — only updates React state at ~2fps (500ms)
       let lastPlayPos = 0;
       let stallCount = 0;
+      let behindRef = false;
       const syncLoop = (timestamp: number) => {
         if (destroyed) return;
         rafRef.current = requestAnimationFrame(syncLoop);
 
-        // Only update React state at ~4fps (every 250ms)
-        if (timestamp - lastUiUpdateRef.current < 250) return;
+        if (timestamp - lastUiUpdateRef.current < 500) return;
         lastUiUpdateRef.current = timestamp;
 
         const vid = videoRef.current;
         if (!vid || !hls) return;
 
-        // Behind-live check (ref-based, only set state when changed)
+        // Behind-live check — only setState when actually changed
         if (hls.liveSyncPosition && !vid.paused) {
           const lag = hls.liveSyncPosition - vid.currentTime;
           const behind = lag > 5;
-          setIsBehindLive(prev => prev !== behind ? behind : prev);
+          if (behind !== behindRef) {
+            behindRef = behind;
+            setIsBehindLive(behind);
+          }
         }
 
-        // Stall detection
+        // Stall detection — nudge if stuck
         if (!vid.paused) {
           if (Math.abs(vid.currentTime - lastPlayPos) < 0.1 && vid.readyState < 4) {
             stallCount++;
-            if (stallCount >= 3) { // ~750ms stalled
+            if (stallCount >= 4) { // ~2s stalled
               if (hls.liveSyncPosition) vid.currentTime = hls.liveSyncPosition;
               else if (vid.buffered.length > 0) vid.currentTime = vid.buffered.end(vid.buffered.length - 1) - 0.5;
               stallCount = 0;
@@ -305,7 +305,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           }
           lastPlayPos = vid.currentTime;
 
-          // Force sync if too far behind
+          // Force sync if too far behind live edge
           if (hls.liveSyncPosition && (hls.liveSyncPosition - vid.currentTime > 15)) {
             vid.currentTime = hls.liveSyncPosition;
           }
