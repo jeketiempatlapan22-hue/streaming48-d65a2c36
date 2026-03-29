@@ -442,11 +442,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   // Cloudflare iframe — always use the signed proxy URL (playlistUrl already points to stream-proxy?mode=cf)
   useEffect(() => {
     if (playlistType !== "cloudflare") return;
-    setIsLoading(false);
+    setIsLoading(true);
     const container = cfContainerRef.current;
     if (!container) return;
     // playlistUrl is already the signed proxy URL from useSignedStreamUrl
-    createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
+    const iframe = createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
+    iframe.addEventListener("load", () => setIsLoading(false), { once: true });
+    // Fallback timeout in case load event doesn't fire
+    const t = setTimeout(() => setIsLoading(false), 5000);
+    return () => clearTimeout(t);
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
   // YouTube fallback iframe
