@@ -300,25 +300,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (destroyed) return;
-        setIsLoading(false);
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              hls.startLoad();
+              console.warn("[HLS] Network error, retrying...");
+              setTimeout(() => { if (!destroyed) hls.startLoad(); }, 1000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("[HLS] Media error, recovering...");
               hls.recoverMediaError();
               break;
             default:
+              console.error("[HLS] Fatal error, reinitializing...");
               hls.destroy();
               hlsRef.current = null;
               hlsInitRef.current = false;
-              setTimeout(() => { if (!destroyed) initHls(); }, 2000);
+              setTimeout(() => { if (!destroyed) initHls(); }, 3000);
               break;
           }
-        } else if (data.details === 'bufferStalledError') {
-          if (videoRef.current && hls.liveSyncPosition) videoRef.current.currentTime = hls.liveSyncPosition;
         }
+        // Non-fatal errors: let HLS.js handle them naturally — no manual seeking
       });
 
       const origDestroy = hls.destroy.bind(hls);
