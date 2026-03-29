@@ -55,7 +55,7 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 }
 
 // In-memory cache
-const M3U8_CACHE_TTL_MS = 6000;
+const M3U8_CACHE_TTL_MS = 3000;
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 
 interface CacheEntry { content: string; cachedAt: number }
@@ -435,7 +435,7 @@ Deno.serve(async (req) => {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "no-cache, no-store",
+          "Cache-Control": "public, max-age=2",
           "Access-Control-Expose-Headers": "Content-Type",
         },
       });
@@ -586,7 +586,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "no-cache, no-store",
+          "Cache-Control": "public, max-age=2",
         },
       });
     }
