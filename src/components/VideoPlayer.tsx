@@ -258,6 +258,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           if (hls.currentLevel === d.level) {
             hls.currentLevel = d.level;
             hls.nextAutoLevel = d.level;
+            hls.autoLevelEnabled = false;
             autoLocked = true;
             setCurrentQuality(d.level);
           }
