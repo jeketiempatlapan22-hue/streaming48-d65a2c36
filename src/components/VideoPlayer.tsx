@@ -350,6 +350,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   // ========== YouTube ==========
   useEffect(() => {
     if (playlistType !== "youtube") return;
+    setIsLoading(true);
     let destroyed = false;
     const videoId = extractVideoId(playlistUrl);
 
