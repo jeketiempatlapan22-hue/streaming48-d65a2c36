@@ -677,7 +677,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     } else if (hlsRef.current) {
       setIsSwitchingQuality(true);
-      hlsRef.current.currentLevel = index;
+      // Use the lock system to prevent ABR from overriding user choice
+      if (typeof (hlsRef.current as any).__setUserLocked === "function") {
+        (hlsRef.current as any).__setUserLocked(index);
+      } else {
+        hlsRef.current.currentLevel = index;
+      }
       setCurrentQuality(index);
     }
     setShowQualityMenu(false);
