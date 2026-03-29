@@ -140,7 +140,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.setAttribute("playsinline", "");
     iframe.setAttribute("webkit-playsinline", "");
     iframe.setAttribute("loading", "eager");
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;pointer-events:none;";
+    iframe.setAttribute("tabindex", "-1");
+    iframe.setAttribute("aria-hidden", "true");
     iframe.src = url;
     container.appendChild(iframe);
     return iframe;
