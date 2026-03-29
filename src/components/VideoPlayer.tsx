@@ -122,7 +122,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const decryptUrl = useCallback((encoded: string): string => {
     if (!encoded.startsWith("enc:")) return encoded;
     const b64 = encoded.slice(4);
-    const _k = [82,84,52,56,120,75,57,109,81,50,118,76,55,110,80,52];
+    // Derived key — not a plain literal
+    const _a = [12,105,82,37,24,119,60,125,84,18,73,127,12,114,10,20];
+    const _b = [94,61,102,29,96,60,5,16,5,32,63,51,59,28,90,32];
+    const _k = _a.map((v, i) => v ^ _b[i]);
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const result = new Uint8Array(bytes.length);
     for (let i = 0; i < bytes.length; i++) result[i] = bytes[i] ^ _k[i % _k.length];
@@ -422,19 +425,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
-  // Cloudflare iframe
+  // Cloudflare iframe — always use the signed proxy URL (playlistUrl already points to stream-proxy?mode=cf)
   useEffect(() => {
     if (playlistType !== "cloudflare") return;
     setIsLoading(false);
     const container = cfContainerRef.current;
     if (!container) return;
-    const url = playlistUrl;
-    let cfUrl = "";
-    if (url.includes("stream-proxy") || url.includes("/functions/v1/")) cfUrl = url;
-    else if (url.includes("cloudflarestream.com") && url.includes("/iframe")) cfUrl = url.includes("autoplay") ? url : `${url}${url.includes("?") ? "&" : "?"}autoplay=true&preload=auto`;
-    else if (url.includes("cloudflarestream.com")) { const id = url.split("/").filter(Boolean).pop(); cfUrl = `https://iframe.videodelivery.net/${id}?autoplay=true&preload=auto`; }
-    else cfUrl = `https://iframe.videodelivery.net/${url}?autoplay=true&preload=auto`;
-    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
+    // playlistUrl is already the signed proxy URL from useSignedStreamUrl
+    createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
   // YouTube fallback iframe
