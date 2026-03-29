@@ -435,7 +435,7 @@ Deno.serve(async (req) => {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "no-cache, no-store",
+          "Cache-Control": "public, max-age=2",
           "Access-Control-Expose-Headers": "Content-Type",
         },
       });
