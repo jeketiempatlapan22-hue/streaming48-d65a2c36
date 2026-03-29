@@ -381,7 +381,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               ytReadyRef.current = true;
               setIsLoading(false);
               clearTimeout(ytFallbackTimerRef.current);
-              try { const iframe = container.querySelector("iframe"); if (iframe) iframe.removeAttribute("title"); } catch {}
+              try {
+                const iframe = container.querySelector("iframe");
+                if (iframe) {
+                  iframe.removeAttribute("title");
+                  iframe.style.pointerEvents = "none";
+                  iframe.setAttribute("tabindex", "-1");
+                  iframe.setAttribute("aria-hidden", "true");
+                }
+              } catch {}
               if (autoPlay) {
                 e.target.playVideo(); setIsPlaying(true); setYtMuted(true);
                 setTimeout(() => {
