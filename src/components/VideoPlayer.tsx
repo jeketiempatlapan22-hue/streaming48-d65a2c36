@@ -566,10 +566,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
       {isLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60">
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
-            <p className="text-xs text-muted-foreground">Memuat...</p>
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-primary/30 border-t-primary" />
+              <svg className="absolute inset-0 m-auto h-5 w-5 text-primary" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.5,7.5 16.5,12 9.5,16.5"/></svg>
+            </div>
+            <p className="text-sm text-muted-foreground animate-pulse">Menghubungkan...</p>
           </div>
         </div>
       )}
