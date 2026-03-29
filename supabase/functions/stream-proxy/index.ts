@@ -55,7 +55,7 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 }
 
 // In-memory cache
-const M3U8_CACHE_TTL_MS = 6000;
+const M3U8_CACHE_TTL_MS = 3000;
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 
 interface CacheEntry { content: string; cachedAt: number }
