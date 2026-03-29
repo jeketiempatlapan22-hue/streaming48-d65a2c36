@@ -225,8 +225,8 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
 }
 
 // XOR key derived at runtime (not a plain literal)
-const _xk = [55, 33, 7, 9, 73, 28, 4, 60, 2, 3, 69, 27, 6, 67, 33, 7];
-const _xo = [29, 117, 59, 49, 49, 103, 53, 69, 83, 49, 55, 103, 49, 45, 115, 51];
+const _xk = [12,105,82,37,24,119,60,125,84,18,73,127,12,114,10,20];
+const _xo = [94,61,102,29,96,60,5,16,5,32,63,51,59,28,90,32];
 const XOR_KEY = _xk.map((v, i) => v ^ _xo[i]);
 
 // Decrypt XOR-encrypted embed ID (handles "enc:" prefix stored in DB)
