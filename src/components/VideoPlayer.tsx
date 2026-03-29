@@ -200,25 +200,36 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         return;
       }
       hls = new Hls({
+        enableWorker: true,
         liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
+        liveMaxLatencyDurationCount: 5,
         liveDurationInfinity: true,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        maxBufferSize: 30 * 1000 * 1000,
-        maxBufferHole: 0.5,
-        backBufferLength: 30,
-        abrEwmaDefaultEstimate: 1_000_000,
-        abrBandWidthFactor: 0.9,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        maxBufferSize: 15 * 1000 * 1000,
+        maxBufferHole: 0.3,
+        backBufferLength: 10,
+        abrEwmaDefaultEstimate: 500_000,
+        abrEwmaDefaultEstimateMax: 5_000_000,
+        abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
-        fragLoadingMaxRetry: 4,
-        fragLoadingRetryDelay: 1500,
-        manifestLoadingMaxRetry: 3,
-        levelLoadingMaxRetry: 3,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 1000,
+        fragLoadingMaxRetryTimeout: 8000,
+        manifestLoadingMaxRetry: 4,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 4,
+        levelLoadingRetryDelay: 1000,
         startFragPrefetch: true,
         testBandwidth: true,
-        progressive: true,
+        progressive: false,
         lowLatencyMode: false,
+        capLevelToPlayerSize: true,
+        capLevelOnFPSDrop: true,
+        fpsDroppedMonitoringPeriod: 5000,
+        fpsDroppedMonitoringThreshold: 0.3,
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 5,
         debug: false,
       });
       hlsRef.current = hls;
@@ -237,30 +248,81 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setCurrentQuality(-1);
         setIsLoading(false);
         if (autoPlay) {
-          videoRef.current!.play().catch(() => {});
+          videoRef.current!.muted = true;
+          videoRef.current!.play().then(() => {
+            // Unmute after autoplay succeeds
+            setTimeout(() => {
+              if (!destroyed && videoRef.current) {
+                videoRef.current.muted = false;
+              }
+            }, 500);
+          }).catch(() => {});
           setIsPlaying(true);
         }
       });
       hls.on(Hls.Events.LEVEL_SWITCHING, () => { if (!destroyed) setIsSwitchingQuality(true); });
       hls.on(Hls.Events.LEVEL_SWITCHED, () => { if (!destroyed) setIsSwitchingQuality(false); });
       hls.on(Hls.Events.FRAG_BUFFERED, () => { if (!destroyed) setIsSwitchingQuality(false); });
+
+      // Stall recovery: if video stalls, nudge it forward
+      let stallCheckInterval: any = null;
+      const startStallCheck = () => {
+        if (stallCheckInterval) clearInterval(stallCheckInterval);
+        stallCheckInterval = setInterval(() => {
+          if (destroyed || !videoRef.current || !hls) return;
+          const vid = videoRef.current;
+          if (!vid.paused && vid.readyState >= 2 && vid.buffered.length > 0) {
+            const currentTime = vid.currentTime;
+            const bufferedEnd = vid.buffered.end(vid.buffered.length - 1);
+            // If we have buffer ahead but playback is stuck
+            if (bufferedEnd - currentTime > 1 && vid.playbackRate === 0) {
+              vid.currentTime = currentTime + 0.1;
+            }
+            // For live streams, sync to live edge if too far behind
+            if (hls.liveSyncPosition && (hls.liveSyncPosition - currentTime > 15)) {
+              vid.currentTime = hls.liveSyncPosition;
+            }
+          }
+        }, 3000);
+      };
+      startStallCheck();
+
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (destroyed) return;
         setIsLoading(false);
         setIsSwitchingQuality(false);
         if (data.fatal) {
           switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR: hls.startLoad(); break;
-            case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("[HLS] Network error, retrying...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("[HLS] Media error, recovering...");
+              hls.recoverMediaError();
+              break;
             default:
+              console.warn("[HLS] Fatal error, reinitializing...");
               hls.destroy();
               hlsRef.current = null;
               hlsInitRef.current = false;
-              setTimeout(() => { if (!destroyed) initHls(); }, 3000);
+              setTimeout(() => { if (!destroyed) initHls(); }, 2000);
               break;
+          }
+        } else if (data.details === 'bufferStalledError') {
+          // Non-fatal stall: try to recover
+          if (videoRef.current && hls.liveSyncPosition) {
+            videoRef.current.currentTime = hls.liveSyncPosition;
           }
         }
       });
+
+      // Cleanup stall checker
+      const origDestroy = hls.destroy.bind(hls);
+      hls.destroy = () => {
+        clearInterval(stallCheckInterval);
+        origDestroy();
+      };
     };
     initHls();
     return () => {
