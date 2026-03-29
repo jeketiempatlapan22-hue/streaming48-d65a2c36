@@ -573,15 +573,33 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {playlistType === "youtube" && !ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0" />
-          <div className="absolute inset-0 z-10 cursor-pointer" style={{ background: "transparent" }} onContextMenu={e => e.preventDefault()} onDragStart={e => e.preventDefault()} onClick={e => { e.stopPropagation(); togglePlay(e); }} />
+          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0 [&_iframe]:pointer-events-none" />
+          {/* Full blocking overlay — prevents ALL clicks/touches to YouTube iframe */}
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
+            onClick={e => { e.stopPropagation(); togglePlay(e); }}
+            onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+            onTouchStart={e => e.stopPropagation()}
+          />
         </div>
       )}
 
       {playlistType === "youtube" && ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full" />
-          <div className="absolute inset-0 z-10 cursor-pointer" style={{ background: "transparent" }} onContextMenu={e => e.preventDefault()} onDragStart={e => e.preventDefault()} onClick={e => { e.stopPropagation(); togglePlay(e); }} />
+          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full [&_iframe]:pointer-events-none" />
+          {/* Full blocking overlay for fallback iframe */}
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
+            onClick={e => { e.stopPropagation(); togglePlay(e); }}
+            onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+            onTouchStart={e => e.stopPropagation()}
+          />
         </div>
       )}
 
