@@ -171,38 +171,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: false,
-        // Larger live sync window = more stable, less rebuffering
-        liveSyncDurationCount: 4,
-        liveMaxLatencyDurationCount: 8,
-        maxLiveSyncPlaybackRate: 1.05,
+        lowLatencyMode: true,
         liveDurationInfinity: true,
-        backBufferLength: 10,
-        // Bigger buffers = smoother playback for many concurrent users
-        maxBufferLength: 20,
-        maxMaxBufferLength: 30,
-        maxBufferSize: 30 * 1024 * 1024,
-        maxBufferHole: 0.3,
-        // Conservative ABR: prefer stability over max quality
-        abrEwmaFastLive: 3,
-        abrEwmaSlowLive: 9,
-        abrBandWidthFactor: 0.8,
-        abrBandWidthUpFactor: 0.6,
+        // Tight live sync = minimal delay from live edge
+        liveSyncDurationCount: 1,
+        liveMaxLatencyDurationCount: 2,
+        maxLiveSyncPlaybackRate: 1.08,
+        // Small back buffer to save memory
+        backBufferLength: 4,
+        // Lean buffers = fast start, low memory, near-live
+        maxBufferLength: 6,
+        maxMaxBufferLength: 8,
+        maxBufferSize: 10 * 1024 * 1024,
+        maxBufferHole: 0.1,
+        // ABR: favor stability, cap to player size & FPS
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.8,
         startLevel: -1,
         capLevelToPlayerSize: true,
-        testBandwidth: true,
-        fragLoadingMaxRetry: 5,
-        fragLoadingRetryDelay: 500,
-        fragLoadingMaxRetryTimeout: 8000,
-        manifestLoadingMaxRetry: 4,
-        manifestLoadingRetryDelay: 500,
-        levelLoadingMaxRetry: 4,
-        levelLoadingRetryDelay: 500,
+        capLevelOnFPSDrop: true,
         startFragPrefetch: true,
         progressive: true,
-        nudgeOffset: 0.2,
-        nudgeMaxRetry: 5,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 15000; },
+        // Retry settings
+        fragLoadingMaxRetry: 3,
+        levelLoadingMaxRetry: 3,
+        manifestLoadingMaxRetry: 2,
+        fragLoadingRetryDelay: 300,
+        manifestLoadingRetryDelay: 500,
+        levelLoadingRetryDelay: 500,
+        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 8000; },
         debug: false,
       });
       hlsRef.current = hls;
