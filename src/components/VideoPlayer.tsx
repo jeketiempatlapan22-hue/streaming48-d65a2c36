@@ -712,6 +712,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } catch {}
   }, [isYTReady]);
 
+  const syncToLive = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (playlistType === "m3u8" && hlsRef.current && videoRef.current) {
+      const hls = hlsRef.current;
+      if (hls.liveSyncPosition) {
+        videoRef.current.currentTime = hls.liveSyncPosition;
+      } else if (videoRef.current.buffered.length > 0) {
+        videoRef.current.currentTime = videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - 0.5;
+      }
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+      setIsBehindLive(false);
+    } else if (playlistType === "youtube") {
+      if (ytFallback) {
+        setIframeRefreshKey(k => k + 1);
+      } else if (isYTReady()) {
+        const p = ytPlayerRef.current;
+        try {
+          const d = p.getDuration?.();
+          if (d && d > 0) p.seekTo(d, true);
+        } catch {}
+        p.playVideo();
+      }
+      setIsPlaying(true);
+    } else if (playlistType === "cloudflare") {
+      setIframeRefreshKey(k => k + 1);
+      setIsPlaying(true);
+    }
+  }, [playlistType, ytFallback, isYTReady]);
+
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
