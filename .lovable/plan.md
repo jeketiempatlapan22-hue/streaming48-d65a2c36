@@ -1,65 +1,74 @@
 
 
-## Plan: Proteksi Overlay YouTube Player
+## Plan: Loading Animation + Quality Lock + Integrasi QRIS Dinamis Pak Kasir
 
-### Masalah
-Overlay transparan saat ini (`z-10`) hanya menangkap klik biasa, tetapi tombol YouTube asli (play, share, logo, title link) masih bisa diklik karena:
-1. Overlay hanya `background: transparent` — pointer events bisa "tembus" di beberapa browser
-2. Fallback iframe (`controls=0`) masih memungkinkan interaksi jika overlay gagal
-3. Tidak ada proteksi ganda untuk mencegah user menemukan sumber YouTube
+### 1. Perbaikan Loading Animation (VideoPlayer.tsx)
 
-### Perubahan di `src/components/VideoPlayer.tsx`
+**Masalah**: `isLoading` dimulai `false` — untuk YouTube tidak pernah di-set `true` di awal, sehingga tidak ada animasi loading saat player memuat.
 
-#### 1. Perkuat Overlay YouTube (API Player & Fallback)
-- Tambahkan **dua layer overlay** di atas iframe YouTube:
-  - Layer 1: `div` dengan `z-10`, `pointer-events: all`, `background: rgba(0,0,0,0.001)` — cukup opaque agar browser tidak meneruskan klik ke iframe, tapi tidak terlihat oleh mata
-  - Layer 2: `div` dengan `z-11` yang **hanya** untuk area tombol kontrol custom (play/pause, mute, dll)
-- Overlay menutupi **seluruh** area iframe termasuk pojok (logo YouTube, title, share)
-- `onContextMenu` dan `onDragStart` tetap di-block
+**Perubahan**:
+- Set `isLoading = true` saat efek YouTube dimulai (sebelum `loadYTApi`)
+- Set `isLoading = true` saat efek Cloudflare dimulai, baru `false` setelah iframe load
+- Tambahkan event `onLoad` pada iframe Cloudflare untuk menghilangkan loading
 
-#### 2. Tambahkan `origin` Parameter ke YouTube
-- API player: tambah `origin: window.location.origin` di `playerVars` untuk mencegah error cross-origin
-- Fallback iframe: tambah `&origin=` di URL
+### 2. Quality Lock (VideoPlayer.tsx)
 
-#### 3. YouTube Fallback Iframe — Tetap `controls=0`
-- Pertahankan `controls=0` dan `enablejsapi=0` di fallback iframe
-- Overlay ganda sudah memastikan tombol YouTube tidak bisa diklik
+**Status saat ini**: Logika sudah benar — `__setUserLocked` menangani `userLocked` vs `autoLocked` dengan tepat, dan `hls.autoLevelEnabled = false` sudah diterapkan saat lock. Tidak perlu perubahan.
 
-#### 4. Pastikan Iframe Tidak Bisa Diakses via DevTools
-- Tambahkan `tabindex="-1"` pada iframe YouTube agar tidak bisa di-focus via Tab key
-- Tambahkan `aria-hidden="true"` untuk menyembunyikan dari accessibility tree
+### 3. Integrasi QRIS Dinamis Pak Kasir
 
-### Detail Teknis
+**Arsitektur**:
 
-```tsx
-{/* YouTube API Player */}
-{playlistType === "youtube" && !ytFallback && (
-  <div className="relative w-full h-full absolute inset-0">
-    <div ref={ytContainerRef} className="absolute inset-0 ..." />
-    {/* Full blocking overlay — prevents ALL clicks to YouTube iframe */}
-    <div 
-      className="absolute inset-0 z-10 cursor-pointer"
-      style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
-      onContextMenu={e => e.preventDefault()}
-      onDragStart={e => e.preventDefault()}
-      onClick={e => { e.stopPropagation(); togglePlay(e); }}
-      onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
-      onTouchStart={e => e.stopPropagation()}
-    />
-  </div>
-)}
+```text
+User Beli Show → Edge Function → Pak Kasir API → Return QRIS String
+                                                → User scan QR
+                                                → Pak Kasir Callback → Edge Function → Update Order Status
 ```
 
-Juga di `createProtectedIframe`:
-```typescript
-iframe.setAttribute("tabindex", "-1");
-iframe.setAttribute("aria-hidden", "true");
-iframe.style.pointerEvents = "none"; // iframe itself receives no clicks
-```
+**Langkah**:
 
-### File yang Diubah
+1. **Simpan API Key Pak Kasir** sebagai secret (`PAKASIR_API_KEY`) + `PAKASIR_MERCHANT_CODE` (nama merchant di Pak Kasir)
+
+2. **Edge Function `create-dynamic-qris`**:
+   - Terima `{ show_id, amount, order_type }` dari frontend
+   - Panggil Pak Kasir API: `POST https://app.pakasir.com/api/transactioncreate/qris` dengan body `{ api_key, merchant_code, amount, order_id }`
+   - Simpan `order_id` + `qr_string` ke database (kolom baru di `subscription_orders`)
+   - Return QR string ke frontend untuk ditampilkan sebagai QR code
+
+3. **Edge Function `pakasir-callback`**:
+   - Menerima webhook callback dari Pak Kasir saat pembayaran berhasil
+   - Validasi signature/data
+   - Update order status ke `confirmed` otomatis
+   - Panggil `confirm_regular_order` RPC jika show reguler
+   - Kirim notifikasi Telegram + WhatsApp ke admin
+
+4. **Database migration**:
+   - Tambah kolom `qr_string TEXT` dan `payment_gateway_order_id TEXT` ke `subscription_orders`
+   - Tambah kolom `payment_status TEXT DEFAULT 'pending'` untuk tracking status dari gateway
+
+5. **Frontend (PurchaseModal, SchedulePage, dll)**:
+   - Jika QRIS dinamis aktif (ada setting di `site_settings`), tampilkan QR code dari `qr_string` menggunakan library QR code generator (bukan gambar statis)
+   - Polling status pembayaran setiap 3 detik sampai confirmed
+   - Otomatis lanjut ke step "done" saat pembayaran terkonfirmasi
+
+6. **Site Settings**: Tambah toggle `use_dynamic_qris` di admin settings agar bisa switch antara QRIS statis (gambar) dan QRIS dinamis (Pak Kasir API)
+
+### Yang Diperlukan dari Anda
+
+Untuk integrasi Pak Kasir, saya memerlukan:
+1. **API Key Pak Kasir** — didapat dari dashboard pakasir.com setelah mendaftar
+2. **Merchant Code** — nama merchant yang terdaftar di Pak Kasir
+
+Jika Anda belum punya akun, daftar dulu di [pakasir.com](https://pakasir.com). Setelah siap, saya akan minta Anda memasukkan API Key dan Merchant Code.
+
+### Files yang Diubah/Dibuat
 
 | File | Perubahan |
 |------|-----------|
-| `src/components/VideoPlayer.tsx` | Perkuat overlay, `pointerEvents: "none"` pada iframe, `origin` param, `tabindex`/`aria-hidden` |
+| `src/components/VideoPlayer.tsx` | Set `isLoading=true` di awal YouTube & Cloudflare init |
+| `supabase/functions/create-dynamic-qris/index.ts` | Baru — panggil Pak Kasir API |
+| `supabase/functions/pakasir-callback/index.ts` | Baru — terima webhook callback |
+| `src/components/viewer/PurchaseModal.tsx` | Tampilkan QR dari string (bukan gambar) + polling status |
+| Database migration | Tambah kolom `qr_string`, `payment_gateway_order_id` |
+| Admin settings | Toggle `use_dynamic_qris` |
 
