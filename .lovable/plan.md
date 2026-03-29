@@ -1,84 +1,65 @@
 
 
-## Plan: Encrypt Stream URLs & Ensure Cross-Browser + PWA Compatibility
+## Plan: Proteksi Overlay YouTube Player
 
-### Problem
-1. **M3U8/HLS and Cloudflare URLs are visible** in browser DevTools Network tab — users can find the original stream source
-2. **Player performance** needs to remain smooth
-3. **Cross-browser compatibility** (Chrome, Safari, Firefox, Edge, etc.)
-4. **PWA always stays updated** with latest website features
+### Masalah
+Overlay transparan saat ini (`z-10`) hanya menangkap klik biasa, tetapi tombol YouTube asli (play, share, logo, title link) masih bisa diklik karena:
+1. Overlay hanya `background: transparent` — pointer events bisa "tembus" di beberapa browser
+2. Fallback iframe (`controls=0`) masih memungkinkan interaksi jika overlay gagal
+3. Tidak ada proteksi ganda untuk mencegah user menemukan sumber YouTube
 
-### Current Architecture
-- `useSignedStreamUrl` hook calls `stream-proxy` edge function (POST) which returns a `signed_url`
-- For **m3u8**: returns a signed proxy URL → HLS player loads it → proxy rewrites m3u8 to proxy sub-playlists too (URLs hidden). **TS segments** are served directly from origin (visible in Network tab)
-- For **cloudflare**: returns a signed proxy URL → but the `VideoPlayer.tsx` currently **ignores the signed URL for cloudflare** and constructs `iframe.videodelivery.net` URLs directly (line 431-437), exposing the Cloudflare Stream ID
-- For **youtube**: returns encrypted ID → player decrypts client-side with XOR key (key visible in source code)
-- The XOR key `[82,84,52,56,120,75,57,109,81,50,118,76,55,110,80,52]` is hardcoded in both client and server
+### Perubahan di `src/components/VideoPlayer.tsx`
 
-### Plan
+#### 1. Perkuat Overlay YouTube (API Player & Fallback)
+- Tambahkan **dua layer overlay** di atas iframe YouTube:
+  - Layer 1: `div` dengan `z-10`, `pointer-events: all`, `background: rgba(0,0,0,0.001)` — cukup opaque agar browser tidak meneruskan klik ke iframe, tapi tidak terlihat oleh mata
+  - Layer 2: `div` dengan `z-11` yang **hanya** untuk area tombol kontrol custom (play/pause, mute, dll)
+- Overlay menutupi **seluruh** area iframe termasuk pojok (logo YouTube, title, share)
+- `onContextMenu` dan `onDragStart` tetap di-block
 
-#### 1. Proxy TS Segments Through Stream-Proxy (Hide M3U8 Origin)
-- Add a new mode `ts` to `stream-proxy` edge function that proxies `.ts` segment requests
-- In `rewriteM3u8Hybrid`, rewrite `.ts` segment URLs to go through the proxy with signed tokens
-- This ensures **no direct origin URLs** appear in the Network tab — all requests go through `stream-proxy`
-- Use short TTL signatures (matching playlist TTL) for segment URLs
+#### 2. Tambahkan `origin` Parameter ke YouTube
+- API player: tambah `origin: window.location.origin` di `playerVars` untuk mencegah error cross-origin
+- Fallback iframe: tambah `&origin=` di URL
 
-#### 2. Fix Cloudflare Stream Proxy (Currently Broken)
-- The `VideoPlayer.tsx` cloudflare handler (line 425-438) currently builds iframe URLs directly, **bypassing the signed proxy entirely**
-- Fix: when `proxyType === "cloudflare"`, use the `signedUrl` from `useSignedStreamUrl` which points to `stream-proxy?mode=cf` — this serves an HTML page with the embedded Cloudflare player, hiding the real stream ID
-- The edge function already has the `cf` mode that generates the correct embed HTML
+#### 3. YouTube Fallback Iframe — Tetap `controls=0`
+- Pertahankan `controls=0` dan `enablejsapi=0` di fallback iframe
+- Overlay ganda sudah memastikan tombol YouTube tidak bisa diklik
 
-#### 3. Obfuscate XOR Key (YouTube)
-- Move the XOR decryption key to a computed/derived form instead of a plain array literal
-- This is a deterrent — determined users can still find it, but it won't be immediately obvious
+#### 4. Pastikan Iframe Tidak Bisa Diakses via DevTools
+- Tambahkan `tabindex="-1"` pada iframe YouTube agar tidak bisa di-focus via Tab key
+- Tambahkan `aria-hidden="true"` untuk menyembunyikan dari accessibility tree
 
-#### 4. Cross-Browser Compatibility
-- Ensure `<video>` element has all necessary attributes: `playsinline`, `webkit-playsinline`, `x-webkit-airplay`, `preload`
-- Verify CSP headers allow all required domains
-- Already present — validate no regressions
+### Detail Teknis
 
-#### 5. PWA Auto-Update
-- Already configured with `registerType: "autoUpdate"`, `skipWaiting: true`, `clientsClaim: true`
-- Add `sw.js` cache version bump mechanism to force PWA clients to get latest version
-- Update `CACHE_RESET_VERSION` in `main.tsx` to `v5` to force cache bust on existing installs
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/stream-proxy/index.ts` | Add `mode=ts` for segment proxying; update `rewriteM3u8Hybrid` to rewrite `.ts` URLs through proxy |
-| `src/components/VideoPlayer.tsx` | Fix cloudflare to use signed proxy URL (iframe src = signedUrl); obfuscate XOR key |
-| `src/pages/LivePage.tsx` | Pass `signedUrl` + `proxyType` correctly to VideoPlayer for cloudflare |
-| `src/main.tsx` | Bump `CACHE_RESET_VERSION` to v5 |
-
-### Performance Considerations
-- TS segment proxy adds ~50-100ms latency per segment fetch (edge function overhead)
-- To mitigate: use generous `Cache-Control` headers on segments, keep buffer settings large (30s+)
-- M3U8 playlist proxy already has 3s cache — segments can have 30s cache since they're immutable
-- Alternative: instead of proxying TS segments (which adds latency), only proxy the m3u8 manifests and rewrite segment URLs to use **time-limited signed direct URLs** — this keeps performance identical while hiding the base URL pattern
-
-### Recommended Approach for TS Segments
-Rather than proxying every segment through the edge function (which would add latency and potentially cause buffering), use **signed redirect URLs**: the proxy rewrites `.ts` URLs to point to `stream-proxy?mode=seg&u=<encoded>&exp=<exp>&sig=<sig>`, and the edge function responds with a **302 redirect** to the actual segment URL. This way:
-- The original domain is never visible in the m3u8 manifest
-- Segments load directly from CDN (no latency penalty)
-- The redirect URL expires, so captured URLs become useless
-
-### Technical Details
-
-**New `seg` mode in stream-proxy:**
-```
-GET /stream-proxy?mode=seg&u=<base64url>&exp=<timestamp>&sig=<hmac>
-→ Verify signature
-→ 302 Redirect to decoded URL
-→ Cache-Control: private, no-store
+```tsx
+{/* YouTube API Player */}
+{playlistType === "youtube" && !ytFallback && (
+  <div className="relative w-full h-full absolute inset-0">
+    <div ref={ytContainerRef} className="absolute inset-0 ..." />
+    {/* Full blocking overlay — prevents ALL clicks to YouTube iframe */}
+    <div 
+      className="absolute inset-0 z-10 cursor-pointer"
+      style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+      onContextMenu={e => e.preventDefault()}
+      onDragStart={e => e.preventDefault()}
+      onClick={e => { e.stopPropagation(); togglePlay(e); }}
+      onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); }}
+      onTouchStart={e => e.stopPropagation()}
+    />
+  </div>
+)}
 ```
 
-**Cloudflare fix in VideoPlayer:**
+Juga di `createProtectedIframe`:
 ```typescript
-// Instead of building iframe URL directly:
-if (playlistType === "cloudflare") {
-  // signedUrl from useSignedStreamUrl already points to stream-proxy?mode=cf
-  createProtectedIframe(container, signedUrl, { ... });
-}
+iframe.setAttribute("tabindex", "-1");
+iframe.setAttribute("aria-hidden", "true");
+iframe.style.pointerEvents = "none"; // iframe itself receives no clicks
 ```
+
+### File yang Diubah
+
+| File | Perubahan |
+|------|-----------|
+| `src/components/VideoPlayer.tsx` | Perkuat overlay, `pointerEvents: "none"` pada iframe, `origin` param, `tabindex`/`aria-hidden` |
 
