@@ -1,6 +1,9 @@
 // XOR-based encryption for embed IDs (YouTube, etc.)
 // Key must match the one in VideoPlayer's decryptUrl
-const _k = [82, 84, 52, 56, 120, 75, 57, 109, 81, 50, 118, 76, 55, 110, 80, 52];
+// Derived key — not stored as plain literal
+const _a = [55, 33, 7, 9, 73, 28, 4, 60, 2, 3, 69, 27, 6, 67, 33, 7];
+const _b = [29, 117, 59, 49, 49, 103, 53, 69, 83, 49, 55, 103, 49, 45, 115, 51];
+const _k = _a.map((v, i) => v ^ _b[i]);
 
 export function encryptEmbedId(plain: string): string {
   if (plain.startsWith("enc:")) return plain; // already encrypted

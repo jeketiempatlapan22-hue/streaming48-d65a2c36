@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-const CACHE_RESET_VERSION = "rt48-cache-reset-v4";
+const CACHE_RESET_VERSION = "rt48-cache-reset-v5";
 
 async function resetLegacyServiceWorkerCache() {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator) || !("caches" in window)) return;

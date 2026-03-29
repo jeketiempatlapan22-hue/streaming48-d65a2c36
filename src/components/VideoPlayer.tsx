@@ -425,19 +425,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
-  // Cloudflare iframe
+  // Cloudflare iframe — always use the signed proxy URL (playlistUrl already points to stream-proxy?mode=cf)
   useEffect(() => {
     if (playlistType !== "cloudflare") return;
     setIsLoading(false);
     const container = cfContainerRef.current;
     if (!container) return;
-    const url = playlistUrl;
-    let cfUrl = "";
-    if (url.includes("stream-proxy") || url.includes("/functions/v1/")) cfUrl = url;
-    else if (url.includes("cloudflarestream.com") && url.includes("/iframe")) cfUrl = url.includes("autoplay") ? url : `${url}${url.includes("?") ? "&" : "?"}autoplay=true&preload=auto`;
-    else if (url.includes("cloudflarestream.com")) { const id = url.split("/").filter(Boolean).pop(); cfUrl = `https://iframe.videodelivery.net/${id}?autoplay=true&preload=auto`; }
-    else cfUrl = `https://iframe.videodelivery.net/${url}?autoplay=true&preload=auto`;
-    createProtectedIframe(container, cfUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
+    // playlistUrl is already the signed proxy URL from useSignedStreamUrl
+    createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
   // YouTube fallback iframe

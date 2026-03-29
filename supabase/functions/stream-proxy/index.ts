@@ -13,6 +13,7 @@ const SIGNING_SECRET = SERVICE_ROLE_KEY;
 const PLAYLIST_TOKEN_TTL = 7200;
 const SUB_PLAYLIST_TOKEN_TTL = 7200;
 const YT_TOKEN_TTL = 7200;
+const SEG_TOKEN_TTL = 7200;
 
 // In-memory rate limiter
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -41,7 +42,6 @@ function edgeRateLimit(key: string, maxRequests: number, windowMs: number): bool
 }
 
 function getRateLimitResponse(isStreamRequest = false): Response {
-  // For stream requests (play/sub), return a gentler response so HLS players retry gracefully
   if (isStreamRequest) {
     return new Response(
       "#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n",
@@ -150,6 +150,14 @@ async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string)
   return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
+// Generate signed redirect URL for TS segments
+async function generateSegSignedUrl(rawUrl: string, functionUrl: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
+  const encoded = base64UrlEncode(rawUrl);
+  const sig = await hmacSign(`seg:${encoded}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}`;
+}
+
 async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + YT_TOKEN_TTL;
   const sig = await hmacSign(`yt:${playlistId}:${exp}`);
@@ -179,7 +187,9 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
             const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl);
             result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           } else {
-            result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${absUrl}"`));
+            // Non-m3u8 URIs (e.g. encryption keys) — proxy through seg redirect
+            const signed = await generateSegSignedUrl(absUrl, functionUrl);
+            result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           }
         } else { result.push(line); }
       } else { result.push(line); }
@@ -190,7 +200,8 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
     if (isM3u8Url(absoluteUrl)) {
       result.push(await generateSubPlaylistSignedUrl(absoluteUrl, functionUrl));
     } else {
-      result.push(absoluteUrl);
+      // TS segments and other media files — proxy through signed redirect
+      result.push(await generateSegSignedUrl(absoluteUrl, functionUrl));
     }
   }
   return result.join("\n");
@@ -213,8 +224,10 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
   return rewritten;
 }
 
-// XOR key (must match client-side key)
-const XOR_KEY = [82,84,52,56,120,75,57,109,81,50,118,76,55,110,80,52];
+// XOR key derived at runtime (not a plain literal)
+const _xk = [55, 33, 7, 9, 73, 28, 4, 60, 2, 3, 69, 27, 6, 67, 33, 7];
+const _xo = [29, 117, 59, 49, 49, 103, 53, 69, 83, 49, 55, 103, 49, 45, 115, 51];
+const XOR_KEY = _xk.map((v, i) => v ^ _xo[i]);
 
 // Decrypt XOR-encrypted embed ID (handles "enc:" prefix stored in DB)
 function xorDecryptId(encoded: string): string {
@@ -265,13 +278,10 @@ iframe{width:100%;height:100%;border:none;position:absolute;top:0;left:0}
 .overlay{position:absolute;top:0;left:0;width:100%;height:100%;z-index:10;pointer-events:none}
 </style>
 <script>
-// Prevent right-click
 document.addEventListener('contextmenu',function(e){e.preventDefault()});
-// Prevent view source shortcuts
 document.addEventListener('keydown',function(e){
   if(e.key==='F12'||(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='J'))||(e.ctrlKey&&e.key==='u'))e.preventDefault();
 });
-// Block frame-busting attempts
 if(window.top!==window.self){
   try{document.domain=document.domain}catch(e){}
 }
@@ -298,14 +308,14 @@ Deno.serve(async (req) => {
   const mode = url.searchParams.get("mode");
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 
-  // Global IP rate limit: 600 requests/min across ALL modes (generous for legitimate viewers)
+  // Global IP rate limit
   if (!edgeRateLimit(`global:${clientIp}`, 600, 60000)) {
-    const isStream = mode === "play" || mode === "sub";
+    const isStream = mode === "play" || mode === "sub" || mode === "seg";
     return getRateLimitResponse(isStream);
   }
 
   try {
-    // MODE: generate (POST) - generates signed URLs for m3u8 AND youtube
+    // MODE: generate (POST)
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
       const { token_code, playlist_id, fingerprint } = body;
@@ -323,7 +333,6 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-      // Validate token AND enforce device lock server-side
       if (fingerprint) {
         const { data: sessResult, error: sessErr } = await supabase.rpc("create_token_session", {
           _token_code: token_code,
@@ -361,7 +370,6 @@ Deno.serve(async (req) => {
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
 
       if (playlist.type === "youtube") {
-        // Resolve real YouTube ID server-side and encrypt it
         const realUrl = await getPlaylistData(playlist_id);
         const videoId = extractYouTubeId(realUrl?.url || "");
         const encryptedId = xorEncryptId(videoId);
@@ -387,7 +395,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Fallback for unknown types
       const realUrl = await getPlaylistData(playlist_id);
       return new Response(
         JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: playlist.type }),
@@ -401,7 +408,6 @@ Deno.serve(async (req) => {
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
 
-      // HLS player requests every 2-6s; 300/min per playlist is safe for legitimate use
       if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 300, 60000)) {
         return getRateLimitResponse(true);
       }
@@ -437,6 +443,41 @@ Deno.serve(async (req) => {
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "public, max-age=2",
           "Access-Control-Expose-Headers": "Content-Type",
+        },
+      });
+    }
+
+    // MODE: seg (GET) - signed redirect for TS segments (hides origin domain)
+    if (req.method === "GET" && mode === "seg") {
+      const encoded = url.searchParams.get("u");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+
+      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 600, 60000)) {
+        return getRateLimitResponse(true);
+      }
+
+      if (!encoded || !exp || !sig) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Token expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`seg:${encoded}:${exp}`, sig))) {
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const actualUrl = base64UrlDecode(encoded);
+
+      // 302 redirect to the actual segment — no latency penalty
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...corsHeaders,
+          "Location": actualUrl,
+          "Cache-Control": "private, no-store, no-cache",
         },
       });
     }
@@ -511,7 +552,6 @@ Deno.serve(async (req) => {
         return new Response("Playlist not found", { status: 404, headers: corsHeaders });
       }
 
-      // Build Cloudflare embed URL server-side
       const cfUrl = plData.url;
       let embedUrl = "";
       if (cfUrl.includes("cloudflarestream.com") && cfUrl.includes("/iframe")) {
@@ -555,7 +595,6 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
 
-      // Sub-playlists are fetched frequently by HLS; 500/min is safe
       if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 500, 60000)) {
         return getRateLimitResponse(true);
       }
