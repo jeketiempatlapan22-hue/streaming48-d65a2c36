@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     if (publicResponse !== null) {
       await sendFonnteMessage(FONNTE_TOKEN, sender, publicResponse);
       // Notify admin about public orders
-      if (/^(ORDER|PESAN)\s/i.test(rawText)) {
+      if (/^(ORDER|PESAN|BELI)\s/i.test(rawText)) {
         await notifyTelegram(`[PUBLIC] ${cleanSender}: ${rawText}`, publicResponse);
       }
       return jsonResponse({ ok: true, processed: true, type: 'public' });
@@ -146,10 +146,21 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return await handlePublicShowList(supabase);
   }
 
+  // List coin packages
+  if (/^(KOIN|COIN|DAFTAR\s*KOIN|LIST\s*KOIN|PAKET\s*KOIN)$/i.test(text)) {
+    return await handlePublicCoinList(supabase);
+  }
+
   // Order show: ORDER <show name or number>
   const orderMatch = text.match(/^(?:ORDER|PESAN|BELI)\s+(.+)$/i);
   if (orderMatch) {
     return await handlePublicOrder(supabase, orderMatch[1].trim(), senderPhone);
+  }
+
+  // Buy coin: BELI KOIN <number>
+  const coinMatch = text.match(/^(?:BELI\s*KOIN|ORDER\s*KOIN|PESAN\s*KOIN)\s+(\S+)$/i);
+  if (coinMatch) {
+    return await handlePublicCoinOrder(supabase, coinMatch[1].trim(), senderPhone);
   }
 
   // Check order status: CEK <short_id>
@@ -167,12 +178,16 @@ function handlePublicMenu(): string {
 🎬 Berikut perintah yang bisa kamu gunakan:
 
 📋 *SHOW* — Lihat daftar show yang tersedia
-🛒 *ORDER <nama/nomor show>* — Pesan tiket show
+🛒 *ORDER <nama/nomor>* — Pesan tiket show
+🪙 *KOIN* — Lihat paket koin tersedia
+💰 *BELI KOIN <nomor>* — Beli paket koin
 📊 *CEK <ID order>* — Cek status pesanan kamu
 
 💡 *Contoh:*
 • Ketik *SHOW* untuk lihat jadwal
 • Ketik *ORDER 1* untuk pesan show nomor 1
+• Ketik *KOIN* untuk lihat paket koin
+• Ketik *BELI KOIN 1* untuk beli paket koin nomor 1
 • Ketik *CEK s12* untuk cek status order
 
 🌐 Website: realtime48show.my.id`;
@@ -423,8 +438,189 @@ async function handlePublicCheckOrder(supabase: any, shortId: string): Promise<s
   }
 }
 
+async function handlePublicCoinList(supabase: any): Promise<string> {
+  try {
+    const { data: packages } = await supabase
+      .from('coin_packages')
+      .select('id, name, coin_amount, price')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .limit(20);
 
-  const text = rawText.toUpperCase();
+    if (!packages || packages.length === 0) {
+      return '🪙 Tidak ada paket koin yang tersedia saat ini.\n\nKunjungi website: realtime48show.my.id/coin-shop';
+    }
+
+    let msg = '🪙 *PAKET KOIN TERSEDIA*\n\n';
+    packages.forEach((p: any, i: number) => {
+      msg += `*${i + 1}. ${p.name}*\n💰 Harga: ${p.price}\n🪙 Dapat: *${p.coin_amount} koin*\n\n`;
+    });
+
+    msg += `🛒 Untuk beli, ketik:\n*BELI KOIN <nomor>* (misal: BELI KOIN 1)`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhone: string): Promise<string> {
+  try {
+    const { data: qrisSetting } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'use_dynamic_qris')
+      .maybeSingle();
+    const useDynamicQris = qrisSetting?.value === 'true';
+
+    let pkg: any = null;
+    const pkgIndex = parseInt(pkgInput, 10);
+
+    if (!isNaN(pkgIndex) && pkgIndex > 0) {
+      const { data: packages } = await supabase
+        .from('coin_packages')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+        .limit(20);
+      if (packages && packages.length >= pkgIndex) {
+        pkg = packages[pkgIndex - 1];
+      }
+    }
+
+    if (!pkg) {
+      const { data: packages } = await supabase
+        .from('coin_packages')
+        .select('*')
+        .eq('is_active', true)
+        .ilike('name', `%${pkgInput}%`)
+        .limit(1);
+      pkg = packages?.[0];
+    }
+
+    if (!pkg) return `⚠️ Paket koin "${pkgInput}" tidak ditemukan.\n\nKetik *KOIN* untuk lihat daftar paket.`;
+
+    const priceNum = parseInt(String(pkg.price).replace(/[^0-9]/g, ''), 10);
+    if (!priceNum || priceNum <= 0) {
+      return `⚠️ Harga paket *${pkg.name}* belum dikonfigurasi.`;
+    }
+
+    let phone = senderPhone;
+    if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+
+    // Find user by phone from previous orders
+    let userId: string | null = null;
+    const { data: recentOrder } = await supabase
+      .from('subscription_orders')
+      .select('user_id')
+      .eq('phone', phone)
+      .not('user_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recentOrder?.user_id) userId = recentOrder.user_id;
+
+    if (!userId) {
+      const { data: recentCoin } = await supabase
+        .from('coin_orders')
+        .select('user_id')
+        .eq('phone', phone)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (recentCoin?.user_id) userId = recentCoin.user_id;
+    }
+
+    if (!userId) {
+      return `⚠️ Untuk membeli koin, kamu perlu login terlebih dahulu di website.\n\n🌐 Daftar/login di: realtime48show.my.id\n\nSetelah punya akun, coba pesan lagi dari nomor WA yang sama.`;
+    }
+
+    const { data: orderData, error: orderErr } = await supabase
+      .from('coin_orders')
+      .insert({
+        user_id: userId,
+        package_id: pkg.id,
+        coin_amount: pkg.coin_amount,
+        phone,
+        price: pkg.price,
+        status: 'pending',
+      })
+      .select('id, short_id')
+      .single();
+
+    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+
+    const shortId = orderData.short_id || orderData.id.substring(0, 8);
+
+    if (useDynamicQris) {
+      const PAKASIR_API_KEY = Deno.env.get('PAKASIR_API_KEY');
+      const PAKASIR_MERCHANT_CODE = Deno.env.get('PAKASIR_MERCHANT_CODE');
+
+      if (PAKASIR_API_KEY && PAKASIR_MERCHANT_CODE) {
+        try {
+          const pakasirRes = await fetch('https://app.pakasir.com/api/transactioncreate/qris', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: PAKASIR_API_KEY,
+              merchant_code: PAKASIR_MERCHANT_CODE,
+              amount: priceNum,
+              order_id: shortId,
+            }),
+          });
+          const pakasirData = await pakasirRes.json();
+
+          if (pakasirRes.ok && pakasirData.qr_string) {
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+
+            await notifyTelegram(
+              `[COIN ORDER WA] ${phone}`,
+              `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
+            );
+
+            return `✅ *Pesanan Koin Berhasil Dibuat!*
+
+🪙 Paket: *${pkg.name}*
+💰 Harga: *${pkg.price}*
+🎁 Dapat: *${pkg.coin_amount} koin*
+🆔 ID Order: *${shortId}*
+
+📱 *Scan QRIS di bawah untuk bayar:*
+${qrImageUrl}
+
+⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.
+
+📊 Cek status: ketik *CEK ${shortId}*`;
+          }
+        } catch (qrisErr) {
+          console.warn('Dynamic QRIS error for WA coin order:', qrisErr);
+        }
+      }
+    }
+
+    // Fallback: static QRIS
+    const qrisInfo = pkg.qris_image_url
+      ? `\n\n📱 Scan QRIS untuk bayar:\n${pkg.qris_image_url}`
+      : '\n\n📱 Silakan transfer sesuai harga dan kirim bukti ke admin.';
+
+    await notifyTelegram(
+      `[COIN ORDER WA] ${phone}`,
+      `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
+    );
+
+    return `✅ *Pesanan Koin Berhasil Dibuat!*
+
+🪙 Paket: *${pkg.name}*
+💰 Harga: *${pkg.price}*
+🎁 Dapat: *${pkg.coin_amount} koin*
+🆔 ID Order: *${shortId}*${qrisInfo}
+
+📊 Cek status: ketik *CEK ${shortId}*`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+
   const yaMatch = text.match(/^YA\s+(.+)$/);
   const tidakMatch = text.match(/^TIDAK\s+(.+)$/);
   const isStatus = /^\/status$/i.test(rawText);
