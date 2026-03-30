@@ -620,7 +620,8 @@ ${qrImageUrl}
   }
 }
 
-
+async function processCommand(supabase: any, rawText: string): Promise<string | null> {
+  const text = rawText.toUpperCase();
   const yaMatch = text.match(/^YA\s+(.+)$/);
   const tidakMatch = text.match(/^TIDAK\s+(.+)$/);
   const isStatus = /^\/status$/i.test(rawText);
