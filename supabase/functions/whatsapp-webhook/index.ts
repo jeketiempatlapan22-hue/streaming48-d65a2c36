@@ -299,23 +299,27 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               api_key: PAKASIR_API_KEY,
-              merchant_code: PAKASIR_MERCHANT_CODE,
+              project: PAKASIR_MERCHANT_CODE,
               amount: priceNum,
               order_id: shortId,
             }),
           });
           const pakasirData = await pakasirRes.json();
+          console.log('Pakasir show order response:', JSON.stringify(pakasirData));
 
-          if (pakasirRes.ok && pakasirData.qr_string) {
+          const qrString = pakasirData?.payment?.payment_number || pakasirData?.qr_string || pakasirData?.payment?.qr_string || null;
+          const txId = pakasirData?.payment?.order_id || pakasirData?.transaction_id || shortId;
+
+          if (pakasirRes.ok && qrString) {
             await supabase
               .from('subscription_orders')
               .update({
-                qr_string: pakasirData.qr_string,
-                payment_gateway_order_id: pakasirData.transaction_id || shortId,
+                qr_string: qrString,
+                payment_gateway_order_id: txId,
               })
               .eq('id', orderData.id);
 
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
 
             await notifyTelegram(
               `[ORDER WA] ${phone}`,
@@ -326,6 +330,8 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
               text: `✅ *Pesanan Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}\n💰 Harga: *${show.price}*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
               imageUrl: qrImageUrl,
             };
+          } else {
+            console.warn('Pakasir QRIS failed for show order, qrString:', qrString, 'status:', pakasirRes.status);
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA order:', qrisErr);
