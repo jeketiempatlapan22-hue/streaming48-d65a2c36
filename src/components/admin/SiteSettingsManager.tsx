@@ -70,6 +70,39 @@ const SiteSettingsManager = () => {
         </div>
       ))}
 
+      {/* Dynamic QRIS Toggle */}
+      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
+        <label className="mb-2 block text-sm font-bold text-foreground">💳 QRIS Dinamis (Pak Kasir)</label>
+        <p className="mb-3 text-xs text-muted-foreground">Aktifkan untuk menggunakan QRIS dinamis (setiap transaksi mendapat QR unik). Nonaktifkan untuk QRIS statis (gambar manual).</p>
+        <div className="flex gap-2">
+          {[{ value: "true", label: "✅ Dinamis" }, { value: "false", label: "📷 Statis" }].map((opt) => (
+            <button key={opt.value}
+              onClick={async () => {
+                setValues((p) => ({ ...p, use_dynamic_qris: opt.value }));
+                const { error } = await supabase.from("site_settings").upsert(
+                  { key: "use_dynamic_qris", value: opt.value },
+                  { onConflict: "key" }
+                );
+                if (error) {
+                  toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: opt.value === "true" ? "💳 QRIS Dinamis AKTIF" : "📷 QRIS Statis AKTIF" });
+                }
+              }}
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
+                (values.use_dynamic_qris || "false") === opt.value
+                  ? opt.value === "true"
+                    ? "bg-primary text-primary-foreground ring-2 ring-primary/50"
+                    : "bg-secondary text-secondary-foreground ring-2 ring-secondary/50"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}>{opt.label}</button>
+          ))}
+        </div>
+        {values.use_dynamic_qris === "true" && (
+          <p className="mt-2 text-xs text-primary">✓ Setiap transaksi akan mendapat QR unik dari Pak Kasir</p>
+        )}
+      </div>
+
       {/* Maintenance Mode Toggle */}
       <div className="rounded-xl border-2 border-destructive/30 bg-destructive/5 p-4">
         <label className="mb-2 block text-sm font-bold text-foreground">🔧 Maintenance Mode</label>
