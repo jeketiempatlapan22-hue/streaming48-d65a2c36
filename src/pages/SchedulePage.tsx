@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
-import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle } from "lucide-react";
+import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Show } from "@/types/show";
@@ -17,7 +17,7 @@ const SchedulePage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [settings, setSettings] = useState<{ whatsapp_number: string }>({ whatsapp_number: "" });
+  const [settings, setSettings] = useState<{ whatsapp_number: string; use_dynamic_qris?: string }>({ whatsapp_number: "" });
   const {
     coinUser, redeemedTokens, accessPasswords, replayPasswords,
     addRedeemedToken, addAccessPassword,
@@ -32,12 +32,45 @@ const SchedulePage = () => {
   const [email, setEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Dynamic QRIS state
+  const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "done">("phone");
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
+
+  const useDynamicQris = settings.use_dynamic_qris === "true";
+
+  // Load QR component
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
+
+  // Poll dynamic QRIS payment status
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("subscription_orders")
+        .select("payment_status, status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast.success("✅ Pembayaran berhasil dikonfirmasi!");
+        setTimeout(() => setDynamicQrisStep("done"), 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
 
   useEffect(() => {
     const fetchData = async () => {
       const [showsRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
-        supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
       ]);
       if (showsRes.data) {
         const upcoming = (showsRes.data as Show[]).filter(s => !s.is_subscription && !s.is_replay && s.schedule_date);
@@ -74,11 +107,45 @@ const SchedulePage = () => {
 
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
-    setPurchaseStep(show.is_subscription ? "qris" : "info");
+    if (useDynamicQris && !show.is_subscription) {
+      setDynamicQrisStep("phone");
+      setDynamicQrString("");
+      setDynamicOrderId("");
+      setDynamicPaid(false);
+      setDynamicLoading(false);
+      setPurchaseStep("info");
+    } else {
+      setPurchaseStep(show.is_subscription ? "qris" : "info");
+    }
     setProofFilePath("");
     setPhone("");
     setEmail("");
     setUploadingProof(false);
+  };
+
+  const handleStartDynamicQrisShow = async () => {
+    if (!selectedShow) return;
+    setDynamicLoading(true);
+    setDynamicQrisStep("qris");
+    try {
+      const priceNum = parseInt(selectedShow.price.replace(/[^\d]/g, "")) || 0;
+      if (priceNum <= 0) { toast.error("Harga tidak valid"); setDynamicLoading(false); return; }
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: { show_id: selectedShow.id, amount: priceNum, phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""), order_type: "regular" },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || "Gagal membuat QRIS");
+        setDynamicQrisStep("phone");
+        setDynamicLoading(false);
+        return;
+      }
+      setDynamicQrString(data.qr_string);
+      setDynamicOrderId(data.order_id);
+    } catch (err: any) {
+      toast.error("Gagal membuat QRIS: " + (err?.message || "Coba lagi"));
+      setDynamicQrisStep("phone");
+    }
+    setDynamicLoading(false);
   };
 
   const handleCoinBuy = async (show: Show) => {
@@ -254,8 +321,74 @@ const SchedulePage = () => {
             {/* Hidden file input for gallery - no capture attribute */}
             <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
 
-            {/* Regular show: QRIS + Phone + optional upload */}
-            {!selectedShow.is_subscription && purchaseStep === "info" && (
+            {/* Dynamic QRIS flow for regular shows */}
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "phone" && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <p className="text-sm text-muted-foreground">Pembayaran otomatis via QRIS dinamis. Masukkan nomor WhatsApp Anda.</p>
+                </div>
+                <div>
+                  <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Phone className="h-3.5 w-3.5" /> Nomor WhatsApp <span className="text-destructive">*</span>
+                  </label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                </div>
+                <Button onClick={handleStartDynamicQrisShow} disabled={!phone.trim()} className="w-full">
+                  Lanjut ke Pembayaran
+                </Button>
+              </div>
+            )}
+
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "qris" && (
+              <div className="space-y-4">
+                {dynamicLoading ? (
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+                  </div>
+                ) : dynamicPaid ? (
+                  <div className="space-y-3 text-center py-4">
+                    <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                    <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
+                    <p className="text-sm text-muted-foreground">Pesanan dikonfirmasi otomatis. Token dikirim via WhatsApp.</p>
+                  </div>
+                ) : dynamicQrString && QRCodeSVG ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
+                    <div className="flex justify-center rounded-lg border border-border bg-white p-4">
+                      <QRCodeSVG value={dynamicQrString} size={240} level="M" />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Menunggu pembayaran...
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>🎭 {selectedShow.title}</p>
+                        <p>💰 {selectedShow.price}</p>
+                        {selectedShow.schedule_date && <p>📅 {selectedShow.schedule_date} {selectedShow.schedule_time}</p>}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                    QRIS gagal dimuat
+                  </div>
+                )}
+              </div>
+            )}
+
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "done" && (
+              <div className="space-y-4 text-center">
+                <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                <h4 className="text-lg font-bold text-foreground">Pembayaran Berhasil!</h4>
+                <p className="text-sm text-muted-foreground">Pesanan telah dikonfirmasi otomatis. Token akses akan dikirim via WhatsApp.</p>
+              </div>
+            )}
+
+            {/* Regular show: Static QRIS + Phone + optional upload */}
+            {!useDynamicQris && !selectedShow.is_subscription && purchaseStep === "info" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <p className="text-sm text-muted-foreground">
@@ -313,7 +446,7 @@ const SchedulePage = () => {
             )}
 
             {/* Regular show: Done */}
-            {!selectedShow.is_subscription && purchaseStep === "done" && (
+            {!useDynamicQris && !selectedShow.is_subscription && purchaseStep === "done" && (
               <div className="space-y-4 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                 <h4 className="text-lg font-bold text-foreground">Pesanan Terkirim!</h4>
