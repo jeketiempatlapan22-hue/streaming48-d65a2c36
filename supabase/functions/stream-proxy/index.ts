@@ -77,19 +77,20 @@ async function getProxyDomain(): Promise<string | null> {
   return domain;
 }
 
-// Replace origin domain in URL with proxy domain
+// Replace origin domain in URL with proxy domain using path-based routing
+// Original: https://origin.com/path/file.ts
+// Masked:   https://cdn.yourdomain.com/origin.com/path/file.ts
 function maskDomain(originalUrl: string, proxyDomain: string): string {
   try {
     const parsed = new URL(originalUrl);
-    // proxyDomain could be "cdn.example.com" or "https://cdn.example.com"
-    if (proxyDomain.startsWith("http")) {
-      const proxyParsed = new URL(proxyDomain);
-      parsed.protocol = proxyParsed.protocol;
-      parsed.host = proxyParsed.host;
-    } else {
-      parsed.host = proxyDomain;
-    }
-    return parsed.toString();
+    const originHost = parsed.host;
+    const originPath = parsed.pathname + parsed.search;
+    
+    const base = proxyDomain.startsWith("http") 
+      ? proxyDomain.replace(/\/+$/, "") 
+      : `https://${proxyDomain}`;
+    
+    return `${base}/${originHost}${originPath}`;
   } catch {
     return originalUrl;
   }
