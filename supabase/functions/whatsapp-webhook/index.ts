@@ -135,23 +135,22 @@ Deno.serve(async (req) => {
 });
 
 // ========== PUBLIC COMMANDS (accessible by anyone) ==========
-async function processPublicCommand(supabase: any, rawText: string, senderPhone: string, fonnteToken: string): Promise<string | null> {
+async function processPublicCommand(supabase: any, rawText: string, senderPhone: string, fonnteToken: string): Promise<{ text: string; imageUrl?: string } | null> {
   const text = rawText.trim();
-  const upperText = text.toUpperCase();
 
   // Public menu
   if (/^(MENU|HAI|HALO|HI|INFO|START)$/i.test(text)) {
-    return handlePublicMenu();
+    return { text: handlePublicMenu() };
   }
 
   // List shows
   if (/^(DAFTAR\s*SHOW|LIST\s*SHOW|JADWAL|SHOW)$/i.test(text)) {
-    return await handlePublicShowList(supabase);
+    return { text: await handlePublicShowList(supabase) };
   }
 
   // List coin packages
   if (/^(KOIN|COIN|DAFTAR\s*KOIN|LIST\s*KOIN|PAKET\s*KOIN)$/i.test(text)) {
-    return await handlePublicCoinList(supabase);
+    return { text: await handlePublicCoinList(supabase) };
   }
 
   // Order show: ORDER <show name or number>
@@ -169,7 +168,7 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
   // Check order status: CEK <short_id>
   const cekMatch = text.match(/^(?:CEK|STATUS)\s+(\S+)$/i);
   if (cekMatch) {
-    return await handlePublicCheckOrder(supabase, cekMatch[1].trim());
+    return { text: await handlePublicCheckOrder(supabase, cekMatch[1].trim()) };
   }
 
   return null; // Not a public command
