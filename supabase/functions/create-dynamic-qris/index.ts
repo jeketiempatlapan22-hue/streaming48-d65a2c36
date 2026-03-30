@@ -18,7 +18,6 @@ serve(async (req) => {
 
     const { show_id, amount, phone, email, order_type, package_id, coin_amount } = await req.json();
 
-    // order_type: "regular" | "membership" | "coin"
     const isCoinOrder = order_type === "coin";
 
     if (!isCoinOrder && (!show_id || !amount)) {
@@ -33,7 +32,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Get user from auth header if present
     let userId: string | null = null;
     const authHeader = req.headers.get("Authorization");
     if (authHeader) {
@@ -47,7 +45,6 @@ serve(async (req) => {
     let orderTable: string;
 
     if (isCoinOrder) {
-      // Coin order — requires user
       if (!userId) {
         return new Response(JSON.stringify({ error: "Login diperlukan untuk pembelian koin" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
@@ -73,7 +70,6 @@ serve(async (req) => {
       shortId = orderData.short_id || orderId;
       orderTable = "coin_orders";
     } else {
-      // Show order (regular or membership)
       const { data: orderData, error: orderErr } = await supabase
         .from("subscription_orders")
         .insert({
@@ -97,37 +93,40 @@ serve(async (req) => {
       orderTable = "subscription_orders";
     }
 
-    // Call Pak Kasir API
+    // Call Pak Kasir API — uses "project" field (not "merchant_code")
     const pakasirRes = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         api_key: PAKASIR_API_KEY,
-        merchant_code: PAKASIR_MERCHANT_CODE,
+        project: PAKASIR_MERCHANT_CODE,
         amount: Math.round(amount),
         order_id: shortId,
       }),
     });
 
     const pakasirData = await pakasirRes.json();
+    console.log("Pakasir response:", JSON.stringify(pakasirData));
 
-    if (!pakasirRes.ok || !pakasirData.qr_string) {
-      // Delete the pending order if QRIS generation fails
+    // Extract QR string from response — Pakasir returns it in payment.payment_number
+    const qrString = pakasirData?.payment?.payment_number || pakasirData?.qr_string || pakasirData?.payment?.qr_string || null;
+    const transactionId = pakasirData?.payment?.order_id || pakasirData?.transaction_id || shortId;
+
+    if (!pakasirRes.ok || !qrString) {
       await supabase.from(orderTable).delete().eq("id", orderId);
-      return new Response(JSON.stringify({ error: "Gagal generate QRIS: " + (pakasirData.message || "Unknown error") }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const errMsg = pakasirData?.message || pakasirData?.error || JSON.stringify(pakasirData);
+      return new Response(JSON.stringify({ error: "Gagal generate QRIS: " + errMsg }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (isCoinOrder) {
-      // Store QR data reference — coin_orders doesn't have qr_string column,
-      // so we store as a site_settings entry or just return it
-      // We'll use a lightweight approach: store in memory via the response
-    } else {
-      // Update subscription order with QR data
+    // Generate QR image URL for external use (WhatsApp, etc.)
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
+
+    if (!isCoinOrder) {
       await supabase
         .from("subscription_orders")
         .update({
-          qr_string: pakasirData.qr_string,
-          payment_gateway_order_id: pakasirData.transaction_id || shortId,
+          qr_string: qrString,
+          payment_gateway_order_id: transactionId,
         })
         .eq("id", orderId);
     }
@@ -136,11 +135,13 @@ serve(async (req) => {
       success: true,
       order_id: orderId,
       short_id: shortId,
-      qr_string: pakasirData.qr_string,
+      qr_string: qrString,
+      qr_image_url: qrImageUrl,
       order_type: isCoinOrder ? "coin" : (order_type || "regular"),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (err) {
+    console.error("create-dynamic-qris error:", err);
     return new Response(JSON.stringify({ error: err.message || "Internal error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
