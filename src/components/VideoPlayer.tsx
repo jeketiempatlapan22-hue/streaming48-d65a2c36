@@ -22,7 +22,7 @@ export interface VideoPlayerHandle {
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
   const [isPlaying, setIsPlaying] = useState(autoPlay);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [qualities, setQualities] = useState<{ label: string; index: number; ytKey?: string }[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
@@ -212,10 +212,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(playlistUrl);
       hls.attachMedia(videoRef.current!);
 
-      // Quality lock: auto stays unlocked until user picks or ABR stabilizes
-      let autoLocked = false;
+      // Quality: keep auto until user manually selects
       let userLocked = false;
-      let stableTimer: ReturnType<typeof setTimeout> | null = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
@@ -225,7 +223,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         hls.autoLevelEnabled = true;
         setCurrentQuality(-1);
         userLocked = false;
-        autoLocked = false;
         setIsLoading(false);
 
         if (autoPlay) {
@@ -249,33 +246,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
-      // Auto-lock: after ABR settles on a level for 8s, lock it
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
-        if (destroyed || userLocked || autoLocked || d.level < 0) return;
-        if (stableTimer) clearTimeout(stableTimer);
-        stableTimer = setTimeout(() => {
-          if (destroyed || userLocked || !hls.autoLevelEnabled) return;
-          if (hls.currentLevel === d.level) {
-            hls.currentLevel = d.level;
-            hls.nextAutoLevel = d.level;
-            hls.autoLevelEnabled = false;
-            autoLocked = true;
-            setCurrentQuality(d.level);
-          }
-        }, 8000);
-      });
-
       (hls as any).__setUserLocked = (level: number) => {
-        if (stableTimer) clearTimeout(stableTimer);
         if (level === -1) {
           userLocked = false;
-          autoLocked = false;
           hls.currentLevel = -1;
           hls.nextAutoLevel = -1;
           hls.autoLevelEnabled = true;
         } else {
           userLocked = true;
-          autoLocked = false;
           hls.currentLevel = level;
           hls.nextAutoLevel = level;
           hls.autoLevelEnabled = false;
@@ -333,7 +311,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
-        if (stableTimer) clearTimeout(stableTimer);
         origDestroy();
       };
     };
