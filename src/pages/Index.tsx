@@ -909,8 +909,74 @@ const Index = () => {
             {/* Hidden file input for gallery */}
             <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e as any); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
 
-            {/* Regular show: QRIS + Phone + optional upload in one step */}
-            {!selectedShow.is_subscription && purchaseStep === "info" && (
+            {/* Dynamic QRIS flow for regular shows */}
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "phone" && (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <p className="text-sm text-muted-foreground">Pembayaran otomatis via QRIS dinamis. Masukkan nomor WhatsApp Anda.</p>
+                </div>
+                <div>
+                  <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Phone className="h-3.5 w-3.5" /> Nomor WhatsApp <span className="text-destructive">*</span>
+                  </label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                </div>
+                <Button onClick={handleStartDynamicQrisShow} disabled={!phone.trim()} className="w-full">
+                  Lanjut ke Pembayaran
+                </Button>
+              </div>
+            )}
+
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "qris" && (
+              <div className="space-y-4">
+                {dynamicLoading ? (
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+                  </div>
+                ) : dynamicPaid ? (
+                  <div className="space-y-3 text-center py-4">
+                    <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                    <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
+                    <p className="text-sm text-muted-foreground">Pesanan dikonfirmasi otomatis. Token dikirim via WhatsApp.</p>
+                  </div>
+                ) : dynamicQrString && QRCodeSVG ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
+                    <div className="flex justify-center rounded-lg border border-border bg-white p-4">
+                      <QRCodeSVG value={dynamicQrString} size={240} level="M" />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Menunggu pembayaran...
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>🎭 {selectedShow.title}</p>
+                        <p>💰 {selectedShow.price}</p>
+                        {selectedShow.schedule_date && <p>📅 {selectedShow.schedule_date} {selectedShow.schedule_time}</p>}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                    QRIS gagal dimuat
+                  </div>
+                )}
+              </div>
+            )}
+
+            {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "done" && (
+              <div className="space-y-4 text-center">
+                <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                <h4 className="text-lg font-bold text-foreground">Pembayaran Berhasil!</h4>
+                <p className="text-sm text-muted-foreground">Pesanan telah dikonfirmasi otomatis. Token akses akan dikirim via WhatsApp.</p>
+              </div>
+            )}
+
+            {/* Regular show: Static QRIS + Phone + optional upload in one step */}
+            {!useDynamicQris && !selectedShow.is_subscription && purchaseStep === "info" && (
               <div className="space-y-4">
                 <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
                   <p className="text-sm text-muted-foreground">
