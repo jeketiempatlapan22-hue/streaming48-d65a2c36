@@ -200,13 +200,49 @@ const Index = () => {
     }
   };
 
+  const useDynamicQris = settings.use_dynamic_qris === "true";
+
   const handleBuy = (show: Show) => {
     setSelectedShow(show);
-    setPurchaseStep(show.is_subscription ? "qris" : "info");
+    if (useDynamicQris && !show.is_subscription) {
+      setDynamicQrisStep("phone");
+      setDynamicQrString("");
+      setDynamicOrderId("");
+      setDynamicPaid(false);
+      setDynamicLoading(false);
+      setPurchaseStep("info"); // placeholder, dynamic flow uses dynamicQrisStep
+    } else {
+      setPurchaseStep(show.is_subscription ? "qris" : "info");
+    }
     setProofUrl(""); setProofFilePath("");
     setPhone("");
     setEmail("");
     setUploadingProof(false);
+  };
+
+  const handleStartDynamicQrisShow = async () => {
+    if (!selectedShow) return;
+    setDynamicLoading(true);
+    setDynamicQrisStep("qris");
+    try {
+      const priceNum = parseInt(selectedShow.price.replace(/[^\d]/g, "")) || 0;
+      if (priceNum <= 0) { toast.error("Harga tidak valid"); setDynamicLoading(false); return; }
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: { show_id: selectedShow.id, amount: priceNum, phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""), order_type: "regular" },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || "Gagal membuat QRIS");
+        setDynamicQrisStep("phone");
+        setDynamicLoading(false);
+        return;
+      }
+      setDynamicQrString(data.qr_string);
+      setDynamicOrderId(data.order_id);
+    } catch (err: any) {
+      toast.error("Gagal membuat QRIS: " + (err?.message || "Coba lagi"));
+      setDynamicQrisStep("phone");
+    }
+    setDynamicLoading(false);
   };
 
   const handleCoinBuy = (show: Show) => {
