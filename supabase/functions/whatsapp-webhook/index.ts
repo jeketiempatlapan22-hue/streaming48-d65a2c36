@@ -538,15 +538,18 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               api_key: PAKASIR_API_KEY,
-              merchant_code: PAKASIR_MERCHANT_CODE,
+              project: PAKASIR_MERCHANT_CODE,
               amount: priceNum,
               order_id: shortId,
             }),
           });
           const pakasirData = await pakasirRes.json();
+          console.log('Pakasir coin order response:', JSON.stringify(pakasirData));
 
-          if (pakasirRes.ok && pakasirData.qr_string) {
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
+          const qrString = pakasirData?.payment?.payment_number || pakasirData?.qr_string || pakasirData?.payment?.qr_string || null;
+
+          if (pakasirRes.ok && qrString) {
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
 
             await notifyTelegram(
               `[COIN ORDER WA] ${phone}`,
@@ -557,6 +560,8 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
               text: `✅ *Pesanan Koin Berhasil Dibuat!*\n\n🪙 Paket: *${pkg.name}*\n💰 Harga: *${pkg.price}*\n🎁 Dapat: *${pkg.coin_amount} koin*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
               imageUrl: qrImageUrl,
             };
+          } else {
+            console.warn('Pakasir QRIS failed for coin order, qrString:', qrString, 'status:', pakasirRes.status);
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA coin order:', qrisErr);
