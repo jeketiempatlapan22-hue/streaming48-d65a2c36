@@ -212,10 +212,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.loadSource(playlistUrl);
       hls.attachMedia(videoRef.current!);
 
-      // Quality lock: auto stays unlocked until user picks or ABR stabilizes
-      let autoLocked = false;
+      // Quality: keep auto until user manually selects
       let userLocked = false;
-      let stableTimer: ReturnType<typeof setTimeout> | null = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
@@ -225,7 +223,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         hls.autoLevelEnabled = true;
         setCurrentQuality(-1);
         userLocked = false;
-        autoLocked = false;
         setIsLoading(false);
 
         if (autoPlay) {
@@ -247,22 +244,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             videoRef.current.currentTime = edge - 3;
           }
         }
-      });
-
-      // Auto-lock: after ABR settles on a level for 8s, lock it
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
-        if (destroyed || userLocked || autoLocked || d.level < 0) return;
-        if (stableTimer) clearTimeout(stableTimer);
-        stableTimer = setTimeout(() => {
-          if (destroyed || userLocked || !hls.autoLevelEnabled) return;
-          if (hls.currentLevel === d.level) {
-            hls.currentLevel = d.level;
-            hls.nextAutoLevel = d.level;
-            hls.autoLevelEnabled = false;
-            autoLocked = true;
-            setCurrentQuality(d.level);
-          }
-        }, 8000);
       });
 
       (hls as any).__setUserLocked = (level: number) => {
