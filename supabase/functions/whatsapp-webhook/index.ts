@@ -1190,15 +1190,35 @@ async function sendFonnteMessage(token: string, target: string, message: string,
   const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
   if (!cleanPhone) return;
   try {
-    const params: Record<string, string> = { target: cleanPhone, message };
     if (imageUrl) {
-      params.url = imageUrl;
+      // Send image with caption - Fonnte requires separate image send
+      await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          target: cleanPhone,
+          message,
+          url: imageUrl,
+          type: 'image',
+        }),
+      });
+    } else {
+      // Text only
+      await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          target: cleanPhone,
+          message,
+        }),
+      });
     }
-    await fetch('https://api.fonnte.com/send', {
-      method: 'POST',
-      headers: { Authorization: token },
-      body: new URLSearchParams(params),
-    });
   } catch (e) {
     console.error('sendFonnteMessage error:', e);
   }
