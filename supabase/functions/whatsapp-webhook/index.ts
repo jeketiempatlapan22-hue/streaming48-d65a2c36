@@ -153,16 +153,16 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return { text: await handlePublicCoinList(supabase) };
   }
 
+  // Buy coin: BELI KOIN <number> — MUST be checked BEFORE generic ORDER/BELI
+  const coinMatch = text.match(/^(?:BELI\s*KOIN|ORDER\s*KOIN|PESAN\s*KOIN)\s+(\S+)$/i);
+  if (coinMatch) {
+    return await handlePublicCoinOrder(supabase, coinMatch[1].trim(), senderPhone);
+  }
+
   // Order show: ORDER <show name or number>
   const orderMatch = text.match(/^(?:ORDER|PESAN|BELI)\s+(.+)$/i);
   if (orderMatch) {
     return await handlePublicOrder(supabase, orderMatch[1].trim(), senderPhone);
-  }
-
-  // Buy coin: BELI KOIN <number>
-  const coinMatch = text.match(/^(?:BELI\s*KOIN|ORDER\s*KOIN|PESAN\s*KOIN)\s+(\S+)$/i);
-  if (coinMatch) {
-    return await handlePublicCoinOrder(supabase, coinMatch[1].trim(), senderPhone);
   }
 
   // Check order status: CEK <short_id>
