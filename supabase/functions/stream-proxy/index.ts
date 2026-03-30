@@ -150,7 +150,7 @@ async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string)
   return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
-// Generate signed redirect URL for TS segments
+// Generate signed proxy URL for TS segments (full proxy, no redirect)
 async function generateSegSignedUrl(rawUrl: string, functionUrl: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
