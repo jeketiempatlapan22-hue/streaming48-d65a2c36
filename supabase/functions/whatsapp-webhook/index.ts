@@ -131,7 +131,299 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processCommand(supabase: any, rawText: string): Promise<string | null> {
+// ========== PUBLIC COMMANDS (accessible by anyone) ==========
+async function processPublicCommand(supabase: any, rawText: string, senderPhone: string, fonnteToken: string): Promise<string | null> {
+  const text = rawText.trim();
+  const upperText = text.toUpperCase();
+
+  // Public menu
+  if (/^(MENU|HAI|HALO|HI|INFO|START)$/i.test(text)) {
+    return handlePublicMenu();
+  }
+
+  // List shows
+  if (/^(DAFTAR\s*SHOW|LIST\s*SHOW|JADWAL|SHOW)$/i.test(text)) {
+    return await handlePublicShowList(supabase);
+  }
+
+  // Order show: ORDER <show name or number>
+  const orderMatch = text.match(/^(?:ORDER|PESAN|BELI)\s+(.+)$/i);
+  if (orderMatch) {
+    return await handlePublicOrder(supabase, orderMatch[1].trim(), senderPhone);
+  }
+
+  // Check order status: CEK <short_id>
+  const cekMatch = text.match(/^(?:CEK|STATUS)\s+(\S+)$/i);
+  if (cekMatch) {
+    return await handlePublicCheckOrder(supabase, cekMatch[1].trim());
+  }
+
+  return null; // Not a public command
+}
+
+function handlePublicMenu(): string {
+  return `👋 *Halo! Selamat datang di REALTIME48!*
+
+🎬 Berikut perintah yang bisa kamu gunakan:
+
+📋 *SHOW* — Lihat daftar show yang tersedia
+🛒 *ORDER <nama/nomor show>* — Pesan tiket show
+📊 *CEK <ID order>* — Cek status pesanan kamu
+
+💡 *Contoh:*
+• Ketik *SHOW* untuk lihat jadwal
+• Ketik *ORDER 1* untuk pesan show nomor 1
+• Ketik *CEK s12* untuk cek status order
+
+🌐 Website: realtime48show.my.id`;
+}
+
+async function handlePublicShowList(supabase: any): Promise<string> {
+  try {
+    const { data: shows } = await supabase
+      .from('shows')
+      .select('id, title, price, schedule_date, schedule_time, is_order_closed, is_subscription, coin_price, category, is_replay, lineup')
+      .eq('is_active', true)
+      .eq('is_replay', false)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (!shows || shows.length === 0) {
+      return '📋 Tidak ada show yang tersedia saat ini.\n\nKunjungi website: realtime48show.my.id';
+    }
+
+    let msg = '🎬 *DAFTAR SHOW TERSEDIA*\n\n';
+    shows.forEach((s: any, i: number) => {
+      const num = i + 1;
+      const status = s.is_order_closed ? '🔴 CLOSED' : '🟢 OPEN';
+      const schedule = s.schedule_date ? `📅 ${s.schedule_date}${s.schedule_time ? ' ' + s.schedule_time : ''}` : '';
+      const type = s.is_subscription ? '🎬 Member' : '🎭 Reguler';
+      msg += `*${num}. ${s.title}*\n${type} | ${status}\n💰 ${s.price}${s.coin_price > 0 ? ` | 🪙 ${s.coin_price} koin` : ''}\n${schedule}\n\n`;
+    });
+
+    msg += `🛒 Untuk pesan, ketik:\n*ORDER <nomor>* (misal: ORDER 1)\n*ORDER <nama show>*`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handlePublicOrder(supabase: any, showInput: string, senderPhone: string): Promise<string> {
+  try {
+    // Check if dynamic QRIS is enabled
+    const { data: qrisSetting } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'use_dynamic_qris')
+      .maybeSingle();
+    const useDynamicQris = qrisSetting?.value === 'true';
+
+    // Find show by number or name
+    let show: any = null;
+
+    // Try as number (index from show list)
+    const showIndex = parseInt(showInput, 10);
+    if (!isNaN(showIndex) && showIndex > 0) {
+      const { data: shows } = await supabase
+        .from('shows')
+        .select('*')
+        .eq('is_active', true)
+        .eq('is_replay', false)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (shows && shows.length >= showIndex) {
+        show = shows[showIndex - 1];
+      }
+    }
+
+    // Try by name
+    if (!show) {
+      const { data: shows } = await supabase
+        .from('shows')
+        .select('*')
+        .eq('is_active', true)
+        .eq('is_replay', false)
+        .ilike('title', `%${showInput}%`)
+        .limit(1);
+      show = shows?.[0];
+    }
+
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.\n\nKetik *SHOW* untuk lihat daftar.`;
+    if (show.is_order_closed) return `⚠️ Maaf, order untuk *${show.title}* sudah ditutup.`;
+
+    // Parse price to number
+    const priceNum = parseInt(String(show.price).replace(/[^0-9]/g, ''), 10);
+    if (!priceNum || priceNum <= 0) {
+      return `⚠️ Harga show *${show.title}* belum dikonfigurasi. Silakan hubungi admin.`;
+    }
+
+    // Format phone
+    let phone = senderPhone;
+    if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+
+    // Create order
+    const { data: orderData, error: orderErr } = await supabase
+      .from('subscription_orders')
+      .insert({
+        show_id: show.id,
+        user_id: null, // guest order
+        phone,
+        payment_method: useDynamicQris ? 'qris_dynamic' : 'qris',
+        status: 'pending',
+        payment_status: 'pending',
+      })
+      .select('id, short_id')
+      .single();
+
+    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+
+    const shortId = orderData.short_id || orderData.id.substring(0, 8);
+
+    if (useDynamicQris) {
+      // Generate dynamic QRIS
+      const PAKASIR_API_KEY = Deno.env.get('PAKASIR_API_KEY');
+      const PAKASIR_MERCHANT_CODE = Deno.env.get('PAKASIR_MERCHANT_CODE');
+
+      if (PAKASIR_API_KEY && PAKASIR_MERCHANT_CODE) {
+        try {
+          const pakasirRes = await fetch('https://app.pakasir.com/api/transactioncreate/qris', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: PAKASIR_API_KEY,
+              merchant_code: PAKASIR_MERCHANT_CODE,
+              amount: priceNum,
+              order_id: shortId,
+            }),
+          });
+          const pakasirData = await pakasirRes.json();
+
+          if (pakasirRes.ok && pakasirData.qr_string) {
+            // Save QR to order
+            await supabase
+              .from('subscription_orders')
+              .update({
+                qr_string: pakasirData.qr_string,
+                payment_gateway_order_id: pakasirData.transaction_id || shortId,
+              })
+              .eq('id', orderData.id);
+
+            // Generate QR image URL for WhatsApp
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+
+            // Notify admin
+            await notifyTelegram(
+              `[ORDER WA] ${phone}`,
+              `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
+            );
+
+            return `✅ *Pesanan Berhasil Dibuat!*
+
+🎬 Show: *${show.title}*
+📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
+💰 Harga: *${show.price}*
+🆔 ID Order: *${shortId}*
+
+📱 *Scan QRIS di bawah untuk bayar:*
+${qrImageUrl}
+
+⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.
+
+📊 Cek status: ketik *CEK ${shortId}*`;
+          }
+        } catch (qrisErr) {
+          console.warn('Dynamic QRIS error for WA order:', qrisErr);
+        }
+      }
+    }
+
+    // Fallback: static QRIS or no dynamic QRIS
+    const qrisInfo = show.qris_image_url
+      ? `\n\n📱 Scan QRIS untuk bayar:\n${show.qris_image_url}`
+      : '\n\n📱 Silakan transfer sesuai harga dan kirim bukti pembayaran ke admin.';
+
+    // Notify admin
+    await notifyTelegram(
+      `[ORDER WA] ${phone}`,
+      `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
+    );
+
+    return `✅ *Pesanan Berhasil Dibuat!*
+
+🎬 Show: *${show.title}*
+📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
+💰 Harga: *${show.price}*
+🆔 ID Order: *${shortId}*${qrisInfo}
+
+⏰ Setelah pembayaran dikonfirmasi, kamu akan menerima token akses di WhatsApp ini.
+
+📊 Cek status: ketik *CEK ${shortId}*`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handlePublicCheckOrder(supabase: any, shortId: string): Promise<string> {
+  try {
+    // Check subscription_orders
+    const { data: subOrder } = await supabase
+      .from('subscription_orders')
+      .select('id, short_id, status, payment_status, show_id, created_at')
+      .eq('short_id', shortId)
+      .maybeSingle();
+
+    if (subOrder) {
+      const { data: show } = await supabase
+        .from('shows')
+        .select('title')
+        .eq('id', subOrder.show_id)
+        .single();
+
+      const statusEmoji = subOrder.status === 'confirmed' ? '✅' : subOrder.status === 'rejected' ? '❌' : '⏳';
+      const payStatus = subOrder.payment_status === 'paid' ? '✅ Lunas' : '⏳ Belum bayar';
+      const time = new Date(subOrder.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+
+      let msg = `📊 *STATUS ORDER*\n\n🆔 ID: *${shortId}*\n🎬 Show: *${show?.title || '-'}*\n${statusEmoji} Status: *${subOrder.status}*\n💰 Pembayaran: ${payStatus}\n🕐 Dibuat: ${time}`;
+
+      // If confirmed, check for token
+      if (subOrder.status === 'confirmed') {
+        const { data: token } = await supabase
+          .from('tokens')
+          .select('code')
+          .eq('show_id', subOrder.show_id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (token) {
+          msg += `\n\n🔑 Token: *${token.code}*\n🔗 Link: realtime48show.my.id/live?t=${token.code}`;
+        }
+      }
+
+      return msg;
+    }
+
+    // Check coin_orders
+    const { data: coinOrder } = await supabase
+      .from('coin_orders')
+      .select('id, short_id, status, coin_amount, price, created_at')
+      .eq('short_id', shortId)
+      .maybeSingle();
+
+    if (coinOrder) {
+      const statusEmoji = coinOrder.status === 'confirmed' ? '✅' : coinOrder.status === 'rejected' ? '❌' : '⏳';
+      const time = new Date(coinOrder.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      return `📊 *STATUS ORDER KOIN*\n\n🆔 ID: *${shortId}*\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💰 Harga: ${coinOrder.price || '-'}\n${statusEmoji} Status: *${coinOrder.status}*\n🕐 Dibuat: ${time}`;
+    }
+
+    return `⚠️ Order dengan ID *${shortId}* tidak ditemukan.\n\nPastikan ID yang kamu masukkan benar.`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+
   const text = rawText.toUpperCase();
   const yaMatch = text.match(/^YA\s+(.+)$/);
   const tidakMatch = text.match(/^TIDAK\s+(.+)$/);
