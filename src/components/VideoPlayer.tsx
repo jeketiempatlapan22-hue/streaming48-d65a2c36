@@ -247,16 +247,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
 
       (hls as any).__setUserLocked = (level: number) => {
-        if (stableTimer) clearTimeout(stableTimer);
         if (level === -1) {
           userLocked = false;
-          autoLocked = false;
           hls.currentLevel = -1;
           hls.nextAutoLevel = -1;
           hls.autoLevelEnabled = true;
         } else {
           userLocked = true;
-          autoLocked = false;
           hls.currentLevel = level;
           hls.nextAutoLevel = level;
           hls.autoLevelEnabled = false;
