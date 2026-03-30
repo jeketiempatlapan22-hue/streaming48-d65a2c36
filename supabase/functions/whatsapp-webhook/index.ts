@@ -73,10 +73,13 @@ Deno.serve(async (req) => {
     // ========== PUBLIC COMMANDS (any sender) ==========
     const publicResponse = await processPublicCommand(supabase, rawText, cleanSender, FONNTE_TOKEN);
     if (publicResponse !== null) {
-      await sendFonnteMessage(FONNTE_TOKEN, sender, publicResponse);
+      const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string' 
+        ? { text: publicResponse, imageUrl: undefined } 
+        : publicResponse;
+      await sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage);
       // Notify admin about public orders
       if (/^(ORDER|PESAN|BELI)\s/i.test(rawText)) {
-        await notifyTelegram(`[PUBLIC] ${cleanSender}: ${rawText}`, publicResponse);
+        await notifyTelegram(`[PUBLIC] ${cleanSender}: ${rawText}`, respText);
       }
       return jsonResponse({ ok: true, processed: true, type: 'public' });
     }
@@ -132,23 +135,22 @@ Deno.serve(async (req) => {
 });
 
 // ========== PUBLIC COMMANDS (accessible by anyone) ==========
-async function processPublicCommand(supabase: any, rawText: string, senderPhone: string, fonnteToken: string): Promise<string | null> {
+async function processPublicCommand(supabase: any, rawText: string, senderPhone: string, fonnteToken: string): Promise<{ text: string; imageUrl?: string } | null> {
   const text = rawText.trim();
-  const upperText = text.toUpperCase();
 
   // Public menu
   if (/^(MENU|HAI|HALO|HI|INFO|START)$/i.test(text)) {
-    return handlePublicMenu();
+    return { text: handlePublicMenu() };
   }
 
   // List shows
   if (/^(DAFTAR\s*SHOW|LIST\s*SHOW|JADWAL|SHOW)$/i.test(text)) {
-    return await handlePublicShowList(supabase);
+    return { text: await handlePublicShowList(supabase) };
   }
 
   // List coin packages
   if (/^(KOIN|COIN|DAFTAR\s*KOIN|LIST\s*KOIN|PAKET\s*KOIN)$/i.test(text)) {
-    return await handlePublicCoinList(supabase);
+    return { text: await handlePublicCoinList(supabase) };
   }
 
   // Order show: ORDER <show name or number>
@@ -166,7 +168,7 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
   // Check order status: CEK <short_id>
   const cekMatch = text.match(/^(?:CEK|STATUS)\s+(\S+)$/i);
   if (cekMatch) {
-    return await handlePublicCheckOrder(supabase, cekMatch[1].trim());
+    return { text: await handlePublicCheckOrder(supabase, cekMatch[1].trim()) };
   }
 
   return null; // Not a public command
@@ -223,9 +225,8 @@ async function handlePublicShowList(supabase: any): Promise<string> {
   }
 }
 
-async function handlePublicOrder(supabase: any, showInput: string, senderPhone: string): Promise<string> {
+async function handlePublicOrder(supabase: any, showInput: string, senderPhone: string): Promise<{ text: string; imageUrl?: string }> {
   try {
-    // Check if dynamic QRIS is enabled
     const { data: qrisSetting } = await supabase
       .from('site_settings')
       .select('value')
@@ -233,10 +234,7 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       .maybeSingle();
     const useDynamicQris = qrisSetting?.value === 'true';
 
-    // Find show by number or name
     let show: any = null;
-
-    // Try as number (index from show list)
     const showIndex = parseInt(showInput, 10);
     if (!isNaN(showIndex) && showIndex > 0) {
       const { data: shows } = await supabase
@@ -251,7 +249,6 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       }
     }
 
-    // Try by name
     if (!show) {
       const { data: shows } = await supabase
         .from('shows')
@@ -263,25 +260,22 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       show = shows?.[0];
     }
 
-    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.\n\nKetik *SHOW* untuk lihat daftar.`;
-    if (show.is_order_closed) return `⚠️ Maaf, order untuk *${show.title}* sudah ditutup.`;
+    if (!show) return { text: `⚠️ Show "${showInput}" tidak ditemukan.\n\nKetik *SHOW* untuk lihat daftar.` };
+    if (show.is_order_closed) return { text: `⚠️ Maaf, order untuk *${show.title}* sudah ditutup.` };
 
-    // Parse price to number
     const priceNum = parseInt(String(show.price).replace(/[^0-9]/g, ''), 10);
     if (!priceNum || priceNum <= 0) {
-      return `⚠️ Harga show *${show.title}* belum dikonfigurasi. Silakan hubungi admin.`;
+      return { text: `⚠️ Harga show *${show.title}* belum dikonfigurasi. Silakan hubungi admin.` };
     }
 
-    // Format phone
     let phone = senderPhone;
     if (phone.startsWith('0')) phone = '62' + phone.substring(1);
 
-    // Create order
     const { data: orderData, error: orderErr } = await supabase
       .from('subscription_orders')
       .insert({
         show_id: show.id,
-        user_id: null, // guest order
+        user_id: null,
         phone,
         payment_method: useDynamicQris ? 'qris_dynamic' : 'qris',
         status: 'pending',
@@ -290,12 +284,11 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       .select('id, short_id')
       .single();
 
-    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+    if (orderErr) return { text: `⚠️ Gagal membuat pesanan: ${orderErr.message}` };
 
     const shortId = orderData.short_id || orderData.id.substring(0, 8);
 
     if (useDynamicQris) {
-      // Generate dynamic QRIS
       const PAKASIR_API_KEY = Deno.env.get('PAKASIR_API_KEY');
       const PAKASIR_MERCHANT_CODE = Deno.env.get('PAKASIR_MERCHANT_CODE');
 
@@ -314,7 +307,6 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
           const pakasirData = await pakasirRes.json();
 
           if (pakasirRes.ok && pakasirData.qr_string) {
-            // Save QR to order
             await supabase
               .from('subscription_orders')
               .update({
@@ -323,28 +315,17 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
               })
               .eq('id', orderData.id);
 
-            // Generate QR image URL for WhatsApp
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
 
-            // Notify admin
             await notifyTelegram(
               `[ORDER WA] ${phone}`,
               `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
             );
 
-            return `✅ *Pesanan Berhasil Dibuat!*
-
-🎬 Show: *${show.title}*
-📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
-💰 Harga: *${show.price}*
-🆔 ID Order: *${shortId}*
-
-📱 *Scan QRIS di bawah untuk bayar:*
-${qrImageUrl}
-
-⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+            return {
+              text: `✅ *Pesanan Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}\n💰 Harga: *${show.price}*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
+              imageUrl: qrImageUrl,
+            };
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA order:', qrisErr);
@@ -352,29 +333,18 @@ ${qrImageUrl}
       }
     }
 
-    // Fallback: static QRIS or no dynamic QRIS
     const qrisInfo = show.qris_image_url
       ? `\n\n📱 Scan QRIS untuk bayar:\n${show.qris_image_url}`
       : '\n\n📱 Silakan transfer sesuai harga dan kirim bukti pembayaran ke admin.';
 
-    // Notify admin
     await notifyTelegram(
       `[ORDER WA] ${phone}`,
       `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
     );
 
-    return `✅ *Pesanan Berhasil Dibuat!*
-
-🎬 Show: *${show.title}*
-📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
-💰 Harga: *${show.price}*
-🆔 ID Order: *${shortId}*${qrisInfo}
-
-⏰ Setelah pembayaran dikonfirmasi, kamu akan menerima token akses di WhatsApp ini.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+    return { text: `✅ *Pesanan Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}\n💰 Harga: *${show.price}*\n🆔 ID Order: *${shortId}*${qrisInfo}\n\n⏰ Setelah pembayaran dikonfirmasi, kamu akan menerima token akses di WhatsApp ini.\n\n📊 Cek status: ketik *CEK ${shortId}*` };
   } catch (e) {
-    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+    return { text: `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}` };
   }
 }
 
@@ -463,7 +433,7 @@ async function handlePublicCoinList(supabase: any): Promise<string> {
   }
 }
 
-async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhone: string): Promise<string> {
+async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhone: string): Promise<{ text: string; imageUrl?: string }> {
   try {
     const { data: qrisSetting } = await supabase
       .from('site_settings')
@@ -497,11 +467,11 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
       pkg = packages?.[0];
     }
 
-    if (!pkg) return `⚠️ Paket koin "${pkgInput}" tidak ditemukan.\n\nKetik *KOIN* untuk lihat daftar paket.`;
+    if (!pkg) return { text: `⚠️ Paket koin "${pkgInput}" tidak ditemukan.\n\nKetik *KOIN* untuk lihat daftar paket.` };
 
     const priceNum = parseInt(String(pkg.price).replace(/[^0-9]/g, ''), 10);
     if (!priceNum || priceNum <= 0) {
-      return `⚠️ Harga paket *${pkg.name}* belum dikonfigurasi.`;
+      return { text: `⚠️ Harga paket *${pkg.name}* belum dikonfigurasi.` };
     }
 
     let phone = senderPhone;
@@ -531,7 +501,7 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
     }
 
     if (!userId) {
-      return `⚠️ Untuk membeli koin, kamu perlu login terlebih dahulu di website.\n\n🌐 Daftar/login di: realtime48show.my.id\n\nSetelah punya akun, coba pesan lagi dari nomor WA yang sama.`;
+      return { text: `⚠️ Untuk membeli koin, kamu perlu login terlebih dahulu di website.\n\n🌐 Daftar/login di: realtime48show.my.id\n\nSetelah punya akun, coba pesan lagi dari nomor WA yang sama.` };
     }
 
     const { data: orderData, error: orderErr } = await supabase
@@ -547,7 +517,7 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
       .select('id, short_id')
       .single();
 
-    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+    if (orderErr) return { text: `⚠️ Gagal membuat pesanan: ${orderErr.message}` };
 
     const shortId = orderData.short_id || orderData.id.substring(0, 8);
 
@@ -570,26 +540,17 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
           const pakasirData = await pakasirRes.json();
 
           if (pakasirRes.ok && pakasirData.qr_string) {
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
 
             await notifyTelegram(
               `[COIN ORDER WA] ${phone}`,
               `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
             );
 
-            return `✅ *Pesanan Koin Berhasil Dibuat!*
-
-🪙 Paket: *${pkg.name}*
-💰 Harga: *${pkg.price}*
-🎁 Dapat: *${pkg.coin_amount} koin*
-🆔 ID Order: *${shortId}*
-
-📱 *Scan QRIS di bawah untuk bayar:*
-${qrImageUrl}
-
-⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+            return {
+              text: `✅ *Pesanan Koin Berhasil Dibuat!*\n\n🪙 Paket: *${pkg.name}*\n💰 Harga: *${pkg.price}*\n🎁 Dapat: *${pkg.coin_amount} koin*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
+              imageUrl: qrImageUrl,
+            };
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA coin order:', qrisErr);
@@ -607,16 +568,9 @@ ${qrImageUrl}
       `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
     );
 
-    return `✅ *Pesanan Koin Berhasil Dibuat!*
-
-🪙 Paket: *${pkg.name}*
-💰 Harga: *${pkg.price}*
-🎁 Dapat: *${pkg.coin_amount} koin*
-🆔 ID Order: *${shortId}*${qrisInfo}
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+    return { text: `✅ *Pesanan Koin Berhasil Dibuat!*\n\n🪙 Paket: *${pkg.name}*\n💰 Harga: *${pkg.price}*\n🎁 Dapat: *${pkg.coin_amount} koin*\n🆔 ID Order: *${shortId}*${qrisInfo}\n\n📊 Cek status: ketik *CEK ${shortId}*` };
   } catch (e) {
-    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+    return { text: `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}` };
   }
 }
 
@@ -1232,14 +1186,18 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
   return [...phones].filter(Boolean);
 }
 
-async function sendFonnteMessage(token: string, target: string, message: string) {
+async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
   const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
   if (!cleanPhone) return;
   try {
+    const params: Record<string, string> = { target: cleanPhone, message };
+    if (imageUrl) {
+      params.url = imageUrl;
+    }
     await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { Authorization: token },
-      body: new URLSearchParams({ target: cleanPhone, message }),
+      body: new URLSearchParams(params),
     });
   } catch (e) {
     console.error('sendFonnteMessage error:', e);
