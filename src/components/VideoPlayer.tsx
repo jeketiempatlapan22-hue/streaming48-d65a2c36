@@ -140,7 +140,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.setAttribute("playsinline", "");
     iframe.setAttribute("webkit-playsinline", "");
     iframe.setAttribute("loading", "eager");
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;pointer-events:none;";
+    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
     iframe.setAttribute("tabindex", "-1");
     iframe.setAttribute("aria-hidden", "true");
     iframe.src = url;
@@ -357,7 +357,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     ytFallbackTimerRef.current = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
       setYtFallback(true); setIsLoading(false); setIsPlaying(autoPlay);
-    }, 3000);
+    }, 10000);
 
     const createYTPlayer = () => {
       if (destroyed || ytFallback) return;
@@ -386,7 +386,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 const iframe = container.querySelector("iframe");
                 if (iframe) {
                   iframe.removeAttribute("title");
-                  iframe.style.pointerEvents = "none";
                   iframe.setAttribute("tabindex", "-1");
                   iframe.setAttribute("aria-hidden", "true");
                 }
@@ -427,7 +426,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if ((window as any).YT?.Player) { clearInterval(check); createYTPlayer(); }
       }, 200);
       (window as any).onYouTubeIframeAPIReady = () => { clearInterval(check); if (!destroyed) createYTPlayer(); };
-      setTimeout(() => clearInterval(check), 3500);
+      setTimeout(() => clearInterval(check), 10000);
     };
 
     loadYTApi();
@@ -592,7 +591,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {playlistType === "youtube" && !ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0 [&_iframe]:pointer-events-none" />
+          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0" />
           {/* Full blocking overlay — prevents ALL clicks/touches to YouTube iframe */}
           <div
             className="absolute inset-0 z-10 cursor-pointer"
@@ -608,7 +607,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {playlistType === "youtube" && ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full [&_iframe]:pointer-events-none" />
+          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full" />
           {/* Full blocking overlay for fallback iframe */}
           <div
             className="absolute inset-0 z-10 cursor-pointer"
