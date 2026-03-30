@@ -421,11 +421,45 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setIsLoading(true);
     const container = cfContainerRef.current;
     if (!container) return;
-    // playlistUrl is already the signed proxy URL from useSignedStreamUrl
-    const iframe = createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
-    iframe.addEventListener("load", () => setIsLoading(false), { once: true });
+    let retryCount = 0;
+    const maxRetries = 2;
+
+    const loadCfIframe = () => {
+      // playlistUrl is already the signed proxy URL from useSignedStreamUrl
+      const iframe = createProtectedIframe(container, playlistUrl, { allow: "autoplay; fullscreen; picture-in-picture; encrypted-media", allowFullscreen: true });
+      
+      iframe.addEventListener("load", () => {
+        setIsLoading(false);
+        // Listen for error messages from the Cloudflare player inside the iframe
+        const checkError = setTimeout(() => {
+          // If we can detect the iframe failed (no video playing), retry
+          try {
+            if (retryCount < maxRetries && iframe.contentDocument?.body?.textContent?.includes("失败")) {
+              retryCount++;
+              console.warn(`[CF] Player error detected, retry ${retryCount}/${maxRetries}`);
+              loadCfIframe();
+            }
+          } catch {
+            // Cross-origin, can't check — that's fine, it means the proxy loaded successfully
+          }
+        }, 3000);
+        return () => clearTimeout(checkError);
+      }, { once: true });
+
+      iframe.addEventListener("error", () => {
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.warn(`[CF] Load error, retry ${retryCount}/${maxRetries}`);
+          setTimeout(loadCfIframe, 1500);
+        } else {
+          setIsLoading(false);
+        }
+      }, { once: true });
+    };
+
+    loadCfIframe();
     // Fallback timeout in case load event doesn't fire
-    const t = setTimeout(() => setIsLoading(false), 5000);
+    const t = setTimeout(() => setIsLoading(false), 8000);
     return () => clearTimeout(t);
   }, [playlistType, playlistUrl, iframeRefreshKey, createProtectedIframe]);
 
