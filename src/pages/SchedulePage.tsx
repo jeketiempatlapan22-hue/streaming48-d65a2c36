@@ -70,7 +70,7 @@ const SchedulePage = () => {
     const fetchData = async () => {
       const [showsRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
-        supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
       ]);
       if (showsRes.data) {
         const upcoming = (showsRes.data as Show[]).filter(s => !s.is_subscription && !s.is_replay && s.schedule_date);
