@@ -1232,14 +1232,18 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
   return [...phones].filter(Boolean);
 }
 
-async function sendFonnteMessage(token: string, target: string, message: string) {
+async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
   const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
   if (!cleanPhone) return;
   try {
+    const params: Record<string, string> = { target: cleanPhone, message };
+    if (imageUrl) {
+      params.url = imageUrl;
+    }
     await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { Authorization: token },
-      body: new URLSearchParams({ target: cleanPhone, message }),
+      body: new URLSearchParams(params),
     });
   } catch (e) {
     console.error('sendFonnteMessage error:', e);
