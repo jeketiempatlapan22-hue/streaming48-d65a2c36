@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // MODE: seg (GET) - signed redirect for TS segments (hides origin domain)
+    // MODE: seg (GET) - full proxy for TS segments (hides origin domain 100%)
     if (req.method === "GET" && mode === "seg") {
       const encoded = url.searchParams.get("u");
       const exp = url.searchParams.get("exp");
@@ -471,15 +471,27 @@ Deno.serve(async (req) => {
 
       const actualUrl = base64UrlDecode(encoded);
 
-      // 302 redirect to the actual segment — no latency penalty
-      return new Response(null, {
-        status: 302,
-        headers: {
-          ...corsHeaders,
-          "Location": actualUrl,
-          "Cache-Control": "private, no-store, no-cache",
-        },
-      });
+      // Full proxy — fetch segment and stream it back, hiding origin completely
+      try {
+        const segResponse = await fetch(actualUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)" },
+        });
+        if (!segResponse.ok) {
+          return new Response("Segment fetch failed", { status: 502, headers: corsHeaders });
+        }
+        const contentType = segResponse.headers.get("Content-Type") || "video/mp2t";
+        return new Response(segResponse.body, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": contentType,
+            "Cache-Control": "public, max-age=5",
+            "Access-Control-Expose-Headers": "Content-Type",
+          },
+        });
+      } catch {
+        return new Response("Segment proxy error", { status: 502, headers: corsHeaders });
+      }
     }
 
     // MODE: yt (GET) - YouTube embed proxy
