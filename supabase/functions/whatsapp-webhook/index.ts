@@ -549,7 +549,7 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
           const qrString = pakasirData?.payment?.payment_number || pakasirData?.qr_string || pakasirData?.payment?.qr_string || null;
 
           if (pakasirRes.ok && qrString) {
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
+            const qrImageUrl = await uploadQrToStorage(supabase, qrString, `coin-${shortId}`) || `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
 
             await notifyTelegram(
               `[COIN ORDER WA] ${phone}`,
