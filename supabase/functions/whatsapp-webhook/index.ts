@@ -319,7 +319,7 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
               })
               .eq('id', orderData.id);
 
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
+            const qrImageUrl = await uploadQrToStorage(supabase, qrString, `show-${shortId}`) || `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
 
             await notifyTelegram(
               `[ORDER WA] ${phone}`,
