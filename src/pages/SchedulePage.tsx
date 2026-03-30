@@ -17,7 +17,7 @@ const SchedulePage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [settings, setSettings] = useState<{ whatsapp_number: string }>({ whatsapp_number: "" });
+  const [settings, setSettings] = useState<{ whatsapp_number: string; use_dynamic_qris?: string }>({ whatsapp_number: "" });
   const {
     coinUser, redeemedTokens, accessPasswords, replayPasswords,
     addRedeemedToken, addAccessPassword,
@@ -32,6 +32,39 @@ const SchedulePage = () => {
   const [email, setEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  // Dynamic QRIS state
+  const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "done">("phone");
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
+
+  const useDynamicQris = settings.use_dynamic_qris === "true";
+
+  // Load QR component
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
+
+  // Poll dynamic QRIS payment status
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("subscription_orders")
+        .select("payment_status, status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast.success("✅ Pembayaran berhasil dikonfirmasi!");
+        setTimeout(() => setDynamicQrisStep("done"), 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
 
   useEffect(() => {
     const fetchData = async () => {
