@@ -225,9 +225,8 @@ async function handlePublicShowList(supabase: any): Promise<string> {
   }
 }
 
-async function handlePublicOrder(supabase: any, showInput: string, senderPhone: string): Promise<string> {
+async function handlePublicOrder(supabase: any, showInput: string, senderPhone: string): Promise<{ text: string; imageUrl?: string }> {
   try {
-    // Check if dynamic QRIS is enabled
     const { data: qrisSetting } = await supabase
       .from('site_settings')
       .select('value')
@@ -235,10 +234,7 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       .maybeSingle();
     const useDynamicQris = qrisSetting?.value === 'true';
 
-    // Find show by number or name
     let show: any = null;
-
-    // Try as number (index from show list)
     const showIndex = parseInt(showInput, 10);
     if (!isNaN(showIndex) && showIndex > 0) {
       const { data: shows } = await supabase
@@ -253,7 +249,6 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       }
     }
 
-    // Try by name
     if (!show) {
       const { data: shows } = await supabase
         .from('shows')
@@ -265,25 +260,22 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       show = shows?.[0];
     }
 
-    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.\n\nKetik *SHOW* untuk lihat daftar.`;
-    if (show.is_order_closed) return `⚠️ Maaf, order untuk *${show.title}* sudah ditutup.`;
+    if (!show) return { text: `⚠️ Show "${showInput}" tidak ditemukan.\n\nKetik *SHOW* untuk lihat daftar.` };
+    if (show.is_order_closed) return { text: `⚠️ Maaf, order untuk *${show.title}* sudah ditutup.` };
 
-    // Parse price to number
     const priceNum = parseInt(String(show.price).replace(/[^0-9]/g, ''), 10);
     if (!priceNum || priceNum <= 0) {
-      return `⚠️ Harga show *${show.title}* belum dikonfigurasi. Silakan hubungi admin.`;
+      return { text: `⚠️ Harga show *${show.title}* belum dikonfigurasi. Silakan hubungi admin.` };
     }
 
-    // Format phone
     let phone = senderPhone;
     if (phone.startsWith('0')) phone = '62' + phone.substring(1);
 
-    // Create order
     const { data: orderData, error: orderErr } = await supabase
       .from('subscription_orders')
       .insert({
         show_id: show.id,
-        user_id: null, // guest order
+        user_id: null,
         phone,
         payment_method: useDynamicQris ? 'qris_dynamic' : 'qris',
         status: 'pending',
@@ -292,12 +284,11 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
       .select('id, short_id')
       .single();
 
-    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+    if (orderErr) return { text: `⚠️ Gagal membuat pesanan: ${orderErr.message}` };
 
     const shortId = orderData.short_id || orderData.id.substring(0, 8);
 
     if (useDynamicQris) {
-      // Generate dynamic QRIS
       const PAKASIR_API_KEY = Deno.env.get('PAKASIR_API_KEY');
       const PAKASIR_MERCHANT_CODE = Deno.env.get('PAKASIR_MERCHANT_CODE');
 
@@ -316,7 +307,6 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
           const pakasirData = await pakasirRes.json();
 
           if (pakasirRes.ok && pakasirData.qr_string) {
-            // Save QR to order
             await supabase
               .from('subscription_orders')
               .update({
@@ -325,28 +315,17 @@ async function handlePublicOrder(supabase: any, showInput: string, senderPhone: 
               })
               .eq('id', orderData.id);
 
-            // Generate QR image URL for WhatsApp
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
 
-            // Notify admin
             await notifyTelegram(
               `[ORDER WA] ${phone}`,
               `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
             );
 
-            return `✅ *Pesanan Berhasil Dibuat!*
-
-🎬 Show: *${show.title}*
-📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
-💰 Harga: *${show.price}*
-🆔 ID Order: *${shortId}*
-
-📱 *Scan QRIS di bawah untuk bayar:*
-${qrImageUrl}
-
-⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+            return {
+              text: `✅ *Pesanan Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}\n💰 Harga: *${show.price}*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, kamu akan menerima token akses secara otomatis di WhatsApp ini.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
+              imageUrl: qrImageUrl,
+            };
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA order:', qrisErr);
@@ -354,29 +333,18 @@ ${qrImageUrl}
       }
     }
 
-    // Fallback: static QRIS or no dynamic QRIS
     const qrisInfo = show.qris_image_url
       ? `\n\n📱 Scan QRIS untuk bayar:\n${show.qris_image_url}`
       : '\n\n📱 Silakan transfer sesuai harga dan kirim bukti pembayaran ke admin.';
 
-    // Notify admin
     await notifyTelegram(
       `[ORDER WA] ${phone}`,
       `🛒 Order baru via WhatsApp!\n🎬 ${show.title}\n📱 ${phone}\n💰 ${show.price}\n🆔 ${shortId}`
     );
 
-    return `✅ *Pesanan Berhasil Dibuat!*
-
-🎬 Show: *${show.title}*
-📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}
-💰 Harga: *${show.price}*
-🆔 ID Order: *${shortId}*${qrisInfo}
-
-⏰ Setelah pembayaran dikonfirmasi, kamu akan menerima token akses di WhatsApp ini.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+    return { text: `✅ *Pesanan Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${show.schedule_date || '-'}${show.schedule_time ? ' ' + show.schedule_time : ''}\n💰 Harga: *${show.price}*\n🆔 ID Order: *${shortId}*${qrisInfo}\n\n⏰ Setelah pembayaran dikonfirmasi, kamu akan menerima token akses di WhatsApp ini.\n\n📊 Cek status: ketik *CEK ${shortId}*` };
   } catch (e) {
-    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+    return { text: `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}` };
   }
 }
 
