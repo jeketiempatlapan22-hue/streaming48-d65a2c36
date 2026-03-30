@@ -146,10 +146,21 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return await handlePublicShowList(supabase);
   }
 
+  // List coin packages
+  if (/^(KOIN|COIN|DAFTAR\s*KOIN|LIST\s*KOIN|PAKET\s*KOIN)$/i.test(text)) {
+    return await handlePublicCoinList(supabase);
+  }
+
   // Order show: ORDER <show name or number>
   const orderMatch = text.match(/^(?:ORDER|PESAN|BELI)\s+(.+)$/i);
   if (orderMatch) {
     return await handlePublicOrder(supabase, orderMatch[1].trim(), senderPhone);
+  }
+
+  // Buy coin: BELI KOIN <number>
+  const coinMatch = text.match(/^(?:BELI\s*KOIN|ORDER\s*KOIN|PESAN\s*KOIN)\s+(\S+)$/i);
+  if (coinMatch) {
+    return await handlePublicCoinOrder(supabase, coinMatch[1].trim(), senderPhone);
   }
 
   // Check order status: CEK <short_id>
@@ -167,12 +178,16 @@ function handlePublicMenu(): string {
 🎬 Berikut perintah yang bisa kamu gunakan:
 
 📋 *SHOW* — Lihat daftar show yang tersedia
-🛒 *ORDER <nama/nomor show>* — Pesan tiket show
+🛒 *ORDER <nama/nomor>* — Pesan tiket show
+🪙 *KOIN* — Lihat paket koin tersedia
+💰 *BELI KOIN <nomor>* — Beli paket koin
 📊 *CEK <ID order>* — Cek status pesanan kamu
 
 💡 *Contoh:*
 • Ketik *SHOW* untuk lihat jadwal
 • Ketik *ORDER 1* untuk pesan show nomor 1
+• Ketik *KOIN* untuk lihat paket koin
+• Ketik *BELI KOIN 1* untuk beli paket koin nomor 1
 • Ketik *CEK s12* untuk cek status order
 
 🌐 Website: realtime48show.my.id`;
