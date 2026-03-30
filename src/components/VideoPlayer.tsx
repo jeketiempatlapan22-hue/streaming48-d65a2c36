@@ -607,7 +607,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {playlistType === "youtube" && ytFallback && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full [&_iframe]:pointer-events-none" />
+          <div ref={ytFallbackContainerRef} className="absolute inset-0 w-full h-full" />
           {/* Full blocking overlay for fallback iframe */}
           <div
             className="absolute inset-0 z-10 cursor-pointer"
