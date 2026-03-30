@@ -1202,8 +1202,8 @@ async function sendFonnteMessage(token: string, target: string, message: string,
   if (!cleanPhone) return;
   try {
     if (imageUrl) {
-      // Send image with caption - Fonnte requires separate image send
-      await fetch('https://api.fonnte.com/send', {
+      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl });
+      const imgRes = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: {
           Authorization: token,
@@ -1216,6 +1216,8 @@ async function sendFonnteMessage(token: string, target: string, message: string,
           type: 'image',
         }),
       });
+      const imgResText = await imgRes.text();
+      console.log('Fonnte image response:', imgRes.status, imgResText);
     } else {
       // Text only
       await fetch('https://api.fonnte.com/send', {
