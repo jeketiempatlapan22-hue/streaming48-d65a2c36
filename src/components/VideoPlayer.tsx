@@ -426,7 +426,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if ((window as any).YT?.Player) { clearInterval(check); createYTPlayer(); }
       }, 200);
       (window as any).onYouTubeIframeAPIReady = () => { clearInterval(check); if (!destroyed) createYTPlayer(); };
-      setTimeout(() => clearInterval(check), 3500);
+      setTimeout(() => clearInterval(check), 10000);
     };
 
     loadYTApi();
