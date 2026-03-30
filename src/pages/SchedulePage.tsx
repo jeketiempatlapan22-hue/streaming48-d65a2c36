@@ -446,7 +446,7 @@ const SchedulePage = () => {
             )}
 
             {/* Regular show: Done */}
-            {!selectedShow.is_subscription && purchaseStep === "done" && (
+            {!useDynamicQris && !selectedShow.is_subscription && purchaseStep === "done" && (
               <div className="space-y-4 text-center">
                 <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
                 <h4 className="text-lg font-bold text-foreground">Pesanan Terkirim!</h4>
