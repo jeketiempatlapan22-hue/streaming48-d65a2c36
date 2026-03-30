@@ -5,7 +5,7 @@ import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { withTimeout, cachedQuery, fetchCachedEndpoint } from "@/lib/queryCache";
-import { Coins, Upload, CheckCircle, ArrowLeft, Ticket, Copy, Sparkles } from "lucide-react";
+import { Coins, Upload, CheckCircle, ArrowLeft, Ticket, Copy, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -33,8 +33,19 @@ const CoinShop = () => {
   const [redeemingShow, setRedeemingShow] = useState<string | null>(null);
   const [redeemResult, setRedeemResult] = useState<{ token_code: string; remaining_balance: number; access_password?: string } | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [useDynamicQris, setUseDynamicQris] = useState(false);
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Load QR component
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,10 +71,17 @@ const CoinShop = () => {
         if (cancelled) return;
         setUsername(profileRes?.data?.username || "User");
 
+        // Check if dynamic QRIS is enabled
+        const { data: settingsData } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "use_dynamic_qris")
+          .maybeSingle();
+        if (settingsData?.value === "true") setUseDynamicQris(true);
+
         await fetchData(session.user.id);
       } catch {
         if (!cancelled) {
-          // Don't redirect on timeout — show content with retry instead
           setLoading(false);
         }
       } finally {
@@ -91,8 +109,28 @@ const CoinShop = () => {
     return () => { supabase.removeChannel(balCh); supabase.removeChannel(txCh); };
   }, [user]);
 
+  // Poll dynamic QRIS payment status for coin orders
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("coin_orders")
+        .select("status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && data.status === "confirmed") {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast({ title: "✅ Pembayaran koin berhasil dikonfirmasi!" });
+        setTimeout(() => {
+          setPurchaseStep("done");
+        }, 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
+
   const fetchData = async (userId: string) => {
-    // Use cached shows from edge function instead of direct RPC
     const cachedShows = fetchCachedEndpoint("shows").catch(() => null);
 
     const [balRes, pkgRes, txRes, showsRes] = await Promise.allSettled([
@@ -106,19 +144,64 @@ const CoinShop = () => {
     setPackages(pkgRes.status === "fulfilled" ? (pkgRes.value.data || []) : []);
     setTransactions(txRes.status === "fulfilled" ? (txRes.value.data || []) : []);
 
-    // Shows from edge function cache or fallback
     let showsData: any[] | null = null;
     if (showsRes.status === "fulfilled" && Array.isArray(showsRes.value)) {
       showsData = showsRes.value;
     } else {
-      // Fallback to direct RPC
       const { data } = await supabase.rpc("get_public_shows");
       showsData = data as any[] | null;
     }
     setShows((showsData || []).filter((s: any) => s.coin_price > 0 && s.is_active));
   };
 
-  const handleBuyPackage = (pkg: CoinPackage) => { setSelectedPkg(pkg); setPurchaseStep("phone"); setBuyerPhone(""); };
+  const handleBuyPackage = (pkg: CoinPackage) => {
+    setSelectedPkg(pkg);
+    setPurchaseStep("phone");
+    setBuyerPhone("");
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicPaid(false);
+    setDynamicLoading(false);
+  };
+
+  const handleStartDynamicQris = async () => {
+    if (!selectedPkg || !user) return;
+    setDynamicLoading(true);
+    setPurchaseStep("qris");
+
+    try {
+      const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, "")) || 0;
+      if (priceNum <= 0) {
+        toast({ title: "Harga tidak valid", variant: "destructive" });
+        setDynamicLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: {
+          order_type: "coin",
+          amount: priceNum,
+          phone: buyerPhone.replace(/^0/, "62").replace(/[^0-9]/g, ""),
+          coin_amount: selectedPkg.coin_amount,
+          package_id: selectedPkg.id,
+        },
+      });
+
+      if (error || !data?.success) {
+        toast({ title: data?.error || "Gagal membuat QRIS", variant: "destructive" });
+        setPurchaseStep("phone");
+        setDynamicLoading(false);
+        return;
+      }
+
+      setDynamicQrString(data.qr_string);
+      setDynamicOrderId(data.order_id);
+    } catch (err: any) {
+      toast({ title: "Gagal membuat QRIS", description: err?.message, variant: "destructive" });
+      setPurchaseStep("phone");
+    }
+    setDynamicLoading(false);
+  };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
@@ -253,14 +336,60 @@ const CoinShop = () => {
       <Dialog open={!!selectedPkg && purchaseStep !== "done"} onOpenChange={() => setSelectedPkg(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Beli {selectedPkg?.coin_amount} Koin</DialogTitle><DialogDescription>{selectedPkg?.price}</DialogDescription></DialogHeader>
+
           {purchaseStep === "phone" && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">Masukkan nomor WhatsApp untuk notifikasi status order</p>
               <Input type="tel" placeholder="08xxxxxxxxxx" value={buyerPhone} onChange={(e) => setBuyerPhone(e.target.value)} />
-              <Button className="w-full" disabled={!buyerPhone.trim() || buyerPhone.trim().length < 10} onClick={() => setPurchaseStep("qris")}>Lanjut →</Button>
+              <Button
+                className="w-full"
+                disabled={!buyerPhone.trim() || buyerPhone.trim().length < 10}
+                onClick={() => {
+                  if (useDynamicQris) {
+                    handleStartDynamicQris();
+                  } else {
+                    setPurchaseStep("qris");
+                  }
+                }}
+              >
+                Lanjut →
+              </Button>
             </div>
           )}
-          {purchaseStep === "qris" && (
+
+          {purchaseStep === "qris" && useDynamicQris && (
+            <div className="space-y-3">
+              {dynamicLoading ? (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+                </div>
+              ) : dynamicPaid ? (
+                <div className="space-y-3 text-center py-4">
+                  <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                  <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
+                  <p className="text-sm text-muted-foreground">Koin sedang ditambahkan ke akun Anda...</p>
+                </div>
+              ) : dynamicQrString && QRCodeSVG ? (
+                <>
+                  <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
+                  <div className="flex justify-center rounded-lg border border-border bg-white p-4">
+                    <QRCodeSVG value={dynamicQrString} size={240} level="M" />
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Menunggu pembayaran...
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                  QRIS gagal dimuat. Coba lagi.
+                </div>
+              )}
+            </div>
+          )}
+
+          {purchaseStep === "qris" && !useDynamicQris && (
             <div className="space-y-3">
               {selectedPkg?.qris_image_url ? (
                 <img src={selectedPkg.qris_image_url} alt="QRIS" className="mx-auto w-64 rounded-lg" />
@@ -271,6 +400,7 @@ const CoinShop = () => {
               <Button className="w-full" onClick={() => setPurchaseStep("upload")} disabled={!selectedPkg?.qris_image_url}>✅ Sudah Bayar → Upload Bukti</Button>
             </div>
           )}
+
           {purchaseStep === "upload" && (
             <div className="space-y-3">
               <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e: any) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
@@ -288,9 +418,15 @@ const CoinShop = () => {
         <DialogContent className="max-w-sm">
           <div className="space-y-3 text-center py-4">
             <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
-            <p className="font-semibold text-foreground">Order Terkirim!</p>
-            <p className="text-sm text-muted-foreground">Koin akan ditambahkan setelah admin konfirmasi.</p>
-            <Button className="w-full" onClick={() => { setSelectedPkg(null); setPurchaseStep("phone"); }}>Tutup</Button>
+            <p className="font-semibold text-foreground">
+              {dynamicPaid ? "Pembayaran Berhasil!" : "Order Terkirim!"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {dynamicPaid
+                ? "Koin telah ditambahkan ke akun Anda secara otomatis."
+                : "Koin akan ditambahkan setelah admin konfirmasi."}
+            </p>
+            <Button className="w-full" onClick={() => { setSelectedPkg(null); setPurchaseStep("phone"); setDynamicPaid(false); }}>Tutup</Button>
           </div>
         </DialogContent>
       </Dialog>
