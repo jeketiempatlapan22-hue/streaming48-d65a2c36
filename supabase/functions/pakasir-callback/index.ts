@@ -158,10 +158,10 @@ serve(async (req) => {
       const FONNTE_API_TOKEN = Deno.env.get("FONNTE_API_TOKEN");
       if (FONNTE_API_TOKEN && subOrder.phone) {
         const tokenCode = (confirmResult as any)?.token_code;
-        const baseUrl = Deno.env.get("SUPABASE_URL")?.replace(".supabase.co", ".lovable.app") || "";
+        const siteUrl = "realtime48show.my.id";
         let waMessage = `✅ Pembayaran berhasil!\n\n🎭 ${show?.title || "Show"}\n`;
         if (tokenCode) {
-          waMessage += `\n🎫 Token akses: ${tokenCode}\n🔗 Link: ${baseUrl}/live?t=${tokenCode}`;
+          waMessage += `\n🎫 Token akses: ${tokenCode}\n🔗 Link: https://${siteUrl}/live?t=${tokenCode}`;
         }
         waMessage += `\n\nTerima kasih telah membeli! 🙏`;
 
