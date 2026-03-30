@@ -68,7 +68,20 @@ Deno.serve(async (req) => {
 
     // Normalize phone number
     const cleanSender = sender.replace(/[^0-9]/g, '');
+    const rawText = message.trim();
 
+    // ========== PUBLIC COMMANDS (any sender) ==========
+    const publicResponse = await processPublicCommand(supabase, rawText, cleanSender, FONNTE_TOKEN);
+    if (publicResponse !== null) {
+      await sendFonnteMessage(FONNTE_TOKEN, sender, publicResponse);
+      // Notify admin about public orders
+      if (/^(ORDER|PESAN)\s/i.test(rawText)) {
+        await notifyTelegram(`[PUBLIC] ${cleanSender}: ${rawText}`, publicResponse);
+      }
+      return jsonResponse({ ok: true, processed: true, type: 'public' });
+    }
+
+    // ========== ADMIN COMMANDS (whitelisted senders only) ==========
     // Check if sender is authorized (admin chat ID or whitelisted number)
     const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID') || '';
     const { data: whitelistSetting } = await supabase
@@ -99,8 +112,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
     }
 
-    // Process command
-    const rawText = message.trim();
     const response = await processCommand(supabase, rawText);
 
     if (response) {
