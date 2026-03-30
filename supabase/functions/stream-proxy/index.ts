@@ -57,10 +57,43 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 // In-memory cache
 const M3U8_CACHE_TTL_MS = 3000;
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
+const SETTINGS_CACHE_TTL_MS = 300000; // 5 min
 
 interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
+
+// Domain masking cache
+let proxyDomainCache: { domain: string | null; cachedAt: number } | null = null;
+
+async function getProxyDomain(): Promise<string | null> {
+  if (proxyDomainCache && Date.now() - proxyDomainCache.cachedAt < SETTINGS_CACHE_TTL_MS) {
+    return proxyDomainCache.domain;
+  }
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data } = await supabase.from("site_settings").select("value").eq("key", "stream_proxy_domain").maybeSingle();
+  const domain = data?.value && data.value.trim() !== "" ? data.value.trim() : null;
+  proxyDomainCache = { domain, cachedAt: Date.now() };
+  return domain;
+}
+
+// Replace origin domain in URL with proxy domain
+function maskDomain(originalUrl: string, proxyDomain: string): string {
+  try {
+    const parsed = new URL(originalUrl);
+    // proxyDomain could be "cdn.example.com" or "https://cdn.example.com"
+    if (proxyDomain.startsWith("http")) {
+      const proxyParsed = new URL(proxyDomain);
+      parsed.protocol = proxyParsed.protocol;
+      parsed.host = proxyParsed.host;
+    } else {
+      parsed.host = proxyDomain;
+    }
+    return parsed.toString();
+  } catch {
+    return originalUrl;
+  }
+}
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
@@ -447,7 +480,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // MODE: seg (GET) - full proxy for TS segments (hides origin domain 100%)
+    // MODE: seg (GET) - 302 redirect for TS segments with domain masking
     if (req.method === "GET" && mode === "seg") {
       const encoded = url.searchParams.get("u");
       const exp = url.searchParams.get("exp");
@@ -471,27 +504,18 @@ Deno.serve(async (req) => {
 
       const actualUrl = base64UrlDecode(encoded);
 
-      // Full proxy — fetch segment and stream it back, hiding origin completely
-      try {
-        const segResponse = await fetch(actualUrl, {
-          headers: { "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)" },
-        });
-        if (!segResponse.ok) {
-          return new Response("Segment fetch failed", { status: 502, headers: corsHeaders });
-        }
-        const contentType = segResponse.headers.get("Content-Type") || "video/mp2t";
-        return new Response(segResponse.body, {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": contentType,
-            "Cache-Control": "public, max-age=5",
-            "Access-Control-Expose-Headers": "Content-Type",
-          },
-        });
-      } catch {
-        return new Response("Segment proxy error", { status: 502, headers: corsHeaders });
-      }
+      // Apply domain masking if configured
+      const proxyDomain = await getProxyDomain();
+      const redirectUrl = proxyDomain ? maskDomain(actualUrl, proxyDomain) : actualUrl;
+
+      return new Response(null, {
+        status: 302,
+        headers: {
+          ...corsHeaders,
+          "Location": redirectUrl,
+          "Cache-Control": "private, no-store, no-cache",
+        },
+      });
     }
 
     // MODE: yt (GET) - YouTube embed proxy
