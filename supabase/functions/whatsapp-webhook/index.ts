@@ -433,7 +433,7 @@ async function handlePublicCoinList(supabase: any): Promise<string> {
   }
 }
 
-async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhone: string): Promise<string> {
+async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhone: string): Promise<{ text: string; imageUrl?: string }> {
   try {
     const { data: qrisSetting } = await supabase
       .from('site_settings')
@@ -467,11 +467,11 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
       pkg = packages?.[0];
     }
 
-    if (!pkg) return `⚠️ Paket koin "${pkgInput}" tidak ditemukan.\n\nKetik *KOIN* untuk lihat daftar paket.`;
+    if (!pkg) return { text: `⚠️ Paket koin "${pkgInput}" tidak ditemukan.\n\nKetik *KOIN* untuk lihat daftar paket.` };
 
     const priceNum = parseInt(String(pkg.price).replace(/[^0-9]/g, ''), 10);
     if (!priceNum || priceNum <= 0) {
-      return `⚠️ Harga paket *${pkg.name}* belum dikonfigurasi.`;
+      return { text: `⚠️ Harga paket *${pkg.name}* belum dikonfigurasi.` };
     }
 
     let phone = senderPhone;
@@ -501,7 +501,7 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
     }
 
     if (!userId) {
-      return `⚠️ Untuk membeli koin, kamu perlu login terlebih dahulu di website.\n\n🌐 Daftar/login di: realtime48show.my.id\n\nSetelah punya akun, coba pesan lagi dari nomor WA yang sama.`;
+      return { text: `⚠️ Untuk membeli koin, kamu perlu login terlebih dahulu di website.\n\n🌐 Daftar/login di: realtime48show.my.id\n\nSetelah punya akun, coba pesan lagi dari nomor WA yang sama.` };
     }
 
     const { data: orderData, error: orderErr } = await supabase
@@ -517,7 +517,7 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
       .select('id, short_id')
       .single();
 
-    if (orderErr) return `⚠️ Gagal membuat pesanan: ${orderErr.message}`;
+    if (orderErr) return { text: `⚠️ Gagal membuat pesanan: ${orderErr.message}` };
 
     const shortId = orderData.short_id || orderData.id.substring(0, 8);
 
@@ -540,26 +540,17 @@ async function handlePublicCoinOrder(supabase: any, pkgInput: string, senderPhon
           const pakasirData = await pakasirRes.json();
 
           if (pakasirRes.ok && pakasirData.qr_string) {
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pakasirData.qr_string)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(pakasirData.qr_string)}`;
 
             await notifyTelegram(
               `[COIN ORDER WA] ${phone}`,
               `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
             );
 
-            return `✅ *Pesanan Koin Berhasil Dibuat!*
-
-🪙 Paket: *${pkg.name}*
-💰 Harga: *${pkg.price}*
-🎁 Dapat: *${pkg.coin_amount} koin*
-🆔 ID Order: *${shortId}*
-
-📱 *Scan QRIS di bawah untuk bayar:*
-${qrImageUrl}
-
-⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+            return {
+              text: `✅ *Pesanan Koin Berhasil Dibuat!*\n\n🪙 Paket: *${pkg.name}*\n💰 Harga: *${pkg.price}*\n🎁 Dapat: *${pkg.coin_amount} koin*\n🆔 ID Order: *${shortId}*\n\n📱 *Scan QRIS di atas untuk bayar*\n\n⏰ Setelah pembayaran terverifikasi, koin otomatis masuk ke akun kamu.\n\n📊 Cek status: ketik *CEK ${shortId}*`,
+              imageUrl: qrImageUrl,
+            };
           }
         } catch (qrisErr) {
           console.warn('Dynamic QRIS error for WA coin order:', qrisErr);
@@ -577,16 +568,9 @@ ${qrImageUrl}
       `🪙 Order koin via WhatsApp!\n📦 ${pkg.name} (${pkg.coin_amount} koin)\n💰 ${pkg.price}\n📱 ${phone}\n🆔 ${shortId}`
     );
 
-    return `✅ *Pesanan Koin Berhasil Dibuat!*
-
-🪙 Paket: *${pkg.name}*
-💰 Harga: *${pkg.price}*
-🎁 Dapat: *${pkg.coin_amount} koin*
-🆔 ID Order: *${shortId}*${qrisInfo}
-
-📊 Cek status: ketik *CEK ${shortId}*`;
+    return { text: `✅ *Pesanan Koin Berhasil Dibuat!*\n\n🪙 Paket: *${pkg.name}*\n💰 Harga: *${pkg.price}*\n🎁 Dapat: *${pkg.coin_amount} koin*\n🆔 ID Order: *${shortId}*${qrisInfo}\n\n📊 Cek status: ketik *CEK ${shortId}*` };
   } catch (e) {
-    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+    return { text: `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}` };
   }
 }
 
