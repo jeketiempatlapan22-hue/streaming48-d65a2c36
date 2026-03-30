@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
-import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle } from "lucide-react";
+import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Show } from "@/types/show";

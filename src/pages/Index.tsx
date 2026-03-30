@@ -66,6 +66,13 @@ const Index = () => {
   const [orderShortId, setOrderShortId] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  // Dynamic QRIS state
+  const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "done">("phone");
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
 
   // Coin & purchase state from DB + localStorage
   const {
