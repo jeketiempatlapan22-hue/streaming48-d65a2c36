@@ -1197,12 +1197,34 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
   return [...phones].filter(Boolean);
 }
 
+async function uploadQrToStorage(supabase: any, qrData: string, filename: string): Promise<string | null> {
+  try {
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}`;
+    const imgRes = await fetch(qrApiUrl);
+    if (!imgRes.ok) { console.warn('QR server fetch failed:', imgRes.status); return null; }
+    const imgBlob = await imgRes.blob();
+    const imgBuffer = new Uint8Array(await imgBlob.arrayBuffer());
+
+    const path = `qris/${filename}.png`;
+    const { error: upErr } = await supabase.storage
+      .from('admin-media')
+      .upload(path, imgBuffer, { contentType: 'image/png', upsert: true });
+    if (upErr) { console.warn('Storage upload error:', upErr.message); return null; }
+
+    const { data: pubUrl } = supabase.storage.from('admin-media').getPublicUrl(path);
+    return pubUrl?.publicUrl || null;
+  } catch (e) {
+    console.warn('uploadQrToStorage error:', e);
+    return null;
+  }
+}
+
 async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
   const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
   if (!cleanPhone) return;
   try {
     if (imageUrl) {
-      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl });
+      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 100) + '...' });
       const imgRes = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: {
@@ -1219,7 +1241,6 @@ async function sendFonnteMessage(token: string, target: string, message: string,
       const imgResText = await imgRes.text();
       console.log('Fonnte image response:', imgRes.status, imgResText);
     } else {
-      // Text only
       await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: {
