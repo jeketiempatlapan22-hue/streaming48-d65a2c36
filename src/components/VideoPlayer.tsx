@@ -386,7 +386,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 const iframe = container.querySelector("iframe");
                 if (iframe) {
                   iframe.removeAttribute("title");
-                  iframe.style.pointerEvents = "none";
                   iframe.setAttribute("tabindex", "-1");
                   iframe.setAttribute("aria-hidden", "true");
                 }
