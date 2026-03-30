@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     if (publicResponse !== null) {
       await sendFonnteMessage(FONNTE_TOKEN, sender, publicResponse);
       // Notify admin about public orders
-      if (/^(ORDER|PESAN)\s/i.test(rawText)) {
+      if (/^(ORDER|PESAN|BELI)\s/i.test(rawText)) {
         await notifyTelegram(`[PUBLIC] ${cleanSender}: ${rawText}`, publicResponse);
       }
       return jsonResponse({ ok: true, processed: true, type: 'public' });
