@@ -126,6 +126,30 @@ const Index = () => {
     }, 300);
   };
 
+  // Load QR component for dynamic QRIS
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
+
+  // Poll dynamic QRIS payment status
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("subscription_orders")
+        .select("payment_status, status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast.success("✅ Pembayaran berhasil dikonfirmasi!");
+        setTimeout(() => setDynamicQrisStep("done"), 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
+
   useEffect(() => {
     fetchData();
 
