@@ -51,6 +51,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const playlistUrl = playlist.url;
   const playlistType = playlist.type;
 
+  // Global loading timeout — never stay stuck on loading for more than 12s
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => {
+      console.warn("[VideoPlayer] Global loading timeout reached, forcing load complete");
+      setIsLoading(false);
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [isLoading, playlistUrl]);
+
   const isYTReady = useCallback(() => {
     const p = ytPlayerRef.current;
     return p && ytReadyRef.current && typeof p.getPlayerState === "function" && typeof p.playVideo === "function";
@@ -377,8 +387,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     ytFallbackTimerRef.current = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
+      console.warn("[YT] API timeout, using fallback iframe");
       setYtFallback(true); setIsLoading(false); setIsPlaying(autoPlay);
-    }, 10000);
+    }, 6000);
 
     const createYTPlayer = () => {
       if (destroyed || ytFallback) return;
@@ -737,14 +748,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
         {qualities.length > 0 && (
           <div className="relative">
-            <button onClick={e => { e.stopPropagation(); setShowQualityMenu(prev => !prev); }} className="flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-1 text-xs text-secondary-foreground backdrop-blur-sm transition hover:bg-secondary">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+            <button onClick={e => { e.stopPropagation(); setShowQualityMenu(prev => !prev); }} className="flex h-10 items-center gap-1.5 rounded-full bg-primary/80 px-4 py-2 text-sm font-semibold text-primary-foreground backdrop-blur-sm transition hover:bg-primary shadow-lg">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               {qualities.find(q => q.index === currentQuality)?.label || "Auto"}
             </button>
             {showQualityMenu && (
-              <div className="absolute bottom-full right-0 mb-2 rounded-lg bg-card/95 border border-border p-1 shadow-xl backdrop-blur-md min-w-[100px]">
+              <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-card border-2 border-primary/30 p-1.5 shadow-2xl backdrop-blur-md min-w-[120px]">
                 {qualities.map(q => (
-                  <button key={q.index} onClick={e => { e.stopPropagation(); handleQualityChange(q.index, q.ytKey); }} className={`block w-full rounded-md px-3 py-1.5 text-left text-xs transition ${currentQuality === q.index ? "bg-primary text-primary-foreground font-semibold" : "text-foreground hover:bg-secondary"}`}>
+                  <button key={q.index} onClick={e => { e.stopPropagation(); handleQualityChange(q.index, q.ytKey); }} className={`block w-full rounded-lg px-4 py-2.5 text-left text-sm font-medium transition ${currentQuality === q.index ? "bg-primary text-primary-foreground font-bold" : "text-foreground hover:bg-secondary"}`}>
                     {q.label}
                   </button>
                 ))}
