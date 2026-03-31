@@ -1402,12 +1402,11 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     const cleanInput = showInput.replace(/^#/, '').trim();
     const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
     const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+    let show: any = null;
 
     if (isHexId) {
       const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password');
-      // Try exact full UUID match first
       show = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-      // Then try prefix match
       if (!show && hexOnly.length >= 6) {
         const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
         if (prefixMatches.length === 1) show = prefixMatches[0];
@@ -1419,10 +1418,8 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
-    // Generate token code
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 
-    // Calculate expiry
     let expiresAt: string | null = null;
     if (show.schedule_date && show.schedule_time) {
       const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
@@ -1445,10 +1442,23 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
     if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
 
-    const last4 = code.slice(-4);
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLink = `realtime48show.my.id/live?t=${code}`;
 
-    return `✅ *Token Berhasil Dibuat!*\n\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n🔢 4 Digit: ${last4}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
+
+    if (show.access_password) {
+      msg += `\n\n🔐 *Sandi Akses:* ${show.access_password}`;
+    }
+
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+    if (show.access_password) {
+      msg += `\n🔐 Sandi Replay: ${show.access_password}`;
+    }
+    msg += `\n━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
@@ -1458,7 +1468,6 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
   try {
     if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
 
-    // Find user by username
     const { data: profiles } = await supabase.from('profiles').select('id, username').ilike('username', usernameInput).limit(5);
     if (!profiles || profiles.length === 0) return `⚠️ User "${usernameInput}" tidak ditemukan`;
     const profile = profiles.find((p: any) => p.username?.toLowerCase() === usernameInput.toLowerCase()) || profiles[0];
@@ -1482,10 +1491,8 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
-    // Generate token
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 
-    // Calculate expiry
     let expiresAt: string | null = null;
     if (show.schedule_date && show.schedule_time) {
       const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
@@ -1510,8 +1517,22 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLink = `realtime48show.my.id/live?t=${code}`;
 
-    return `✅ *Token Diberikan ke User!*\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n🔑 Kode: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n💡 Link: realtime48show.my.id/live?t=${code}`;
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
+
+    if (show.access_password) {
+      msg += `\n\n🔐 *Sandi Akses:* ${show.access_password}`;
+    }
+
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+    if (show.access_password) {
+      msg += `\n🔐 Sandi Replay: ${show.access_password}`;
+    }
+    msg += `\n━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
