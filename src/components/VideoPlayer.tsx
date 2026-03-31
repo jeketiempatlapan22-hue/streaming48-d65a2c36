@@ -22,7 +22,6 @@ export interface VideoPlayerHandle {
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [qualities, setQualities] = useState<{ label: string; value: number }[]>([]);
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
@@ -80,7 +79,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     play: () => {
       if (playlistType === "youtube") {
         if (ytMode === "iframe") return;
-        if (isYTReady()) { ytPlayerRef.current.playVideo(); }
+        if (isYTReady()) ytPlayerRef.current.playVideo();
       } else if (videoRef.current) {
         videoRef.current.play().catch(() => {});
       }
@@ -121,7 +120,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   // ══════════════════════════════════════════
   //  HLS / M3U8 — SINGLE SOURCE OF TRUTH
-  //  One effect owns the ENTIRE lifecycle
   // ══════════════════════════════════════════
 
   useEffect(() => {
@@ -129,45 +127,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const video = videoRef.current;
     let mounted = true;
 
-    // 1. Full reset
+    // Full reset
     cancelAnimationFrame(rafRef.current);
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     video.pause();
     video.removeAttribute("src");
     video.load();
-    setIsLoading(true);
     setIsPlaying(false);
     setQualities([]);
     setSelectedQuality(-1);
     setIsBehindLive(false);
 
-    // 2. UI state driven ONLY by native video events
-    const done = () => { if (mounted) setIsLoading(false); };
-    const onPlay = () => { if (mounted) { setIsPlaying(true); setIsLoading(false); } };
+    // UI state from native events only
+    const onPlay = () => { if (mounted) setIsPlaying(true); };
     const onPause = () => { if (mounted) setIsPlaying(false); };
-
-    // Only these events clear loading — NO waiting/stalled/seeking to avoid flicker
-    ["loadeddata", "canplay", "playing"].forEach(e => video.addEventListener(e, done));
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
 
-    // 3. ReadyState polling — catches cases where events don't fire
-    const pollId = window.setInterval(() => {
-      if (!mounted) return;
-      if (video.readyState >= 2) done();
-    }, 300);
-
-    // 4. Hard timeout — absolute last resort (6s)
-    const hardTimeout = window.setTimeout(done, 6000);
-
-    // 5. Initialize HLS
     const initHls = async () => {
       const HlsModule = await import("hls.js");
       const Hls = HlsModule.default;
       if (!mounted) return;
 
       if (!Hls.isSupported()) {
-        // Safari native HLS
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = playlistUrl;
           video.addEventListener("loadedmetadata", () => video.play().catch(() => {}), { once: true });
@@ -194,14 +176,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
       hlsRef.current = hls;
 
-      // Levels + autoplay
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      const syncLevels = () => {
         if (!mounted) return;
-        const levels = hls.levels.map((l: any, i: number) => ({
-          label: `${l.height || 0}p`,
-          value: i,
-        }));
+        const levels = hls.levels.map((l: any, i: number) => ({ label: `${l.height || 0}p`, value: i }));
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
+      };
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        syncLevels();
         video.play().catch(() => {});
       });
 
@@ -209,7 +191,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if (mounted) setSelectedQuality(d.level);
       });
 
-      // Error recovery
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (!mounted) return;
         if (data.fatal) {
@@ -222,7 +203,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
-      // CRITICAL ORDER: attach first, then load after MEDIA_ATTACHED
+      // CRITICAL: attach first, load after MEDIA_ATTACHED
       hls.attachMedia(video);
       hls.once(Hls.Events.MEDIA_ATTACHED, () => {
         if (!mounted) return;
@@ -258,7 +239,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if (video.readyState < 3) hlsRef.current.startLoad();
       }, 15000);
 
-      // Patch destroy for cleanup
+      // Patch destroy
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
@@ -272,10 +253,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     return () => {
       mounted = false;
-      window.clearTimeout(hardTimeout);
-      window.clearInterval(pollId);
       cancelAnimationFrame(rafRef.current);
-      ["loadeddata", "canplay", "playing"].forEach(e => video.removeEventListener(e, done));
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
@@ -290,8 +268,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     if (playlistType !== "youtube" || !playlistUrl) return;
     let destroyed = false;
 
-    // Reset state
-    setIsLoading(true);
     setIsPlaying(false);
     setQualities([]);
     setSelectedQuality(-1);
@@ -302,21 +278,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const videoId = youtubeId(playlistUrl);
     if (!videoId || videoId.length < 5) {
       console.error("[YT] Could not extract video ID from:", playlistUrl);
-      setIsLoading(false);
       return;
     }
 
     const fallbackTimer = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
       setYtMode("iframe");
-      setIsLoading(false);
       setIsPlaying(autoPlay);
     }, 6000);
 
     const createPlayer = () => {
       if (destroyed) return;
       const container = ytContainerRef.current;
-      if (!container) { setYtMode("iframe"); setIsLoading(false); return; }
+      if (!container) { setYtMode("iframe"); return; }
       container.innerHTML = "";
       const div = document.createElement("div");
       div.id = `yt_${Math.random().toString(36).slice(2, 8)}`;
@@ -338,7 +312,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               ytReadyRef.current = true;
               clearTimeout(fallbackTimer);
               setYtMode("api");
-              setIsLoading(false);
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
@@ -349,18 +322,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             onStateChange: (e: any) => {
               if (destroyed) return;
               setIsPlaying(e.data === 1);
-              setIsLoading(e.data === 3);
             },
             onError: () => {
               if (destroyed) return;
               setYtMode("iframe");
-              setIsLoading(false);
             },
           },
         });
       } catch {
         setYtMode("iframe");
-        setIsLoading(false);
       }
     };
 
@@ -370,7 +340,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
         const tag = document.createElement("script");
         tag.src = "https://www.youtube.com/iframe_api";
-        tag.onerror = () => { if (!destroyed) { setYtMode("iframe"); setIsLoading(false); } };
+        tag.onerror = () => { if (!destroyed) setYtMode("iframe"); };
         document.head.appendChild(tag);
       }
       const check = setInterval(() => {
@@ -413,7 +383,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   useEffect(() => {
     if (playlistType !== "cloudflare" || !playlistUrl) return;
-    setIsLoading(true);
     setIsPlaying(false);
     setQualities([]);
     const container = cfContainerRef.current;
@@ -425,11 +394,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.allowFullscreen = true;
     iframe.setAttribute("playsinline", "");
     iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
-    iframe.addEventListener("load", () => setIsLoading(false), { once: true });
-    iframe.addEventListener("error", () => setIsLoading(false), { once: true });
     container.appendChild(iframe);
-    const t = setTimeout(() => setIsLoading(false), 8000);
-    return () => clearTimeout(t);
   }, [playlistType, playlistUrl]);
 
   // ── Control handlers ──
@@ -445,23 +410,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         else ytPlayerRef.current.playVideo();
       } catch {}
     } else if (playlistType === "cloudflare") {
-      // iframe has its own controls
+      // iframe controls
     } else {
       const v = videoRef.current;
       if (!v) return;
-      if (v.paused) v.play().catch(() => {});
-      else v.pause();
+      v.paused ? v.play().catch(() => {}) : v.pause();
     }
   }, [playlistType, ytMode, isYTReady]);
 
   const handleQualityChange = useCallback((level: number) => {
-    if (!hlsRef.current) return;
     const hls = hlsRef.current;
+    if (!hls) return;
     hls.currentLevel = level;
     hls.nextLevel = level;
     if (level === -1) {
       hls.currentLevel = -1;
-      // Re-enable ABR
       try { hls.autoLevelEnabled = true; } catch {}
     }
     setSelectedQuality(level);
@@ -536,28 +499,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   // ── Render ──
+  // NO LOADING OVERLAY — video element renders directly, no blur/skeleton blocking it
 
   return (
     <div
       ref={containerRef}
-      className={`relative w-full bg-card ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
+      className={`relative w-full bg-black ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
-      {/* Loading overlay */}
-      {isLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative">
-              <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-primary/30 border-t-primary" />
-              <svg className="absolute inset-0 m-auto h-5 w-5 text-primary" viewBox="0 0 24 24" fill="currentColor"><polygon points="9.5,7.5 16.5,12 9.5,16.5"/></svg>
-            </div>
-            <p className="text-sm text-muted-foreground animate-pulse">Menghubungkan...</p>
-          </div>
-        </div>
-      )}
-
       {/* YouTube API player */}
       {playlistType === "youtube" && ytMode !== "iframe" && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
@@ -578,12 +529,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
-      {/* HLS / M3U8 video element */}
+      {/* HLS / M3U8 video element — NO overlay, direct rendering */}
       {playlistType === "m3u8" && (
         <video
           ref={videoRef}
           onClick={handlePlayPause}
-          className={`h-full w-full object-contain cursor-pointer ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
+          className={`h-full w-full object-contain cursor-pointer bg-black ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
           // @ts-ignore
           webkit-playsinline=""
@@ -607,7 +558,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {/* Controls bar */}
       <div
-        className={`absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 bg-gradient-to-t from-background/80 to-transparent p-3 transition-opacity ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`absolute inset-x-0 bottom-0 z-20 flex items-center gap-2 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         onContextMenu={e => e.preventDefault()}
       >
         {/* Play/Pause */}
@@ -621,7 +572,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
         {/* YT Mute toggle */}
         {playlistType === "youtube" && ytMode === "api" && (
-          <button onClick={toggleYtMute} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground backdrop-blur-sm transition hover:bg-secondary" title={ytMuted ? "Unmute" : "Mute"}>
+          <button onClick={toggleYtMute} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title={ytMuted ? "Unmute" : "Mute"}>
             {ytMuted ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
             ) : (
@@ -633,7 +584,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         {/* LIVE sync button */}
         <button
           onClick={syncToLive}
-          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${isBehindLive ? "bg-destructive/90 text-destructive-foreground animate-pulse hover:bg-destructive" : "bg-secondary/80 text-secondary-foreground hover:bg-secondary"}`}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${isBehindLive ? "bg-red-600 text-white animate-pulse hover:bg-red-700" : "bg-white/20 text-white hover:bg-white/30"}`}
           title="Sync ke Live"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
@@ -647,13 +598,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           <div className="relative">
             <button
               onClick={e => { e.stopPropagation(); setShowQualityMenu(prev => !prev); }}
-              className="flex h-10 items-center gap-1.5 rounded-full bg-primary/90 px-4 py-2 text-sm font-bold text-primary-foreground backdrop-blur-sm transition hover:bg-primary shadow-lg border border-primary-foreground/20"
+              className="flex h-10 items-center gap-1.5 rounded-full bg-primary/90 px-4 py-2 text-sm font-bold text-primary-foreground backdrop-blur-sm transition hover:bg-primary shadow-lg border border-white/20"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               {qualities.find(q => q.value === selectedQuality)?.label || "Auto"}
             </button>
             {showQualityMenu && (
-              <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-card border-2 border-primary/30 p-1.5 shadow-2xl backdrop-blur-md min-w-[130px]">
+              <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-black/90 border border-white/20 p-1.5 shadow-2xl backdrop-blur-md min-w-[130px]">
                 {qualities.map(q => (
                   <button
                     key={q.value}
@@ -661,7 +612,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                     className={`block w-full rounded-lg px-4 py-2.5 text-left text-sm font-medium transition ${
                       selectedQuality === q.value
                         ? "bg-primary text-primary-foreground font-bold"
-                        : "text-foreground hover:bg-secondary"
+                        : "text-white hover:bg-white/20"
                     }`}
                   >
                     {q.label}
@@ -674,12 +625,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         )}
 
         {/* Rotate */}
-        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground backdrop-blur-sm transition hover:bg-secondary" title="Rotate">
+        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title="Rotate">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
 
         {/* Fullscreen */}
-        <button onClick={toggleFullscreen} className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/80 text-secondary-foreground backdrop-blur-sm transition hover:bg-secondary" title="Fullscreen">
+        <button onClick={toggleFullscreen} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title="Fullscreen">
           {isFullscreen ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
           ) : (
