@@ -199,7 +199,7 @@ const ShowManager = () => {
                     <Copy className="mr-1 h-3 w-3" /> Salin Password
                   </Button>
                   <Button size="sm" className="flex-1 text-xs" onClick={() => {
-                    window.open(`https://replaytime.lovable.app`, "_blank");
+                    window.open(`https://realtime48stream.my.id/replay`, "_blank");
                   }}>
                     <ExternalLink className="mr-1 h-3 w-3" /> Tonton Replay
                   </Button>
