@@ -92,6 +92,26 @@ const ShowCard = ({
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
+  const [reminded, setReminded] = useState(() => hasReminder(show.id));
+
+  const handleReminder = async () => {
+    if (reminded) {
+      removeShowReminder(show.id);
+      setReminded(false);
+      toast.success("Pengingat dihapus");
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      toast.error("Izinkan notifikasi di browser untuk mengaktifkan pengingat");
+      return;
+    }
+    const target = parseShowDateTime(show.schedule_date, show.schedule_time);
+    if (!target) { toast.error("Jadwal show tidak tersedia"); return; }
+    addShowReminder(show.id, show.title, target);
+    setReminded(true);
+    toast.success("🔔 Pengingat diaktifkan! Kamu akan dinotifikasi 30 menit sebelum show.");
+  };
 
   return (
     <motion.div
