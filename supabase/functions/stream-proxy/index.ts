@@ -377,9 +377,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  // --- GLOBAL RATE LIMITS (stricter) ---
-  // 200 requests/min global per IP (was 600)
-  if (!edgeRateLimit(`global:${clientIp}`, 200, 60000)) {
+  // --- GLOBAL RATE LIMITS ---
+  // 500/min per IP — supports ~5 viewers on same WiFi/NAT
+  // HLS needs ~50-90 req/min per viewer (manifest + sub + segments)
+  if (!edgeRateLimit(`global:${clientIp}`, 500, 60000)) {
     const isStream = mode === "play" || mode === "sub" || mode === "seg";
     return getRateLimitResponse(isStream);
   }
