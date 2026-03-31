@@ -121,6 +121,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const [sending, setSending] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
   const [chatModUsernames, setChatModUsernames] = useState<Set<string>>(new Set());
+  const [chatEnabled, setChatEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
