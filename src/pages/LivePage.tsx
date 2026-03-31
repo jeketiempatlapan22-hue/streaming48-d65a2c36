@@ -270,12 +270,21 @@ const LivePage = () => {
     if (!tokenCode) return;
     const fpVal = getFingerprint();
     const releaseSession = () => {
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/release_token_session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ _token_code: tokenCode, _fingerprint: fpVal }),
-        keepalive: true,
-      }).catch(() => {});
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/release_token_session`;
+      const body = JSON.stringify({ _token_code: tokenCode, _fingerprint: fpVal });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      };
+      try {
+        fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+      } catch {
+        try {
+          const blob = new Blob([body], { type: "application/json" });
+          navigator.sendBeacon?.(`${url}?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
+        } catch {}
+      }
     };
     window.addEventListener("beforeunload", releaseSession);
     return () => {
@@ -286,7 +295,8 @@ const LivePage = () => {
   useEffect(() => {
     if (!tokenCode || !tokenData?.id || blocked) return;
     const fpVal = getFingerprint();
-    let retries = 0;
+    let consecutiveDeviceLimitErrors = 0;
+    const MAX_DEVICE_LIMIT_TOLERANCE = 3;
     const interval = window.setInterval(() => {
       void (async () => {
         try {
@@ -298,20 +308,33 @@ const LivePage = () => {
           const result = data as any;
           if (!result?.success) {
             const errorText = String(result?.error || "").toLowerCase();
-            if (errorText.includes("token") || errorText.includes("diblokir")) {
+            if (errorText.includes("diblokir")) {
               setBlocked(true);
               return;
             }
-            retries++;
+            if (errorText === "device_limit") {
+              consecutiveDeviceLimitErrors++;
+              // Auto-reset if within tolerance (covers refresh race conditions)
+              if (consecutiveDeviceLimitErrors <= MAX_DEVICE_LIMIT_TOLERANCE) {
+                console.warn(`[Session] device_limit hit ${consecutiveDeviceLimitErrors}/${MAX_DEVICE_LIMIT_TOLERANCE}, attempting self-reset...`);
+                try {
+                  await supabase.rpc("self_reset_token_session" as any, { _token_code: tokenCode, _fingerprint: fpVal });
+                } catch {}
+                return;
+              }
+              // Beyond tolerance, show error
+              setError("device_limit");
+              return;
+            }
+            // Other errors: don't kick, just log
             return;
           }
-          retries = 0;
+          consecutiveDeviceLimitErrors = 0;
         } catch {
-          retries++;
-          // Don't kick user on transient errors — allow up to 5 consecutive failures
+          // Transient network errors — never kick the user
         }
       })();
-    }, 120000);
+    }, 180_000); // 180s interval for reduced DB load at scale
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint, blocked]);
 

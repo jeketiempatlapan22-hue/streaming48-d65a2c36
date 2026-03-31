@@ -201,10 +201,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
         networkRetryCount = 0; // Reset on success
-        const levels = data.levels?.map((l: any, i: number) => ({
-          label: l.height ? `${l.height}p` : `Level ${i}`,
-          value: i,
-        })) || [];
+        // Deduplicate levels by height, keeping highest bitrate per resolution
+        const seen = new Map<string, { label: string; value: number; bitrate: number }>();
+        (data.levels || []).forEach((l: any, i: number) => {
+          const label = l.height ? `${l.height}p` : `Level ${i}`;
+          const existing = seen.get(label);
+          if (!existing || (l.bitrate || 0) > existing.bitrate) {
+            seen.set(label, { label, value: i, bitrate: l.bitrate || 0 });
+          }
+        });
+        const levels = Array.from(seen.values()).map(({ label, value }) => ({ label, value }));
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
         if (autoPlay) video.play().catch(() => {});
       });
