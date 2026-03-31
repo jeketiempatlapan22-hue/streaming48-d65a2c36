@@ -163,19 +163,14 @@ function handlePublicMenu(): string {
 🎬 Berikut perintah yang bisa kamu gunakan:
 
 📋 *SHOW* — Lihat daftar show yang tersedia
-🛒 *ORDER <nama/nomor>* — Pesan tiket show
-🪙 *KOIN* — Lihat paket koin tersedia
-💰 *BELI KOIN <nomor>* — Beli paket koin
 📊 *CEK <ID order>* — Cek status pesanan kamu
 
 💡 *Contoh:*
 • Ketik *SHOW* untuk lihat jadwal
-• Ketik *ORDER 1* untuk pesan show nomor 1
-• Ketik *KOIN* untuk lihat paket koin
-• Ketik *BELI KOIN 1* untuk beli paket koin nomor 1
 • Ketik *CEK s12* untuk cek status order
 
-🌐 Website: realtime48show.my.id`;
+🛒 Untuk pembelian show & koin, kunjungi:
+🌐 *realtime48show.my.id*`;
 }
 
 async function handlePublicShowList(supabase: any): Promise<string> {
