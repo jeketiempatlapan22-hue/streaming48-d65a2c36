@@ -113,7 +113,7 @@ const ViewerProfile = () => {
       </header>
       <div className="mx-auto max-w-lg px-4 py-6 space-y-5">
         {/* Profile Card */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border bg-card p-6">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl glass p-6">
           <div className="mb-5 flex flex-col items-center gap-3"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><User className="h-8 w-8 text-primary" /></div><p className="text-xs text-muted-foreground">{authUser?.email || ""}</p></div>
           <div className="space-y-3">
             <label className="block text-xs font-medium text-muted-foreground">Username</label>
