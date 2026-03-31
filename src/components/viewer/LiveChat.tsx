@@ -130,11 +130,24 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
   const isChatMod = chatModUsernames.has(username);
 
-  // Get current user id
+  // Get current user id + chat_enabled setting
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id || null);
     });
+    // Fetch chat_enabled setting
+    const fetchChatEnabled = async () => {
+      const { data } = await supabase.from("site_settings").select("value").eq("key", "chat_enabled").single();
+      if (data) setChatEnabled(data.value !== "false");
+    };
+    fetchChatEnabled();
+    // Listen for realtime changes to chat_enabled
+    const settingsCh = supabase.channel("chat-enabled-rt").on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
+      if (payload.new?.value !== undefined) {
+        setChatEnabled(payload.new.value !== "false");
+      }
+    }).subscribe();
+    return () => { supabase.removeChannel(settingsCh); };
   }, []);
 
   // Load chat moderators
