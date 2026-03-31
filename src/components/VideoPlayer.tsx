@@ -212,7 +212,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         });
         const levels = Array.from(seen.values()).map(({ label, value }) => ({ label, value }));
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
-        if (autoPlay) video.play().catch(() => {});
+        if (autoPlay) {
+          video.muted = true;
+          video.play().catch(() => {});
+          // Auto-unmute after 1.5s (same pattern as YouTube)
+          setTimeout(() => {
+            if (!destroyed && video) {
+              video.muted = false;
+            }
+          }, 1500);
+        }
       });
 
       hls.on(Hls.Events.FRAG_LOADED, () => {
@@ -333,6 +342,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   // ══════════════════════════════════════════
   const [ytMode, setYtMode] = useState<"loading" | "api" | "iframe">("loading");
   const ytContainerRef = useRef<HTMLDivElement>(null);
+  const ytBufferTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const ytQualityForcedRef = useRef(true);
 
   useEffect(() => {
     if (playlistType !== "youtube" || !playlistUrl) return;
@@ -396,6 +407,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               clearTimeout(fallbackTimer);
               setYtMode("api");
               setIsLoading(false);
+              // Force highest quality
+              try {
+                e.target.setPlaybackQualityRange?.("highres", "highres");
+                e.target.setPlaybackQuality?.("highres");
+              } catch {}
+              ytQualityForcedRef.current = true;
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
@@ -411,8 +428,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (destroyed) return;
               // YT states: -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
               setIsPlaying(e.data === 1);
-              if (e.data === 3) setIsLoading(true);
-              else if (e.data === 1) setIsLoading(false);
+              if (e.data === 3) {
+                setIsLoading(true);
+                // If buffering > 10s with forced quality, fall back to auto
+                if (ytQualityForcedRef.current) {
+                  clearTimeout(ytBufferTimerRef.current);
+                  ytBufferTimerRef.current = setTimeout(() => {
+                    if (!destroyed && ytReadyRef.current && ytPlayerRef.current) {
+                      try {
+                        ytPlayerRef.current.setPlaybackQualityRange?.("default", "default");
+                        ytPlayerRef.current.setPlaybackQuality?.("default");
+                      } catch {}
+                      ytQualityForcedRef.current = false;
+                    }
+                  }, 10000);
+                }
+              } else if (e.data === 1) {
+                setIsLoading(false);
+                clearTimeout(ytBufferTimerRef.current);
+              }
             },
             onError: (e: any) => {
               if (destroyed) return;
@@ -590,6 +624,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           onClick={handlePlayPause}
           className={`h-full w-full object-contain cursor-pointer bg-black ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
+          autoPlay
+          muted
           // @ts-ignore
           webkit-playsinline=""
           x-webkit-airplay="allow"
