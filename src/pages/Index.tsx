@@ -461,16 +461,6 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <LiveViewerCount isLive={isStreamLive} readOnly />
-
-            {!isStandalone && (
-              <button
-                onClick={handleInstallClick}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-primary-foreground hover:bg-primary/90 transition active:scale-[0.95] shadow-sm shadow-primary/20"
-              >
-                <Download className="h-4 w-4" />
-                <span className="text-xs font-bold">Install</span>
-              </button>
-            )}
             
             {!sheetOpen && coinUser && (
               <a href="/coins" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20" title="Coin Shop">
