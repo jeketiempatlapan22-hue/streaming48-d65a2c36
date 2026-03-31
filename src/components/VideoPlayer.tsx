@@ -29,24 +29,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [ytMuted, setYtMuted] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isBehindLive, setIsBehindLive] = useState(false);
-  const [ytMode, setYtMode] = useState<"api" | "iframe" | null>(null);
+  const [playerError, setPlayerError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const ytPlayerRef = useRef<any>(null);
   const ytReadyRef = useRef(false);
-  const ytContainerRef = useRef<HTMLDivElement>(null);
-  const ytFallbackRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const cfContainerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const rafRef = useRef(0);
 
   const playlistUrl = playlist.url;
   const playlistType = playlist.type;
 
-  // ── Helpers ──
-
+  // ── YouTube helpers ──
   const decryptUrl = useCallback((encoded: string): string => {
     if (!encoded.startsWith("enc:")) return encoded;
     const b64 = encoded.slice(4);
@@ -59,47 +54,44 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return new TextDecoder().decode(result);
   }, []);
 
-  const youtubeId = useCallback((url: string): string => {
+  const extractVideoId = useCallback((url: string): string => {
     const decrypted = decryptUrl(url);
-    return (decrypted.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/)?.[1] ?? decrypted).trim();
+    const match = decrypted.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/);
+    return (match?.[1] ?? decrypted).trim();
   }, [decryptUrl]);
 
-  const buildYtEmbedUrl = useCallback((videoId: string) => {
-    return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`;
-  }, []);
-
-  const isYTReady = useCallback(() => {
-    const p = ytPlayerRef.current;
-    return p && ytReadyRef.current && typeof p.getPlayerState === "function";
-  }, []);
-
   // ── Imperative Handle ──
-
   useImperativeHandle(ref, () => ({
     play: () => {
-      if (playlistType === "youtube") {
-        if (ytMode === "iframe") return;
-        if (isYTReady()) ytPlayerRef.current.playVideo();
+      if (playlistType === "youtube" && ytReadyRef.current && ytPlayerRef.current) {
+        try { ytPlayerRef.current.playVideo(); } catch {}
       } else if (videoRef.current) {
         videoRef.current.play().catch(() => {});
       }
     },
     pause: () => {
-      if (playlistType === "youtube" && isYTReady()) ytPlayerRef.current.pauseVideo();
-      else if (videoRef.current) videoRef.current.pause();
+      if (playlistType === "youtube" && ytReadyRef.current && ytPlayerRef.current) {
+        try { ytPlayerRef.current.pauseVideo(); } catch {}
+      } else if (videoRef.current) {
+        videoRef.current.pause();
+      }
     },
     seekTo: (time: number) => {
-      if (playlistType === "youtube" && isYTReady()) ytPlayerRef.current.seekTo(time, true);
-      else if (videoRef.current) videoRef.current.currentTime = time;
+      if (playlistType === "youtube" && ytReadyRef.current && ytPlayerRef.current) {
+        try { ytPlayerRef.current.seekTo(time, true); } catch {}
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = time;
+      }
     },
     getCurrentTime: () => {
-      if (playlistType === "youtube" && isYTReady()) { try { return ytPlayerRef.current.getCurrentTime() || 0; } catch { return 0; } }
+      if (playlistType === "youtube" && ytReadyRef.current && ytPlayerRef.current) {
+        try { return ytPlayerRef.current.getCurrentTime() || 0; } catch { return 0; }
+      }
       return videoRef.current?.currentTime || 0;
     },
-  }), [playlistType, isYTReady, ytMode]);
+  }), [playlistType]);
 
   // ── Controls auto-hide ──
-
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -119,112 +111,120 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   // ══════════════════════════════════════════
-  //  HLS / M3U8 — SINGLE SOURCE OF TRUTH
+  //  HLS / M3U8 — SIMPLIFIED & BULLETPROOF
   // ══════════════════════════════════════════
-
   useEffect(() => {
-    if (playlistType !== "m3u8" || !videoRef.current || !playlistUrl) return;
+    if (playlistType !== "m3u8") return;
     const video = videoRef.current;
-    let mounted = true;
+    if (!video || !playlistUrl) return;
+    let destroyed = false;
 
-    // Full reset
-    cancelAnimationFrame(rafRef.current);
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    video.pause();
+    // Clean slate
+    if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
     video.removeAttribute("src");
     video.load();
     setIsPlaying(false);
     setQualities([]);
     setSelectedQuality(-1);
     setIsBehindLive(false);
+    setPlayerError(null);
 
-    // UI state from native events only
-    const onPlay = () => { if (mounted) setIsPlaying(true); };
-    const onPause = () => { if (mounted) setIsPlaying(false); };
+    // Sync UI state from native video events
+    const onPlay = () => { if (!destroyed) setIsPlaying(true); };
+    const onPause = () => { if (!destroyed) setIsPlaying(false); };
+    const onError = () => { if (!destroyed) console.error("[VideoPlayer] video error", video.error); };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
+    video.addEventListener("error", onError);
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
       const Hls = HlsModule.default;
-      if (!mounted) return;
+      if (destroyed) return;
 
+      // Safari native HLS support
       if (!Hls.isSupported()) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
           video.src = playlistUrl;
-          video.addEventListener("loadedmetadata", () => video.play().catch(() => {}), { once: true });
+          video.addEventListener("loadedmetadata", () => {
+            if (!destroyed && autoPlay) video.play().catch(() => {});
+          }, { once: true });
+        } else {
+          setPlayerError("Browser tidak mendukung HLS");
         }
         return;
       }
 
       const hls = new Hls({
-        enableWorker: true,
+        enableWorker: false, // Workers can cause CORS issues
         lowLatencyMode: true,
         backBufferLength: 30,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
+        maxBufferLength: 15,
+        maxMaxBufferLength: 30,
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 6,
         capLevelToPlayerSize: true,
         startLevel: -1,
-        fragLoadingMaxRetry: 6,
-        manifestLoadingMaxRetry: 4,
-        levelLoadingMaxRetry: 4,
+        fragLoadingMaxRetry: 8,
+        manifestLoadingMaxRetry: 6,
+        levelLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 1000,
-        manifestLoadingTimeOut: 10000,
-        fragLoadingTimeOut: 15000,
+        manifestLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 15000,
       });
       hlsRef.current = hls;
 
-      const syncLevels = () => {
-        if (!mounted) return;
-        const levels = hls.levels.map((l: any, i: number) => ({ label: `${l.height || 0}p`, value: i }));
+      hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
+        if (destroyed) return;
+        const levels = data.levels?.map((l: any, i: number) => ({
+          label: l.height ? `${l.height}p` : `Level ${i}`,
+          value: i,
+        })) || [];
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
-      };
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        syncLevels();
-        video.play().catch(() => {});
+        if (autoPlay) video.play().catch(() => {});
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
-        if (mounted) setSelectedQuality(d.level);
+        if (!destroyed) setSelectedQuality(d.level);
       });
 
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-        if (!mounted) return;
+        if (destroyed) return;
+        console.warn("[HLS] Error:", data.type, data.details, data.fatal);
         if (data.fatal) {
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-          else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-          else { hls.destroy(); hlsRef.current = null; }
-        } else if (data.details === "bufferStalledError" && video.buffered.length > 0) {
-          const end = video.buffered.end(video.buffered.length - 1);
-          if (end - video.currentTime > 1) video.currentTime = end - 0.5;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            console.warn("[HLS] Fatal network error, attempting recovery...");
+            setTimeout(() => { if (!destroyed && hlsRef.current) hlsRef.current.startLoad(); }, 2000);
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            console.warn("[HLS] Fatal media error, recovering...");
+            hls.recoverMediaError();
+          } else {
+            setPlayerError("Stream error. Coba refresh halaman.");
+          }
+        } else if (data.details === "bufferStalledError") {
+          // Nudge forward if buffered ahead
+          if (video.buffered.length > 0) {
+            const end = video.buffered.end(video.buffered.length - 1);
+            if (end - video.currentTime > 1) video.currentTime = end - 0.5;
+          }
         }
       });
 
-      // CRITICAL: attach first, load after MEDIA_ATTACHED
+      // SIMPLE INIT: loadSource + attachMedia (both orders work per HLS.js docs)
+      // Using loadSource FIRST avoids depending on MEDIA_ATTACHED event
+      hls.loadSource(playlistUrl);
       hls.attachMedia(video);
-      hls.once(Hls.Events.MEDIA_ATTACHED, () => {
-        if (!mounted) return;
-        hls.loadSource(playlistUrl);
-      });
 
-      // Behind-live detection
-      let lastCheck = 0;
-      const syncLoop = (ts: number) => {
-        if (!mounted) return;
-        rafRef.current = requestAnimationFrame(syncLoop);
-        if (ts - lastCheck < 2000) return;
-        lastCheck = ts;
-        if (video.paused || !hls.liveSyncPosition) return;
+      // Behind-live detection (lightweight)
+      const liveCheckId = setInterval(() => {
+        if (destroyed || video.paused || !hls.liveSyncPosition) return;
         setIsBehindLive(hls.liveSyncPosition - video.currentTime > 8);
-      };
-      rafRef.current = requestAnimationFrame(syncLoop);
+      }, 3000);
 
       // Tab visibility recovery
       const onVisible = () => {
-        if (!mounted || document.hidden || !hlsRef.current) return;
+        if (destroyed || document.hidden || !hlsRef.current) return;
         hlsRef.current.startLoad();
         if (video.paused) video.play().catch(() => {});
         if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
@@ -233,36 +233,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       };
       document.addEventListener("visibilitychange", onVisible);
 
-      // Health check
+      // Health check every 20s
       const healthId = setInterval(() => {
-        if (!mounted || document.hidden || video.paused || !hlsRef.current) return;
+        if (destroyed || document.hidden || video.paused || !hlsRef.current) return;
         if (video.readyState < 3) hlsRef.current.startLoad();
-      }, 15000);
+      }, 20000);
 
-      // Patch destroy
+      // Override destroy to clean up intervals
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
-        cancelAnimationFrame(rafRef.current);
+        clearInterval(liveCheckId);
         clearInterval(healthId);
         document.removeEventListener("visibilitychange", onVisible);
-        origDestroy();
+        try { origDestroy(); } catch {}
       };
     };
 
     initHls();
 
     return () => {
-      mounted = false;
-      cancelAnimationFrame(rafRef.current);
+      destroyed = true;
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+      video.removeEventListener("error", onError);
+      if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
     };
-  }, [playlistType, playlistUrl]);
+  }, [playlistType, playlistUrl, autoPlay]);
 
   // ══════════════════════════════════════════
-  //  YouTube Player
+  //  YouTube — API with iframe fallback
   // ══════════════════════════════════════════
+  const [ytMode, setYtMode] = useState<"loading" | "api" | "iframe">("loading");
+  const ytContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (playlistType !== "youtube" || !playlistUrl) return;
@@ -270,22 +272,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     setIsPlaying(false);
     setQualities([]);
-    setSelectedQuality(-1);
-    setYtMode(null);
-    setIsBehindLive(false);
+    setPlayerError(null);
+    setYtMode("loading");
     ytReadyRef.current = false;
 
-    const videoId = youtubeId(playlistUrl);
+    const videoId = extractVideoId(playlistUrl);
     if (!videoId || videoId.length < 5) {
-      console.error("[YT] Could not extract video ID from:", playlistUrl);
+      console.error("[YT] Invalid video ID from:", playlistUrl);
+      setPlayerError("YouTube video ID tidak valid");
       return;
     }
 
+    // Fallback to iframe after 5 seconds if API doesn't load
     const fallbackTimer = setTimeout(() => {
-      if (destroyed || ytReadyRef.current) return;
-      setYtMode("iframe");
-      setIsPlaying(autoPlay);
-    }, 6000);
+      if (!destroyed && !ytReadyRef.current) {
+        console.warn("[YT] API timeout, falling back to iframe");
+        setYtMode("iframe");
+        setIsPlaying(true);
+      }
+    }, 5000);
 
     const createPlayer = () => {
       if (destroyed) return;
@@ -293,7 +298,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!container) { setYtMode("iframe"); return; }
       container.innerHTML = "";
       const div = document.createElement("div");
-      div.id = `yt_${Math.random().toString(36).slice(2, 8)}`;
+      div.id = `yt_${Date.now()}`;
       container.appendChild(div);
 
       try {
@@ -302,9 +307,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           height: "100%",
           videoId,
           playerVars: {
-            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 1,
-            disablekb: 1, fs: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
-            playsinline: 1, origin: window.location.origin,
+            autoplay: autoPlay ? 1 : 0,
+            mute: 1,
+            enablejsapi: 1,
+            controls: 1,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0,
+            iv_load_policy: 3,
+            playsinline: 1,
+            // NO origin parameter — it causes issues on dynamic domains
           },
           events: {
             onReady: (e: any) => {
@@ -316,24 +329,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 e.target.playVideo();
                 setIsPlaying(true);
                 setYtMuted(true);
-                setTimeout(() => { try { ytPlayerRef.current?.unMute?.(); setYtMuted(false); } catch {} }, 1500);
+                // Auto-unmute after a short delay
+                setTimeout(() => {
+                  if (!destroyed) {
+                    try { ytPlayerRef.current?.unMute?.(); setYtMuted(false); } catch {}
+                  }
+                }, 1500);
               }
             },
             onStateChange: (e: any) => {
-              if (destroyed) return;
-              setIsPlaying(e.data === 1);
+              if (!destroyed) setIsPlaying(e.data === 1);
             },
-            onError: () => {
+            onError: (e: any) => {
               if (destroyed) return;
+              console.error("[YT] Player error:", e.data);
+              // Error codes: 2=invalid param, 5=html5 error, 100=not found, 101/150=restricted
               setYtMode("iframe");
             },
           },
         });
-      } catch {
+      } catch (err) {
+        console.error("[YT] Failed to create player:", err);
         setYtMode("iframe");
       }
     };
 
+    // Load YouTube IFrame API
     if ((window as any).YT?.Player) {
       createPlayer();
     } else {
@@ -343,13 +364,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         tag.onerror = () => { if (!destroyed) setYtMode("iframe"); };
         document.head.appendChild(tag);
       }
-      const check = setInterval(() => {
-        if (destroyed) { clearInterval(check); return; }
-        if ((window as any).YT?.Player) { clearInterval(check); createPlayer(); }
-      }, 200);
       const prevReady = (window as any).onYouTubeIframeAPIReady;
-      (window as any).onYouTubeIframeAPIReady = () => { prevReady?.(); clearInterval(check); if (!destroyed) createPlayer(); };
-      setTimeout(() => clearInterval(check), 10000);
+      (window as any).onYouTubeIframeAPIReady = () => {
+        prevReady?.();
+        if (!destroyed) createPlayer();
+      };
+      // Also poll in case onYouTubeIframeAPIReady was already called
+      const pollId = setInterval(() => {
+        if (destroyed) { clearInterval(pollId); return; }
+        if ((window as any).YT?.Player) { clearInterval(pollId); createPlayer(); }
+      }, 300);
+      setTimeout(() => clearInterval(pollId), 10000);
     }
 
     return () => {
@@ -359,73 +384,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       try { ytPlayerRef.current?.destroy?.(); } catch {}
       ytPlayerRef.current = null;
     };
-  }, [playlistUrl, playlistType, autoPlay, youtubeId]);
-
-  // YouTube fallback iframe
-  useEffect(() => {
-    if (playlistType !== "youtube" || ytMode !== "iframe") return;
-    const container = ytFallbackRef.current;
-    if (!container) return;
-    const videoId = youtubeId(playlistUrl);
-    container.innerHTML = "";
-    const iframe = document.createElement("iframe");
-    iframe.src = buildYtEmbedUrl(videoId);
-    iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share";
-    iframe.allowFullscreen = true;
-    iframe.setAttribute("playsinline", "");
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
-    container.appendChild(iframe);
-  }, [playlistType, playlistUrl, ytMode, youtubeId, buildYtEmbedUrl]);
-
-  // ══════════════════════════════════════════
-  //  Cloudflare Player
-  // ══════════════════════════════════════════
-
-  useEffect(() => {
-    if (playlistType !== "cloudflare" || !playlistUrl) return;
-    setIsPlaying(false);
-    setQualities([]);
-    const container = cfContainerRef.current;
-    if (!container) return;
-    container.innerHTML = "";
-    const iframe = document.createElement("iframe");
-    iframe.src = playlistUrl;
-    iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
-    iframe.allowFullscreen = true;
-    iframe.setAttribute("playsinline", "");
-    iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
-    container.appendChild(iframe);
-  }, [playlistType, playlistUrl]);
+  }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
 
   // ── Control handlers ──
-
   const handlePlayPause = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (playlistType === "youtube") {
-      if (ytMode === "iframe") return;
-      if (!isYTReady()) return;
+      if (ytMode === "iframe") return; // iframe has its own controls
+      if (!ytReadyRef.current || !ytPlayerRef.current) return;
       try {
         const state = ytPlayerRef.current.getPlayerState();
         if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
         else ytPlayerRef.current.playVideo();
       } catch {}
     } else if (playlistType === "cloudflare") {
-      // iframe controls
+      // cloudflare iframe has its own controls
     } else {
       const v = videoRef.current;
       if (!v) return;
       v.paused ? v.play().catch(() => {}) : v.pause();
     }
-  }, [playlistType, ytMode, isYTReady]);
+  }, [playlistType, ytMode]);
 
   const handleQualityChange = useCallback((level: number) => {
     const hls = hlsRef.current;
     if (!hls) return;
-    hls.currentLevel = level;
-    hls.nextLevel = level;
     if (level === -1) {
       hls.currentLevel = -1;
       try { hls.autoLevelEnabled = true; } catch {}
+    } else {
+      hls.currentLevel = level;
+      hls.nextLevel = level;
     }
     setSelectedQuality(level);
     setShowQualityMenu(false);
@@ -456,12 +445,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   const toggleYtMute = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (!isYTReady()) return;
+    if (!ytReadyRef.current || !ytPlayerRef.current) return;
     try {
       if (ytPlayerRef.current.isMuted()) { ytPlayerRef.current.unMute(); setYtMuted(false); }
       else { ytPlayerRef.current.mute(); setYtMuted(true); }
     } catch {}
-  }, [isYTReady]);
+  }, []);
 
   const syncToLive = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -473,18 +462,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       }
       if (videoRef.current.paused) videoRef.current.play().catch(() => {});
       setIsBehindLive(false);
-    } else if (playlistType === "youtube" && isYTReady()) {
-      try { const d = ytPlayerRef.current.getDuration?.(); if (d > 0) ytPlayerRef.current.seekTo(d, true); } catch {}
-      ytPlayerRef.current.playVideo();
+    } else if (playlistType === "youtube" && ytReadyRef.current && ytPlayerRef.current) {
+      try {
+        const d = ytPlayerRef.current.getDuration?.();
+        if (d > 0) ytPlayerRef.current.seekTo(d, true);
+      } catch {}
+      try { ytPlayerRef.current.playVideo(); } catch {}
     }
-  }, [playlistType, isYTReady]);
+  }, [playlistType]);
 
   // Fullscreen listener
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange);
-    return () => { document.removeEventListener("fullscreenchange", onFsChange); document.removeEventListener("webkitfullscreenchange", onFsChange); };
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("webkitfullscreenchange", onFsChange);
+    };
   }, []);
 
   // Block DevTools
@@ -498,9 +493,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("keydown", handler, true);
   }, []);
 
-  // ── Render ──
-  // NO LOADING OVERLAY — video element renders directly, no blur/skeleton blocking it
+  // Build YouTube iframe URL (for fallback)
+  const ytIframeUrl = playlistType === "youtube"
+    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3`
+    : "";
 
+  // ── Render ──
   return (
     <div
       ref={containerRef}
@@ -509,27 +507,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       onDragStart={(e) => e.preventDefault()}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
-      {/* YouTube API player */}
-      {playlistType === "youtube" && ytMode !== "iframe" && (
-        <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytContainerRef} className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0" />
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
-            onContextMenu={e => e.preventDefault()}
-            onClick={e => { e.stopPropagation(); handlePlayPause(e); }}
-          />
-        </div>
-      )}
-
-      {/* YouTube iframe fallback */}
-      {playlistType === "youtube" && ytMode === "iframe" && (
-        <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
-          <div ref={ytFallbackRef} className="absolute inset-0 w-full h-full" />
-        </div>
-      )}
-
-      {/* HLS / M3U8 video element — NO overlay, direct rendering */}
+      {/* M3U8 / HLS video element — always rendered when type is m3u8 */}
       {playlistType === "m3u8" && (
         <video
           ref={videoRef}
@@ -543,9 +521,65 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         />
       )}
 
+      {/* YouTube API player container */}
+      {playlistType === "youtube" && ytMode !== "iframe" && (
+        <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
+          <div
+            ref={ytContainerRef}
+            className="absolute inset-0 w-full h-full [&>div]:!w-full [&>div]:!h-full [&>iframe]:!w-full [&>iframe]:!h-full [&>div>iframe]:!w-full [&>div>iframe]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!absolute [&_iframe]:!inset-0"
+          />
+          {ytMode === "api" && (
+            <div
+              className="absolute inset-0 z-10 cursor-pointer"
+              style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+              onContextMenu={e => e.preventDefault()}
+              onClick={e => { e.stopPropagation(); handlePlayPause(e); }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* YouTube iframe fallback — direct embed, most compatible */}
+      {playlistType === "youtube" && ytMode === "iframe" && (
+        <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
+          <iframe
+            src={ytIframeUrl}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full border-0 z-[1]"
+            // @ts-ignore
+            playsInline=""
+          />
+        </div>
+      )}
+
       {/* Cloudflare iframe */}
       {playlistType === "cloudflare" && (
-        <div ref={cfContainerRef} className={`h-full w-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`} onContextMenu={e => e.preventDefault()} />
+        <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`} onContextMenu={e => e.preventDefault()}>
+          <iframe
+            src={playlistUrl}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            allowFullScreen
+            className="absolute inset-0 w-full h-full border-0 z-[1]"
+            // @ts-ignore
+            playsInline=""
+          />
+        </div>
+      )}
+
+      {/* Error display */}
+      {playerError && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
+          <div className="text-center p-4">
+            <p className="text-destructive text-sm font-medium mb-2">{playerError}</p>
+            <button
+              onClick={() => { setPlayerError(null); window.location.reload(); }}
+              className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Watermarks */}
