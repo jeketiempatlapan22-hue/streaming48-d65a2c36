@@ -460,7 +460,7 @@ const Index = () => {
             <span className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
           </div>
           <div className="flex items-center gap-2">
-            <LiveViewerCount isLive={isStreamLive} />
+            <LiveViewerCount isLive={isStreamLive} readOnly />
 
             {!isStandalone && (
               <button
