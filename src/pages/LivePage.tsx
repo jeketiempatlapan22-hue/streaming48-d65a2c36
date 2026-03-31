@@ -339,11 +339,33 @@ const LivePage = () => {
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint, blocked]);
 
+  // Refresh playlists (used on initial load and when admin goes live)
+  const refreshPlaylists = useCallback(async () => {
+    try {
+      const { data } = await (supabase.rpc as any)("get_safe_playlists");
+      if (data?.length) {
+        const sorted = sortPlaylists(data);
+        setPlaylists(sorted);
+        setActivePlaylist((prev: any) => {
+          if (!prev || !sorted.find((p: any) => p.id === prev.id)) return sorted[0];
+          return prev;
+        });
+      }
+    } catch {}
+  }, []);
+
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
     const ch = supabase.channel("live-combined-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
-        if (p.new) setStream(p.new);
+        if (p.new) {
+          const wasLive = stream?.is_live;
+          setStream(p.new);
+          // When admin turns live ON, refresh playlists to ensure we have them
+          if (!wasLive && p.new.is_live) {
+            refreshPlaylists();
+          }
+        }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
@@ -365,7 +387,7 @@ const LivePage = () => {
 
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id, tokenData?.id]);
+  }, [tokenData?.show_id, tokenData?.id, stream?.is_live, refreshPlaylists]);
 
   // Fallback blocked-check: 60s interval (reduced from 30s for scalability)
   useEffect(() => {
