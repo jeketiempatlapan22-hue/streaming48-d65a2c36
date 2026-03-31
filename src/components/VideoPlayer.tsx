@@ -166,21 +166,40 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return decrypted;
   }, [decryptUrl]);
 
-  // ========== HLS (m3u8) - OPTIMIZED ==========
+  // ========== HLS (m3u8) - ROBUST ==========
   useEffect(() => {
     if (playlistType !== "m3u8" || !videoRef.current || hlsInitRef.current) return;
     hlsInitRef.current = true;
     let destroyed = false;
     let hls: any = null;
+    const vid = videoRef.current!;
+
+    // Deterministic loading clear — multiple paths ensure loading ALWAYS clears
+    const clearLoading = () => { if (!destroyed) setIsLoading(false); };
+    const markPlaying = () => { if (!destroyed) { setIsLoading(false); setIsPlaying(true); } };
+
+    // Hard timeout — absolute guarantee loading clears
+    const hardTimeout = window.setTimeout(clearLoading, 12000);
+
+    // Native video element events — these fire regardless of HLS.js state
+    vid.onloadedmetadata = clearLoading;
+    vid.oncanplay = clearLoading;
+    vid.onplaying = markPlaying;
+    vid.onerror = clearLoading;
+    vid.onwaiting = () => { if (!destroyed) setIsLoading(true); };
 
     const initHls = async () => {
       const Hls = (await import("hls.js")).default;
       if (destroyed) return;
 
+      // Native HLS support (Safari, iOS)
       if (!Hls.isSupported()) {
-        videoRef.current!.src = playlistUrl;
-        setIsLoading(false);
-        if (autoPlay) videoRef.current!.play().catch(() => {});
+        if (vid.canPlayType("application/vnd.apple.mpegurl")) {
+          vid.src = playlistUrl;
+          vid.load();
+          if (autoPlay) { vid.muted = true; vid.play().then(() => { setTimeout(() => { if (!destroyed) vid.muted = false; }, 500); }).catch(() => {}); }
+        }
+        clearLoading();
         return;
       }
 
@@ -188,19 +207,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        // Live sync — stable for long sessions
         liveSyncDurationCount: 3,
         liveMaxLatencyDurationCount: 10,
         maxLiveSyncPlaybackRate: 1.02,
-        // Back buffer: aggressively flush to prevent memory leaks over 7+ hours
         liveBackBufferLength: 15,
         backBufferLength: 30,
-        // Buffer sizes — balanced for stability without eating too much memory
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
         maxBufferSize: 60 * 1024 * 1024,
         maxBufferHole: 0.5,
-        // ABR: conservative — avoid quality ping-pong on shared networks
         abrBandWidthFactor: 0.7,
         abrBandWidthUpFactor: 0.5,
         abrEwmaDefaultEstimate: 1_000_000,
@@ -211,7 +226,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         capLevelOnFPSDrop: true,
         startFragPrefetch: true,
         progressive: true,
-        // Generous retry settings for long sessions — never give up easily
         fragLoadingMaxRetry: 10,
         levelLoadingMaxRetry: 6,
         manifestLoadingMaxRetry: 6,
@@ -221,16 +235,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         fragLoadingMaxRetryTimeout: 30000,
         levelLoadingMaxRetryTimeout: 30000,
         manifestLoadingMaxRetryTimeout: 30000,
-        // Longer timeouts for slow connections
-        manifestLoadingTimeOut: 20000,
-        levelLoadingTimeOut: 20000,
-        fragLoadingTimeOut: 30000,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 30000; },
+        manifestLoadingTimeOut: 12000,
+        levelLoadingTimeOut: 12000,
+        fragLoadingTimeOut: 20000,
+        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 20000; },
         debug: false,
       });
       hlsRef.current = hls;
-      hls.loadSource(playlistUrl);
-      hls.attachMedia(videoRef.current!);
 
       // Quality: keep auto until user manually selects
       let userLocked = false;
@@ -243,28 +254,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         hls.autoLevelEnabled = true;
         setCurrentQuality(-1);
         userLocked = false;
-        setIsLoading(false);
+        clearLoading();
 
         if (autoPlay) {
-          videoRef.current!.muted = true;
-          videoRef.current!.play().then(() => {
+          vid.muted = true;
+          vid.play().then(() => {
             setTimeout(() => { if (!destroyed && videoRef.current) videoRef.current.muted = false; }, 500);
           }).catch(() => {});
           setIsPlaying(true);
         }
       });
 
-      // Only correct drift if VERY far behind (>15s) — let HLS playback rate handle the rest
+      // Also clear loading on LEVEL_LOADED as secondary signal
       hls.on(Hls.Events.LEVEL_LOADED, (_: any, d: any) => {
         if (destroyed) return;
+        clearLoading(); // Always clear — if we got level data, we're not "loading"
         const details = d.details;
-        if (details?.live && videoRef.current && videoRef.current.buffered.length) {
+        if (details?.live && vid.buffered.length) {
           const edge = details.edge;
-          if (edge && edge - videoRef.current.currentTime > 15) {
-            videoRef.current.currentTime = edge - 3;
+          if (edge && edge - vid.currentTime > 15) {
+            vid.currentTime = edge - 3;
           }
         }
       });
+
+      // Also clear on FRAG_LOADED — if fragments are arriving, player is working
+      hls.on(Hls.Events.FRAG_LOADED, () => { if (!destroyed) clearLoading(); });
 
       (hls as any).__setUserLocked = (level: number) => {
         if (level === -1) {
@@ -285,49 +300,50 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const syncLoop = (timestamp: number) => {
         if (destroyed) return;
         rafRef.current = requestAnimationFrame(syncLoop);
-
-        // Only check every 2 seconds — no need for frequent updates
         if (timestamp - lastUiUpdateRef.current < 2000) return;
         lastUiUpdateRef.current = timestamp;
-
-        const vid = videoRef.current;
         if (!vid || !hls || vid.paused) return;
-
         if (hls.liveSyncPosition) {
           const lag = hls.liveSyncPosition - vid.currentTime;
           const behind = lag > 8;
-          if (behind !== behindRef) {
-            behindRef = behind;
-            setIsBehindLive(behind);
-          }
+          if (behind !== behindRef) { behindRef = behind; setIsBehindLive(behind); }
         }
       };
       rafRef.current = requestAnimationFrame(syncLoop);
 
+      let fatalRetryCount = 0;
+      const MAX_FATAL_RETRIES = 3;
+
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (destroyed) return;
         if (data.fatal) {
+          clearLoading(); // Never stay stuck on loading during errors
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
               console.warn("[HLS] Network error, retrying...");
-              setTimeout(() => { if (!destroyed) hls.startLoad(); }, 1000);
+              setTimeout(() => { if (!destroyed && hls) hls.startLoad(); }, 1000);
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
               console.warn("[HLS] Media error, recovering...");
               hls.recoverMediaError();
               break;
             default:
-              console.error("[HLS] Fatal error, reinitializing...");
-              hls.destroy();
-              hlsRef.current = null;
-              hlsInitRef.current = false;
-              setTimeout(() => { if (!destroyed) initHls(); }, 3000);
+              fatalRetryCount++;
+              if (fatalRetryCount <= MAX_FATAL_RETRIES) {
+                console.error(`[HLS] Fatal error, reinit attempt ${fatalRetryCount}/${MAX_FATAL_RETRIES}`);
+                hls.destroy();
+                hlsRef.current = null;
+                hlsInitRef.current = false;
+                hls = null;
+                setTimeout(() => { if (!destroyed) initHls(); }, 2000);
+              } else {
+                console.error("[HLS] Max retries exceeded, giving up");
+              }
               break;
           }
         }
         // Non-fatal buffer stall: nudge playback forward
-        if (!data.fatal && data.details === "bufferStalledError" && videoRef.current) {
-          const vid = videoRef.current;
+        if (!data.fatal && data.details === "bufferStalledError" && vid) {
           if (vid.buffered.length > 0) {
             const buffEnd = vid.buffered.end(vid.buffered.length - 1);
             if (buffEnd - vid.currentTime > 1) vid.currentTime = buffEnd - 0.5;
@@ -335,12 +351,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
+      // Load source + attach AFTER all event listeners are registered
+      hls.loadSource(playlistUrl);
+      hls.attachMedia(vid);
+
       // Long-session health: recover from tab sleep / background throttling
       const onVisibilityChange = () => {
         if (destroyed || document.hidden) return;
-        const vid = videoRef.current;
         if (!vid || !hls) return;
-        // Tab came back — restart loading and sync to live edge
         hls.startLoad();
         if (vid.paused) vid.play().catch(() => {});
         if (hls.liveSyncPosition && hls.liveSyncPosition - vid.currentTime > 5) {
@@ -352,12 +370,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       // Periodic health check every 15s: detect stuck playback
       const healthInterval = setInterval(() => {
         if (destroyed || document.hidden) return;
-        const vid = videoRef.current;
         if (!vid || vid.paused || !hls) return;
-        // If video readyState < HAVE_FUTURE_DATA, nudge it
-        if (vid.readyState < 3) {
-          hls.startLoad();
-        }
+        if (vid.readyState < 3) hls.startLoad();
       }, 15000);
 
       const origDestroy = hls.destroy.bind(hls);
@@ -373,7 +387,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     initHls();
     return () => {
       destroyed = true;
+      clearTimeout(hardTimeout);
       cancelAnimationFrame(rafRef.current);
+      // Clean up native video listeners
+      vid.onloadedmetadata = null;
+      vid.oncanplay = null;
+      vid.onplaying = null;
+      vid.onerror = null;
+      vid.onwaiting = null;
       if (hls) { hls.destroy(); hlsRef.current = null; }
     };
   }, [playlistUrl, playlistType, autoPlay]);
