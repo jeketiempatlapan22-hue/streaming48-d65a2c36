@@ -63,6 +63,16 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
     </div>
   );
 };
+// Sort playlists: 1st m3u8 first, 1st youtube second, then remaining in order
+const sortPlaylists = (list: any[]): any[] => {
+  if (!list || list.length <= 1) return list;
+  const firstM3u8 = list.find((p) => p.type === "m3u8");
+  const firstYoutube = list.find((p) => p.type === "youtube");
+  const rest = list.filter(
+    (p) => p !== firstM3u8 && p !== firstYoutube
+  );
+  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+};
 
 const LivePage = () => {
   const [searchParams] = useSearchParams();
@@ -224,8 +234,9 @@ const LivePage = () => {
 
         if (streamRes.status === "fulfilled" && streamRes.value.data?.length) setStream(streamRes.value.data[0]);
         if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
-          setPlaylists(playlistRes.value.data);
-          setActivePlaylist(playlistRes.value.data[0]);
+          const sorted = sortPlaylists(playlistRes.value.data);
+          setPlaylists(sorted);
+          setActivePlaylist(sorted[0]);
         }
 
         let activeShowId = "";
@@ -338,11 +349,33 @@ const LivePage = () => {
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint, blocked]);
 
+  // Refresh playlists (used on initial load and when admin goes live)
+  const refreshPlaylists = useCallback(async () => {
+    try {
+      const { data } = await (supabase.rpc as any)("get_safe_playlists");
+      if (data?.length) {
+        const sorted = sortPlaylists(data);
+        setPlaylists(sorted);
+        setActivePlaylist((prev: any) => {
+          if (!prev || !sorted.find((p: any) => p.id === prev.id)) return sorted[0];
+          return prev;
+        });
+      }
+    } catch {}
+  }, []);
+
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
     const ch = supabase.channel("live-combined-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
-        if (p.new) setStream(p.new);
+        if (p.new) {
+          const wasLive = stream?.is_live;
+          setStream(p.new);
+          // When admin turns live ON, refresh playlists to ensure we have them
+          if (!wasLive && p.new.is_live) {
+            refreshPlaylists();
+          }
+        }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
@@ -364,7 +397,7 @@ const LivePage = () => {
 
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id, tokenData?.id]);
+  }, [tokenData?.show_id, tokenData?.id, stream?.is_live, refreshPlaylists]);
 
   // Fallback blocked-check: 60s interval (reduced from 30s for scalability)
   useEffect(() => {
