@@ -719,8 +719,8 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 120 sub-playlist requests per minute per IP (was 500)
-      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
+      // 150 sub-playlist requests per minute per IP — same as manifest
+      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 150, 60000)) {
         return getRateLimitResponse(true);
       }
 
