@@ -270,12 +270,21 @@ const LivePage = () => {
     if (!tokenCode) return;
     const fpVal = getFingerprint();
     const releaseSession = () => {
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/release_token_session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({ _token_code: tokenCode, _fingerprint: fpVal }),
-        keepalive: true,
-      }).catch(() => {});
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/release_token_session`;
+      const body = JSON.stringify({ _token_code: tokenCode, _fingerprint: fpVal });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      };
+      try {
+        fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+      } catch {
+        try {
+          const blob = new Blob([body], { type: "application/json" });
+          navigator.sendBeacon?.(`${url}?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
+        } catch {}
+      }
     };
     window.addEventListener("beforeunload", releaseSession);
     return () => {
