@@ -1806,7 +1806,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       `📱 Max Device: *${maxDevices}*\n` +
       `⏰ Kedaluwarsa: ${escapedExpDate}\n` +
       `🔢 4 Digit: \`${last4}\`\n\n` +
-      `💡 Link: realtime48stream\.my\.id/live?t\\=${escapedCode}`
+      `💡 Link: realtime48stream\\.my\\.id/live?t\\=${escapedCode}`
     );
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
