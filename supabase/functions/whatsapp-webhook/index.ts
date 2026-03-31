@@ -165,7 +165,7 @@ function handlePublicMenu(): string {
 • Ketik *CEK s12* untuk cek status order
 
 🛒 Untuk pembelian show & koin, kunjungi:
-🌐 *realtime48show.my.id*`;
+🌐 *realtime48stream.my.id*`;
 }
 
 async function handlePublicShowList(supabase: any): Promise<string> {
@@ -179,7 +179,7 @@ async function handlePublicShowList(supabase: any): Promise<string> {
       .limit(20);
 
     if (!shows || shows.length === 0) {
-      return '📋 Tidak ada show yang tersedia saat ini.\n\nKunjungi website: realtime48show.my.id';
+      return '📋 Tidak ada show yang tersedia saat ini.\n\nKunjungi website: realtime48stream.my.id';
     }
 
     let msg = '🎬 *DAFTAR SHOW TERSEDIA*\n\n';
@@ -191,7 +191,7 @@ async function handlePublicShowList(supabase: any): Promise<string> {
       msg += `*${num}. ${s.title}*\n${type} | ${status}\n💰 ${s.price}${s.coin_price > 0 ? ` | 🪙 ${s.coin_price} koin` : ''}\n${schedule}\n\n`;
     });
 
-    msg += `🛒 Untuk pembelian, kunjungi:\n🌐 *realtime48show.my.id*`;
+    msg += `🛒 Untuk pembelian, kunjungi:\n🌐 *realtime48stream.my.id*`;
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
@@ -661,14 +661,14 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
       // Send WhatsApp notification to user
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && order.phone) {
-        const siteUrl = 'https://realtime48show.my.id';
+        const siteUrl = 'https://realtime48stream.my.id';
         if (result.type === 'regular' && result.token_code) {
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
           let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pesanan Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n\n🎫 *Token Akses:* ${result.token_code}\n📺 *Link Nonton:*\n${liveLink}\n`;
           if (show?.access_password) {
             waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
           }
-          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://realtime48stream.my.id/replay\n`;
           if (show?.access_password) {
             waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
@@ -717,7 +717,7 @@ async function handlePasswordReset(supabase: any, shortId: string, action: 'appr
       // Send reset link via WhatsApp if phone exists
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && request.phone) {
-        const resetLink = `https://realtime48show.my.id/reset-password?token=${request.secure_token || request.short_id}`;
+        const resetLink = `https://realtime48stream.my.id/reset-password?token=${request.secure_token || request.short_id}`;
         const waMsg = `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 2 jam.`;
         await sendFonnteMessage(FONNTE_TOKEN, request.phone, waMsg);
       }
@@ -1439,11 +1439,11 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
-    const liveLink = `realtime48show.my.id/live?t=${code}`;
+    const liveLink = `realtime48stream.my.id/live?t=${code}`;
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
 
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://realtime48stream.my.id/replay`;
     if (show.access_password) {
       msg += `\n🔐 Sandi Replay: ${show.access_password}`;
     }
@@ -1509,11 +1509,11 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
-    const liveLink = `realtime48show.my.id/live?t=${code}`;
+    const liveLink = `realtime48stream.my.id/live?t=${code}`;
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
 
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://realtime48stream.my.id/replay`;
     if (show.access_password) {
       msg += `\n🔐 Sandi Replay: ${show.access_password}`;
     }

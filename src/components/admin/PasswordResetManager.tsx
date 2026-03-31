@@ -75,7 +75,7 @@ const PasswordResetManager = () => {
       if (error) throw error;
 
       if (action === "approve" && request.phone) {
-        const siteUrl = "https://realtime48show.my.id";
+        const siteUrl = "https://realtime48stream.my.id";
         const resetLink = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
         
         try {
@@ -104,7 +104,7 @@ const PasswordResetManager = () => {
   };
 
   const copyResetLink = (request: ResetRequest) => {
-    const siteUrl = "https://realtime48show.my.id";
+    const siteUrl = "https://realtime48stream.my.id";
     const link = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
     navigator.clipboard.writeText(link);
     toast.success("Link reset disalin!");

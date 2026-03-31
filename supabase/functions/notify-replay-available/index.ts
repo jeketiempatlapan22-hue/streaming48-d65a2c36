@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     (subOrders || []).forEach((o: any) => { if (o.phone) phones.add(o.phone); });
 
     let sent = 0;
-    const message = `━━━━━━━━━━━━━━━━━━\n🎬 *Replay Tersedia!*\n━━━━━━━━━━━━━━━━━━\n\nShow *${show_title}* sekarang tersedia untuk ditonton ulang!\n\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n\n_Kunjungi link di atas untuk menonton._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+    const message = `━━━━━━━━━━━━━━━━━━\n🎬 *Replay Tersedia!*\n━━━━━━━━━━━━━━━━━━\n\nShow *${show_title}* sekarang tersedia untuk ditonton ulang!\n\n🔗 *Link Replay:*\nhttps://realtime48stream.my.id/replay\n\n_Kunjungi link di atas untuk menonton._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
 
     for (const phone of phones) {
       const cleanPhone = phone.replace(/^0/, '62').replace(/[^0-9]/g, '');
