@@ -129,7 +129,7 @@ serve(async (req) => {
         .maybeSingle();
 
       const tokenCode = (confirmResult as any)?.token_code || null;
-      const siteUrl = "realtime48show.my.id";
+      const siteUrl = "realtime48stream.my.id";
 
       // Send Telegram notification
       const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -171,7 +171,7 @@ serve(async (req) => {
           }
         } else if (show?.is_replay) {
           waMessage += `📦 Tipe: *Replay*\n`;
-          waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
+          waMessage += `\n🔗 *Link Replay:*\nhttps://realtime48stream.my.id/replay\n`;
           if (show.access_password) {
             waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
           }
@@ -187,7 +187,7 @@ serve(async (req) => {
             waMessage += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
           }
           // Always include replay info for regular shows
-          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://realtime48stream.my.id/replay\n`;
           if (show?.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }

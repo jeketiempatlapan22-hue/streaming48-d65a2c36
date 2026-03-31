@@ -240,7 +240,7 @@ const ReplayPage = () => {
         {/* Button for users who already purchased */}
         <div className="mx-auto mb-6 max-w-md">
           <a
-            href="https://replaytime.lovable.app"
+            href="https://realtime48stream.my.id/replay"
             target="_blank"
             rel="noopener noreferrer"
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3.5 text-sm font-bold text-primary transition-all hover:bg-primary/20 active:scale-[0.97]"
@@ -307,7 +307,7 @@ const ReplayPage = () => {
                           onClick={() => {
                             navigator.clipboard.writeText(replayPasswords[show.id]);
                             toast({ title: "Sandi disalin! Membuka halaman replay..." });
-                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
+                            setTimeout(() => { window.open("https://realtime48stream.my.id/replay", "_blank"); }, 500);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
@@ -315,7 +315,7 @@ const ReplayPage = () => {
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
+                      <a href="https://realtime48stream.my.id/replay" target="_blank" rel="noopener noreferrer"
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
                         <Play className="h-4 w-4" /> Tonton Replay
                       </a>
@@ -505,7 +505,7 @@ const ReplayPage = () => {
                   navigator.clipboard.writeText(replayResult.replay_password);
                   toast({ title: "Sandi disalin! Membuka halaman replay..." });
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    window.open("https://realtime48stream.my.id/replay", "_blank");
                     setPurchaseShow(null);
                     setReplayResult(null);
                   }, 500);
@@ -538,7 +538,7 @@ const ReplayPage = () => {
                   navigator.clipboard.writeText(replayModal.password);
                   toast({ title: "Sandi disalin! Membuka halaman replay..." });
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    window.open("https://realtime48stream.my.id/replay", "_blank");
                     setReplayModal(null);
                   }, 500);
                 }}
