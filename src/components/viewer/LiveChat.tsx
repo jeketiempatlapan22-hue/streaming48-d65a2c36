@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useTransition, memo } from "r
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Users, Trophy, UserX } from "lucide-react";
+import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 
 
