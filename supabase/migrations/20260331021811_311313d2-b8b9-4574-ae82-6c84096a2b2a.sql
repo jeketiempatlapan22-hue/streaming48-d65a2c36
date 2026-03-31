@@ -1,0 +1,1 @@
+DELETE FROM site_settings WHERE key = 'stream_proxy_domain';
