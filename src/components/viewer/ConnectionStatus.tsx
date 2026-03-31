@@ -1,52 +1,83 @@
-import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Wifi, WifiOff, RefreshCw } from "lucide-react";
 
+/**
+ * Lightweight connection status indicator.
+ * Uses navigator.onLine + periodic fetch pings instead of a dedicated
+ * Supabase realtime channel (which itself can cause connection churn).
+ */
 const ConnectionStatus = () => {
   const [status, setStatus] = useState<"connected" | "reconnecting" | "disconnected">("connected");
   const [visible, setVisible] = useState(false);
   const hideTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const pingInterval = useRef<ReturnType<typeof setInterval>>();
+
+  const showConnected = useCallback(() => {
+    setStatus("connected");
+    setVisible(true);
+    clearTimeout(hideTimeout.current);
+    hideTimeout.current = setTimeout(() => setVisible(false), 2500);
+  }, []);
+
+  const showDisconnected = useCallback(() => {
+    setStatus("disconnected");
+    setVisible(true);
+  }, []);
 
   useEffect(() => {
-    const channel = supabase.channel("connection-monitor");
-    channel.subscribe((s) => {
-      if (s === "SUBSCRIBED") {
-        setStatus("connected");
-        setVisible(true);
-        clearTimeout(hideTimeout.current);
-        hideTimeout.current = setTimeout(() => setVisible(false), 2000);
-      } else if (s === "CHANNEL_ERROR" || s === "TIMED_OUT") {
-        setStatus("disconnected");
-        setVisible(true);
-      } else if (s === "CLOSED") {
-        setStatus("disconnected");
-        setVisible(true);
-      }
-    });
+    // Only show status changes, not initial state
+    let wasOffline = !navigator.onLine;
 
     const handleOnline = () => {
-      setStatus("reconnecting");
-      setVisible(true);
-      channel.subscribe((s) => {
-        if (s === "SUBSCRIBED") {
-          setStatus("connected");
-          clearTimeout(hideTimeout.current);
-          hideTimeout.current = setTimeout(() => setVisible(false), 2000);
-        }
-      });
+      if (wasOffline) {
+        setStatus("reconnecting");
+        setVisible(true);
+        // Brief delay then confirm connected
+        setTimeout(showConnected, 1500);
+      }
+      wasOffline = false;
     };
-    const handleOffline = () => { setStatus("disconnected"); setVisible(true); };
+
+    const handleOffline = () => {
+      wasOffline = true;
+      showDisconnected();
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
+    // Periodic lightweight connectivity check (every 30s)
+    // Only activates status bar when there's an actual problem
+    pingInterval.current = setInterval(async () => {
+      if (!navigator.onLine) {
+        showDisconnected();
+        return;
+      }
+      // If we were disconnected, try a lightweight ping
+      if (status === "disconnected") {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/`, {
+            method: "HEAD",
+            signal: controller.signal,
+            headers: { apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+          });
+          clearTimeout(timeout);
+          showConnected();
+        } catch {
+          // Still disconnected, stay in that state
+        }
+      }
+    }, 30000);
+
     return () => {
       clearTimeout(hideTimeout.current);
+      clearInterval(pingInterval.current);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
-      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [showConnected, showDisconnected, status]);
 
   if (!visible) return null;
 
