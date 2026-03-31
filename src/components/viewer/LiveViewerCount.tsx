@@ -3,70 +3,71 @@ import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const LiveViewerCount = ({ isLive }: { isLive: boolean }) => {
+const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOnly?: boolean }) => {
   const [count, setCount] = useState(0);
   const viewerKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!isLive) { setCount(0); return; }
 
-    // Generate a unique viewer key for heartbeat
-    if (!viewerKeyRef.current) {
-      viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
-    }
-    const key = viewerKeyRef.current;
-
-    // Send initial heartbeat
-    supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
-
-    // Poll viewer count every 15s + send heartbeat every 30s
-    let tick = 0;
-    const interval = setInterval(async () => {
-      tick++;
-      // Heartbeat every 30s (every 2nd tick)
-      if (tick % 2 === 0) {
-        supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+    // Only send heartbeats if not readOnly (i.e., only on the live page)
+    if (!readOnly) {
+      if (!viewerKeyRef.current) {
+        viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
       }
-      // Count every 15s
+      const key = viewerKeyRef.current;
+
+      // Send initial heartbeat
+      supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+
+      // Poll viewer count every 15s + send heartbeat every 30s
+      let tick = 0;
+      const interval = setInterval(async () => {
+        tick++;
+        if (tick % 2 === 0) {
+          supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+        }
+        const { data } = await supabase.rpc("get_viewer_count");
+        if (typeof data === "number") setCount(data);
+      }, 15_000);
+
+      supabase.rpc("get_viewer_count").then(({ data }) => {
+        if (typeof data === "number") setCount(data);
+      });
+
+      return () => {
+        clearInterval(interval);
+        supabase.rpc("viewer_leave", { _key: key }).then(() => {});
+      };
+    }
+
+    // readOnly mode: only poll the count, no heartbeats
+    const fetchCount = async () => {
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setCount(data);
-    }, 15_000);
-
-    // Initial count fetch
-    supabase.rpc("get_viewer_count").then(({ data }) => {
-      if (typeof data === "number") setCount(data);
-    });
-
-    // Leave on unmount
-    return () => {
-      clearInterval(interval);
-      supabase.rpc("viewer_leave", { _key: key }).then(() => {});
     };
-  }, [isLive]);
+    fetchCount();
+    const interval = setInterval(fetchCount, 15_000);
+    return () => clearInterval(interval);
+  }, [isLive, readOnly]);
 
   // Also leave on page unload
   useEffect(() => {
-    if (!isLive) return;
+    if (!isLive || readOnly) return;
     const handleUnload = () => {
       if (viewerKeyRef.current) {
         const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/viewer_leave`;
         const body = JSON.stringify({ _key: viewerKeyRef.current });
-        const headers = {
-          "Content-Type": "application/json",
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        };
-        // sendBeacon with Blob to include content-type
         const blob = new Blob([body], { type: "application/json" });
         const sent = navigator.sendBeacon?.(url + `?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
         if (!sent) {
-          fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+          fetch(url, { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` }, body, keepalive: true }).catch(() => {});
         }
       }
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
-  }, [isLive]);
+  }, [isLive, readOnly]);
 
   if (!isLive || count === 0) return null;
 
