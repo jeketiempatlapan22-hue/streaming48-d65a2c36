@@ -173,11 +173,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   // ========== HLS (m3u8) - ROBUST ==========
   useEffect(() => {
-    if (playlistType !== "m3u8" || !videoRef.current || hlsInitRef.current) return;
-    hlsInitRef.current = true;
+    if (playlistType !== "m3u8" || !videoRef.current || !playlistUrl) return;
     let destroyed = false;
     let hls: any = null;
-    const vid = videoRef.current!;
+    const vid = videoRef.current;
 
     // Deterministic loading clear — multiple paths ensure loading ALWAYS clears
     const clearLoading = () => { if (!destroyed) setIsLoading(false); };
