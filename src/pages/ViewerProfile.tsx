@@ -156,12 +156,12 @@ const ViewerProfile = () => {
         </motion.div>
 
         {/* Tab Content */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-xl border border-border bg-card p-4">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-xl glass p-4">
           {tab === "orders" && (
             orders.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada order koin</p> : (
               <div className="space-y-2">
                 {orders.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between rounded-lg bg-background p-3">
+                  <div key={o.id} className="flex items-center justify-between rounded-lg bg-background/50 p-3">
                     <div className="min-w-0 flex-1"><p className="text-xs font-medium text-foreground">{o.coin_amount} Koin {o.price ? `• ${o.price}` : ""}</p><p className="text-[10px] text-muted-foreground">{new Date(o.created_at).toLocaleString("id-ID")}</p></div>
                     {statusBadge(o.status)}
                   </div>
@@ -173,7 +173,7 @@ const ViewerProfile = () => {
             subOrders.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada langganan</p> : (
               <div className="space-y-2">
                 {subOrders.map((o) => (
-                  <div key={o.id} className="rounded-lg bg-background p-3 space-y-2">
+                  <div key={o.id} className="rounded-lg bg-background/50 p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium text-foreground">{(o as any).shows?.title || "Show"}</p>
@@ -181,7 +181,6 @@ const ViewerProfile = () => {
                       </div>
                       {statusBadge(o.status)}
                     </div>
-                    {/* Phone display & edit */}
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
                       {editingPhone[o.id] !== undefined ? (
@@ -219,7 +218,7 @@ const ViewerProfile = () => {
             tokens.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada token</p> : (
               <div className="space-y-2">
                 {tokens.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-background p-3">
+                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-background/50 p-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-mono font-medium text-foreground">{t.code}</p>
@@ -234,6 +233,11 @@ const ViewerProfile = () => {
                 ))}
               </div>
             )
+          )}
+          {tab === "stats" && (
+            <Suspense fallback={<div className="h-40 skeleton rounded-xl" />}>
+              {authUser && <UserStatsPanel user={authUser} />}
+            </Suspense>
           )}
         </motion.div>
 
