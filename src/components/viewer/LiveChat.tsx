@@ -121,6 +121,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const [sending, setSending] = useState(false);
   const [onlineCount, setOnlineCount] = useState(0);
   const [chatModUsernames, setChatModUsernames] = useState<Set<string>>(new Set());
+  const [chatEnabled, setChatEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [, startTransition] = useTransition();
@@ -129,11 +130,24 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
   const isChatMod = chatModUsernames.has(username);
 
-  // Get current user id
+  // Get current user id + chat_enabled setting
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id || null);
     });
+    // Fetch chat_enabled setting
+    const fetchChatEnabled = async () => {
+      const { data } = await supabase.from("site_settings").select("value").eq("key", "chat_enabled").single();
+      if (data) setChatEnabled(data.value !== "false");
+    };
+    fetchChatEnabled();
+    // Listen for realtime changes to chat_enabled
+    const settingsCh = supabase.channel("chat-enabled-rt").on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
+      if (payload.new?.value !== undefined) {
+        setChatEnabled(payload.new.value !== "false");
+      }
+    }).subscribe();
+    return () => { supabase.removeChannel(settingsCh); };
   }, []);
 
   // Load chat moderators
@@ -311,13 +325,22 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       </div>
 
 
-      {/* Input */}
-      <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3">
-        <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={username ? "Ketik pesan..." : "Masukkan username dulu"} disabled={!username || sending} className="flex-1 border-secondary bg-secondary/50 text-sm placeholder:text-muted-foreground/50 focus:bg-background" />
-        <Button type="submit" size="icon" disabled={!username || sending || !newMessage.trim()} className="h-10 w-10 shrink-0 rounded-lg">
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
+      {/* Chat disabled banner for non-admin */}
+      {!chatEnabled && !isAdmin && (
+        <div className="border-t border-border bg-destructive/5 px-4 py-3 text-center">
+          <p className="text-xs font-medium text-destructive">🔇 Chat sedang dinonaktifkan oleh admin</p>
+        </div>
+      )}
+
+      {/* Input - hidden for non-admin when chat disabled */}
+      {(chatEnabled || isAdmin) && (
+        <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3">
+          <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={!chatEnabled && isAdmin ? "Chat nonaktif — hanya admin yang bisa kirim" : username ? "Ketik pesan..." : "Masukkan username dulu"} disabled={!username || sending} className="flex-1 border-secondary bg-secondary/50 text-sm placeholder:text-muted-foreground/50 focus:bg-background" />
+          <Button type="submit" size="icon" disabled={!username || sending || !newMessage.trim()} className="h-10 w-10 shrink-0 rounded-lg">
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      )}
     </div>
   );
 };

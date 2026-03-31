@@ -14,6 +14,7 @@ const LiveControl = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [saving, setSaving] = useState(false);
@@ -57,6 +58,7 @@ const LiveControl = () => {
           if (s.key === "next_show_time") setNextShowTime(s.value);
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
+          if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
         });
       }
     };
@@ -146,6 +148,27 @@ const LiveControl = () => {
         <div className={isLive ? "animate-glow-pulse" : ""}>
           <Switch checked={isLive} onCheckedChange={toggleLive} />
         </div>
+      </div>
+
+      {/* Chat Toggle */}
+      <div className={`flex items-center justify-between rounded-xl border p-6 ${chatEnabled ? "border-[hsl(var(--success))]/50 bg-[hsl(var(--success))]/5" : "border-destructive/50 bg-destructive/5"}`}>
+        <div>
+          <p className="text-lg font-bold text-foreground">{chatEnabled ? "💬 Chat Aktif" : "🔇 Chat Nonaktif"}</p>
+          <p className="text-sm text-muted-foreground">
+            {chatEnabled ? "User dapat mengirim pesan di live chat" : "User hanya bisa membaca pesan. Admin tetap bisa mengirim & pin pesan."}
+          </p>
+        </div>
+        <Switch
+          checked={chatEnabled}
+          onCheckedChange={async (checked) => {
+            setChatEnabled(checked);
+            await supabase.from("site_settings").upsert(
+              { key: "chat_enabled", value: checked ? "true" : "false" } as any,
+              { onConflict: "key" }
+            );
+            toast({ title: checked ? "💬 Live chat dibuka untuk user" : "🔇 Live chat ditutup untuk user" });
+          }}
+        />
       </div>
 
       {/* Active Show Selector */}
