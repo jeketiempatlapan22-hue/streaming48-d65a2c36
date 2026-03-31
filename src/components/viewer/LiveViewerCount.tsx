@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const STORAGE_KEY = "rt48_viewer_key";
 
