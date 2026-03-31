@@ -159,7 +159,18 @@ const ShowCard = ({
 
         {/* Title + countdown strip at bottom of image */}
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-card via-card/80 to-transparent">
-          <h3 className="text-lg font-bold text-foreground leading-tight">{show.title}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-lg font-bold text-foreground leading-tight flex-1">{show.title}</h3>
+            {!show.is_replay && show.schedule_date && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReminder(); }}
+                className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full transition-all ${reminded ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"}`}
+                title={reminded ? "Hapus pengingat" : "Ingatkan saya"}
+              >
+                {reminded ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+              </button>
+            )}
+          </div>
           {showCountdown && countdown && !countdown.live && !show.is_replay && (
             <div className="mt-1.5 flex items-center gap-2">
               <Timer className="h-3 w-3 text-primary/70 animate-pulse shrink-0" />
