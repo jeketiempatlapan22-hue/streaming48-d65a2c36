@@ -62,9 +62,11 @@
     -webkit-text-size-adjust: 100%;
     -moz-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    font-size: 16px;
+    font-size: 16px !important;
     line-height: 1.5;
     touch-action: manipulation;
+    zoom: 1;
+    -ms-text-size-adjust: 100%;
   }
 
   html, body, #root {
