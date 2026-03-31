@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useTransition, memo } from "r
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Users, Trophy, UserX } from "lucide-react";
+import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 
 
@@ -119,7 +119,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [onlineCount, setOnlineCount] = useState(0);
+  
   const [chatModUsernames, setChatModUsernames] = useState<Set<string>>(new Set());
   const [chatEnabled, setChatEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -161,16 +161,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Poll viewer count from DB (replaces heavy presence channel)
-  useEffect(() => {
-    const fetchCount = async () => {
-      const { data } = await supabase.rpc("get_viewer_count");
-      if (typeof data === "number") startTransition(() => setOnlineCount(data));
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 20_000);
-    return () => clearInterval(interval);
-  }, []);
+  // Viewer count is already polled by LiveViewerCount component — no duplicate polling needed
 
   // Load messages + realtime
   useEffect(() => {
@@ -289,10 +280,6 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           >
             <Trophy className="h-3.5 w-3.5" />
           </button>
-          <div className="flex items-center gap-1.5 rounded-full bg-[hsl(var(--success))]/10 px-2.5 py-1">
-            <Users className="h-3 w-3 text-[hsl(var(--success))]" />
-            <span className="text-xs font-bold text-[hsl(var(--success))]">{onlineCount}</span>
-          </div>
         </div>
       </div>
 

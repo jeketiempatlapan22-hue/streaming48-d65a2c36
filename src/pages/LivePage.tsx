@@ -397,24 +397,10 @@ const LivePage = () => {
 
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id, tokenData?.id, stream?.is_live, refreshPlaylists]);
+  }, [tokenData?.show_id, tokenData?.id, refreshPlaylists]);
 
-  // Fallback blocked-check: 60s interval (reduced from 30s for scalability)
-  useEffect(() => {
-    if (!tokenCode || blocked) return;
-
-    const checkBlockedStatus = async () => {
-      const { data } = await supabase.rpc("validate_token", { _code: tokenCode });
-      const result = data as any;
-      const errorText = String(result?.error || "").toLowerCase();
-      const isBlockedNow = result?.status === "blocked" || errorText.includes("diblokir");
-      if (isBlockedNow) setBlocked(true);
-    };
-
-    void checkBlockedStatus();
-    const i = window.setInterval(() => { void checkBlockedStatus(); }, 60_000);
-    return () => window.clearInterval(i);
-  }, [tokenCode, blocked]);
+  // Blocked status is handled via realtime subscription on tokens table (line ~393)
+  // No polling needed — saves ~60,000 req/hr at 1000 users
 
   useEffect(() => {
     if (!nextShowTime || stream?.is_live) { setCountdown(""); return; }
