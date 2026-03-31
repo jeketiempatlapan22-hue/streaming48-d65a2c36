@@ -92,7 +92,7 @@ serve(async (req) => {
 
       // Send WhatsApp to buyer
       await sendBuyerWhatsApp(coinOrder.phone, 
-        `✅ Pembelian ${coinOrder.coin_amount} koin berhasil!\n\n💎 Saldo koin Anda sekarang: ${(confirmResult as any)?.new_balance || 0}\n\nTerima kasih! 🙏`
+        `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${(confirmResult as any)?.new_balance || 0} koin*\n\n_Terima kasih atas pembelian Anda!_ 🙏\n━━━━━━━━━━━━━━━━━━`
       );
 
       return new Response(JSON.stringify({ success: true, confirmed: true, type: "coin" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
