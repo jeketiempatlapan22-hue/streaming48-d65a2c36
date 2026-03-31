@@ -10,18 +10,39 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SIGNING_SECRET = SERVICE_ROLE_KEY;
 
-const PLAYLIST_TOKEN_TTL = 7200;
-const SUB_PLAYLIST_TOKEN_TTL = 7200;
-const YT_TOKEN_TTL = 7200;
-const SEG_TOKEN_TTL = 7200;
+// --- TIGHTER TTLs ---
+// Shorter TTLs = harder to reuse stolen URLs
+const PLAYLIST_TOKEN_TTL = 900;   // 15 min (was 2h) — auto-refreshed by client
+const SUB_PLAYLIST_TOKEN_TTL = 600; // 10 min
+const YT_TOKEN_TTL = 1800;         // 30 min
+const SEG_TOKEN_TTL = 300;         // 5 min — segments are fetched immediately
 
-// In-memory rate limiter
+// --- ALLOWED ORIGINS (Referer/Origin validation) ---
+const ALLOWED_REFERERS = [
+  "lovable.app",
+  "lovable.dev",
+  "localhost",
+  "streaming48.lovable.app",
+  "realtime48",
+];
+
+function isAllowedReferer(req: Request): boolean {
+  const referer = req.headers.get("referer") || "";
+  const origin = req.headers.get("origin") || "";
+  const source = referer || origin;
+  // Allow if no referer (direct HLS player requests from video element)
+  if (!source) return true;
+  return ALLOWED_REFERERS.some((r) => source.includes(r));
+}
+
+// --- RATE LIMITER (stricter) ---
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 function edgeRateLimit(key: string, maxRequests: number, windowMs: number): boolean {
   const now = Date.now();
   const entry = rateLimitMap.get(key);
-  if (rateLimitMap.size > 2000) {
+  // Cleanup when map grows
+  if (rateLimitMap.size > 3000) {
     for (const [k, v] of rateLimitMap) {
       if (now > v.resetAt) rateLimitMap.delete(k);
     }
@@ -41,6 +62,28 @@ function edgeRateLimit(key: string, maxRequests: number, windowMs: number): bool
   return true;
 }
 
+// --- ABUSE TRACKER: detect IPs with repeated 403s ---
+const abuseTracker = new Map<string, { count: number; resetAt: number }>();
+
+function trackAbuse(ip: string): boolean {
+  const now = Date.now();
+  const entry = abuseTracker.get(ip);
+  if (!entry || now > entry.resetAt) {
+    abuseTracker.set(ip, { count: 1, resetAt: now + 600000 }); // 10 min window
+    return false;
+  }
+  entry.count++;
+  // Block after 15 failed attempts in 10 minutes
+  return entry.count > 15;
+}
+
+function isAbusiveIp(ip: string): boolean {
+  const entry = abuseTracker.get(ip);
+  if (!entry) return false;
+  if (Date.now() > entry.resetAt) { abuseTracker.delete(ip); return false; }
+  return entry.count > 15;
+}
+
 function getRateLimitResponse(isStreamRequest = false): Response {
   if (isStreamRequest) {
     return new Response(
@@ -54,15 +97,13 @@ function getRateLimitResponse(isStreamRequest = false): Response {
   );
 }
 
-// In-memory cache
-const M3U8_CACHE_TTL_MS = 3000;
+// --- CACHES ---
+const M3U8_CACHE_TTL_MS = 2000; // 2s (tighter)
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
-const SETTINGS_CACHE_TTL_MS = 300000; // 5 min
 
 interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
-
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
@@ -95,7 +136,7 @@ async function getPlaylistData(pid: string): Promise<{ url: string; type: string
   return { url: data.url, type: data.type };
 }
 
-// Crypto helpers
+// --- CRYPTO HELPERS ---
 async function hmacSign(message: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -109,7 +150,13 @@ async function hmacSign(message: string): Promise<string> {
 
 async function hmacVerify(message: string, signature: string): Promise<boolean> {
   const expected = await hmacSign(message);
-  return expected === signature;
+  // Constant-time comparison to prevent timing attacks
+  if (expected.length !== signature.length) return false;
+  let result = 0;
+  for (let i = 0; i < expected.length; i++) {
+    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 function base64UrlEncode(str: string): string {
@@ -139,25 +186,35 @@ function isM3u8Url(url: string, contentType?: string): boolean {
     (contentType || "").includes("mpegurl") || (contentType || "").includes("x-mpegURL");
 }
 
-async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
-  const sig = await hmacSign(`playlist:${playlistId}:${exp}`);
-  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}`;
+// --- IP-BOUND SIGNED URLS ---
+// Include IP hash in signature so URLs can't be shared across different IPs
+function hashIp(ip: string): string {
+  // Simple fast hash for IP binding (not crypto, just uniqueness)
+  let h = 0;
+  for (let i = 0; i < ip.length; i++) {
+    h = ((h << 5) - h + ip.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
 }
 
-async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string): Promise<string> {
+async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
+  const sig = await hmacSign(`playlist:${playlistId}:${exp}:${ipHash}`);
+  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+}
+
+async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SUB_PLAYLIST_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`sub:${encoded}:${exp}`);
-  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
+  const sig = await hmacSign(`sub:${encoded}:${exp}:${ipHash}`);
+  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
 }
 
-// Generate signed proxy URL for TS segments (full proxy, no redirect)
-async function generateSegSignedUrl(rawUrl: string, functionUrl: string): Promise<string> {
+async function generateSegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`seg:${encoded}:${exp}`);
-  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}`;
+  const sig = await hmacSign(`seg:${encoded}:${exp}:${ipHash}`);
+  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
 }
 
 async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
@@ -172,7 +229,8 @@ async function generateCloudflareSignedUrl(playlistId: string, functionUrl: stri
   return `${functionUrl}/stream-proxy?mode=cf&pid=${playlistId}&exp=${exp}&sig=${sig}`;
 }
 
-async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string): Promise<string> {
+// --- M3U8 REWRITING ---
+async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string, ipHash: string): Promise<string> {
   const lines = content.split("\n");
   const result: string[] = [];
 
@@ -186,11 +244,10 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
         if (match) {
           const absUrl = resolveUrl(match[1], baseUrl);
           if (isM3u8Url(absUrl)) {
-            const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl);
+            const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl, ipHash);
             result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           } else {
-            // Non-m3u8 URIs (e.g. encryption keys) — proxy through seg redirect
-            const signed = await generateSegSignedUrl(absUrl, functionUrl);
+            const signed = await generateSegSignedUrl(absUrl, functionUrl, ipHash);
             result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           }
         } else { result.push(line); }
@@ -200,17 +257,18 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
 
     const absoluteUrl = resolveUrl(trimmed, baseUrl);
     if (isM3u8Url(absoluteUrl)) {
-      result.push(await generateSubPlaylistSignedUrl(absoluteUrl, functionUrl));
+      result.push(await generateSubPlaylistSignedUrl(absoluteUrl, functionUrl, ipHash));
     } else {
-      // TS segments and other media files — proxy through signed redirect
-      result.push(await generateSegSignedUrl(absoluteUrl, functionUrl));
+      result.push(await generateSegSignedUrl(absoluteUrl, functionUrl, ipHash));
     }
   }
   return result.join("\n");
 }
 
-async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, functionUrl: string): Promise<string | null> {
-  const cached = getCachedM3u8(cacheKey);
+async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, functionUrl: string, ipHash: string): Promise<string | null> {
+  // IP-specific cache key so different IPs get different signed segments
+  const fullCacheKey = `${cacheKey}:${ipHash}`;
+  const cached = getCachedM3u8(fullCacheKey);
   if (cached) return cached;
 
   const response = await fetch(originUrl, {
@@ -220,18 +278,17 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
 
   const content = await response.text();
   const baseUrl = getBaseUrl(originUrl);
-  const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl);
+  const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl, ipHash);
 
-  setCachedM3u8(cacheKey, rewritten);
+  setCachedM3u8(fullCacheKey, rewritten);
   return rewritten;
 }
 
-// XOR key derived at runtime (not a plain literal)
+// --- XOR ENCRYPTION for YouTube IDs ---
 const _xk = [12,105,82,37,24,119,60,125,84,18,73,127,12,114,10,20];
 const _xo = [94,61,102,29,96,60,5,16,5,32,63,51,59,28,90,32];
 const XOR_KEY = _xk.map((v, i) => v ^ _xo[i]);
 
-// Decrypt XOR-encrypted embed ID (handles "enc:" prefix stored in DB)
 function xorDecryptId(encoded: string): string {
   if (!encoded.startsWith("enc:")) return encoded;
   const b64 = encoded.slice(4);
@@ -243,7 +300,6 @@ function xorDecryptId(encoded: string): string {
   return new TextDecoder().decode(result);
 }
 
-// Extract YouTube video ID from various URL formats (decrypts enc: prefix first)
 function extractYouTubeId(url: string): string {
   if (!url) return url;
   const decrypted = xorDecryptId(url);
@@ -252,7 +308,6 @@ function extractYouTubeId(url: string): string {
   return match?.[1] || decrypted;
 }
 
-// XOR encrypt YouTube video ID to prevent exposure in network responses
 function xorEncryptId(videoId: string): string {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(videoId);
@@ -263,7 +318,6 @@ function xorEncryptId(videoId: string): string {
   return "enc:" + btoa(String.fromCharCode(...result));
 }
 
-// Generate a secure YouTube embed HTML page
 function generateYouTubeEmbedPage(videoId: string): string {
   return `<!DOCTYPE html>
 <html lang="id">
@@ -301,6 +355,9 @@ if(window.top!==window.self){
 </html>`;
 }
 
+// ==============================================
+// MAIN HANDLER
+// ==============================================
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -309,26 +366,64 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
   const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ipH = hashIp(clientIp);
 
-  // Global IP rate limit
-  if (!edgeRateLimit(`global:${clientIp}`, 600, 60000)) {
+  // Block known abusive IPs immediately
+  if (isAbusiveIp(clientIp)) {
+    return new Response(
+      JSON.stringify({ error: "Akses diblokir sementara karena aktivitas mencurigakan." }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // --- GLOBAL RATE LIMITS (stricter) ---
+  // 200 requests/min global per IP (was 600)
+  if (!edgeRateLimit(`global:${clientIp}`, 200, 60000)) {
     const isStream = mode === "play" || mode === "sub" || mode === "seg";
     return getRateLimitResponse(isStream);
   }
 
+  // Referer validation for POST requests (generate mode)
+  if (req.method === "POST" && !isAllowedReferer(req)) {
+    trackAbuse(clientIp);
+    return new Response(
+      JSON.stringify({ error: "Unauthorized origin" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
-    // MODE: generate (POST)
+    // ===== MODE: generate (POST) =====
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
       const { token_code, playlist_id, fingerprint } = body;
 
-      if (token_code && !edgeRateLimit(`gen:${clientIp}`, 60, 60000)) {
+      // Strict rate limit: 15 generate requests per minute per IP (was 60)
+      if (!edgeRateLimit(`gen:${clientIp}`, 15, 60000)) {
         return getRateLimitResponse();
       }
 
       if (!token_code || !playlist_id) {
         return new Response(
           JSON.stringify({ error: "Missing token_code or playlist_id" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate token_code format (prevent SQL injection via RPC)
+      if (typeof token_code !== "string" || token_code.length > 100) {
+        trackAbuse(clientIp);
+        return new Response(
+          JSON.stringify({ error: "Invalid token format" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate playlist_id is UUID format
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playlist_id)) {
+        trackAbuse(clientIp);
+        return new Response(
+          JSON.stringify({ error: "Invalid playlist ID" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -343,6 +438,7 @@ Deno.serve(async (req) => {
         });
         const sr = sessResult as any;
         if (sessErr || !sr?.success) {
+          trackAbuse(clientIp);
           const errMsg = sr?.error || "Token tidak valid";
           return new Response(
             JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
@@ -352,6 +448,7 @@ Deno.serve(async (req) => {
       } else {
         const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
         if (valErr || !(validation as any)?.valid) {
+          trackAbuse(clientIp);
           return new Response(
             JSON.stringify({ error: (validation as any)?.error || "Token tidak valid atau expired" }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -382,7 +479,7 @@ Deno.serve(async (req) => {
       }
 
       if (playlist.type === "m3u8") {
-        const signedUrl = await generatePlaylistSignedUrl(playlist_id, functionUrl);
+        const signedUrl = await generatePlaylistSignedUrl(playlist_id, functionUrl, ipH);
         return new Response(
           JSON.stringify({ signed_url: signedUrl, expires_in: PLAYLIST_TOKEN_TTL, type: "m3u8" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -404,17 +501,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // MODE: play (GET) - m3u8 proxy
+    // ===== MODE: play (GET) - m3u8 proxy =====
     if (req.method === "GET" && mode === "play") {
       const pid = url.searchParams.get("pid");
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
 
-      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 300, 60000)) {
+      // 60 manifest requests per minute per IP per playlist (was 300)
+      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 60, 60000)) {
         return getRateLimitResponse(true);
       }
 
-      if (!pid || !exp || !sig) {
+      if (!pid || !exp || !sig || !h) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -422,7 +521,14 @@ Deno.serve(async (req) => {
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      if (!(await hmacVerify(`playlist:${pid}:${exp}`, sig))) {
+      // Verify IP binding
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch - URL tidak bisa digunakan dari perangkat lain", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`playlist:${pid}:${exp}:${h}`, sig))) {
+        trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
@@ -432,7 +538,7 @@ Deno.serve(async (req) => {
       }
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewritten = await fetchAndRewriteM3u8(plData.url, `play:${pid}`, functionUrl);
+      const rewritten = await fetchAndRewriteM3u8(plData.url, `play:${pid}`, functionUrl, ipH);
 
       if (!rewritten) {
         return new Response("Failed to fetch stream", { status: 502, headers: corsHeaders });
@@ -443,31 +549,41 @@ Deno.serve(async (req) => {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "public, max-age=2",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
           "Access-Control-Expose-Headers": "Content-Type",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     }
 
-    // MODE: seg (GET) - 302 redirect for TS segments with domain masking
+    // ===== MODE: seg (GET) - 302 redirect for TS segments =====
     if (req.method === "GET" && mode === "seg") {
       const encoded = url.searchParams.get("u");
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
 
-      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 600, 60000)) {
+      // 120 segment requests per minute per IP per unique segment (was 600)
+      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig) {
+      if (!encoded || !exp || !sig || !h) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
       if (Date.now() / 1000 > parseInt(exp, 10)) {
-        return new Response("Token expired", { status: 403, headers: corsHeaders });
+        return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      if (!(await hmacVerify(`seg:${encoded}:${exp}`, sig))) {
+      // Verify IP binding
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`seg:${encoded}:${exp}:${h}`, sig))) {
+        trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
@@ -483,13 +599,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // MODE: yt (GET) - YouTube embed proxy
+    // ===== MODE: yt (GET) - YouTube embed proxy =====
     if (req.method === "GET" && mode === "yt") {
       const pid = url.searchParams.get("pid");
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
 
-      if (pid && !edgeRateLimit(`yt:${clientIp}:${pid}`, 30, 60000)) {
+      if (pid && !edgeRateLimit(`yt:${clientIp}:${pid}`, 10, 60000)) {
         return getRateLimitResponse();
       }
 
@@ -502,6 +618,7 @@ Deno.serve(async (req) => {
       }
 
       if (!(await hmacVerify(`yt:${pid}:${exp}`, sig))) {
+        trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
@@ -526,13 +643,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // MODE: cf (GET) - Cloudflare Stream embed proxy
+    // ===== MODE: cf (GET) - Cloudflare Stream embed proxy =====
     if (req.method === "GET" && mode === "cf") {
       const pid = url.searchParams.get("pid");
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
 
-      if (pid && !edgeRateLimit(`cf:${clientIp}:${pid}`, 30, 60000)) {
+      if (pid && !edgeRateLimit(`cf:${clientIp}:${pid}`, 10, 60000)) {
         return getRateLimitResponse();
       }
 
@@ -545,6 +662,7 @@ Deno.serve(async (req) => {
       }
 
       if (!(await hmacVerify(`cf:${pid}:${exp}`, sig))) {
+        trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
@@ -590,17 +708,19 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       });
     }
 
-    // MODE: sub (GET) - sub-playlist proxy for m3u8
+    // ===== MODE: sub (GET) - sub-playlist proxy for m3u8 =====
     if (req.method === "GET" && mode === "sub") {
       const encoded = url.searchParams.get("u");
       const exp = url.searchParams.get("exp");
       const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
 
-      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 500, 60000)) {
+      // 120 sub-playlist requests per minute per IP (was 500)
+      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig) {
+      if (!encoded || !exp || !sig || !h) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -608,14 +728,21 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      if (!(await hmacVerify(`sub:${encoded}:${exp}`, sig))) {
+      // Verify IP binding
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`sub:${encoded}:${exp}:${h}`, sig))) {
+        trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
 
       const actualUrl = base64UrlDecode(encoded);
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewritten = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl);
+      const rewritten = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl, ipH);
 
       if (!rewritten) {
         return new Response("Failed to fetch sub-playlist", { status: 502, headers: corsHeaders });
@@ -626,7 +753,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
-          "Cache-Control": "public, max-age=2",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
         },
       });
     }
