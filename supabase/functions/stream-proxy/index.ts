@@ -441,8 +441,10 @@ Deno.serve(async (req) => {
         });
         const sr = sessResult as any;
         if (sessErr || !sr?.success) {
-          trackAbuse(clientIp);
+          // Only track abuse for clearly invalid tokens, not device_limit or expired
           const errMsg = sr?.error || "Token tidak valid";
+          const isLegitFailure = errMsg === "device_limit" || errMsg.includes("kedaluwarsa") || errMsg.includes("expired");
+          if (!isLegitFailure) trackAbuse(clientIp);
           return new Response(
             JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
