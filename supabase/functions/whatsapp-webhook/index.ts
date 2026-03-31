@@ -1203,23 +1203,41 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
 
 async function uploadQrToStorage(supabase: any, qrData: string, filename: string): Promise<string | null> {
   try {
-    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}`;
+    // Generate QR image from qrserver API
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrData)}`;
     const imgRes = await fetch(qrApiUrl);
-    if (!imgRes.ok) { console.warn('QR server fetch failed:', imgRes.status); return null; }
+    if (!imgRes.ok) { console.warn('QR server fetch failed:', imgRes.status); return qrApiUrl; }
     const imgBlob = await imgRes.blob();
     const imgBuffer = new Uint8Array(await imgBlob.arrayBuffer());
 
-    const path = `qris/${filename}.png`;
+    // Add timestamp to avoid cache issues
+    const ts = Date.now();
+    const path = `qris/${filename}-${ts}.png`;
     const { error: upErr } = await supabase.storage
       .from('admin-media')
       .upload(path, imgBuffer, { contentType: 'image/png', upsert: true });
-    if (upErr) { console.warn('Storage upload error:', upErr.message); return null; }
+    if (upErr) {
+      console.warn('Storage upload error:', upErr.message);
+      // Fallback: return direct QR API URL
+      return qrApiUrl;
+    }
 
-    const { data: pubUrl } = supabase.storage.from('admin-media').getPublicUrl(path);
-    return pubUrl?.publicUrl || null;
+    // Use signed URL instead of public URL for better reliability
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from('admin-media')
+      .createSignedUrl(path, 86400); // 24 hours
+    if (signErr || !signedData?.signedUrl) {
+      console.warn('Signed URL error:', signErr?.message);
+      // Fallback: try public URL
+      const { data: pubUrl } = supabase.storage.from('admin-media').getPublicUrl(path);
+      return pubUrl?.publicUrl || qrApiUrl;
+    }
+    console.log('QRIS signed URL created:', signedData.signedUrl.substring(0, 80) + '...');
+    return signedData.signedUrl;
   } catch (e) {
     console.warn('uploadQrToStorage error:', e);
-    return null;
+    // Final fallback: direct QR server URL
+    return `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrData)}`;
   }
 }
 
@@ -1228,7 +1246,9 @@ async function sendFonnteMessage(token: string, target: string, message: string,
   if (!cleanPhone) return;
   try {
     if (imageUrl) {
-      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 100) + '...' });
+      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 120) });
+      
+      // Try sending with 'url' parameter first (for direct image URLs)
       const imgRes = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: {
@@ -1244,6 +1264,46 @@ async function sendFonnteMessage(token: string, target: string, message: string,
       });
       const imgResText = await imgRes.text();
       console.log('Fonnte image response:', imgRes.status, imgResText);
+      
+      // If image send failed, try with 'file' parameter as fallback
+      let parsed: any = {};
+      try { parsed = JSON.parse(imgResText); } catch {}
+      if (!imgRes.ok || parsed?.status === false) {
+        console.log('Fonnte image failed, retrying with file parameter...');
+        const retryRes = await fetch('https://api.fonnte.com/send', {
+          method: 'POST',
+          headers: {
+            Authorization: token,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            target: cleanPhone,
+            message,
+            file: imageUrl,
+            type: 'image',
+          }),
+        });
+        const retryText = await retryRes.text();
+        console.log('Fonnte file retry response:', retryRes.status, retryText);
+        
+        // If still failed, send text-only as last resort
+        let retryParsed: any = {};
+        try { retryParsed = JSON.parse(retryText); } catch {}
+        if (!retryRes.ok || retryParsed?.status === false) {
+          console.log('Image send failed completely, sending text-only with QRIS link');
+          await fetch('https://api.fonnte.com/send', {
+            method: 'POST',
+            headers: {
+              Authorization: token,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              target: cleanPhone,
+              message: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
+            }),
+          });
+        }
+      }
     } else {
       await fetch('https://api.fonnte.com/send', {
         method: 'POST',
