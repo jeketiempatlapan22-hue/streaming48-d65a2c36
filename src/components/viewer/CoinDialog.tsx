@@ -80,7 +80,7 @@ const CoinDialog = ({ show, coinBalance, coinRedeeming, coinResult, onClose, onR
             )}
             <div className="flex gap-2">
               <Button className="flex-1 gap-2" variant="outline"
-                onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${coinResult.token_code}`); toast({ title: "Link disalin!" }); }}>
+                onClick={() => { navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${coinResult.token_code}`); toast({ title: "Link disalin!" }); }}>
                 <Copy className="h-4 w-4" /> Salin Link
               </Button>
               <Button className="flex-1 gap-2" onClick={() => { window.location.href = `/live?t=${coinResult.token_code}`; }}>

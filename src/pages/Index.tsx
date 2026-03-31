@@ -1200,7 +1200,7 @@ const Index = () => {
               )}
               <div className="flex gap-2">
                 <Button className="flex-1 gap-2" variant="outline"
-                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${coinResult.token_code}`); toast.success("Link disalin!"); }}>
+                  onClick={() => { navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${coinResult.token_code}`); toast.success("Link disalin!"); }}>
                   <Copy className="h-4 w-4" /> Salin Link
                 </Button>
                 <Button className="flex-1 gap-2" asChild>

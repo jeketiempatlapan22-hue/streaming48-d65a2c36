@@ -114,7 +114,7 @@ const TokenFactory = () => {
   };
 
   const copyLink = (code: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/live?t=${code}`);
+    navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${code}`);
     markAsCopied(code);
     setLastCopied([code]);
     toast({ title: "Link disalin!" });
@@ -129,7 +129,7 @@ const TokenFactory = () => {
       toast({ title: "Tidak ada token baru untuk disalin" });
       return;
     }
-    const links = uncopied.map((t) => `${window.location.origin}/live?t=${t.code}`).join("\n");
+    const links = uncopied.map((t) => `https://realtime48stream.my.id/live?t=${t.code}`).join("\n");
     navigator.clipboard.writeText(links);
     const codes = uncopied.map((t) => t.code);
     codes.forEach((c) => markAsCopied(c));
