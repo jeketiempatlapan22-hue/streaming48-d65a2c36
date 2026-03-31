@@ -397,7 +397,7 @@ const LivePage = () => {
 
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id, tokenData?.id, stream?.is_live, refreshPlaylists]);
+  }, [tokenData?.show_id, tokenData?.id, refreshPlaylists]);
 
   // Blocked status is handled via realtime subscription on tokens table (line ~393)
   // No polling needed — saves ~60,000 req/hr at 1000 users

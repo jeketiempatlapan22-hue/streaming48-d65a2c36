@@ -161,16 +161,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Poll viewer count from DB (replaces heavy presence channel)
-  useEffect(() => {
-    const fetchCount = async () => {
-      const { data } = await supabase.rpc("get_viewer_count");
-      if (typeof data === "number") startTransition(() => setOnlineCount(data));
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 20_000);
-    return () => clearInterval(interval);
-  }, []);
+  // Viewer count is already polled by LiveViewerCount component — no duplicate polling needed
 
   // Load messages + realtime
   useEffect(() => {
