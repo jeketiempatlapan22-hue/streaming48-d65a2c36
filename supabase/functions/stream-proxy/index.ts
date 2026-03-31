@@ -511,8 +511,9 @@ Deno.serve(async (req) => {
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 60 manifest requests per minute per IP per playlist (was 300)
-      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 60, 60000)) {
+      // 150 manifest requests per minute per IP per playlist
+      // HLS.js fetches every 2-5s = ~12-30/min per viewer, supports ~5 viewers/IP
+      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 150, 60000)) {
         return getRateLimitResponse(true);
       }
 
