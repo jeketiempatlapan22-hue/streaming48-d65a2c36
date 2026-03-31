@@ -325,13 +325,22 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       </div>
 
 
-      {/* Input */}
-      <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3">
-        <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={username ? "Ketik pesan..." : "Masukkan username dulu"} disabled={!username || sending} className="flex-1 border-secondary bg-secondary/50 text-sm placeholder:text-muted-foreground/50 focus:bg-background" />
-        <Button type="submit" size="icon" disabled={!username || sending || !newMessage.trim()} className="h-10 w-10 shrink-0 rounded-lg">
-          <Send className="h-4 w-4" />
-        </Button>
-      </form>
+      {/* Chat disabled banner for non-admin */}
+      {!chatEnabled && !isAdmin && (
+        <div className="border-t border-border bg-destructive/5 px-4 py-3 text-center">
+          <p className="text-xs font-medium text-destructive">🔇 Chat sedang dinonaktifkan oleh admin</p>
+        </div>
+      )}
+
+      {/* Input - hidden for non-admin when chat disabled */}
+      {(chatEnabled || isAdmin) && (
+        <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3">
+          <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={!chatEnabled && isAdmin ? "Chat nonaktif — hanya admin yang bisa kirim" : username ? "Ketik pesan..." : "Masukkan username dulu"} disabled={!username || sending} className="flex-1 border-secondary bg-secondary/50 text-sm placeholder:text-muted-foreground/50 focus:bg-background" />
+          <Button type="submit" size="icon" disabled={!username || sending || !newMessage.trim()} className="h-10 w-10 shrink-0 rounded-lg">
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      )}
     </div>
   );
 };
