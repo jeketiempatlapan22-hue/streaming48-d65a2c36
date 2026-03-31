@@ -63,6 +63,16 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
     </div>
   );
 };
+// Sort playlists: 1st m3u8 first, 1st youtube second, then remaining in order
+const sortPlaylists = (list: any[]): any[] => {
+  if (!list || list.length <= 1) return list;
+  const firstM3u8 = list.find((p) => p.type === "m3u8");
+  const firstYoutube = list.find((p) => p.type === "youtube");
+  const rest = list.filter(
+    (p) => p !== firstM3u8 && p !== firstYoutube
+  );
+  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+};
 
 const LivePage = () => {
   const [searchParams] = useSearchParams();
