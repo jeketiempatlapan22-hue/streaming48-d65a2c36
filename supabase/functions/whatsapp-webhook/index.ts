@@ -1246,7 +1246,9 @@ async function sendFonnteMessage(token: string, target: string, message: string,
   if (!cleanPhone) return;
   try {
     if (imageUrl) {
-      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 100) + '...' });
+      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 120) });
+      
+      // Try sending with 'url' parameter first (for direct image URLs)
       const imgRes = await fetch('https://api.fonnte.com/send', {
         method: 'POST',
         headers: {
@@ -1262,6 +1264,46 @@ async function sendFonnteMessage(token: string, target: string, message: string,
       });
       const imgResText = await imgRes.text();
       console.log('Fonnte image response:', imgRes.status, imgResText);
+      
+      // If image send failed, try with 'file' parameter as fallback
+      let parsed: any = {};
+      try { parsed = JSON.parse(imgResText); } catch {}
+      if (!imgRes.ok || parsed?.status === false) {
+        console.log('Fonnte image failed, retrying with file parameter...');
+        const retryRes = await fetch('https://api.fonnte.com/send', {
+          method: 'POST',
+          headers: {
+            Authorization: token,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            target: cleanPhone,
+            message,
+            file: imageUrl,
+            type: 'image',
+          }),
+        });
+        const retryText = await retryRes.text();
+        console.log('Fonnte file retry response:', retryRes.status, retryText);
+        
+        // If still failed, send text-only as last resort
+        let retryParsed: any = {};
+        try { retryParsed = JSON.parse(retryText); } catch {}
+        if (!retryRes.ok || retryParsed?.status === false) {
+          console.log('Image send failed completely, sending text-only with QRIS link');
+          await fetch('https://api.fonnte.com/send', {
+            method: 'POST',
+            headers: {
+              Authorization: token,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              target: cleanPhone,
+              message: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
+            }),
+          });
+        }
+      }
     } else {
       await fetch('https://api.fonnte.com/send', {
         method: 'POST',
