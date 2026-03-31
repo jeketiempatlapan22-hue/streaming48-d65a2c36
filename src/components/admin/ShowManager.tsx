@@ -18,6 +18,7 @@ interface Show {
   max_subscribers: number; subscription_benefits: string; group_link: string;
   is_order_closed: boolean; category: string; category_member: string;
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
+  qris_price: number;
 }
 
 const CATEGORY_OPTIONS = [
