@@ -152,6 +152,7 @@ export type Database = {
           created_at: string
           id: string
           package_id: string | null
+          payment_gateway_order_id: string | null
           payment_proof_url: string | null
           phone: string | null
           price: string | null
@@ -164,6 +165,7 @@ export type Database = {
           created_at?: string
           id?: string
           package_id?: string | null
+          payment_gateway_order_id?: string | null
           payment_proof_url?: string | null
           phone?: string | null
           price?: string | null
@@ -176,6 +178,7 @@ export type Database = {
           created_at?: string
           id?: string
           package_id?: string | null
+          payment_gateway_order_id?: string | null
           payment_proof_url?: string | null
           phone?: string | null
           price?: string | null

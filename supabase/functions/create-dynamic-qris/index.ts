@@ -134,7 +134,14 @@ serve(async (req) => {
     // Generate QR image URL for external use (WhatsApp, etc.)
     const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrString)}`;
 
-    if (!isCoinOrder) {
+    if (isCoinOrder) {
+      await supabase
+        .from("coin_orders")
+        .update({
+          payment_gateway_order_id: transactionId,
+        })
+        .eq("id", orderId);
+    } else {
       await supabase
         .from("subscription_orders")
         .update({

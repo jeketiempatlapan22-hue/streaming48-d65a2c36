@@ -1,0 +1,1 @@
+ALTER TABLE public.coin_orders ADD COLUMN IF NOT EXISTS payment_gateway_order_id text DEFAULT NULL;
