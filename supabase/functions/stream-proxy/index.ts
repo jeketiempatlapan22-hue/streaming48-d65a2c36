@@ -63,38 +63,6 @@ interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
 
-// Domain masking cache
-let proxyDomainCache: { domain: string | null; cachedAt: number } | null = null;
-
-async function getProxyDomain(): Promise<string | null> {
-  if (proxyDomainCache && Date.now() - proxyDomainCache.cachedAt < SETTINGS_CACHE_TTL_MS) {
-    return proxyDomainCache.domain;
-  }
-  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-  const { data } = await supabase.from("site_settings").select("value").eq("key", "stream_proxy_domain").maybeSingle();
-  const domain = data?.value && data.value.trim() !== "" ? data.value.trim() : null;
-  proxyDomainCache = { domain, cachedAt: Date.now() };
-  return domain;
-}
-
-// Replace origin domain in URL with proxy domain using path-based routing
-// Original: https://origin.com/path/file.ts
-// Masked:   https://cdn.yourdomain.com/origin.com/path/file.ts
-function maskDomain(originalUrl: string, proxyDomain: string): string {
-  try {
-    const parsed = new URL(originalUrl);
-    const originHost = parsed.host;
-    const originPath = parsed.pathname + parsed.search;
-    
-    const base = proxyDomain.startsWith("http") 
-      ? proxyDomain.replace(/\/+$/, "") 
-      : `https://${proxyDomain}`;
-    
-    return `${base}/${originHost}${originPath}`;
-  } catch {
-    return originalUrl;
-  }
-}
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
