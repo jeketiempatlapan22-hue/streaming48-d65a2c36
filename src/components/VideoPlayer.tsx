@@ -21,17 +21,15 @@ export interface VideoPlayerHandle {
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
-  const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [qualities, setQualities] = useState<{ label: string; level: number }[]>([]);
+  const [qualities, setQualities] = useState<{ label: string; value: number }[]>([]);
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [ytMuted, setYtMuted] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isBehindLive, setIsBehindLive] = useState(false);
-
-  // YouTube can use fallback iframe or IFrame API
   const [ytMode, setYtMode] = useState<"api" | "iframe" | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,12 +60,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return new TextDecoder().decode(result);
   }, []);
 
-  const extractVideoId = useCallback((url: string): string => {
+  const youtubeId = useCallback((url: string): string => {
     const decrypted = decryptUrl(url);
-    const match = decrypted.match(/(?:youtu\.be\/|v=|\/embed\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
-    if (match) return match[1];
-    if (/^[a-zA-Z0-9_-]{11}$/.test(decrypted)) return decrypted;
-    return decrypted;
+    return (decrypted.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^?&/]+)/)?.[1] ?? decrypted).trim();
   }, [decryptUrl]);
 
   const buildYtEmbedUrl = useCallback((videoId: string) => {
@@ -85,20 +80,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     play: () => {
       if (playlistType === "youtube") {
         if (ytMode === "iframe") return;
-        if (isYTReady()) { ytPlayerRef.current.playVideo(); setIsPlaying(true); }
-      } else if (playlistType === "cloudflare") {
-        setIsPlaying(true);
+        if (isYTReady()) { ytPlayerRef.current.playVideo(); }
       } else if (videoRef.current) {
-        if (playlistType === "m3u8" && hlsRef.current?.liveSyncPosition) {
-          videoRef.current.currentTime = hlsRef.current.liveSyncPosition;
-        }
         videoRef.current.play().catch(() => {});
-        setIsPlaying(true);
       }
     },
     pause: () => {
-      if (playlistType === "youtube" && isYTReady()) { ytPlayerRef.current.pauseVideo(); setIsPlaying(false); }
-      else if (videoRef.current) { videoRef.current.pause(); setIsPlaying(false); }
+      if (playlistType === "youtube" && isYTReady()) ytPlayerRef.current.pauseVideo();
+      else if (videoRef.current) videoRef.current.pause();
     },
     seekTo: (time: number) => {
       if (playlistType === "youtube" && isYTReady()) ytPlayerRef.current.seekTo(time, true);
@@ -130,196 +119,146 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // ── Master reset on playlist change (non-m3u8 types only) ──
-  // M3U8 handles its own full lifecycle to avoid race conditions.
-
-  useEffect(() => {
-    if (playlistType === "m3u8") return; // m3u8 manages itself
-    setIsLoading(true);
-    setIsPlaying(false);
-    setQualities([]);
-    setSelectedQuality(-1);
-    setYtMode(null);
-    setIsBehindLive(false);
-    ytReadyRef.current = false;
-
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      try { ytPlayerRef.current?.destroy?.(); } catch {}
-      ytPlayerRef.current = null;
-    };
-  }, [playlistUrl, playlistType]);
-
   // ══════════════════════════════════════════
-  //  HLS / M3U8 Player — single self-contained effect
-  //  Owns the full lifecycle: reset → attach → load → play → cleanup
+  //  HLS / M3U8 — SINGLE SOURCE OF TRUTH
+  //  One effect owns the ENTIRE lifecycle
   // ══════════════════════════════════════════
 
   useEffect(() => {
-    if (playlistType !== "m3u8" || !playlistUrl) return;
-    const vid = videoRef.current;
-    if (!vid) return;
-    let destroyed = false;
+    if (playlistType !== "m3u8" || !videoRef.current || !playlistUrl) return;
+    const video = videoRef.current;
+    let mounted = true;
 
-    // ─── 1. Reset everything ───
-    setIsLoading(true);
-    setIsPlaying(false);
-    setQualities([]);
-    setSelectedQuality(-1);
-    setIsBehindLive(false);
+    // 1. Full reset
+    cancelAnimationFrame(rafRef.current);
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    vid.pause();
-    vid.removeAttribute("src");
-    vid.load();
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
+    setSelectedQuality(-1);
+    setIsBehindLive(false);
 
-    // ─── 2. Wire up media events for UI state ───
-    const onReady = () => { if (!destroyed) setIsLoading(false); };
-    const onPlay = () => { if (!destroyed) { setIsPlaying(true); setIsLoading(false); } };
-    const onPause = () => { if (!destroyed) setIsPlaying(false); };
-    const onWait = () => { if (!destroyed) setIsLoading(true); };
+    // 2. UI state driven ONLY by native video events
+    const done = () => { if (mounted) setIsLoading(false); };
+    const onPlay = () => { if (mounted) { setIsPlaying(true); setIsLoading(false); } };
+    const onPause = () => { if (mounted) setIsPlaying(false); };
 
-    const allEvents: [string, EventListener][] = [
-      ["loadeddata", onReady], ["canplay", onReady], ["canplaythrough", onReady], ["playing", onPlay],
-      ["play", onPlay], ["pause", onPause], ["ended", onPause],
-      ["waiting", onWait], ["stalled", onWait], ["seeking", onWait],
-    ];
-    allEvents.forEach(([evt, fn]) => vid.addEventListener(evt, fn));
+    // Only these events clear loading — NO waiting/stalled/seeking to avoid flicker
+    ["loadeddata", "canplay", "playing"].forEach(e => video.addEventListener(e, done));
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
 
-    // Hard timeout — absolute last resort
-    const hardTimeout = window.setTimeout(() => { if (!destroyed) setIsLoading(false); }, 10000);
+    // 3. ReadyState polling — catches cases where events don't fire
+    const pollId = window.setInterval(() => {
+      if (!mounted) return;
+      if (video.readyState >= 2) done();
+    }, 300);
 
-    // ─── 3. Initialize HLS ───
-    let hls: any = null;
+    // 4. Hard timeout — absolute last resort (6s)
+    const hardTimeout = window.setTimeout(done, 6000);
 
+    // 5. Initialize HLS
     const initHls = async () => {
       const HlsModule = await import("hls.js");
       const Hls = HlsModule.default;
-      if (destroyed) return;
+      if (!mounted) return;
 
-      // Safari / iOS native HLS
       if (!Hls.isSupported()) {
-        if (vid.canPlayType("application/vnd.apple.mpegurl")) {
-          vid.src = playlistUrl;
-          if (autoPlay) { vid.muted = true; vid.play().catch(() => {}); }
+        // Safari native HLS
+        if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = playlistUrl;
+          video.addEventListener("loadedmetadata", () => video.play().catch(() => {}), { once: true });
         }
         return;
       }
 
-      hls = new Hls({
+      const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
+        backBufferLength: 30,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 6,
         capLevelToPlayerSize: true,
         startLevel: -1,
-        liveDurationInfinity: true,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 10,
-        maxLiveSyncPlaybackRate: 1.02,
-        liveBackBufferLength: 15,
-        backBufferLength: 30,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 30,
-        maxBufferSize: 30 * 1024 * 1024,
-        maxBufferHole: 0.5,
-        abrBandWidthFactor: 0.7,
-        abrBandWidthUpFactor: 0.5,
-        abrEwmaDefaultEstimate: 1_000_000,
-        startFragPrefetch: true,
-        progressive: true,
-        fragLoadingMaxRetry: 10,
-        levelLoadingMaxRetry: 6,
-        manifestLoadingMaxRetry: 6,
+        fragLoadingMaxRetry: 6,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
         fragLoadingRetryDelay: 1000,
-        manifestLoadingRetryDelay: 1000,
-        levelLoadingRetryDelay: 1000,
-        fragLoadingMaxRetryTimeout: 30000,
-        manifestLoadingTimeOut: 12000,
-        levelLoadingTimeOut: 12000,
-        fragLoadingTimeOut: 20000,
-        debug: false,
+        manifestLoadingTimeOut: 10000,
+        fragLoadingTimeOut: 15000,
       });
       hlsRef.current = hls;
 
-      // CRITICAL ORDER: attachMedia FIRST, then loadSource after MEDIA_ATTACHED
-      hls.attachMedia(vid);
+      // Levels + autoplay
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!mounted) return;
+        const levels = hls.levels.map((l: any, i: number) => ({
+          label: `${l.height || 0}p`,
+          value: i,
+        }));
+        setQualities([{ label: "Auto", value: -1 }, ...levels]);
+        video.play().catch(() => {});
+      });
 
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
-        if (destroyed) return;
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
+        if (mounted) setSelectedQuality(d.level);
+      });
+
+      // Error recovery
+      hls.on(Hls.Events.ERROR, (_: any, data: any) => {
+        if (!mounted) return;
+        if (data.fatal) {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+          else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+          else { hls.destroy(); hlsRef.current = null; }
+        } else if (data.details === "bufferStalledError" && video.buffered.length > 0) {
+          const end = video.buffered.end(video.buffered.length - 1);
+          if (end - video.currentTime > 1) video.currentTime = end - 0.5;
+        }
+      });
+
+      // CRITICAL ORDER: attach first, then load after MEDIA_ATTACHED
+      hls.attachMedia(video);
+      hls.once(Hls.Events.MEDIA_ATTACHED, () => {
+        if (!mounted) return;
         hls.loadSource(playlistUrl);
       });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (destroyed) return;
-        const levels = hls.levels.map((l: any, i: number) => ({ label: `${l.height}p`, level: i }));
-        setQualities([{ label: "Auto", level: -1 }, ...levels]);
-        setSelectedQuality(-1);
-        // Don't set isLoading false here — let the video element events handle it
-        if (autoPlay) {
-          vid.muted = true;
-          vid.play().then(() => {
-            setTimeout(() => { if (!destroyed && vid) vid.muted = false; }, 800);
-          }).catch(() => {});
-        }
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
-        if (!destroyed) setSelectedQuality(data.level);
-      });
-
-      // Behind-live detection (throttled to every 2s via rAF)
+      // Behind-live detection
       let lastCheck = 0;
       const syncLoop = (ts: number) => {
-        if (destroyed) return;
+        if (!mounted) return;
         rafRef.current = requestAnimationFrame(syncLoop);
         if (ts - lastCheck < 2000) return;
         lastCheck = ts;
-        if (vid.paused || !hls || !hls.liveSyncPosition) return;
-        const behind = hls.liveSyncPosition - vid.currentTime > 8;
-        setIsBehindLive(behind);
+        if (video.paused || !hls.liveSyncPosition) return;
+        setIsBehindLive(hls.liveSyncPosition - video.currentTime > 8);
       };
       rafRef.current = requestAnimationFrame(syncLoop);
 
-      // Error recovery
-      let fatalRetries = 0;
-      hls.on(Hls.Events.ERROR, (_: any, data: any) => {
-        if (destroyed) return;
-        if (!data.fatal) {
-          // Nudge past buffer stalls
-          if (data.details === "bufferStalledError" && vid.buffered.length > 0) {
-            const end = vid.buffered.end(vid.buffered.length - 1);
-            if (end - vid.currentTime > 1) vid.currentTime = end - 0.5;
-          }
-          return;
-        }
-        setIsLoading(false); // Never stay stuck
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          setTimeout(() => { if (!destroyed && hls) hls.startLoad(); }, 1000);
-        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls.recoverMediaError();
-        } else if (fatalRetries++ < 3) {
-          hls.destroy();
-          hlsRef.current = null;
-          setTimeout(() => { if (!destroyed) initHls(); }, 2000);
-        }
-      });
-
       // Tab visibility recovery
       const onVisible = () => {
-        if (destroyed || document.hidden || !hls) return;
-        hls.startLoad();
-        if (vid.paused) vid.play().catch(() => {});
-        if (hls.liveSyncPosition && hls.liveSyncPosition - vid.currentTime > 5) {
-          vid.currentTime = hls.liveSyncPosition;
+        if (!mounted || document.hidden || !hlsRef.current) return;
+        hlsRef.current.startLoad();
+        if (video.paused) video.play().catch(() => {});
+        if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
+          video.currentTime = hlsRef.current.liveSyncPosition;
         }
       };
       document.addEventListener("visibilitychange", onVisible);
 
-      // Health check every 15s
+      // Health check
       const healthId = setInterval(() => {
-        if (destroyed || document.hidden || vid.paused || !hls) return;
-        if (vid.readyState < 3) hls.startLoad();
+        if (!mounted || document.hidden || video.paused || !hlsRef.current) return;
+        if (video.readyState < 3) hlsRef.current.startLoad();
       }, 15000);
 
-      // Patch destroy to clean up extras
+      // Patch destroy for cleanup
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
@@ -332,13 +271,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     initHls();
 
     return () => {
-      destroyed = true;
+      mounted = false;
       window.clearTimeout(hardTimeout);
+      window.clearInterval(pollId);
       cancelAnimationFrame(rafRef.current);
-      allEvents.forEach(([evt, fn]) => vid.removeEventListener(evt, fn));
+      ["loadeddata", "canplay", "playing"].forEach(e => video.removeEventListener(e, done));
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
-  }, [playlistUrl, playlistType, autoPlay]);
+  }, [playlistType, playlistUrl]);
 
   // ══════════════════════════════════════════
   //  YouTube Player
@@ -347,18 +289,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     if (playlistType !== "youtube" || !playlistUrl) return;
     let destroyed = false;
-    const videoId = extractVideoId(playlistUrl);
 
+    // Reset state
+    setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
+    setSelectedQuality(-1);
+    setYtMode(null);
+    setIsBehindLive(false);
+    ytReadyRef.current = false;
+
+    const videoId = youtubeId(playlistUrl);
     if (!videoId || videoId.length < 5) {
       console.error("[YT] Could not extract video ID from:", playlistUrl);
       setIsLoading(false);
       return;
     }
 
-    // Fallback timer: if YT API doesn't load in 6s, use plain iframe
     const fallbackTimer = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
-      console.warn("[YT] API timeout, using iframe fallback");
       setYtMode("iframe");
       setIsLoading(false);
       setIsPlaying(autoPlay);
@@ -379,17 +328,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           height: "100%",
           videoId,
           playerVars: {
-            autoplay: autoPlay ? 1 : 0,
-            mute: 1,
-            enablejsapi: 1,
-            controls: 1,
-            disablekb: 1,
-            fs: 0,
-            modestbranding: 1,
-            rel: 0,
-            iv_load_policy: 3,
-            playsinline: 1,
-            origin: window.location.origin,
+            autoplay: autoPlay ? 1 : 0, mute: 1, enablejsapi: 1, controls: 1,
+            disablekb: 1, fs: 0, modestbranding: 1, rel: 0, iv_load_policy: 3,
+            playsinline: 1, origin: window.location.origin,
           },
           events: {
             onReady: (e: any) => {
@@ -402,33 +343,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 e.target.playVideo();
                 setIsPlaying(true);
                 setYtMuted(true);
-                setTimeout(() => {
-                  try { ytPlayerRef.current?.unMute?.(); setYtMuted(false); } catch {}
-                }, 1500);
+                setTimeout(() => { try { ytPlayerRef.current?.unMute?.(); setYtMuted(false); } catch {} }, 1500);
               }
             },
             onStateChange: (e: any) => {
               if (destroyed) return;
               setIsPlaying(e.data === 1);
-              if (e.data === 3) setIsLoading(true);
-              else setIsLoading(false);
+              setIsLoading(e.data === 3);
             },
             onError: () => {
               if (destroyed) return;
-              console.warn("[YT] Player error, switching to iframe");
               setYtMode("iframe");
               setIsLoading(false);
             },
           },
         });
-      } catch (err) {
-        console.error("[YT] Failed to create player:", err);
+      } catch {
         setYtMode("iframe");
         setIsLoading(false);
       }
     };
 
-    // Load YT IFrame API
     if ((window as any).YT?.Player) {
       createPlayer();
     } else {
@@ -443,11 +378,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if ((window as any).YT?.Player) { clearInterval(check); createPlayer(); }
       }, 200);
       const prevReady = (window as any).onYouTubeIframeAPIReady;
-      (window as any).onYouTubeIframeAPIReady = () => {
-        prevReady?.();
-        clearInterval(check);
-        if (!destroyed) createPlayer();
-      };
+      (window as any).onYouTubeIframeAPIReady = () => { prevReady?.(); clearInterval(check); if (!destroyed) createPlayer(); };
       setTimeout(() => clearInterval(check), 10000);
     }
 
@@ -458,14 +389,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       try { ytPlayerRef.current?.destroy?.(); } catch {}
       ytPlayerRef.current = null;
     };
-  }, [playlistUrl, playlistType, autoPlay, extractVideoId]);
+  }, [playlistUrl, playlistType, autoPlay, youtubeId]);
 
-  // YouTube fallback iframe rendering
+  // YouTube fallback iframe
   useEffect(() => {
     if (playlistType !== "youtube" || ytMode !== "iframe") return;
     const container = ytFallbackRef.current;
     if (!container) return;
-    const videoId = extractVideoId(playlistUrl);
+    const videoId = youtubeId(playlistUrl);
     container.innerHTML = "";
     const iframe = document.createElement("iframe");
     iframe.src = buildYtEmbedUrl(videoId);
@@ -474,7 +405,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.setAttribute("playsinline", "");
     iframe.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;border:0;z-index:1;";
     container.appendChild(iframe);
-  }, [playlistType, playlistUrl, ytMode, extractVideoId, buildYtEmbedUrl]);
+  }, [playlistType, playlistUrl, ytMode, youtubeId, buildYtEmbedUrl]);
 
   // ══════════════════════════════════════════
   //  Cloudflare Player
@@ -483,10 +414,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     if (playlistType !== "cloudflare" || !playlistUrl) return;
     setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
     const container = cfContainerRef.current;
     if (!container) return;
     container.innerHTML = "";
-
     const iframe = document.createElement("iframe");
     iframe.src = playlistUrl;
     iframe.allow = "autoplay; fullscreen; picture-in-picture; encrypted-media";
@@ -496,38 +428,45 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     iframe.addEventListener("load", () => setIsLoading(false), { once: true });
     iframe.addEventListener("error", () => setIsLoading(false), { once: true });
     container.appendChild(iframe);
-
     const t = setTimeout(() => setIsLoading(false), 8000);
     return () => clearTimeout(t);
   }, [playlistType, playlistUrl]);
 
   // ── Control handlers ──
 
-  const togglePlay = useCallback((e?: React.MouseEvent) => {
+  const handlePlayPause = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (playlistType === "youtube") {
-      if (ytMode === "iframe") return; // iframe has its own controls
+      if (ytMode === "iframe") return;
       if (!isYTReady()) return;
       try {
         const state = ytPlayerRef.current.getPlayerState();
-        if (state === 1 || state === 3) { ytPlayerRef.current.pauseVideo(); setIsPlaying(false); }
-        else { ytPlayerRef.current.playVideo(); setIsPlaying(true); }
+        if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
+        else ytPlayerRef.current.playVideo();
       } catch {}
     } else if (playlistType === "cloudflare") {
-      // Cloudflare iframe has built-in controls
-    } else if (videoRef.current) {
+      // iframe has its own controls
+    } else {
       const v = videoRef.current;
-      if (v.paused) {
-        if (playlistType === "m3u8" && hlsRef.current?.liveSyncPosition) {
-          v.currentTime = hlsRef.current.liveSyncPosition;
-        }
-        v.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-      } else {
-        v.pause();
-        setIsPlaying(false);
-      }
+      if (!v) return;
+      if (v.paused) v.play().catch(() => {});
+      else v.pause();
     }
   }, [playlistType, ytMode, isYTReady]);
+
+  const handleQualityChange = useCallback((level: number) => {
+    if (!hlsRef.current) return;
+    const hls = hlsRef.current;
+    hls.currentLevel = level;
+    hls.nextLevel = level;
+    if (level === -1) {
+      hls.currentLevel = -1;
+      // Re-enable ABR
+      try { hls.autoLevelEnabled = true; } catch {}
+    }
+    setSelectedQuality(level);
+    setShowQualityMenu(false);
+  }, []);
 
   const toggleFullscreen = useCallback(async () => {
     const el = containerRef.current;
@@ -552,22 +491,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     } catch {}
   }, []);
 
-  const changeQuality = useCallback((level: number) => {
-    if (!hlsRef.current) return;
-    const hls = hlsRef.current;
-    if (level === -1) {
-      // Auto mode
-      hls.currentLevel = -1;
-      hls.nextLevel = -1;
-    } else {
-      // Manual level lock
-      hls.currentLevel = level;
-      hls.nextLevel = level;
-    }
-    setSelectedQuality(level);
-    setShowQualityMenu(false);
-  }, []);
-
   const toggleYtMute = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (!isYTReady()) return;
@@ -585,16 +508,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       else if (videoRef.current.buffered.length > 0) {
         videoRef.current.currentTime = videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - 0.5;
       }
-      if (videoRef.current.paused) { videoRef.current.play().catch(() => {}); setIsPlaying(true); }
+      if (videoRef.current.paused) videoRef.current.play().catch(() => {});
       setIsBehindLive(false);
     } else if (playlistType === "youtube" && isYTReady()) {
       try { const d = ytPlayerRef.current.getDuration?.(); if (d > 0) ytPlayerRef.current.seekTo(d, true); } catch {}
       ytPlayerRef.current.playVideo();
-      setIsPlaying(true);
     }
   }, [playlistType, isYTReady]);
 
-  // Fullscreen change listener
+  // Fullscreen listener
   useEffect(() => {
     const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFsChange);
@@ -602,7 +524,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => { document.removeEventListener("fullscreenchange", onFsChange); document.removeEventListener("webkitfullscreenchange", onFsChange); };
   }, []);
 
-  // Block DevTools shortcuts
+  // Block DevTools
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) || (e.ctrlKey && e.key === "u") || (e.ctrlKey && e.key === "s")) {
@@ -644,7 +566,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             className="absolute inset-0 z-10 cursor-pointer"
             style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
             onContextMenu={e => e.preventDefault()}
-            onClick={e => { e.stopPropagation(); togglePlay(e); }}
+            onClick={e => { e.stopPropagation(); handlePlayPause(e); }}
           />
         </div>
       )}
@@ -660,7 +582,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       {playlistType === "m3u8" && (
         <video
           ref={videoRef}
-          onClick={togglePlay}
+          onClick={handlePlayPause}
           className={`h-full w-full object-contain cursor-pointer ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
           // @ts-ignore
@@ -689,7 +611,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         onContextMenu={e => e.preventDefault()}
       >
         {/* Play/Pause */}
-        <button onClick={togglePlay} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/80 text-primary-foreground backdrop-blur-sm transition hover:bg-primary">
+        <button onClick={handlePlayPause} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/80 text-primary-foreground backdrop-blur-sm transition hover:bg-primary">
           {isPlaying ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
           ) : (
@@ -728,22 +650,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               className="flex h-10 items-center gap-1.5 rounded-full bg-primary/90 px-4 py-2 text-sm font-bold text-primary-foreground backdrop-blur-sm transition hover:bg-primary shadow-lg border border-primary-foreground/20"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              {qualities.find(q => q.level === selectedQuality)?.label || "Auto"}
+              {qualities.find(q => q.value === selectedQuality)?.label || "Auto"}
             </button>
             {showQualityMenu && (
               <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-card border-2 border-primary/30 p-1.5 shadow-2xl backdrop-blur-md min-w-[130px]">
                 {qualities.map(q => (
                   <button
-                    key={q.level}
-                    onClick={e => { e.stopPropagation(); changeQuality(q.level); }}
+                    key={q.value}
+                    onClick={e => { e.stopPropagation(); handleQualityChange(q.value); }}
                     className={`block w-full rounded-lg px-4 py-2.5 text-left text-sm font-medium transition ${
-                      selectedQuality === q.level
+                      selectedQuality === q.value
                         ? "bg-primary text-primary-foreground font-bold"
                         : "text-foreground hover:bg-secondary"
                     }`}
                   >
                     {q.label}
-                    {selectedQuality === q.level && " ✓"}
+                    {selectedQuality === q.value && " ✓"}
                   </button>
                 ))}
               </div>
