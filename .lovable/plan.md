@@ -1,85 +1,65 @@
 
 
-## Plan: Remove Public Bot Ordering, Enhance Admin Token Creation, Fix Stats Separation
+## Plan: Fix Player M3U8 & YouTube + Add Loading Animation
 
-### Overview
-Three changes: (1) remove public ordering commands from WhatsApp bot, (2) enhance `/createtoken` to include replay info and confirmation message format, (3) fix LandingStats to properly separate active shows from replays.
+### Root Cause Analysis
 
----
+**M3U8 Issues:**
+- Console shows repeated `bufferStalledError` (non-fatal) from HLS.js GapController — the player stalls because segments load but playback position gets stuck
+- Current `bufferStalledError` handler nudges `currentTime` forward but doesn't address the underlying gap detection issue
+- HLS.js config has `enableWorker: false` which degrades performance; the real CORS fix should be in `xhrSetup` instead
+- `loadSource` before `attachMedia` is technically wrong per HLS.js docs — it works sometimes but causes race conditions
 
-### 1. Remove Public WhatsApp Bot Ordering Commands
+**YouTube Issues:**
+- YouTube API mode sets `controls: 1` (YouTube's own controls) AND has an overlay div that blocks the iframe — but also blocks YouTube's own controls, causing "configuration error" appearance
+- Iframe fallback mode has no overlay at all, exposing the source URL
+- Play/pause button doesn't work reliably because the overlay intercepts all clicks
 
-**File:** `supabase/functions/whatsapp-webhook/index.ts`
+### Changes
 
-- In `processPublicCommand()`, remove the ORDER/BELI show handler, BELI KOIN handler, KOIN list handler, and their associated functions
-- Keep: `MENU/SHOW/CEK` commands (info-only, no ordering)
-- Remove functions: `handlePublicOrder`, `handlePublicCoinOrder`, `handlePublicCoinList`
-- Update `handlePublicMenu()` to only show info commands (SHOW, CEK), remove ORDER/BELI/KOIN instructions
-- Update `handlePublicShowList()` to remove the "ORDER" CTA at the bottom, replace with website link
+#### 1. `src/components/VideoPlayer.tsx` — Complete Player Fix
 
----
+**M3U8 Fixes:**
+- Fix initialization order: `attachMedia` first, then `loadSource` on `MEDIA_ATTACHED` event (correct per HLS.js docs)
+- Re-enable worker (`enableWorker: true`) but add `xhrSetup` with proper CORS mode
+- Improve `bufferStalledError` handling: seek past gaps more aggressively using `hls.js` built-in `nudgeOffset`
+- Add `progressive: true` for faster first-frame rendering
+- Increase `maxBufferHole` to tolerate small gaps without stalling
 
-### 2. Enhance Admin `/createtoken` with Confirmation Message + Replay Info
+**YouTube Fixes:**
+- Use `controls: 0` in YouTube API mode to disable YouTube's native controls (which are blocked by overlay anyway)
+- Keep the transparent overlay to prevent users from accessing source URL
+- Wire play/pause, mute/unmute through the custom control bar using YouTube API methods
+- For iframe fallback: wrap in a container with pointer-events overlay that still allows YouTube controls via `pointer-events: none` on specific areas, OR use the proxy HTML page which already has an overlay
 
-**File:** `supabase/functions/whatsapp-webhook/index.ts`
+**Loading Animation:**
+- Add a lightweight "connecting" spinner/pulse animation shown while `isLoading` is true
+- For M3U8: set `isLoading = true` initially, clear on `canplay`/`playing` events
+- For YouTube: show during `ytMode === "loading"` state
+- Use a simple centered spinner with "Menghubungkan..." text — no skeleton, no blur, no blocking overlay
+- The loading indicator is `pointer-events-none` so it never blocks the video element
 
-- Update `handleCreateTokenWa()` response to match the elegant confirmation format used in `pakasir-callback`:
-  - Add visual dividers (`━━━━━━━━━━━━━━━━━━`)
-  - Include show schedule, access password (if set)
-  - Include replay info: link `https://replaytime.lovable.app` and replay password
-  - Include live link with token
-- Update `handleGiveTokenWa()` similarly — send the same formatted confirmation via WhatsApp to the target user's phone (lookup from `coin_orders` or `subscription_orders`)
-- Fix the undeclared `show` variable bug on line 1788 (missing `let show: any = null;`)
+#### 2. Key Technical Details
 
----
+```text
+M3U8 Init Flow (fixed):
+  1. hls = new Hls(config)
+  2. hls.attachMedia(video)        ← attach first
+  3. on MEDIA_ATTACHED → hls.loadSource(url)  ← then load
+  4. on MANIFEST_PARSED → video.play()
+  5. on canplay/playing → isLoading = false
 
-### 3. Separate Replay Shows from Active Shows in Landing Stats
-
-**File:** `src/components/viewer/LandingStats.tsx`
-
-- Change "Total Show" to count only non-replay shows: `showsList.filter(s => !s.is_replay).length`
-- "Replay" already counts replay shows correctly — keep as is
-- This ensures active shows and replays don't mix
-
-**File:** `supabase/functions/cached-landing-data/index.ts`
-
-- No change needed — it returns all active shows; filtering happens client-side
-
----
-
-### Technical Details
-
-**WhatsApp bot public command removal:**
-- Lines ~142-175: Remove coin/order matchers from `processPublicCommand`
-- Lines ~177-196: Simplify menu text
-- Lines ~228-586: Delete `handlePublicOrder`, `handlePublicCoinList`, `handlePublicCoinOrder` functions
-- Keep `handlePublicShowList` and `handlePublicCheckOrder`
-
-**Token creation enhancement (lines ~1777-1834):**
-```
-━━━━━━━━━━━━━━━━━━
-✅ *Token Berhasil Dibuat!*
-━━━━━━━━━━━━━━━━━━
-
-🎬 Show: *{title}*
-📅 Jadwal: {date} {time}
-🔑 Token: {code}
-📱 Max Device: {max}
-⏰ Kedaluwarsa: {expiry}
-
-📺 *Link Nonton:*
-realtime48show.my.id/live?t={code}
-
-🔐 Sandi Akses: {password}
-
-🔄 *Info Replay:*
-🔗 Link: https://replaytime.lovable.app
-🔐 Sandi Replay: {password}
-━━━━━━━━━━━━━━━━━━
+YouTube Flow:
+  API mode:  controls=0, overlay blocks iframe, custom buttons control API
+  Fallback:  use proxy HTML page (already has overlay built-in)
 ```
 
-**LandingStats fix (line 35):**
-```typescript
-shows: showsList.filter((s: any) => !s.is_replay).length,
-```
+**HLS Config Changes:**
+- `enableWorker: true` (better performance)
+- `maxBufferHole: 1.0` (tolerate 1s gaps)  
+- `nudgeOffset: 0.2` (auto-skip small gaps)
+- `startFragPrefetch: true` (faster first frame)
+
+### Files Modified
+1. `src/components/VideoPlayer.tsx` — Fix HLS init order, YouTube overlay+controls, add loading animation
 
