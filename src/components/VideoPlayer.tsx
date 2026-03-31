@@ -51,14 +51,33 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const playlistType = playlist.type;
 
   // Global loading timeout — never stay stuck on loading for more than 12s
+  // Robust video-element-driven loading sync — polls readyState + listens to all media events
+  // This ensures the loading overlay ALWAYS clears, even if HLS.js events never fire
   useEffect(() => {
-    if (!isLoading) return;
-    const t = setTimeout(() => {
-      console.warn("[VideoPlayer] Global loading timeout reached, forcing load complete");
-      setIsLoading(false);
-    }, 12000);
-    return () => clearTimeout(t);
-  }, [isLoading, playlistUrl]);
+    const v = videoRef.current;
+    if (!v) return;
+    const done = () => setIsLoading(false);
+    const wait = () => { if (!v.paused) setIsLoading(true); };
+    const sync = () => {
+      // If video has enough data to render a frame, or is actively playing, clear loading
+      if (v.readyState >= 2 || (!v.paused && v.readyState >= 1)) done();
+    };
+    const readyEvents = ["loadedmetadata", "loadeddata", "canplay", "canplaythrough", "playing", "seeked"];
+    const waitEvents = ["waiting", "stalled", "seeking"];
+    readyEvents.forEach(e => v.addEventListener(e, done));
+    waitEvents.forEach(e => v.addEventListener(e, wait));
+    // Poll every 250ms as absolute fallback — catches cases where events are missed
+    const pollId = window.setInterval(sync, 250);
+    // Hard timeout — absolute guarantee after 8s
+    const hardTimeout = window.setTimeout(done, 8000);
+    sync(); // Check immediately
+    return () => {
+      window.clearInterval(pollId);
+      window.clearTimeout(hardTimeout);
+      readyEvents.forEach(e => v.removeEventListener(e, done));
+      waitEvents.forEach(e => v.removeEventListener(e, wait));
+    };
+  }, [playlistUrl, playlistType]);
 
   const isYTReady = useCallback(() => {
     const p = ytPlayerRef.current;
@@ -177,19 +196,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     let hls: any = null;
     const vid = videoRef.current;
 
-    // Deterministic loading clear — multiple paths ensure loading ALWAYS clears
     const clearLoading = () => { if (!destroyed) setIsLoading(false); };
     const markPlaying = () => { if (!destroyed) { setIsLoading(false); setIsPlaying(true); } };
-
-    // Hard timeout — absolute guarantee loading clears
-    const hardTimeout = window.setTimeout(clearLoading, 12000);
-
-    // Native video element events — these fire regardless of HLS.js state
-    vid.onloadedmetadata = clearLoading;
-    vid.oncanplay = clearLoading;
-    vid.onplaying = markPlaying;
-    vid.onerror = clearLoading;
-    vid.onwaiting = () => { if (!destroyed) setIsLoading(true); };
 
     const initHls = async () => {
       const Hls = (await import("hls.js")).default;
@@ -389,14 +397,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     initHls();
     return () => {
       destroyed = true;
-      clearTimeout(hardTimeout);
       cancelAnimationFrame(rafRef.current);
-      // Clean up native video listeners
-      vid.onloadedmetadata = null;
-      vid.oncanplay = null;
-      vid.onplaying = null;
-      vid.onerror = null;
-      vid.onwaiting = null;
       if (hls) { hls.destroy(); hlsRef.current = null; }
     };
   }, [playlistUrl, playlistType, autoPlay]);
