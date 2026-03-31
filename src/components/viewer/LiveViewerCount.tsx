@@ -3,46 +3,53 @@ import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const LiveViewerCount = ({ isLive }: { isLive: boolean }) => {
+const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOnly?: boolean }) => {
   const [count, setCount] = useState(0);
   const viewerKeyRef = useRef<string>("");
 
   useEffect(() => {
     if (!isLive) { setCount(0); return; }
 
-    // Generate a unique viewer key for heartbeat
-    if (!viewerKeyRef.current) {
-      viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
-    }
-    const key = viewerKeyRef.current;
-
-    // Send initial heartbeat
-    supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
-
-    // Poll viewer count every 15s + send heartbeat every 30s
-    let tick = 0;
-    const interval = setInterval(async () => {
-      tick++;
-      // Heartbeat every 30s (every 2nd tick)
-      if (tick % 2 === 0) {
-        supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+    // Only send heartbeats if not readOnly (i.e., only on the live page)
+    if (!readOnly) {
+      if (!viewerKeyRef.current) {
+        viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
       }
-      // Count every 15s
+      const key = viewerKeyRef.current;
+
+      // Send initial heartbeat
+      supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+
+      // Poll viewer count every 15s + send heartbeat every 30s
+      let tick = 0;
+      const interval = setInterval(async () => {
+        tick++;
+        if (tick % 2 === 0) {
+          supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+        }
+        const { data } = await supabase.rpc("get_viewer_count");
+        if (typeof data === "number") setCount(data);
+      }, 15_000);
+
+      supabase.rpc("get_viewer_count").then(({ data }) => {
+        if (typeof data === "number") setCount(data);
+      });
+
+      return () => {
+        clearInterval(interval);
+        supabase.rpc("viewer_leave", { _key: key }).then(() => {});
+      };
+    }
+
+    // readOnly mode: only poll the count, no heartbeats
+    const fetchCount = async () => {
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setCount(data);
-    }, 15_000);
-
-    // Initial count fetch
-    supabase.rpc("get_viewer_count").then(({ data }) => {
-      if (typeof data === "number") setCount(data);
-    });
-
-    // Leave on unmount
-    return () => {
-      clearInterval(interval);
-      supabase.rpc("viewer_leave", { _key: key }).then(() => {});
     };
-  }, [isLive]);
+    fetchCount();
+    const interval = setInterval(fetchCount, 15_000);
+    return () => clearInterval(interval);
+  }, [isLive, readOnly]);
 
   // Also leave on page unload
   useEffect(() => {
