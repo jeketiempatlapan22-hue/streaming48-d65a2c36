@@ -27,6 +27,19 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "amount dan coin_amount diperlukan untuk pembelian koin" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // For show orders, check if show has a separate qris_price (to absorb fees)
+    let finalAmount = Math.round(amount);
+    if (!isCoinOrder && show_id) {
+      const { data: showData } = await supabase
+        .from("shows")
+        .select("qris_price")
+        .eq("id", show_id)
+        .maybeSingle();
+      if (showData?.qris_price && showData.qris_price > 0) {
+        finalAmount = showData.qris_price;
+      }
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -100,7 +113,7 @@ serve(async (req) => {
       body: JSON.stringify({
         api_key: PAKASIR_API_KEY,
         project: PAKASIR_MERCHANT_CODE,
-        amount: Math.round(amount),
+        amount: finalAmount,
         order_id: shortId,
       }),
     });

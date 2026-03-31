@@ -1,0 +1,1 @@
+ALTER TABLE public.shows ADD COLUMN IF NOT EXISTS qris_price integer NOT NULL DEFAULT 0;
