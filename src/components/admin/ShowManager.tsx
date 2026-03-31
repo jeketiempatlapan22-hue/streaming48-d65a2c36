@@ -234,8 +234,15 @@ const ShowManager = () => {
               <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Tampilan (dilihat user)</label>
               <Input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Rp 50.000" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">💳 Harga QRIS Dinamis (dikirim ke Pak Kasir, 0 = sama dengan harga tampilan)</label>
+              <Input type="number" value={editing.qris_price || 0} onChange={(e) => setEditing({ ...editing, qris_price: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Contoh: 52000" />
+              {editing.qris_price > 0 && (
+                <p className="mt-1 text-[10px] text-muted-foreground">User melihat: {editing.price} — Pak Kasir menerima: Rp {editing.qris_price.toLocaleString("id-ID")}</p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Line Up Member</label>

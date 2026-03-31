@@ -113,7 +113,7 @@ serve(async (req) => {
       body: JSON.stringify({
         api_key: PAKASIR_API_KEY,
         project: PAKASIR_MERCHANT_CODE,
-        amount: Math.round(amount),
+        amount: finalAmount,
         order_id: shortId,
       }),
     });
