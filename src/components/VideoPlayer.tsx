@@ -212,7 +212,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         });
         const levels = Array.from(seen.values()).map(({ label, value }) => ({ label, value }));
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
-        if (autoPlay) video.play().catch(() => {});
+        if (autoPlay) {
+          video.muted = true;
+          video.play().catch(() => {});
+          // Auto-unmute after 1.5s (same pattern as YouTube)
+          setTimeout(() => {
+            if (!destroyed && video) {
+              video.muted = false;
+            }
+          }, 1500);
+        }
       });
 
       hls.on(Hls.Events.FRAG_LOADED, () => {
