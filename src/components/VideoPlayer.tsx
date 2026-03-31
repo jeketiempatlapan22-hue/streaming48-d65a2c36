@@ -196,19 +196,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     let hls: any = null;
     const vid = videoRef.current;
 
-    // Deterministic loading clear — multiple paths ensure loading ALWAYS clears
     const clearLoading = () => { if (!destroyed) setIsLoading(false); };
     const markPlaying = () => { if (!destroyed) { setIsLoading(false); setIsPlaying(true); } };
-
-    // Hard timeout — absolute guarantee loading clears
-    const hardTimeout = window.setTimeout(clearLoading, 12000);
-
-    // Native video element events — these fire regardless of HLS.js state
-    vid.onloadedmetadata = clearLoading;
-    vid.oncanplay = clearLoading;
-    vid.onplaying = markPlaying;
-    vid.onerror = clearLoading;
-    vid.onwaiting = () => { if (!destroyed) setIsLoading(true); };
 
     const initHls = async () => {
       const Hls = (await import("hls.js")).default;
