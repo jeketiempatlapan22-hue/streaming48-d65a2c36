@@ -162,36 +162,38 @@ serve(async (req) => {
 
       // Send comprehensive WhatsApp to buyer
       if (subOrder.phone) {
-        let waMessage = `✅ Pembayaran berhasil!\n\n🎭 ${show?.title || "Show"}\n`;
+        let waMessage = `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || "Show"}*\n`;
         
         if (show?.is_subscription) {
-          // Membership — send group link
-          waMessage += `\n📦 Tipe: Membership`;
+          waMessage += `📦 Tipe: *Membership*\n`;
           if (show.group_link) {
-            waMessage += `\n🔗 Link Grup: ${show.group_link}`;
+            waMessage += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
           }
         } else if (show?.is_replay) {
-          // Replay — send access password
-          waMessage += `\n📦 Tipe: Replay`;
+          waMessage += `📦 Tipe: *Replay*\n`;
           if (show.access_password) {
-            waMessage += `\n🔑 Password Akses: ${show.access_password}`;
+            waMessage += `\n🔑 *Sandi Akses:* ${show.access_password}\n`;
           }
-          waMessage += `\n🔗 Link Replay: https://replaytime.lovable.app`;
+          waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
         } else {
-          // Regular show — send token + link
           if (tokenCode) {
-            waMessage += `\n🎫 Token akses: ${tokenCode}`;
-            waMessage += `\n🔗 Link: https://${siteUrl}/live?t=${tokenCode}`;
+            waMessage += `\n🎫 *Token Akses:* ${tokenCode}\n`;
+            waMessage += `📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${tokenCode}\n`;
           }
           if (show?.access_password) {
-            waMessage += `\n🔑 Password: ${show.access_password}`;
+            waMessage += `🔑 *Sandi:* ${show.access_password}\n`;
           }
           if (show?.schedule_date) {
-            waMessage += `\n📅 Jadwal: ${show.schedule_date} ${show.schedule_time || ""}`;
+            waMessage += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
+          }
+          // Always include replay info for regular shows
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          if (show?.access_password) {
+            waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
         }
         
-        waMessage += `\n\nTerima kasih telah membeli! 🙏`;
+        waMessage += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
         await sendBuyerWhatsApp(subOrder.phone, waMessage);
       }
 
