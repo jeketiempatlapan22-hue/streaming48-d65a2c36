@@ -1012,7 +1012,7 @@ async function processCoinOrder(supabase: any, order: any, action: 'approve' | '
       if (order.phone) {
         const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
         if (FONNTE_TOKEN) {
-          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
+          const waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${order.coin_amount} koin*\n💎 Saldo saat ini: *${newBalance} koin*\n\n_Terima kasih atas pembelian Anda!_ 🎉\n━━━━━━━━━━━━━━━━━━`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }
@@ -1048,16 +1048,20 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
         const siteUrl = 'https://realtime48show.my.id';
         if (result.type === 'regular' && result.token_code) {
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
-          let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
+          let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pesanan Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n\n🎫 *Token Akses:* ${result.token_code}\n📺 *Link Nonton:*\n${liveLink}\n`;
           if (show?.access_password) {
-            waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi: ${show.access_password}\n`;
+            waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
           }
-          waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
+          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          if (show?.access_password) {
+            waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+          }
+          waMsg += `\n⚠️ _Token hanya berlaku untuk 1 perangkat._\n_Jangan bagikan link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         } else if (result.type === 'subscription') {
-          let waMsg = `✅ *Membership Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n`;
-          if (show?.group_link) waMsg += `🔗 Link Grup: ${show.group_link}\n`;
-          waMsg += `\nTerima kasih telah berlangganan! 🎉`;
+          let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Membership Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n`;
+          if (show?.group_link) waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+          waMsg += `\n_Terima kasih telah berlangganan!_ 🎉\n━━━━━━━━━━━━━━━━━━`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }

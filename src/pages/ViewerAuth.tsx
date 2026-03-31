@@ -331,7 +331,7 @@ const ViewerAuth = () => {
           <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center shadow-[0_0_16px_hsl(var(--primary)/0.4)]">
             <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Real<span className="text-primary">Time48</span></h1>
+          <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">Real<span className="text-primary">Time48</span></h1>
           <div className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Coins className="h-4 w-4 text-[hsl(var(--warning))]" /><span>Coin Shop</span>
           </div>

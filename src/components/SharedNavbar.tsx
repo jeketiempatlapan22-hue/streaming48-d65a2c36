@@ -106,7 +106,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
             <div className="h-9 w-9 rounded-full border border-border/60 overflow-hidden shadow-sm">
               <img src={logo} alt="RealTime48" className="h-full w-full object-cover" />
             </div>
-            <span className="text-sm font-bold">Real<span className="text-primary">Time48</span></span>
+            <span className="text-sm font-bold font-display tracking-tight">Real<span className="text-primary">Time48</span></span>
           </a>
           <div className="flex items-center gap-2">
             
@@ -145,7 +145,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                 <SheetHeader className="px-6 pt-6 pb-2">
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <img src={logo} alt="RealTime48" className="h-6 w-6 rounded-full object-cover" />
-                    RealTime48
+                     <span className="font-display tracking-tight">RealTime48</span>
                   </SheetTitle>
                 </SheetHeader>
 
