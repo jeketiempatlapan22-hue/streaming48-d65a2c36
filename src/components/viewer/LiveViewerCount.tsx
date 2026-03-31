@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 const STORAGE_KEY = "rt48_viewer_key";
 
@@ -91,20 +90,14 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
   if (!isLive || count === 0) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5"
-      >
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
-        </span>
-        <Users className="h-3 w-3 text-destructive" />
-        <span className="text-xs font-bold text-destructive">{count}</span>
-      </motion.div>
-    </AnimatePresence>
+    <div className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+      </span>
+      <Users className="h-3 w-3 text-destructive" />
+      <span className="text-xs font-bold text-destructive">{count}</span>
+    </div>
   );
 };
 
