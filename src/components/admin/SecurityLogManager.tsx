@@ -33,13 +33,9 @@ const SecurityLogManager = () => {
 
   useEffect(() => {
     fetchEvents();
-    const channel = supabase
-      .channel("security-log-realtime")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "security_events" }, (payload) => {
-        setEvents((prev) => [payload.new as SecurityEvent, ...prev].slice(0, 100));
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    // Poll every 30s instead of realtime (security_events removed from publication for security)
+    const interval = setInterval(fetchEvents, 30_000);
+    return () => clearInterval(interval);
   }, []);
 
   const severityColor = (s: string) => {
