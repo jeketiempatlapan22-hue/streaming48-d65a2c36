@@ -584,6 +584,7 @@ export type Database = {
           max_subscribers: number
           price: string
           qris_image_url: string | null
+          qris_price: number
           replay_coin_price: number
           schedule_date: string | null
           schedule_time: string | null
@@ -608,6 +609,7 @@ export type Database = {
           max_subscribers?: number
           price?: string
           qris_image_url?: string | null
+          qris_price?: number
           replay_coin_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
@@ -632,6 +634,7 @@ export type Database = {
           max_subscribers?: number
           price?: string
           qris_image_url?: string | null
+          qris_price?: number
           replay_coin_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
@@ -1069,6 +1072,7 @@ export type Database = {
           max_subscribers: number
           price: string
           qris_image_url: string | null
+          qris_price: number
           replay_coin_price: number
           schedule_date: string | null
           schedule_time: string | null
