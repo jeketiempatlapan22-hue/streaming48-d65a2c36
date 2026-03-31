@@ -33,6 +33,7 @@ const ViewerAuth = () => {
   const submitRef = useRef(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileFailed, setTurnstileFailed] = useState(false);
 
   useEffect(() => {
     // Check existing session with timeout
