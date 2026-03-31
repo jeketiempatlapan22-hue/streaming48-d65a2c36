@@ -1012,7 +1012,7 @@ async function processCoinOrder(supabase: any, order: any, action: 'approve' | '
       if (order.phone) {
         const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
         if (FONNTE_TOKEN) {
-          const waMsg = `✅ Pembayaran kamu untuk *${order.coin_amount} koin* telah dikonfirmasi!\n\n💰 Saldo saat ini: ${newBalance} koin.\n\nTerima kasih! 🎉`;
+          const waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${order.coin_amount} koin*\n💎 Saldo saat ini: *${newBalance} koin*\n\n_Terima kasih atas pembelian Anda!_ 🎉\n━━━━━━━━━━━━━━━━━━`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }
