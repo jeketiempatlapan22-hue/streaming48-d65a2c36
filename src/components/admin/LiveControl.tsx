@@ -150,6 +150,27 @@ const LiveControl = () => {
         </div>
       </div>
 
+      {/* Chat Toggle */}
+      <div className={`flex items-center justify-between rounded-xl border p-6 ${chatEnabled ? "border-[hsl(var(--success))]/50 bg-[hsl(var(--success))]/5" : "border-destructive/50 bg-destructive/5"}`}>
+        <div>
+          <p className="text-lg font-bold text-foreground">{chatEnabled ? "💬 Chat Aktif" : "🔇 Chat Nonaktif"}</p>
+          <p className="text-sm text-muted-foreground">
+            {chatEnabled ? "User dapat mengirim pesan di live chat" : "User hanya bisa membaca pesan. Admin tetap bisa mengirim & pin pesan."}
+          </p>
+        </div>
+        <Switch
+          checked={chatEnabled}
+          onCheckedChange={async (checked) => {
+            setChatEnabled(checked);
+            await supabase.from("site_settings").upsert(
+              { key: "chat_enabled", value: checked ? "true" : "false" } as any,
+              { onConflict: "key" }
+            );
+            toast({ title: checked ? "💬 Live chat dibuka untuk user" : "🔇 Live chat ditutup untuk user" });
+          }}
+        />
+      </div>
+
       {/* Active Show Selector */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
         <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
