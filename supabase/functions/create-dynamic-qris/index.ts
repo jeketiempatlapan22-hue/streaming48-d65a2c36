@@ -27,6 +27,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "amount dan coin_amount diperlukan untuk pembelian koin" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
     // For show orders, check if show has a separate qris_price (to absorb fees)
     let finalAmount = Math.round(amount);
     if (!isCoinOrder && show_id) {
@@ -39,11 +44,6 @@ serve(async (req) => {
         finalAmount = showData.qris_price;
       }
     }
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
 
     let userId: string | null = null;
     const authHeader = req.headers.get("Authorization");
