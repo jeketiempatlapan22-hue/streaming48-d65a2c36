@@ -599,6 +599,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           onClick={handlePlayPause}
           className={`h-full w-full object-contain cursor-pointer bg-black ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
+          autoPlay
+          muted
           // @ts-ignore
           webkit-playsinline=""
           x-webkit-airplay="allow"
