@@ -10,12 +10,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SIGNING_SECRET = SERVICE_ROLE_KEY;
 
-// --- TIGHTER TTLs ---
-// Shorter TTLs = harder to reuse stolen URLs
-const PLAYLIST_TOKEN_TTL = 900;   // 15 min (was 2h) — auto-refreshed by client
-const SUB_PLAYLIST_TOKEN_TTL = 600; // 10 min
-const YT_TOKEN_TTL = 1800;         // 30 min
-const SEG_TOKEN_TTL = 300;         // 5 min — segments are fetched immediately
+// --- BALANCED TTLs ---
+// Short enough to prevent link theft, long enough for smooth streaming
+// Client auto-refreshes well before expiry
+const PLAYLIST_TOKEN_TTL = 1800;    // 30 min — manifest URL, auto-refreshed every ~12 min
+const SUB_PLAYLIST_TOKEN_TTL = 1800; // 30 min — sub-playlists inherit same lifecycle
+const YT_TOKEN_TTL = 3600;           // 1 hour — YouTube/CF embeds, less sensitive
+const SEG_TOKEN_TTL = 1800;          // 30 min — segments (must survive pause/resume + buffer)
 
 // --- ALLOWED ORIGINS (Referer/Origin validation) ---
 const ALLOWED_REFERERS = [
