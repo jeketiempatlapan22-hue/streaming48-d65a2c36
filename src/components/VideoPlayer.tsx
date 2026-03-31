@@ -342,6 +342,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   // ══════════════════════════════════════════
   const [ytMode, setYtMode] = useState<"loading" | "api" | "iframe">("loading");
   const ytContainerRef = useRef<HTMLDivElement>(null);
+  const ytBufferTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const ytQualityForcedRef = useRef(true);
 
   useEffect(() => {
     if (playlistType !== "youtube" || !playlistUrl) return;
