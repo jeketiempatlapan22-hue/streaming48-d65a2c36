@@ -178,34 +178,44 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         enableWorker: true,
         lowLatencyMode: false,
         liveDurationInfinity: true,
-        // Relaxed live sync — don't chase the absolute edge
+        // Live sync — stable for long sessions
         liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
-        maxLiveSyncPlaybackRate: 1.03,
-        liveBackBufferLength: 10,
-        backBufferLength: 15,
-        // Generous buffers — prevent stalls on variable networks
+        liveMaxLatencyDurationCount: 10,
+        maxLiveSyncPlaybackRate: 1.02,
+        // Back buffer: aggressively flush to prevent memory leaks over 7+ hours
+        liveBackBufferLength: 15,
+        backBufferLength: 30,
+        // Buffer sizes — balanced for stability without eating too much memory
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
         maxBufferSize: 60 * 1024 * 1024,
         maxBufferHole: 0.5,
-        // ABR: conservative — avoid quality ping-pong
+        // ABR: conservative — avoid quality ping-pong on shared networks
         abrBandWidthFactor: 0.7,
         abrBandWidthUpFactor: 0.5,
         abrEwmaDefaultEstimate: 1_000_000,
+        abrEwmaFastLive: 3.0,
+        abrEwmaSlowLive: 9.0,
         startLevel: -1,
         capLevelToPlayerSize: true,
         capLevelOnFPSDrop: true,
         startFragPrefetch: true,
         progressive: true,
-        // Generous retry settings
-        fragLoadingMaxRetry: 6,
-        levelLoadingMaxRetry: 4,
-        manifestLoadingMaxRetry: 4,
+        // Generous retry settings for long sessions — never give up easily
+        fragLoadingMaxRetry: 10,
+        levelLoadingMaxRetry: 6,
+        manifestLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 1000,
         manifestLoadingRetryDelay: 1000,
         levelLoadingRetryDelay: 1000,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 15000; },
+        fragLoadingMaxRetryTimeout: 30000,
+        levelLoadingMaxRetryTimeout: 30000,
+        manifestLoadingMaxRetryTimeout: 30000,
+        // Longer timeouts for slow connections
+        manifestLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 20000,
+        fragLoadingTimeOut: 30000,
+        xhrSetup: (xhr: XMLHttpRequest) => { xhr.timeout = 30000; },
         debug: false,
       });
       hlsRef.current = hls;
@@ -305,12 +315,46 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               break;
           }
         }
-        // Non-fatal errors: let HLS.js handle them naturally — no manual seeking
+        // Non-fatal buffer stall: nudge playback forward
+        if (!data.fatal && data.details === "bufferStalledError" && videoRef.current) {
+          const vid = videoRef.current;
+          if (vid.buffered.length > 0) {
+            const buffEnd = vid.buffered.end(vid.buffered.length - 1);
+            if (buffEnd - vid.currentTime > 1) vid.currentTime = buffEnd - 0.5;
+          }
+        }
       });
+
+      // Long-session health: recover from tab sleep / background throttling
+      const onVisibilityChange = () => {
+        if (destroyed || document.hidden) return;
+        const vid = videoRef.current;
+        if (!vid || !hls) return;
+        // Tab came back — restart loading and sync to live edge
+        hls.startLoad();
+        if (vid.paused) vid.play().catch(() => {});
+        if (hls.liveSyncPosition && hls.liveSyncPosition - vid.currentTime > 5) {
+          vid.currentTime = hls.liveSyncPosition;
+        }
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+
+      // Periodic health check every 15s: detect stuck playback
+      const healthInterval = setInterval(() => {
+        if (destroyed || document.hidden) return;
+        const vid = videoRef.current;
+        if (!vid || vid.paused || !hls) return;
+        // If video readyState < HAVE_FUTURE_DATA, nudge it
+        if (vid.readyState < 3) {
+          hls.startLoad();
+        }
+      }, 15000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
+        clearInterval(healthInterval);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
         origDestroy();
       };
     };
