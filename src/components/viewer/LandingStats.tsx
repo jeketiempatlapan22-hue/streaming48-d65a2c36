@@ -82,7 +82,7 @@ const LandingStats = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="group rounded-2xl border border-border bg-card/80 p-5 text-center transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
+              className="group rounded-2xl glass p-5 text-center transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/10"
             >
               <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-secondary transition-colors group-hover:bg-primary/10">
                 <Icon className={`h-5 w-5 ${c.color}`} />
