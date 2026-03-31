@@ -196,7 +196,7 @@ async function handlePublicShowList(supabase: any): Promise<string> {
       msg += `*${num}. ${s.title}*\n${type} | ${status}\n💰 ${s.price}${s.coin_price > 0 ? ` | 🪙 ${s.coin_price} koin` : ''}\n${schedule}\n\n`;
     });
 
-    msg += `🛒 Untuk pesan, ketik:\n*ORDER <nomor>* (misal: ORDER 1)\n*ORDER <nama show>*`;
+    msg += `🛒 Untuk pembelian, kunjungi:\n🌐 *realtime48show.my.id*`;
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
