@@ -51,6 +51,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const playlistUrl = playlist.url;
   const playlistType = playlist.type;
 
+  // Global loading timeout — never stay stuck on loading for more than 12s
+  useEffect(() => {
+    if (!isLoading) return;
+    const t = setTimeout(() => {
+      console.warn("[VideoPlayer] Global loading timeout reached, forcing load complete");
+      setIsLoading(false);
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [isLoading, playlistUrl]);
+
   const isYTReady = useCallback(() => {
     const p = ytPlayerRef.current;
     return p && ytReadyRef.current && typeof p.getPlayerState === "function" && typeof p.playVideo === "function";
