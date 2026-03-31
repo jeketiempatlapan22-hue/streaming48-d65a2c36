@@ -334,10 +334,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => {
       destroyed = true;
       window.clearTimeout(hardTimeout);
-      window.clearInterval(pollId);
       cancelAnimationFrame(rafRef.current);
-      readyEvents.forEach(e => vid.removeEventListener(e, ready));
-      waitEvents.forEach(e => vid.removeEventListener(e, waiting));
+      allEvents.forEach(([evt, fn]) => vid.removeEventListener(evt, fn));
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
   }, [playlistUrl, playlistType, autoPlay]);
