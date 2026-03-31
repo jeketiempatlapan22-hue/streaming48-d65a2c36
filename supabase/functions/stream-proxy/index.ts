@@ -231,6 +231,8 @@ async function generateCloudflareSignedUrl(playlistId: string, functionUrl: stri
 }
 
 // --- M3U8 REWRITING ---
+// Only proxy sub-playlists (.m3u8), leave segment URLs as direct CDN URLs
+// This avoids CORS issues with 302 redirects to CDNs that don't have CORS headers
 async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string, ipHash: string): Promise<string> {
   const lines = content.split("\n");
   const result: string[] = [];
@@ -245,22 +247,26 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
         if (match) {
           const absUrl = resolveUrl(match[1], baseUrl);
           if (isM3u8Url(absUrl)) {
+            // Proxy sub-playlists through signed URL
             const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl, ipHash);
             result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           } else {
-            const signed = await generateSegSignedUrl(absUrl, functionUrl, ipHash);
-            result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
+            // Keys and other non-m3u8 URIs: resolve to absolute CDN URL directly
+            result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${absUrl}"`));
           }
         } else { result.push(line); }
       } else { result.push(line); }
       continue;
     }
 
+    // Non-comment, non-empty lines are URLs
     const absoluteUrl = resolveUrl(trimmed, baseUrl);
     if (isM3u8Url(absoluteUrl)) {
+      // Sub-playlists: proxy through signed URL
       result.push(await generateSubPlaylistSignedUrl(absoluteUrl, functionUrl, ipHash));
     } else {
-      result.push(await generateSegSignedUrl(absoluteUrl, functionUrl, ipHash));
+      // Segments (.ts): use direct CDN URL to avoid CORS issues with 302 redirects
+      result.push(absoluteUrl);
     }
   }
   return result.join("\n");
