@@ -14,6 +14,7 @@ const LiveControl = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [saving, setSaving] = useState(false);
