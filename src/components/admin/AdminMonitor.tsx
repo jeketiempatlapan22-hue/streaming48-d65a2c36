@@ -32,13 +32,12 @@ const AdminMonitor = () => {
       setStream(streamData);
 
       const { data: playlistData } = await supabase.from("playlists").select("*").order("sort_order");
-      const priority: Record<string, number> = { m3u8: 0, cloudflare: 1, youtube: 2 };
-      const sorted = (playlistData || []).sort((a: any, b: any) => {
-        const pa = priority[a.type] ?? 1;
-        const pb = priority[b.type] ?? 1;
-        if (pa !== pb) return pa - pb;
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-      });
+      const raw = playlistData || [];
+      // Sort: 1st m3u8, 1st youtube, then rest
+      const firstM3u8 = raw.find((p: any) => p.type === "m3u8");
+      const firstYoutube = raw.find((p: any) => p.type === "youtube");
+      const rest = raw.filter((p: any) => p !== firstM3u8 && p !== firstYoutube);
+      const sorted = [firstM3u8, firstYoutube, ...rest].filter(Boolean);
       setPlaylists(sorted);
       if (sorted.length > 0) setActivePlaylist(sorted[0]);
     };
