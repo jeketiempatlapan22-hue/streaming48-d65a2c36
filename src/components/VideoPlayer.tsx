@@ -407,6 +407,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               clearTimeout(fallbackTimer);
               setYtMode("api");
               setIsLoading(false);
+              // Force highest quality
+              try {
+                e.target.setPlaybackQualityRange?.("highres", "highres");
+                e.target.setPlaybackQuality?.("highres");
+              } catch {}
+              ytQualityForcedRef.current = true;
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
@@ -422,8 +428,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               if (destroyed) return;
               // YT states: -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
               setIsPlaying(e.data === 1);
-              if (e.data === 3) setIsLoading(true);
-              else if (e.data === 1) setIsLoading(false);
+              if (e.data === 3) {
+                setIsLoading(true);
+                // If buffering > 10s with forced quality, fall back to auto
+                if (ytQualityForcedRef.current) {
+                  clearTimeout(ytBufferTimerRef.current);
+                  ytBufferTimerRef.current = setTimeout(() => {
+                    if (!destroyed && ytReadyRef.current && ytPlayerRef.current) {
+                      try {
+                        ytPlayerRef.current.setPlaybackQualityRange?.("default", "default");
+                        ytPlayerRef.current.setPlaybackQuality?.("default");
+                      } catch {}
+                      ytQualityForcedRef.current = false;
+                    }
+                  }, 10000);
+                }
+              } else if (e.data === 1) {
+                setIsLoading(false);
+                clearTimeout(ytBufferTimerRef.current);
+              }
             },
             onError: (e: any) => {
               if (destroyed) return;
