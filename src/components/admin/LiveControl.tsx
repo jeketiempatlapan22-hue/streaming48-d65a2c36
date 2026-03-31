@@ -58,6 +58,7 @@ const LiveControl = () => {
           if (s.key === "next_show_time") setNextShowTime(s.value);
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
+          if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
         });
       }
     };
