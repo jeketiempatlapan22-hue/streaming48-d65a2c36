@@ -40,7 +40,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const hlsInitRef = useRef(false);
   const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const ytFallbackContainerRef = useRef<HTMLDivElement>(null);
   const cfContainerRef = useRef<HTMLDivElement>(null);
@@ -119,10 +118,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // Cleanup on playlist change
+  // Cleanup on playlist change — reset video element fully
   useEffect(() => {
-    hlsInitRef.current = false;
     setYtFallback(false);
+    setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
+    // Reset video element to avoid stale source
+    const vid = videoRef.current;
+    if (vid) { vid.pause(); vid.removeAttribute("src"); vid.load(); }
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
@@ -168,11 +172,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   // ========== HLS (m3u8) - ROBUST ==========
   useEffect(() => {
-    if (playlistType !== "m3u8" || !videoRef.current || hlsInitRef.current) return;
-    hlsInitRef.current = true;
+    if (playlistType !== "m3u8" || !videoRef.current || !playlistUrl) return;
     let destroyed = false;
     let hls: any = null;
-    const vid = videoRef.current!;
+    const vid = videoRef.current;
 
     // Deterministic loading clear — multiple paths ensure loading ALWAYS clears
     const clearLoading = () => { if (!destroyed) setIsLoading(false); };
@@ -333,7 +336,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 console.error(`[HLS] Fatal error, reinit attempt ${fatalRetryCount}/${MAX_FATAL_RETRIES}`);
                 hls.destroy();
                 hlsRef.current = null;
-                hlsInitRef.current = false;
                 hls = null;
                 setTimeout(() => { if (!destroyed) initHls(); }, 2000);
               } else {
