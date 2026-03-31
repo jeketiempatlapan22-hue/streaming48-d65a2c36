@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle,
+  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
+import {
+  requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
+} from "@/lib/notifications";
 
 interface ShowCardProps {
   show: Show;
@@ -89,6 +92,26 @@ const ShowCard = ({
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
+  const [reminded, setReminded] = useState(() => hasReminder(show.id));
+
+  const handleReminder = async () => {
+    if (reminded) {
+      removeShowReminder(show.id);
+      setReminded(false);
+      toast.success("Pengingat dihapus");
+      return;
+    }
+    const granted = await requestNotificationPermission();
+    if (!granted) {
+      toast.error("Izinkan notifikasi di browser untuk mengaktifkan pengingat");
+      return;
+    }
+    const target = parseShowDateTime(show.schedule_date, show.schedule_time);
+    if (!target) { toast.error("Jadwal show tidak tersedia"); return; }
+    addShowReminder(show.id, show.title, target);
+    setReminded(true);
+    toast.success("🔔 Pengingat diaktifkan! Kamu akan dinotifikasi 30 menit sebelum show.");
+  };
 
   return (
     <motion.div
@@ -96,7 +119,7 @@ const ShowCard = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group relative overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5"
+      className="group relative overflow-hidden rounded-2xl glass transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10"
     >
       {/* Image */}
       <div className="relative h-48 overflow-hidden">
@@ -136,7 +159,18 @@ const ShowCard = ({
 
         {/* Title + countdown strip at bottom of image */}
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-card via-card/80 to-transparent">
-          <h3 className="text-lg font-bold text-foreground leading-tight">{show.title}</h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-lg font-bold text-foreground leading-tight flex-1">{show.title}</h3>
+            {!show.is_replay && show.schedule_date && (
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReminder(); }}
+                className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full transition-all ${reminded ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"}`}
+                title={reminded ? "Hapus pengingat" : "Ingatkan saya"}
+              >
+                {reminded ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+              </button>
+            )}
+          </div>
           {showCountdown && countdown && !countdown.live && !show.is_replay && (
             <div className="mt-1.5 flex items-center gap-2">
               <Timer className="h-3 w-3 text-primary/70 animate-pulse shrink-0" />

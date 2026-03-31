@@ -26,6 +26,10 @@ async function resetLegacyServiceWorkerCache() {
 
 void resetLegacyServiceWorkerCache();
 
+// Start show reminder checker for PWA notifications
+import("./lib/notifications").then(({ startReminderChecker }) => {
+  startReminderChecker();
+});
 // Security guard - only in production
 if (import.meta.env.PROD) {
   import("./lib/security").then(({ initSecurityGuard }) => {

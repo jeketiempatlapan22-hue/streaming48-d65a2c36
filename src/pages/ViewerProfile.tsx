@@ -4,13 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { withTimeout } from "@/lib/queryCache";
-import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil } from "lucide-react";
+import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil, Award } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
 import { useProtectedAuth } from "@/hooks/useProtectedAuth";
+import { ProfileSkeleton } from "@/components/viewer/SkeletonLoaders";
 
 const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
+const UserStatsPanel = lazy(() => import("@/components/viewer/UserStatsPanel"));
+const UserBadges = lazy(() => import("@/components/viewer/UserBadges"));
 
 const ViewerProfile = () => {
   const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
@@ -22,7 +25,7 @@ const ViewerProfile = () => {
   const [tokens, setTokens] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "subscriptions" | "tokens">("orders");
+  const [tab, setTab] = useState<"orders" | "subscriptions" | "tokens" | "stats">("orders");
   const [editingPhone, setEditingPhone] = useState<Record<string, string>>({});
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -97,7 +100,7 @@ const ViewerProfile = () => {
     return <span className={`text-xs font-bold px-2 py-0.5 rounded ${map[status] || "bg-muted text-muted-foreground"}`}>{label[status] || status}</span>;
   };
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center bg-background"><div className="h-12 w-12 rounded-full bg-primary/15 border border-primary/40 flex items-center justify-center animate-pulse"><Shield className="h-6 w-6 text-primary" /></div></div>;
+  if (loading) return <ProfileSkeleton />;
   if (isBanned) return <BannedScreen reason={banReason} onSignOut={authSignOut} />;
 
   return (
@@ -110,7 +113,7 @@ const ViewerProfile = () => {
       </header>
       <div className="mx-auto max-w-lg px-4 py-6 space-y-5">
         {/* Profile Card */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-border bg-card p-6">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl glass p-6">
           <div className="mb-5 flex flex-col items-center gap-3"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10"><User className="h-8 w-8 text-primary" /></div><p className="text-xs text-muted-foreground">{authUser?.email || ""}</p></div>
           <div className="space-y-3">
             <label className="block text-xs font-medium text-muted-foreground">Username</label>
@@ -126,9 +129,16 @@ const ViewerProfile = () => {
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-[hsl(var(--success))]">{tokens.filter(t => t.status === "active").length}</p><p className="text-[10px] text-muted-foreground">Token Aktif</p></div>
         </motion.div>
 
+        {/* Badges */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="rounded-xl glass p-4">
+          <Suspense fallback={<div className="h-24 skeleton rounded-xl" />}>
+            {authUser && <UserBadges user={authUser} />}
+          </Suspense>
+        </motion.div>
+
         {/* Buy Coins CTA */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between rounded-xl glass p-4">
             <div><p className="text-xs text-muted-foreground">Saldo Koin</p><div className="flex items-center gap-2 mt-1"><Coins className="h-5 w-5 text-[hsl(var(--warning))]" /><span className="text-2xl font-bold text-[hsl(var(--warning))]">{balance}</span></div></div>
             <Button size="sm" variant="outline" onClick={() => navigate("/coins")}><Coins className="mr-1.5 h-3.5 w-3.5" /> Beli Koin</Button>
           </div>
@@ -136,22 +146,22 @@ const ViewerProfile = () => {
 
         {/* Tabs */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <div className="flex rounded-lg border border-border bg-card p-1 gap-1">
-            {([["orders", "Order Koin", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key]] as const).map(([key, label, Icon]) => (
-              <button key={key} onClick={() => setTab(key)} className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                <Icon className="h-3.5 w-3.5" />{label}
+          <div className="flex rounded-lg glass p-1 gap-1">
+            {([["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
+              <button key={key} onClick={() => setTab(key as any)} className={`flex-1 flex items-center justify-center gap-1 rounded-md py-2 text-[10px] font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                <Icon className="h-3 w-3" />{label}
               </button>
             ))}
           </div>
         </motion.div>
 
         {/* Tab Content */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-xl border border-border bg-card p-4">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-xl glass p-4">
           {tab === "orders" && (
             orders.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada order koin</p> : (
               <div className="space-y-2">
                 {orders.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between rounded-lg bg-background p-3">
+                  <div key={o.id} className="flex items-center justify-between rounded-lg bg-background/50 p-3">
                     <div className="min-w-0 flex-1"><p className="text-xs font-medium text-foreground">{o.coin_amount} Koin {o.price ? `• ${o.price}` : ""}</p><p className="text-[10px] text-muted-foreground">{new Date(o.created_at).toLocaleString("id-ID")}</p></div>
                     {statusBadge(o.status)}
                   </div>
@@ -163,7 +173,7 @@ const ViewerProfile = () => {
             subOrders.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada langganan</p> : (
               <div className="space-y-2">
                 {subOrders.map((o) => (
-                  <div key={o.id} className="rounded-lg bg-background p-3 space-y-2">
+                  <div key={o.id} className="rounded-lg bg-background/50 p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium text-foreground">{(o as any).shows?.title || "Show"}</p>
@@ -171,7 +181,6 @@ const ViewerProfile = () => {
                       </div>
                       {statusBadge(o.status)}
                     </div>
-                    {/* Phone display & edit */}
                     <div className="flex items-center gap-1.5">
                       <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
                       {editingPhone[o.id] !== undefined ? (
@@ -209,7 +218,7 @@ const ViewerProfile = () => {
             tokens.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada token</p> : (
               <div className="space-y-2">
                 {tokens.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-background p-3">
+                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-background/50 p-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-mono font-medium text-foreground">{t.code}</p>
@@ -224,6 +233,11 @@ const ViewerProfile = () => {
                 ))}
               </div>
             )
+          )}
+          {tab === "stats" && (
+            <Suspense fallback={<div className="h-40 skeleton rounded-xl" />}>
+              {authUser && <UserStatsPanel user={authUser} />}
+            </Suspense>
           )}
         </motion.div>
 
