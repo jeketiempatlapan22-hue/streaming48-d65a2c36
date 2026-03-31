@@ -119,10 +119,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // Cleanup on playlist change
+  // Cleanup on playlist change — reset video element fully
   useEffect(() => {
-    hlsInitRef.current = false;
     setYtFallback(false);
+    setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
+    // Reset video element to avoid stale source
+    const vid = videoRef.current;
+    if (vid) { vid.pause(); vid.removeAttribute("src"); vid.load(); }
     return () => {
       cancelAnimationFrame(rafRef.current);
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
