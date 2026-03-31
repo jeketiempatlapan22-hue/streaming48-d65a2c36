@@ -130,9 +130,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // ── Master reset on playlist change ──
+  // ── Master reset on playlist change (non-m3u8 types only) ──
+  // M3U8 handles its own full lifecycle to avoid race conditions.
 
   useEffect(() => {
+    if (playlistType === "m3u8") return; // m3u8 manages itself
     setIsLoading(true);
     setIsPlaying(false);
     setQualities([]);
@@ -141,23 +143,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setIsBehindLive(false);
     ytReadyRef.current = false;
 
-    const vid = videoRef.current;
-    if (vid) {
-      vid.pause();
-      vid.removeAttribute("src");
-      vid.load();
-    }
-
     return () => {
       cancelAnimationFrame(rafRef.current);
-      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
       try { ytPlayerRef.current?.destroy?.(); } catch {}
       ytPlayerRef.current = null;
     };
   }, [playlistUrl, playlistType]);
 
   // ══════════════════════════════════════════
-  //  HLS / M3U8 Player
+  //  HLS / M3U8 Player — single self-contained effect
+  //  Owns the full lifecycle: reset → attach → load → play → cleanup
   // ══════════════════════════════════════════
 
   useEffect(() => {
@@ -166,25 +161,35 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     if (!vid) return;
     let destroyed = false;
 
-    const ready = () => { if (!destroyed) { setIsLoading(false); setIsPlaying(!vid.paused); } };
-    const waiting = () => { if (!destroyed && !vid.paused) setIsLoading(true); };
+    // ─── 1. Reset everything ───
+    setIsLoading(true);
+    setIsPlaying(false);
+    setQualities([]);
+    setSelectedQuality(-1);
+    setIsBehindLive(false);
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    vid.pause();
+    vid.removeAttribute("src");
+    vid.load();
 
-    // Attach media event listeners FIRST
-    const readyEvents = ["loadeddata", "canplay", "playing"];
-    const waitEvents = ["waiting", "stalled"];
-    readyEvents.forEach(e => vid.addEventListener(e, ready));
-    waitEvents.forEach(e => vid.addEventListener(e, waiting));
+    // ─── 2. Wire up media events for UI state ───
+    const onReady = () => { if (!destroyed) setIsLoading(false); };
+    const onPlay = () => { if (!destroyed) { setIsPlaying(true); setIsLoading(false); } };
+    const onPause = () => { if (!destroyed) setIsPlaying(false); };
+    const onWait = () => { if (!destroyed) setIsLoading(true); };
 
-    // Hard timeout — absolute guarantee loading overlay clears
+    const allEvents: [string, EventListener][] = [
+      ["loadeddata", onReady], ["canplay", onReady], ["canplaythrough", onReady], ["playing", onPlay],
+      ["play", onPlay], ["pause", onPause], ["ended", onPause],
+      ["waiting", onWait], ["stalled", onWait], ["seeking", onWait],
+    ];
+    allEvents.forEach(([evt, fn]) => vid.addEventListener(evt, fn));
+
+    // Hard timeout — absolute last resort
     const hardTimeout = window.setTimeout(() => { if (!destroyed) setIsLoading(false); }, 10000);
 
-    // Poll readyState as additional safety net
-    const pollId = window.setInterval(() => {
-      if (destroyed) return;
-      if (vid.readyState >= 2 || (!vid.paused && vid.readyState >= 1)) {
-        setIsLoading(false);
-      }
-    }, 300);
+    // ─── 3. Initialize HLS ───
+    let hls: any = null;
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
@@ -195,13 +200,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!Hls.isSupported()) {
         if (vid.canPlayType("application/vnd.apple.mpegurl")) {
           vid.src = playlistUrl;
-          vid.load();
           if (autoPlay) { vid.muted = true; vid.play().catch(() => {}); }
         }
         return;
       }
 
-      const hls = new Hls({
+      hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
         capLevelToPlayerSize: true,
@@ -212,9 +216,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         maxLiveSyncPlaybackRate: 1.02,
         liveBackBufferLength: 15,
         backBufferLength: 30,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 60 * 1024 * 1024,
+        maxBufferLength: 20,
+        maxMaxBufferLength: 30,
+        maxBufferSize: 30 * 1024 * 1024,
         maxBufferHole: 0.5,
         abrBandWidthFactor: 0.7,
         abrBandWidthUpFactor: 0.5,
@@ -235,34 +239,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
       hlsRef.current = hls;
 
-      hls.loadSource(playlistUrl);
+      // CRITICAL ORDER: attachMedia FIRST, then loadSource after MEDIA_ATTACHED
       hls.attachMedia(vid);
+
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+        if (destroyed) return;
+        hls.loadSource(playlistUrl);
+      });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (destroyed) return;
         const levels = hls.levels.map((l: any, i: number) => ({ label: `${l.height}p`, level: i }));
         setQualities([{ label: "Auto", level: -1 }, ...levels]);
         setSelectedQuality(-1);
-        setIsLoading(false);
+        // Don't set isLoading false here — let the video element events handle it
         if (autoPlay) {
           vid.muted = true;
           vid.play().then(() => {
-            setIsPlaying(true);
-            setTimeout(() => { if (!destroyed && vid) vid.muted = false; }, 500);
+            setTimeout(() => { if (!destroyed && vid) vid.muted = false; }, 800);
           }).catch(() => {});
         }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, data: any) => {
         if (!destroyed) setSelectedQuality(data.level);
-      });
-
-      hls.on(Hls.Events.LEVEL_LOADED, () => {
-        if (!destroyed) setIsLoading(false);
-      });
-
-      hls.on(Hls.Events.FRAG_LOADED, () => {
-        if (!destroyed) setIsLoading(false);
       });
 
       // Behind-live detection (throttled to every 2s via rAF)
@@ -272,7 +272,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         rafRef.current = requestAnimationFrame(syncLoop);
         if (ts - lastCheck < 2000) return;
         lastCheck = ts;
-        if (vid.paused || !hls.liveSyncPosition) return;
+        if (vid.paused || !hls || !hls.liveSyncPosition) return;
         const behind = hls.liveSyncPosition - vid.currentTime > 8;
         setIsBehindLive(behind);
       };
@@ -283,6 +283,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
         if (destroyed) return;
         if (!data.fatal) {
+          // Nudge past buffer stalls
           if (data.details === "bufferStalledError" && vid.buffered.length > 0) {
             const end = vid.buffered.end(vid.buffered.length - 1);
             if (end - vid.currentTime > 1) vid.currentTime = end - 0.5;
@@ -333,10 +334,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => {
       destroyed = true;
       window.clearTimeout(hardTimeout);
-      window.clearInterval(pollId);
       cancelAnimationFrame(rafRef.current);
-      readyEvents.forEach(e => vid.removeEventListener(e, ready));
-      waitEvents.forEach(e => vid.removeEventListener(e, waiting));
+      allEvents.forEach(([evt, fn]) => vid.removeEventListener(evt, fn));
       if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     };
   }, [playlistUrl, playlistType, autoPlay]);
