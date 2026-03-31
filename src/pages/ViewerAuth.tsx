@@ -387,16 +387,19 @@ const ViewerAuth = () => {
               )}
             </div>
           )}
-          {turnstileSiteKey && (
+          {turnstileSiteKey && !turnstileFailed && (
             <div className="flex justify-center">
               <Turnstile
                 siteKey={turnstileSiteKey}
                 onSuccess={(token) => setTurnstileToken(token)}
-                onError={() => setTurnstileToken(null)}
+                onError={() => { setTurnstileToken(null); setTurnstileFailed(true); }}
                 onExpire={() => setTurnstileToken(null)}
                 options={{ theme: "dark", size: "compact" }}
               />
             </div>
+          )}
+          {turnstileFailed && (
+            <p className="text-center text-[10px] text-muted-foreground">Verifikasi keamanan tidak tersedia — Anda tetap bisa masuk</p>
           )}
           <Button type="submit" className="w-full" disabled={loading || !isFormValid() || (!!turnstileSiteKey && !turnstileToken)}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
           <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setLoginError(""); setFailCount(0); }} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
