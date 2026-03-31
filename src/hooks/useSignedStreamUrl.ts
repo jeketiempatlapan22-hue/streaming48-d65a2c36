@@ -53,8 +53,10 @@ export function useSignedStreamUrl(
       setProxyType(data.type || null);
       setLoading(false);
 
-      // Auto-refresh 60 seconds before expiry
-      const refreshIn = Math.max((data.expires_in - 60) * 1000, 30000);
+      // Auto-refresh well before expiry (2 min before or at 50% of TTL, whichever is sooner)
+      const halfTtl = (data.expires_in / 2) * 1000;
+      const beforeExpiry = Math.max((data.expires_in - 120) * 1000, 30000);
+      const refreshIn = Math.min(halfTtl, beforeExpiry);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) generateSignedUrl();
