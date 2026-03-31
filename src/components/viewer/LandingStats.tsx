@@ -44,7 +44,7 @@ const LandingStats = () => {
       }, 60_000);
       setStats(prev => ({
         ...prev,
-        shows: showsList.length,
+        shows: showsList.filter((s: any) => !s.is_replay).length,
         replays: showsList.filter((s: any) => s.is_replay).length,
       }));
     };
