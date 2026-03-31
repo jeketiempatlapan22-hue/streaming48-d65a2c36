@@ -110,15 +110,6 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
           </a>
           <div className="flex items-center gap-2">
             
-            {!isStandalone && (
-              <button
-                onClick={handleInstallClick}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-primary-foreground hover:bg-primary/90 transition active:scale-[0.95] shadow-sm shadow-primary/20"
-              >
-                <Download className="h-4 w-4" />
-                <span className="text-xs font-bold">Install</span>
-              </button>
-            )}
 
             {showCoinBadge && coinUser && (
               <a href="/profile" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 hover:bg-[hsl(var(--warning))]/20 transition">
