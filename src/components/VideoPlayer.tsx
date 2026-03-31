@@ -315,12 +315,46 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               break;
           }
         }
-        // Non-fatal errors: let HLS.js handle them naturally — no manual seeking
+        // Non-fatal buffer stall: nudge playback forward
+        if (!data.fatal && data.details === "bufferStalledError" && videoRef.current) {
+          const vid = videoRef.current;
+          if (vid.buffered.length > 0) {
+            const buffEnd = vid.buffered.end(vid.buffered.length - 1);
+            if (buffEnd - vid.currentTime > 1) vid.currentTime = buffEnd - 0.5;
+          }
+        }
       });
+
+      // Long-session health: recover from tab sleep / background throttling
+      const onVisibilityChange = () => {
+        if (destroyed || document.hidden) return;
+        const vid = videoRef.current;
+        if (!vid || !hls) return;
+        // Tab came back — restart loading and sync to live edge
+        hls.startLoad();
+        if (vid.paused) vid.play().catch(() => {});
+        if (hls.liveSyncPosition && hls.liveSyncPosition - vid.currentTime > 5) {
+          vid.currentTime = hls.liveSyncPosition;
+        }
+      };
+      document.addEventListener("visibilitychange", onVisibilityChange);
+
+      // Periodic health check every 15s: detect stuck playback
+      const healthInterval = setInterval(() => {
+        if (destroyed || document.hidden) return;
+        const vid = videoRef.current;
+        if (!vid || vid.paused || !hls) return;
+        // If video readyState < HAVE_FUTURE_DATA, nudge it
+        if (vid.readyState < 3) {
+          hls.startLoad();
+        }
+      }, 15000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
         cancelAnimationFrame(rafRef.current);
+        clearInterval(healthInterval);
+        document.removeEventListener("visibilitychange", onVisibilityChange);
         origDestroy();
       };
     };
