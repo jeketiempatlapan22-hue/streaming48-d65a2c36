@@ -461,16 +461,6 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-2">
             <LiveViewerCount isLive={isStreamLive} readOnly />
-
-            {!isStandalone && (
-              <button
-                onClick={handleInstallClick}
-                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-primary-foreground hover:bg-primary/90 transition active:scale-[0.95] shadow-sm shadow-primary/20"
-              >
-                <Download className="h-4 w-4" />
-                <span className="text-xs font-bold">Install</span>
-              </button>
-            )}
             
             {!sheetOpen && coinUser && (
               <a href="/coins" className="flex items-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-1.5 text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/20" title="Coin Shop">
@@ -559,22 +549,6 @@ const Index = () => {
                       </a>
                     ))}
 
-                    {!isStandalone && (
-                      <button
-                        onClick={handleInstallClick}
-                        className="flex w-full items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 text-left transition hover:border-primary/50 hover:bg-primary/10 active:scale-[0.98]"
-                      >
-                        <div className="mt-0.5 shrink-0">
-                          <Download className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-primary">Install App</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {installPrompt ? "Pasang langsung dalam 1 klik" : "Pasang di HP kamu"}
-                          </p>
-                        </div>
-                      </button>
-                    )}
                   </div>
                 </ScrollArea>
               </SheetContent>
