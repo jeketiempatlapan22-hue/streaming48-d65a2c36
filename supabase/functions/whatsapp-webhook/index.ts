@@ -1203,23 +1203,41 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
 
 async function uploadQrToStorage(supabase: any, qrData: string, filename: string): Promise<string | null> {
   try {
-    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrData)}`;
+    // Generate QR image from qrserver API
+    const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrData)}`;
     const imgRes = await fetch(qrApiUrl);
-    if (!imgRes.ok) { console.warn('QR server fetch failed:', imgRes.status); return null; }
+    if (!imgRes.ok) { console.warn('QR server fetch failed:', imgRes.status); return qrApiUrl; }
     const imgBlob = await imgRes.blob();
     const imgBuffer = new Uint8Array(await imgBlob.arrayBuffer());
 
-    const path = `qris/${filename}.png`;
+    // Add timestamp to avoid cache issues
+    const ts = Date.now();
+    const path = `qris/${filename}-${ts}.png`;
     const { error: upErr } = await supabase.storage
       .from('admin-media')
       .upload(path, imgBuffer, { contentType: 'image/png', upsert: true });
-    if (upErr) { console.warn('Storage upload error:', upErr.message); return null; }
+    if (upErr) {
+      console.warn('Storage upload error:', upErr.message);
+      // Fallback: return direct QR API URL
+      return qrApiUrl;
+    }
 
-    const { data: pubUrl } = supabase.storage.from('admin-media').getPublicUrl(path);
-    return pubUrl?.publicUrl || null;
+    // Use signed URL instead of public URL for better reliability
+    const { data: signedData, error: signErr } = await supabase.storage
+      .from('admin-media')
+      .createSignedUrl(path, 86400); // 24 hours
+    if (signErr || !signedData?.signedUrl) {
+      console.warn('Signed URL error:', signErr?.message);
+      // Fallback: try public URL
+      const { data: pubUrl } = supabase.storage.from('admin-media').getPublicUrl(path);
+      return pubUrl?.publicUrl || qrApiUrl;
+    }
+    console.log('QRIS signed URL created:', signedData.signedUrl.substring(0, 80) + '...');
+    return signedData.signedUrl;
   } catch (e) {
     console.warn('uploadQrToStorage error:', e);
-    return null;
+    // Final fallback: direct QR server URL
+    return `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrData)}`;
   }
 }
 
