@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle,
+  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
+import {
+  requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
+} from "@/lib/notifications";
 
 interface ShowCardProps {
   show: Show;
