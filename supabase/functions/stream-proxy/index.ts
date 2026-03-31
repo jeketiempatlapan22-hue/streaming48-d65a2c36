@@ -453,9 +453,11 @@ Deno.serve(async (req) => {
       } else {
         const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
         if (valErr || !(validation as any)?.valid) {
-          trackAbuse(clientIp);
+          const errMsg = (validation as any)?.error || "";
+          const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay");
+          if (!isLegitFailure) trackAbuse(clientIp);
           return new Response(
-            JSON.stringify({ error: (validation as any)?.error || "Token tidak valid atau expired" }),
+            JSON.stringify({ error: errMsg || "Token tidak valid atau expired" }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
