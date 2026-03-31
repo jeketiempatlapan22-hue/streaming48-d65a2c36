@@ -1,65 +1,62 @@
 
 
-## Plan: Fix Player M3U8 & YouTube + Add Loading Animation
+## Plan: Fix Quality Duplicates, Viewer Count Inflation & Session Stability
 
-### Root Cause Analysis
+### Issues Identified
 
-**M3U8 Issues:**
-- Console shows repeated `bufferStalledError` (non-fatal) from HLS.js GapController — the player stalls because segments load but playback position gets stuck
-- Current `bufferStalledError` handler nudges `currentTime` forward but doesn't address the underlying gap detection issue
-- HLS.js config has `enableWorker: false` which degrades performance; the real CORS fix should be in `xhrSetup` instead
-- `loadSource` before `attachMedia` is technically wrong per HLS.js docs — it works sometimes but causes race conditions
+1. **Duplicate quality labels**: HLS streams often have multiple levels with the same resolution (e.g., three 1080p levels with different bitrates). The current code maps each level individually without deduplication.
 
-**YouTube Issues:**
-- YouTube API mode sets `controls: 1` (YouTube's own controls) AND has an overlay div that blocks the iframe — but also blocks YouTube's own controls, causing "configuration error" appearance
-- Iframe fallback mode has no overlay at all, exposing the source URL
-- Play/pause button doesn't work reliably because the overlay intercepts all clicks
+2. **Viewer count inflating on refresh**: When a user refreshes, a new `viewerKeyRef` UUID is generated before the `beforeunload` handler fires. The `sendBeacon` to the Supabase RPC endpoint may silently fail because it sends a Blob without the required `Authorization` header — `sendBeacon` only supports `Content-Type` via Blob, not custom headers. So old viewer keys linger for 90 seconds.
+
+3. **Users getting kicked/blocked unexpectedly**: The session re-creation interval (every 120s) calls `create_token_session`. If the RPC returns `device_limit` due to a stale session from a previous tab/refresh not being cleaned up, the user gets kicked. The `beforeunload` handler for `release_token_session` also uses a raw `fetch` without the `Authorization` header, so it may fail silently.
 
 ### Changes
 
-#### 1. `src/components/VideoPlayer.tsx` — Complete Player Fix
+#### 1. `src/components/VideoPlayer.tsx` — Deduplicate Quality Levels
 
-**M3U8 Fixes:**
-- Fix initialization order: `attachMedia` first, then `loadSource` on `MEDIA_ATTACHED` event (correct per HLS.js docs)
-- Re-enable worker (`enableWorker: true`) but add `xhrSetup` with proper CORS mode
-- Improve `bufferStalledError` handling: seek past gaps more aggressively using `hls.js` built-in `nudgeOffset`
-- Add `progressive: true` for faster first-frame rendering
-- Increase `maxBufferHole` to tolerate small gaps without stalling
+In `MANIFEST_PARSED` handler, deduplicate levels by height, keeping the highest-bitrate variant for each resolution:
 
-**YouTube Fixes:**
-- Use `controls: 0` in YouTube API mode to disable YouTube's native controls (which are blocked by overlay anyway)
-- Keep the transparent overlay to prevent users from accessing source URL
-- Wire play/pause, mute/unmute through the custom control bar using YouTube API methods
-- For iframe fallback: wrap in a container with pointer-events overlay that still allows YouTube controls via `pointer-events: none` on specific areas, OR use the proxy HTML page which already has an overlay
-
-**Loading Animation:**
-- Add a lightweight "connecting" spinner/pulse animation shown while `isLoading` is true
-- For M3U8: set `isLoading = true` initially, clear on `canplay`/`playing` events
-- For YouTube: show during `ytMode === "loading"` state
-- Use a simple centered spinner with "Menghubungkan..." text — no skeleton, no blur, no blocking overlay
-- The loading indicator is `pointer-events-none` so it never blocks the video element
-
-#### 2. Key Technical Details
-
-```text
-M3U8 Init Flow (fixed):
-  1. hls = new Hls(config)
-  2. hls.attachMedia(video)        ← attach first
-  3. on MEDIA_ATTACHED → hls.loadSource(url)  ← then load
-  4. on MANIFEST_PARSED → video.play()
-  5. on canplay/playing → isLoading = false
-
-YouTube Flow:
-  API mode:  controls=0, overlay blocks iframe, custom buttons control API
-  Fallback:  use proxy HTML page (already has overlay built-in)
+```typescript
+// Before: levels with same height appear multiple times
+// After: deduplicate by height, pick highest bitrate per resolution
+const seen = new Map<string, number>();
+data.levels?.forEach((l: any, i: number) => {
+  const label = l.height ? `${l.height}p` : `Level ${i}`;
+  const existing = seen.get(label);
+  if (existing === undefined || (l.bitrate || 0) > (data.levels[existing]?.bitrate || 0)) {
+    seen.set(label, i);
+  }
+});
+const levels = Array.from(seen.entries()).map(([label, value]) => ({ label, value }));
+setQualities([{ label: "Auto", value: -1 }, ...levels]);
 ```
 
-**HLS Config Changes:**
-- `enableWorker: true` (better performance)
-- `maxBufferHole: 1.0` (tolerate 1s gaps)  
-- `nudgeOffset: 0.2` (auto-skip small gaps)
-- `startFragPrefetch: true` (faster first frame)
+#### 2. `src/components/viewer/LiveViewerCount.tsx` — Fix Viewer Count Inflation
+
+**Problem**: `sendBeacon` cannot send custom HTTP headers. The Supabase REST RPC endpoint requires `apikey` header (query param works) AND `Authorization` header. Without `Authorization`, the request is treated as anonymous, and the RPC may still work (since `viewer_counts` RLS allows public), but the `sendBeacon` Blob approach doesn't set `Content-Type: application/json` in a way Supabase accepts.
+
+**Fix**:
+- Persist `viewerKey` in `sessionStorage` so the same key survives page refreshes within the same tab
+- Fix `sendBeacon` to use proper URL format with both `apikey` query param and send as proper JSON
+- Add `Authorization` header via a `fetch` with `keepalive: true` as primary, `sendBeacon` as fallback
+
+#### 3. `src/pages/LivePage.tsx` — Prevent Accidental Kicks
+
+**Problem**: The `release_token_session` fetch in `beforeunload` doesn't include `Authorization` header, so it may fail. When user refreshes, old session isn't released, and new session creation may hit `device_limit`.
+
+**Fix**:
+- Add `Authorization: Bearer <anon_key>` to the `release_token_session` fetch
+- In the session re-creation interval, treat `device_limit` errors more gracefully — don't kick the user, instead retry after releasing stale sessions
+- Increase tolerance: if `create_token_session` returns `device_limit`, attempt a `self_reset_token_session` automatically before giving up
+
+#### 4. Session Stability for 1000+ Users Over 7 Hours
+
+- Reduce session re-creation interval from 120s to 180s (less DB load)
+- Add retry tolerance: allow up to 3 consecutive `device_limit` errors before showing error (covers brief race conditions during refresh)
+- Ensure `blocked-check` interval (60s) doesn't kick users on transient network errors
 
 ### Files Modified
-1. `src/components/VideoPlayer.tsx` — Fix HLS init order, YouTube overlay+controls, add loading animation
+1. `src/components/VideoPlayer.tsx` — Deduplicate quality levels
+2. `src/components/viewer/LiveViewerCount.tsx` — Fix viewer key persistence and sendBeacon
+3. `src/pages/LivePage.tsx` — Fix session release headers and device_limit handling
 
