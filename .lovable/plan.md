@@ -1,74 +1,85 @@
 
 
-## Plan: Loading Animation + Quality Lock + Integrasi QRIS Dinamis Pak Kasir
+## Plan: Remove Public Bot Ordering, Enhance Admin Token Creation, Fix Stats Separation
 
-### 1. Perbaikan Loading Animation (VideoPlayer.tsx)
+### Overview
+Three changes: (1) remove public ordering commands from WhatsApp bot, (2) enhance `/createtoken` to include replay info and confirmation message format, (3) fix LandingStats to properly separate active shows from replays.
 
-**Masalah**: `isLoading` dimulai `false` — untuk YouTube tidak pernah di-set `true` di awal, sehingga tidak ada animasi loading saat player memuat.
+---
 
-**Perubahan**:
-- Set `isLoading = true` saat efek YouTube dimulai (sebelum `loadYTApi`)
-- Set `isLoading = true` saat efek Cloudflare dimulai, baru `false` setelah iframe load
-- Tambahkan event `onLoad` pada iframe Cloudflare untuk menghilangkan loading
+### 1. Remove Public WhatsApp Bot Ordering Commands
 
-### 2. Quality Lock (VideoPlayer.tsx)
+**File:** `supabase/functions/whatsapp-webhook/index.ts`
 
-**Status saat ini**: Logika sudah benar — `__setUserLocked` menangani `userLocked` vs `autoLocked` dengan tepat, dan `hls.autoLevelEnabled = false` sudah diterapkan saat lock. Tidak perlu perubahan.
+- In `processPublicCommand()`, remove the ORDER/BELI show handler, BELI KOIN handler, KOIN list handler, and their associated functions
+- Keep: `MENU/SHOW/CEK` commands (info-only, no ordering)
+- Remove functions: `handlePublicOrder`, `handlePublicCoinOrder`, `handlePublicCoinList`
+- Update `handlePublicMenu()` to only show info commands (SHOW, CEK), remove ORDER/BELI/KOIN instructions
+- Update `handlePublicShowList()` to remove the "ORDER" CTA at the bottom, replace with website link
 
-### 3. Integrasi QRIS Dinamis Pak Kasir
+---
 
-**Arsitektur**:
+### 2. Enhance Admin `/createtoken` with Confirmation Message + Replay Info
 
-```text
-User Beli Show → Edge Function → Pak Kasir API → Return QRIS String
-                                                → User scan QR
-                                                → Pak Kasir Callback → Edge Function → Update Order Status
+**File:** `supabase/functions/whatsapp-webhook/index.ts`
+
+- Update `handleCreateTokenWa()` response to match the elegant confirmation format used in `pakasir-callback`:
+  - Add visual dividers (`━━━━━━━━━━━━━━━━━━`)
+  - Include show schedule, access password (if set)
+  - Include replay info: link `https://replaytime.lovable.app` and replay password
+  - Include live link with token
+- Update `handleGiveTokenWa()` similarly — send the same formatted confirmation via WhatsApp to the target user's phone (lookup from `coin_orders` or `subscription_orders`)
+- Fix the undeclared `show` variable bug on line 1788 (missing `let show: any = null;`)
+
+---
+
+### 3. Separate Replay Shows from Active Shows in Landing Stats
+
+**File:** `src/components/viewer/LandingStats.tsx`
+
+- Change "Total Show" to count only non-replay shows: `showsList.filter(s => !s.is_replay).length`
+- "Replay" already counts replay shows correctly — keep as is
+- This ensures active shows and replays don't mix
+
+**File:** `supabase/functions/cached-landing-data/index.ts`
+
+- No change needed — it returns all active shows; filtering happens client-side
+
+---
+
+### Technical Details
+
+**WhatsApp bot public command removal:**
+- Lines ~142-175: Remove coin/order matchers from `processPublicCommand`
+- Lines ~177-196: Simplify menu text
+- Lines ~228-586: Delete `handlePublicOrder`, `handlePublicCoinList`, `handlePublicCoinOrder` functions
+- Keep `handlePublicShowList` and `handlePublicCheckOrder`
+
+**Token creation enhancement (lines ~1777-1834):**
+```
+━━━━━━━━━━━━━━━━━━
+✅ *Token Berhasil Dibuat!*
+━━━━━━━━━━━━━━━━━━
+
+🎬 Show: *{title}*
+📅 Jadwal: {date} {time}
+🔑 Token: {code}
+📱 Max Device: {max}
+⏰ Kedaluwarsa: {expiry}
+
+📺 *Link Nonton:*
+realtime48show.my.id/live?t={code}
+
+🔐 Sandi Akses: {password}
+
+🔄 *Info Replay:*
+🔗 Link: https://replaytime.lovable.app
+🔐 Sandi Replay: {password}
+━━━━━━━━━━━━━━━━━━
 ```
 
-**Langkah**:
-
-1. **Simpan API Key Pak Kasir** sebagai secret (`PAKASIR_API_KEY`) + `PAKASIR_MERCHANT_CODE` (nama merchant di Pak Kasir)
-
-2. **Edge Function `create-dynamic-qris`**:
-   - Terima `{ show_id, amount, order_type }` dari frontend
-   - Panggil Pak Kasir API: `POST https://app.pakasir.com/api/transactioncreate/qris` dengan body `{ api_key, merchant_code, amount, order_id }`
-   - Simpan `order_id` + `qr_string` ke database (kolom baru di `subscription_orders`)
-   - Return QR string ke frontend untuk ditampilkan sebagai QR code
-
-3. **Edge Function `pakasir-callback`**:
-   - Menerima webhook callback dari Pak Kasir saat pembayaran berhasil
-   - Validasi signature/data
-   - Update order status ke `confirmed` otomatis
-   - Panggil `confirm_regular_order` RPC jika show reguler
-   - Kirim notifikasi Telegram + WhatsApp ke admin
-
-4. **Database migration**:
-   - Tambah kolom `qr_string TEXT` dan `payment_gateway_order_id TEXT` ke `subscription_orders`
-   - Tambah kolom `payment_status TEXT DEFAULT 'pending'` untuk tracking status dari gateway
-
-5. **Frontend (PurchaseModal, SchedulePage, dll)**:
-   - Jika QRIS dinamis aktif (ada setting di `site_settings`), tampilkan QR code dari `qr_string` menggunakan library QR code generator (bukan gambar statis)
-   - Polling status pembayaran setiap 3 detik sampai confirmed
-   - Otomatis lanjut ke step "done" saat pembayaran terkonfirmasi
-
-6. **Site Settings**: Tambah toggle `use_dynamic_qris` di admin settings agar bisa switch antara QRIS statis (gambar) dan QRIS dinamis (Pak Kasir API)
-
-### Yang Diperlukan dari Anda
-
-Untuk integrasi Pak Kasir, saya memerlukan:
-1. **API Key Pak Kasir** — didapat dari dashboard pakasir.com setelah mendaftar
-2. **Merchant Code** — nama merchant yang terdaftar di Pak Kasir
-
-Jika Anda belum punya akun, daftar dulu di [pakasir.com](https://pakasir.com). Setelah siap, saya akan minta Anda memasukkan API Key dan Merchant Code.
-
-### Files yang Diubah/Dibuat
-
-| File | Perubahan |
-|------|-----------|
-| `src/components/VideoPlayer.tsx` | Set `isLoading=true` di awal YouTube & Cloudflare init |
-| `supabase/functions/create-dynamic-qris/index.ts` | Baru — panggil Pak Kasir API |
-| `supabase/functions/pakasir-callback/index.ts` | Baru — terima webhook callback |
-| `src/components/viewer/PurchaseModal.tsx` | Tampilkan QR dari string (bukan gambar) + polling status |
-| Database migration | Tambah kolom `qr_string`, `payment_gateway_order_id` |
-| Admin settings | Toggle `use_dynamic_qris` |
+**LandingStats fix (line 35):**
+```typescript
+shows: showsList.filter((s: any) => !s.is_replay).length,
+```
 
