@@ -50,9 +50,9 @@ const Login = () => {
           <div className="w-16 h-16 rounded-full bg-primary/15 border-2 border-primary/50 flex items-center justify-center mx-auto mb-4 shadow-[0_0_16px_hsl(var(--primary)/0.3)]">
             <img src={logo} alt="RT48" className="w-7 h-7 rounded-full object-cover" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight" style={{ lineHeight: "1.1" }}>
-            Real<span className="text-primary">Time48</span>
-          </h1>
+           <h1 className="text-2xl font-extrabold tracking-tight font-display" style={{ lineHeight: "1.1" }}>
+             Real<span className="text-primary">Time48</span>
+           </h1>
           <p className="text-muted-foreground text-sm mt-2">Login admin untuk mengelola streaming</p>
         </motion.div>
 

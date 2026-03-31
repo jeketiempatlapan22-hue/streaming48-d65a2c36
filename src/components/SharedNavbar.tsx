@@ -145,7 +145,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                 <SheetHeader className="px-6 pt-6 pb-2">
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <img src={logo} alt="RealTime48" className="h-6 w-6 rounded-full object-cover" />
-                    RealTime48
+                     <span className="font-display tracking-tight">RealTime48</span>
                   </SheetTitle>
                 </SheetHeader>
 
