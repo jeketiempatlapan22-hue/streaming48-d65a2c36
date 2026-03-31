@@ -224,8 +224,9 @@ const LivePage = () => {
 
         if (streamRes.status === "fulfilled" && streamRes.value.data?.length) setStream(streamRes.value.data[0]);
         if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
-          setPlaylists(playlistRes.value.data);
-          setActivePlaylist(playlistRes.value.data[0]);
+          const sorted = sortPlaylists(playlistRes.value.data);
+          setPlaylists(sorted);
+          setActivePlaylist(sorted[0]);
         }
 
         let activeShowId = "";
