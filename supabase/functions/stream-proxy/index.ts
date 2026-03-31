@@ -74,8 +74,8 @@ function trackAbuse(ip: string): boolean {
     return false;
   }
   entry.count++;
-  // Block after 15 failed attempts in 10 minutes
-  return entry.count > 15;
+  // Block after 30 failed attempts in 10 minutes (generous for shared networks)
+  return entry.count > 30;
 }
 
 function isAbusiveIp(ip: string): boolean {
