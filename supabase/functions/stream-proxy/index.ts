@@ -567,8 +567,8 @@ Deno.serve(async (req) => {
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 120 segment requests per minute per IP per unique segment (was 600)
-      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
+      // Segment rate limit: per unique segment prefix, generous since each seg is unique
+      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 60, 60000)) {
         return getRateLimitResponse(true);
       }
 
