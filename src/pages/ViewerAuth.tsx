@@ -111,8 +111,8 @@ const ViewerAuth = () => {
     e.preventDefault();
     if (!isFormValid() || submitRef.current || loading) return;
 
-    // Turnstile verification (if configured)
-    if (turnstileSiteKey && !turnstileToken) {
+    // Turnstile verification (if configured and not failed)
+    if (turnstileSiteKey && !turnstileToken && !turnstileFailed) {
       toast.error("Silakan selesaikan verifikasi keamanan terlebih dahulu");
       return;
     }
