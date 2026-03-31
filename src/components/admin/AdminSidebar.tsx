@@ -40,7 +40,7 @@ const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, on
       <div className="flex items-center gap-3 border-b border-border px-4 py-4">
         <img src={logo} alt="RealTime48" className="h-8 w-8 rounded-full object-cover" />
         <div className="flex flex-col">
-          <span className="text-sm font-bold text-foreground">Real<span className="text-primary">Time48</span></span>
+          <span className="text-sm font-black font-heading text-foreground">Real<span className="text-primary">Time48</span></span>
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Admin Panel</span>
         </div>
       </div>
