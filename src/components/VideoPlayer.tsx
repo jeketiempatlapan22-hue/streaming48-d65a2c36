@@ -387,8 +387,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     ytFallbackTimerRef.current = setTimeout(() => {
       if (destroyed || ytReadyRef.current) return;
+      console.warn("[YT] API timeout, using fallback iframe");
       setYtFallback(true); setIsLoading(false); setIsPlaying(autoPlay);
-    }, 10000);
+    }, 6000);
 
     const createYTPlayer = () => {
       if (destroyed || ytFallback) return;
