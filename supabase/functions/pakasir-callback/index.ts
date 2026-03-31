@@ -37,7 +37,7 @@ serve(async (req) => {
     const { data: coinOrder } = await supabase
       .from("coin_orders")
       .select("id, user_id, coin_amount, phone, status, package_id, price, short_id")
-      .eq("short_id", orderId)
+      .or(`short_id.eq.${orderId},payment_gateway_order_id.eq.${orderId}`)
       .maybeSingle();
 
     console.log("Found subOrder:", JSON.stringify(subOrder));
