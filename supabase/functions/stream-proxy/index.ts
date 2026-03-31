@@ -10,12 +10,13 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SIGNING_SECRET = SERVICE_ROLE_KEY;
 
-// --- TIGHTER TTLs ---
-// Shorter TTLs = harder to reuse stolen URLs
-const PLAYLIST_TOKEN_TTL = 900;   // 15 min (was 2h) — auto-refreshed by client
-const SUB_PLAYLIST_TOKEN_TTL = 600; // 10 min
-const YT_TOKEN_TTL = 1800;         // 30 min
-const SEG_TOKEN_TTL = 300;         // 5 min — segments are fetched immediately
+// --- BALANCED TTLs ---
+// Short enough to prevent link theft, long enough for smooth streaming
+// Client auto-refreshes well before expiry
+const PLAYLIST_TOKEN_TTL = 1800;    // 30 min — manifest URL, auto-refreshed every ~12 min
+const SUB_PLAYLIST_TOKEN_TTL = 1800; // 30 min — sub-playlists inherit same lifecycle
+const YT_TOKEN_TTL = 3600;           // 1 hour — YouTube/CF embeds, less sensitive
+const SEG_TOKEN_TTL = 1800;          // 30 min — segments (must survive pause/resume + buffer)
 
 // --- ALLOWED ORIGINS (Referer/Origin validation) ---
 const ALLOWED_REFERERS = [
@@ -73,15 +74,15 @@ function trackAbuse(ip: string): boolean {
     return false;
   }
   entry.count++;
-  // Block after 15 failed attempts in 10 minutes
-  return entry.count > 15;
+  // Block after 30 failed attempts in 10 minutes (generous for shared networks)
+  return entry.count > 30;
 }
 
 function isAbusiveIp(ip: string): boolean {
   const entry = abuseTracker.get(ip);
   if (!entry) return false;
   if (Date.now() > entry.resetAt) { abuseTracker.delete(ip); return false; }
-  return entry.count > 15;
+  return entry.count > 30;
 }
 
 function getRateLimitResponse(isStreamRequest = false): Response {
@@ -376,9 +377,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  // --- GLOBAL RATE LIMITS (stricter) ---
-  // 200 requests/min global per IP (was 600)
-  if (!edgeRateLimit(`global:${clientIp}`, 200, 60000)) {
+  // --- GLOBAL RATE LIMITS ---
+  // 500/min per IP — supports ~5 viewers on same WiFi/NAT
+  // HLS needs ~50-90 req/min per viewer (manifest + sub + segments)
+  if (!edgeRateLimit(`global:${clientIp}`, 500, 60000)) {
     const isStream = mode === "play" || mode === "sub" || mode === "seg";
     return getRateLimitResponse(isStream);
   }
@@ -398,8 +400,9 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { token_code, playlist_id, fingerprint } = body;
 
-      // Strict rate limit: 15 generate requests per minute per IP (was 60)
-      if (!edgeRateLimit(`gen:${clientIp}`, 15, 60000)) {
+      // Strict rate limit: 20 generate requests per minute per IP
+      // Each viewer refreshes every ~12 min, so 20/min supports ~240 viewers per IP
+      if (!edgeRateLimit(`gen:${clientIp}`, 20, 60000)) {
         return getRateLimitResponse();
       }
 
@@ -438,8 +441,10 @@ Deno.serve(async (req) => {
         });
         const sr = sessResult as any;
         if (sessErr || !sr?.success) {
-          trackAbuse(clientIp);
+          // Only track abuse for clearly invalid tokens, not device_limit or expired
           const errMsg = sr?.error || "Token tidak valid";
+          const isLegitFailure = errMsg === "device_limit" || errMsg.includes("kedaluwarsa") || errMsg.includes("expired");
+          if (!isLegitFailure) trackAbuse(clientIp);
           return new Response(
             JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -448,9 +453,11 @@ Deno.serve(async (req) => {
       } else {
         const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
         if (valErr || !(validation as any)?.valid) {
-          trackAbuse(clientIp);
+          const errMsg = (validation as any)?.error || "";
+          const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay");
+          if (!isLegitFailure) trackAbuse(clientIp);
           return new Response(
-            JSON.stringify({ error: (validation as any)?.error || "Token tidak valid atau expired" }),
+            JSON.stringify({ error: errMsg || "Token tidak valid atau expired" }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
@@ -508,8 +515,9 @@ Deno.serve(async (req) => {
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 60 manifest requests per minute per IP per playlist (was 300)
-      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 60, 60000)) {
+      // 150 manifest requests per minute per IP per playlist
+      // HLS.js fetches every 2-5s = ~12-30/min per viewer, supports ~5 viewers/IP
+      if (pid && !edgeRateLimit(`play:${clientIp}:${pid}`, 150, 60000)) {
         return getRateLimitResponse(true);
       }
 
@@ -563,8 +571,8 @@ Deno.serve(async (req) => {
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 120 segment requests per minute per IP per unique segment (was 600)
-      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
+      // Segment rate limit: per unique segment prefix, generous since each seg is unique
+      if (encoded && !edgeRateLimit(`seg:${clientIp}:${encoded.slice(0, 20)}`, 60, 60000)) {
         return getRateLimitResponse(true);
       }
 
@@ -715,8 +723,8 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const sig = url.searchParams.get("sig");
       const h = url.searchParams.get("h");
 
-      // 120 sub-playlist requests per minute per IP (was 500)
-      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 120, 60000)) {
+      // 150 sub-playlist requests per minute per IP — same as manifest
+      if (encoded && !edgeRateLimit(`sub:${clientIp}:${encoded.slice(0, 20)}`, 150, 60000)) {
         return getRateLimitResponse(true);
       }
 
