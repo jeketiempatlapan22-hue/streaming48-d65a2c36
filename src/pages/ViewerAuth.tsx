@@ -33,6 +33,7 @@ const ViewerAuth = () => {
   const submitRef = useRef(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileFailed, setTurnstileFailed] = useState(false);
 
   useEffect(() => {
     // Check existing session with timeout
@@ -110,8 +111,8 @@ const ViewerAuth = () => {
     e.preventDefault();
     if (!isFormValid() || submitRef.current || loading) return;
 
-    // Turnstile verification (if configured)
-    if (turnstileSiteKey && !turnstileToken) {
+    // Turnstile verification (if configured and not failed)
+    if (turnstileSiteKey && !turnstileToken && !turnstileFailed) {
       toast.error("Silakan selesaikan verifikasi keamanan terlebih dahulu");
       return;
     }
@@ -386,18 +387,21 @@ const ViewerAuth = () => {
               )}
             </div>
           )}
-          {turnstileSiteKey && (
+          {turnstileSiteKey && !turnstileFailed && (
             <div className="flex justify-center">
               <Turnstile
                 siteKey={turnstileSiteKey}
                 onSuccess={(token) => setTurnstileToken(token)}
-                onError={() => setTurnstileToken(null)}
+                onError={() => { setTurnstileToken(null); setTurnstileFailed(true); }}
                 onExpire={() => setTurnstileToken(null)}
                 options={{ theme: "dark", size: "compact" }}
               />
             </div>
           )}
-          <Button type="submit" className="w-full" disabled={loading || !isFormValid() || (!!turnstileSiteKey && !turnstileToken)}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
+          {turnstileFailed && (
+            <p className="text-center text-[10px] text-muted-foreground">Verifikasi keamanan tidak tersedia — Anda tetap bisa masuk</p>
+          )}
+          <Button type="submit" className="w-full" disabled={loading || !isFormValid() || (!!turnstileSiteKey && !turnstileToken && !turnstileFailed)}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
           <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setLoginError(""); setFailCount(0); }} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
           {mode === "login" && (
             <p className="text-center text-xs"><a href="/forgot-password" className={`transition-colors ${failCount >= 2 ? "font-bold text-primary" : "text-muted-foreground hover:text-primary"}`}>Lupa password?</a></p>
