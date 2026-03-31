@@ -13,7 +13,7 @@ const settingsKeys = [
   { key: "purchase_message", label: "Pesan untuk halaman tanpa token", placeholder: "Untuk pembelian token streaming...", type: "textarea" as const },
   { key: "subscription_info", label: "Informasi Langganan", placeholder: "Paket langganan kami meliputi...", type: "textarea" as const },
   { key: "announcement_text", label: "Teks Pengumuman", placeholder: "Pengumuman penting...", type: "textarea" as const },
-  { key: "stream_proxy_domain", label: "Domain Masking Stream", placeholder: "cdn.yourdomain.com", type: "input" as const, hint: "Domain reverse proxy untuk menyembunyikan server asal m3u8. Kosongkan jika tidak pakai." },
+  
 ];
 
 const SiteSettingsManager = () => {

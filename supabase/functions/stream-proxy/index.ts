@@ -473,15 +473,11 @@ Deno.serve(async (req) => {
 
       const actualUrl = base64UrlDecode(encoded);
 
-      // Apply domain masking if configured
-      const proxyDomain = await getProxyDomain();
-      const redirectUrl = proxyDomain ? maskDomain(actualUrl, proxyDomain) : actualUrl;
-
       return new Response(null, {
         status: 302,
         headers: {
           ...corsHeaders,
-          "Location": redirectUrl,
+          "Location": actualUrl,
           "Cache-Control": "private, no-store, no-cache",
         },
       });
