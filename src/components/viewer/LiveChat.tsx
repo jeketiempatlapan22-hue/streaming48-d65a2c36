@@ -280,10 +280,6 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           >
             <Trophy className="h-3.5 w-3.5" />
           </button>
-          <div className="flex items-center gap-1.5 rounded-full bg-[hsl(var(--success))]/10 px-2.5 py-1">
-            <Users className="h-3 w-3 text-[hsl(var(--success))]" />
-            <span className="text-xs font-bold text-[hsl(var(--success))]">{onlineCount}</span>
-          </div>
         </div>
       </div>
 
