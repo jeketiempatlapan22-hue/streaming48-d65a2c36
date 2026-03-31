@@ -255,7 +255,7 @@ const CoinShop = () => {
   };
 
   const copyToken = (code: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/live?t=${code}`);
+    navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${code}`);
     toast({ title: "Link disalin!" });
   };
 
