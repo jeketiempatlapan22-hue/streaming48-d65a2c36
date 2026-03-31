@@ -25,7 +25,7 @@ const ViewerProfile = () => {
   const [tokens, setTokens] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"orders" | "subscriptions" | "tokens">("orders");
+  const [tab, setTab] = useState<"orders" | "subscriptions" | "tokens" | "stats">("orders");
   const [editingPhone, setEditingPhone] = useState<Record<string, string>>({});
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const navigate = useNavigate();
