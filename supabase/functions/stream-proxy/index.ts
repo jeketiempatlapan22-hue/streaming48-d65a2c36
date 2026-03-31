@@ -82,7 +82,7 @@ function isAbusiveIp(ip: string): boolean {
   const entry = abuseTracker.get(ip);
   if (!entry) return false;
   if (Date.now() > entry.resetAt) { abuseTracker.delete(ip); return false; }
-  return entry.count > 15;
+  return entry.count > 30;
 }
 
 function getRateLimitResponse(isStreamRequest = false): Response {
