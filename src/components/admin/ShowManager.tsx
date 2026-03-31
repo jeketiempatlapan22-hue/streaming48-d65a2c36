@@ -259,7 +259,7 @@ const ShowManager = () => {
               <Input type="number" value={editing.replay_coin_price} onChange={(e) => setEditing({ ...editing, replay_coin_price: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">🔐 Sandi Akses Show</label>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🔐 Sandi Replay</label>
               <Input value={editing.access_password || ""} onChange={(e) => setEditing({ ...editing, access_password: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Kosongkan jika tidak perlu" />
             </div>
 
