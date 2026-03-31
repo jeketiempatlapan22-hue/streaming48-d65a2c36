@@ -32,7 +32,7 @@ const LandingStats = () => {
         const showsList = cached.shows as any[];
         setStats(prev => ({
           ...prev,
-          shows: showsList.length,
+          shows: showsList.filter((s: any) => !s.is_replay).length,
           coins: cached.totalCoins ?? 0,
           replays: showsList.filter((s: any) => s.is_replay).length,
         }));
