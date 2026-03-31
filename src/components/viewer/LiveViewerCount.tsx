@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const STORAGE_KEY = "rt48_viewer_key";
+
 const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOnly?: boolean }) => {
   const [count, setCount] = useState(0);
   const viewerKeyRef = useRef<string>("");
@@ -12,8 +14,15 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
 
     // Only send heartbeats if not readOnly (i.e., only on the live page)
     if (!readOnly) {
+      // Persist viewer key in sessionStorage to survive page refreshes
       if (!viewerKeyRef.current) {
-        viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
+        const stored = sessionStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          viewerKeyRef.current = stored;
+        } else {
+          viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
+          sessionStorage.setItem(STORAGE_KEY, viewerKeyRef.current);
+        }
       }
       const key = viewerKeyRef.current;
 
@@ -51,18 +60,28 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
     return () => clearInterval(interval);
   }, [isLive, readOnly]);
 
-  // Also leave on page unload
+  // Also leave on page unload — use fetch with keepalive + Authorization header
   useEffect(() => {
     if (!isLive || readOnly) return;
     const handleUnload = () => {
-      if (viewerKeyRef.current) {
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/viewer_leave`;
-        const body = JSON.stringify({ _key: viewerKeyRef.current });
-        const blob = new Blob([body], { type: "application/json" });
-        const sent = navigator.sendBeacon?.(url + `?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
-        if (!sent) {
-          fetch(url, { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` }, body, keepalive: true }).catch(() => {});
-        }
+      const key = viewerKeyRef.current;
+      if (!key) return;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/viewer_leave`;
+      const body = JSON.stringify({ _key: key });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      };
+      // Primary: fetch with keepalive (supports custom headers)
+      try {
+        fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+      } catch {
+        // Fallback: sendBeacon with apikey as query param (no custom headers possible)
+        try {
+          const blob = new Blob([body], { type: "application/json" });
+          navigator.sendBeacon?.(`${url}?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`, blob);
+        } catch {}
       }
     };
     window.addEventListener("beforeunload", handleUnload);
