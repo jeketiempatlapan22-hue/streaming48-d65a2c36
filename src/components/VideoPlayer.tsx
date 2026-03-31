@@ -40,7 +40,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
-  const hlsInitRef = useRef(false);
   const ytFallbackTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const ytFallbackContainerRef = useRef<HTMLDivElement>(null);
   const cfContainerRef = useRef<HTMLDivElement>(null);
