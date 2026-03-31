@@ -336,7 +336,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                 console.error(`[HLS] Fatal error, reinit attempt ${fatalRetryCount}/${MAX_FATAL_RETRIES}`);
                 hls.destroy();
                 hlsRef.current = null;
-                hlsInitRef.current = false;
                 hls = null;
                 setTimeout(() => { if (!destroyed) initHls(); }, 2000);
               } else {
