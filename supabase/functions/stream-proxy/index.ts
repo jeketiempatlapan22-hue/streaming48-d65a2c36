@@ -400,8 +400,9 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { token_code, playlist_id, fingerprint } = body;
 
-      // Strict rate limit: 15 generate requests per minute per IP (was 60)
-      if (!edgeRateLimit(`gen:${clientIp}`, 15, 60000)) {
+      // Strict rate limit: 20 generate requests per minute per IP
+      // Each viewer refreshes every ~12 min, so 20/min supports ~240 viewers per IP
+      if (!edgeRateLimit(`gen:${clientIp}`, 20, 60000)) {
         return getRateLimitResponse();
       }
 
