@@ -129,9 +129,16 @@ const ViewerProfile = () => {
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-[hsl(var(--success))]">{tokens.filter(t => t.status === "active").length}</p><p className="text-[10px] text-muted-foreground">Token Aktif</p></div>
         </motion.div>
 
+        {/* Badges */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="rounded-xl glass p-4">
+          <Suspense fallback={<div className="h-24 skeleton rounded-xl" />}>
+            {authUser && <UserBadges user={authUser} />}
+          </Suspense>
+        </motion.div>
+
         {/* Buy Coins CTA */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between rounded-xl glass p-4">
             <div><p className="text-xs text-muted-foreground">Saldo Koin</p><div className="flex items-center gap-2 mt-1"><Coins className="h-5 w-5 text-[hsl(var(--warning))]" /><span className="text-2xl font-bold text-[hsl(var(--warning))]">{balance}</span></div></div>
             <Button size="sm" variant="outline" onClick={() => navigate("/coins")}><Coins className="mr-1.5 h-3.5 w-3.5" /> Beli Koin</Button>
           </div>
@@ -139,10 +146,10 @@ const ViewerProfile = () => {
 
         {/* Tabs */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <div className="flex rounded-lg border border-border bg-card p-1 gap-1">
-            {([["orders", "Order Koin", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key]] as const).map(([key, label, Icon]) => (
-              <button key={key} onClick={() => setTab(key)} className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-2 text-xs font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                <Icon className="h-3.5 w-3.5" />{label}
+          <div className="flex rounded-lg glass p-1 gap-1">
+            {([["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
+              <button key={key} onClick={() => setTab(key as any)} className={`flex-1 flex items-center justify-center gap-1 rounded-md py-2 text-[10px] font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                <Icon className="h-3 w-3" />{label}
               </button>
             ))}
           </div>
