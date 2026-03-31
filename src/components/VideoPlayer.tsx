@@ -194,15 +194,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         },
       });
       hlsRef.current = hls;
+      let networkRetryCount = 0;
+      const MAX_NETWORK_RETRIES = 5;
+      let mediaRecoveryAttempted = false;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
+        networkRetryCount = 0; // Reset on success
         const levels = data.levels?.map((l: any, i: number) => ({
           label: l.height ? `${l.height}p` : `Level ${i}`,
           value: i,
         })) || [];
         setQualities([{ label: "Auto", value: -1 }, ...levels]);
         if (autoPlay) video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.FRAG_LOADED, () => {
+        if (!destroyed) { networkRetryCount = 0; setIsLoading(false); }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
@@ -214,21 +222,47 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         console.warn("[HLS] Error:", data.type, data.details, data.fatal);
         if (data.fatal) {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            console.warn("[HLS] Fatal network error, attempting recovery...");
-            setTimeout(() => { if (!destroyed && hlsRef.current) hlsRef.current.startLoad(); }, 2000);
+            networkRetryCount++;
+            if (networkRetryCount <= MAX_NETWORK_RETRIES) {
+              console.warn(`[HLS] Fatal network error, retry ${networkRetryCount}/${MAX_NETWORK_RETRIES}...`);
+              const delay = Math.min(2000 * networkRetryCount, 10000);
+              setTimeout(() => {
+                if (destroyed || !hlsRef.current) return;
+                // For manifestLoadError, need full reload
+                if (data.details === "manifestLoadError" || data.details === "manifestLoadTimeOut") {
+                  hls.loadSource(playlistUrl);
+                } else {
+                  hls.startLoad();
+                }
+              }, delay);
+            } else {
+              setPlayerError("Koneksi terputus. Coba refresh halaman.");
+              setIsLoading(false);
+            }
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            console.warn("[HLS] Fatal media error, recovering...");
-            hls.recoverMediaError();
+            if (!mediaRecoveryAttempted) {
+              console.warn("[HLS] Fatal media error, recovering...");
+              mediaRecoveryAttempted = true;
+              hls.recoverMediaError();
+            } else {
+              console.warn("[HLS] Fatal media error again, swapping codec...");
+              hls.swapAudioCodec();
+              hls.recoverMediaError();
+            }
           } else {
             setPlayerError("Stream error. Coba refresh halaman.");
             setIsLoading(false);
           }
         } else if (data.details === "bufferStalledError") {
-          // Nudge forward if buffered ahead
+          // Aggressive nudge: jump to latest buffered position
           if (video.buffered.length > 0) {
             const end = video.buffered.end(video.buffered.length - 1);
-            if (end - video.currentTime > 1) video.currentTime = end - 0.5;
+            if (end - video.currentTime > 0.5) {
+              video.currentTime = end - 0.3;
+            }
           }
+          // Also try resuming playback if paused due to stall
+          if (video.paused) video.play().catch(() => {});
         }
       });
 
