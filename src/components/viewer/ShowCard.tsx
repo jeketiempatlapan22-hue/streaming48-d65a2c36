@@ -70,20 +70,17 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
-const CountdownDigit = ({ value, label }: { value: number; label: string }) => (
-  <div className="flex items-center gap-0.5">
-    <motion.span
-      key={value}
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="font-mono text-xs font-bold text-white tabular-nums"
-    >
-      {value.toString().padStart(2, "0")}
-    </motion.span>
-    <span className="text-[7px] uppercase text-white/60 font-medium">{label}</span>
-  </div>
-);
+const CountdownDigit = ({ value, label }: { value: number; label: string }) => {
+  const formatted = value.toString().padStart(2, "0");
+  return (
+    <div className="flex items-center gap-0.5">
+      <span className="font-mono text-xs font-bold text-white tabular-nums">
+        {formatted}
+      </span>
+      <span className="text-[7px] uppercase text-white/60 font-medium">{label}</span>
+    </div>
+  );
+};
 
 const ShowCard = ({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
