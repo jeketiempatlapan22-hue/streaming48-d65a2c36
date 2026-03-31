@@ -397,14 +397,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     initHls();
     return () => {
       destroyed = true;
-      clearTimeout(hardTimeout);
       cancelAnimationFrame(rafRef.current);
-      // Clean up native video listeners
-      vid.onloadedmetadata = null;
-      vid.oncanplay = null;
-      vid.onplaying = null;
-      vid.onerror = null;
-      vid.onwaiting = null;
       if (hls) { hls.destroy(); hlsRef.current = null; }
     };
   }, [playlistUrl, playlistType, autoPlay]);
