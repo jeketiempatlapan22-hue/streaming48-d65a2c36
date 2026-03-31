@@ -16,6 +16,7 @@ export default {
       fontFamily: {
         sans: ['Nunito', 'system-ui', 'sans-serif'],
         display: ['Fredoka', 'Nunito', 'system-ui', 'sans-serif'],
+        heading: ['"Playfair Display"', 'Georgia', '"Times New Roman"', 'serif'],
       },
       colors: {
         border: "hsl(var(--border))",

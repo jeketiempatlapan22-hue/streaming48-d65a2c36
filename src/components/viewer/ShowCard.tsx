@@ -200,18 +200,7 @@ const ShowCard = ({
 
         {/* Action buttons */}
         <div className="mt-2 flex flex-col gap-2">
-          {redeemedToken && accessPassword && (() => {
-            const showStart = parseShowDateTime(show.schedule_date, show.schedule_time);
-            const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
-            const tooEarly = accessOpens ? Date.now() < accessOpens : false;
-            if (tooEarly) return null;
-            return (
-              <div className="rounded-xl border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/10 p-3 text-center">
-                <p className="text-[10px] font-medium text-muted-foreground mb-1">🔐 Sandi Akses Show</p>
-                <p className="font-mono text-lg font-bold text-[hsl(var(--warning))]">{accessPassword}</p>
-              </div>
-            );
-          })()}
+          {/* Sandi akses digabung ke sandi replay di bawah */}
 
           {redeemedToken ? (
             isReplayMode ? (

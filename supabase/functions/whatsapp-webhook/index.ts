@@ -1513,10 +1513,6 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
 
-    if (show.access_password) {
-      msg += `\n\n🔐 *Sandi Akses:* ${show.access_password}`;
-    }
-
     msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
     if (show.access_password) {
       msg += `\n🔐 Sandi Replay: ${show.access_password}`;

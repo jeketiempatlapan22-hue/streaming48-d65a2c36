@@ -171,10 +171,10 @@ serve(async (req) => {
           }
         } else if (show?.is_replay) {
           waMessage += `📦 Tipe: *Replay*\n`;
-          if (show.access_password) {
-            waMessage += `\n🔑 *Sandi Akses:* ${show.access_password}\n`;
-          }
           waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
+          if (show.access_password) {
+            waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
+          }
         } else {
           if (tokenCode) {
             waMessage += `\n🎫 *Token Akses:* ${tokenCode}\n`;
