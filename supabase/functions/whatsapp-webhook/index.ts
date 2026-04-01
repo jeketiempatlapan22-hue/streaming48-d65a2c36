@@ -198,7 +198,50 @@ async function handlePublicShowList(supabase: any): Promise<string> {
   }
 }
 
+async function handlePublicCheckOrder(supabase: any, shortId: string): Promise<string> {
+  try {
+    // Check coin orders
+    const { data: coinOrder } = await supabase
+      .from('coin_orders')
+      .select('id, short_id, status, coin_amount, price, created_at')
+      .ilike('short_id', shortId)
+      .maybeSingle();
 
+    if (coinOrder) {
+      const statusMap: Record<string, string> = {
+        pending: '⏳ Menunggu konfirmasi admin',
+        confirmed: '✅ Sudah dikonfirmasi',
+        rejected: '❌ Ditolak',
+        cancelled: '🚫 Dibatalkan',
+      };
+      const time = new Date(coinOrder.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      return `🪙 *STATUS ORDER KOIN*\n\nID: ${coinOrder.short_id || shortId}\nJumlah: ${coinOrder.coin_amount} koin\nHarga: ${coinOrder.price || '-'}\nStatus: ${statusMap[coinOrder.status] || coinOrder.status}\nWaktu: ${time}`;
+    }
+
+    // Check subscription orders
+    const { data: subOrder } = await supabase
+      .from('subscription_orders')
+      .select('id, short_id, status, show_id, created_at')
+      .ilike('short_id', shortId)
+      .maybeSingle();
+
+    if (subOrder) {
+      const { data: show } = await supabase.from('shows').select('title').eq('id', subOrder.show_id).maybeSingle();
+      const statusMap: Record<string, string> = {
+        pending: '⏳ Menunggu konfirmasi admin',
+        confirmed: '✅ Sudah dikonfirmasi',
+        rejected: '❌ Ditolak',
+        cancelled: '🚫 Dibatalkan',
+      };
+      const time = new Date(subOrder.created_at).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
+      return `🎬 *STATUS ORDER SHOW*\n\nID: ${subOrder.short_id || shortId}\nShow: ${show?.title || '-'}\nStatus: ${statusMap[subOrder.status] || subOrder.status}\nWaktu: ${time}`;
+    }
+
+    return `❓ Order dengan ID *${shortId}* tidak ditemukan.\n\nPastikan ID yang kamu masukkan benar.`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
 
 
 async function processCommand(supabase: any, rawText: string): Promise<string | null> {

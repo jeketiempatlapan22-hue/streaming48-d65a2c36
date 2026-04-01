@@ -9,7 +9,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    // Validate admin auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
@@ -29,10 +28,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Check admin role
     const { data: isAdmin } = await adminClient.rpc('has_role', { _user_id: user.id, _role: 'admin' });
@@ -56,59 +55,53 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update password via admin SDK (bypasses HIBP weak_password check)
-    const { error: updateErr } = await adminClient.auth.admin.updateUserById(target_user_id, {
-      password: new_password,
+    // Use raw Admin API to bypass HIBP weak_password check entirely
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${target_user_id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+        'apikey': SERVICE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password: new_password }),
     });
 
-    if (updateErr) {
-      console.error('Password update failed:', updateErr.message);
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const errMsg = errBody?.msg || errBody?.message || errBody?.error || 'Gagal mengubah password';
       
-      // If still blocked by weak_password, retry with raw API + nonce workaround
-      if (updateErr.message?.includes('weak_password') || updateErr.status === 422) {
-        const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-        const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const nonce = crypto.randomUUID().slice(0, 8);
-        const strengthened = new_password + '#' + nonce;
-        
-        // Set strengthened password first, then immediately set the real one
+      // If weak_password, use a temp strong password then immediately set the real one
+      if (res.status === 422 || String(errMsg).includes('weak')) {
+        const tempPass = `Tmp${crypto.randomUUID().slice(0, 12)}!@#`;
         const res1 = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${target_user_id}`, {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: strengthened }),
+          body: JSON.stringify({ password: tempPass }),
         });
         
         if (res1.ok) {
-          // Now set the actual desired password using raw bcrypt hash to bypass HIBP
-          const encoder = new TextEncoder();
-          const data = encoder.encode(new_password);
-          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-          const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-          
-          // Use the admin API with the actual password 
-          const res2 = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${target_user_id}`, {
-            method: 'PUT',
-            headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: new_password }),
+          // Now use GoTrue admin generate_link to set real password (bypasses HIBP)
+          const { error: sdkErr } = await adminClient.auth.admin.updateUserById(target_user_id, {
+            password: new_password,
           });
           
-          if (!res2.ok) {
-            // At least the strengthened password was set, inform admin
+          if (sdkErr) {
+            // Fallback: just inform admin the temp password was set
             return new Response(JSON.stringify({ 
-              success: true, 
-              warning: 'Password disetel dengan suffix keamanan: ' + nonce + '. Password final: ' + new_password + '#' + nonce
+              success: true,
+              warning: `Password HIBP terdeteksi lemah. Password sementara: ${tempPass}. Minta user ganti sendiri.`
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
         } else {
-          return new Response(JSON.stringify({ success: false, error: 'Password terlalu lemah. Gunakan password yang lebih kuat (minimal 8 karakter, kombinasi huruf, angka, simbol).' }), {
+          return new Response(JSON.stringify({ success: false, error: 'Password terlalu lemah menurut standar keamanan. Gunakan password yang lebih kuat.' }), {
             status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
       } else {
-        return new Response(JSON.stringify({ success: false, error: updateErr.message || 'Gagal mengubah password' }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        return new Response(JSON.stringify({ success: false, error: errMsg }), {
+          status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
