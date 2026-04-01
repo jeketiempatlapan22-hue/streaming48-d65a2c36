@@ -407,12 +407,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               clearTimeout(fallbackTimer);
               setYtMode("api");
               setIsLoading(false);
-              // Force highest quality
+              // Start with AUTO quality for fast initial playback (no buffering)
               try {
-                e.target.setPlaybackQualityRange?.("highres", "highres");
-                e.target.setPlaybackQuality?.("highres");
+                e.target.setPlaybackQualityRange?.("default", "default");
+                e.target.setPlaybackQuality?.("default");
               } catch {}
-              ytQualityForcedRef.current = true;
+              ytQualityForcedRef.current = false;
               if (autoPlay) {
                 e.target.playVideo();
                 setIsPlaying(true);
@@ -429,23 +429,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               // YT states: -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
               setIsPlaying(e.data === 1);
               if (e.data === 3) {
-                setIsLoading(true);
-                // If buffering > 5s with forced quality, fall back to auto
-                if (ytQualityForcedRef.current) {
-                  clearTimeout(ytBufferTimerRef.current);
-                  ytBufferTimerRef.current = setTimeout(() => {
-                    if (!destroyed && ytReadyRef.current && ytPlayerRef.current) {
-                      try {
-                        ytPlayerRef.current.setPlaybackQualityRange?.("default", "default");
-                        ytPlayerRef.current.setPlaybackQuality?.("default");
-                      } catch {}
-                      ytQualityForcedRef.current = false;
-                    }
-                  }, 5000);
-                }
-              } else if (e.data === 1) {
-                setIsLoading(false);
+                // Only show loading after 1s of buffering to avoid flicker
                 clearTimeout(ytBufferTimerRef.current);
+                ytBufferTimerRef.current = setTimeout(() => {
+                  if (!destroyed) setIsLoading(true);
+                }, 1000);
+              } else if (e.data === 1) {
+                clearTimeout(ytBufferTimerRef.current);
+                setIsLoading(false);
+              } else if (e.data === 0 || e.data === 2) {
+                clearTimeout(ytBufferTimerRef.current);
+                setIsLoading(false);
               }
             },
             onError: (e: any) => {
