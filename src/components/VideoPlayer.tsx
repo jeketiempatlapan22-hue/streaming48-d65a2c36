@@ -430,7 +430,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setIsPlaying(e.data === 1);
               if (e.data === 3) {
                 setIsLoading(true);
-                // If buffering > 10s with forced quality, fall back to auto
+                // If buffering > 5s with forced quality, fall back to auto
                 if (ytQualityForcedRef.current) {
                   clearTimeout(ytBufferTimerRef.current);
                   ytBufferTimerRef.current = setTimeout(() => {
