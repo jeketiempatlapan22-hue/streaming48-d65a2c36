@@ -18,6 +18,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
+// Helper: always return 200 with JSON so supabase.functions.invoke can parse the body
+function jsonResponse(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -25,35 +33,28 @@ Deno.serve(async (req) => {
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   if (!edgeRL(`signup:${ip}`, 5, 60_000)) {
-    return new Response(JSON.stringify({ error: 'Terlalu banyak percobaan. Coba lagi nanti.' }), {
-      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
   }
 
   try {
     const { email, password, username } = await req.json();
 
     if (!email || !password) {
-      return new Response(JSON.stringify({ error: "Email dan password wajib diisi" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: false, error: "Email dan password wajib diisi" });
     }
 
     if (password.length < 6) {
-      return new Response(JSON.stringify({ error: "Password minimal 6 karakter" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: false, error: "Password minimal 6 karakter" });
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
-    // Check if user already exists using Admin API with email filter (fast, no pagination issues)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // Check if user already exists using Admin API with email filter
     const lookupRes = await fetch(
       `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&page=1&per_page=1`,
       { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
@@ -64,9 +65,7 @@ Deno.serve(async (req) => {
       const users = lookupData?.users || [];
       const exactMatch = users.find((u: any) => u.email === email);
       if (exactMatch) {
-        return new Response(JSON.stringify({ error: "User already registered" }), {
-          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ success: false, error: "User already registered" });
       }
     }
 
@@ -80,18 +79,12 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error("Admin createUser error:", error.message);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: false, error: error.message });
     }
 
-    return new Response(JSON.stringify({ success: true, user_id: data.user?.id }), {
-      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: true, user_id: data.user?.id });
   } catch (err) {
     console.error("signup-simple error:", err);
-    return new Response(JSON.stringify({ error: "Server error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ success: false, error: "Server error" });
   }
 });
