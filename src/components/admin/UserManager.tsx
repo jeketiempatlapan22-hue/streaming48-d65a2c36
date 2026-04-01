@@ -149,8 +149,8 @@ const UserManager = () => {
   };
 
   const resetPassword = async () => {
-    if (!resetUser || !newPassword || newPassword.length < 6) {
-      toast.error("Password minimal 6 karakter");
+    if (!resetUser || !newPassword || newPassword.length < 8) {
+      toast.error("Password minimal 8 karakter dengan kombinasi huruf, angka, simbol");
       return;
     }
     setResetting(true);
@@ -358,7 +358,7 @@ const UserManager = () => {
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
+                  placeholder="Min 8 karakter (huruf+angka+simbol)"
                   className="pr-10"
                 />
                 <button
@@ -371,12 +371,12 @@ const UserManager = () => {
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              ⚠️ Setelah direset, user harus login dengan password baru ini. Beritahu user password barunya melalui WhatsApp.
+              ⚠️ Password harus minimal 8 karakter dengan kombinasi huruf besar/kecil, angka, dan simbol agar tidak ditolak sistem keamanan. Beritahu user password barunya via WhatsApp.
             </p>
             <Button
               className="w-full gap-2"
               onClick={resetPassword}
-              disabled={resetting || !newPassword || newPassword.length < 6}
+              disabled={resetting || !newPassword || newPassword.length < 8}
             >
               <KeyRound className="h-4 w-4" /> {resetting ? "Mereset..." : "Reset Password"}
             </Button>

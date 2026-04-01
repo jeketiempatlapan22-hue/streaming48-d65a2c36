@@ -87,27 +87,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update password via admin API
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-    const updateRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${request.user_id}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'apikey': SERVICE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password: new_password }),
+    // Update password via admin SDK
+    const { error: updateErr } = await supabase.auth.admin.updateUserById(request.user_id, {
+      password: new_password,
     });
 
-    if (!updateRes.ok) {
+    if (updateErr) {
       // Revert status if password update failed
       await supabase.from('password_reset_requests')
         .update({ status: 'approved' })
         .eq('id', request.id);
-      return new Response(JSON.stringify({ success: false, error: 'Gagal mengubah password. Coba lagi.' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      
+      const isWeak = updateErr.message?.includes('weak_password') || (updateErr as any).status === 422;
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: isWeak 
+          ? 'Password terlalu lemah. Gunakan minimal 8 karakter dengan kombinasi huruf besar, kecil, angka, dan simbol.' 
+          : 'Gagal mengubah password. Coba lagi.' 
+      }), {
+        status: isWeak ? 422 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
