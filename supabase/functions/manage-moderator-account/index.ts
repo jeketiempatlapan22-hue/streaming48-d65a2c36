@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 // In-memory rate limiter
@@ -54,7 +54,6 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "Email, password, dan username wajib diisi" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Create user via admin API
       const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
         email,
         password,
@@ -66,21 +65,9 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Add moderator role
       await supabase.from("user_roles").insert({ user_id: newUser.user!.id, role: "user" });
-
-      // Add to moderators table
-      await supabase.from("moderators").insert({
-        user_id: newUser.user!.id,
-        username,
-        is_active: true,
-      });
-
-      // Create profile
-      await supabase.from("profiles").upsert({
-        id: newUser.user!.id,
-        username,
-      }, { onConflict: "id" });
+      await supabase.from("moderators").insert({ user_id: newUser.user!.id, username, is_active: true });
+      await supabase.from("profiles").upsert({ id: newUser.user!.id, username }, { onConflict: "id" });
 
       return new Response(JSON.stringify({ success: true, user_id: newUser.user!.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -90,11 +77,8 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "user_id wajib diisi" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Delete from moderators table
       await supabase.from("moderators").delete().eq("user_id", user_id);
-      // Delete user roles
       await supabase.from("user_roles").delete().eq("user_id", user_id);
-      // Delete auth user
       await supabase.auth.admin.deleteUser(user_id);
 
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

@@ -2,7 +2,7 @@ const TELEGRAM_API = 'https://api.telegram.org/bot';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 // In-memory rate limiter
@@ -20,7 +20,6 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-  // Rate limit: 10 per minute per IP
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   if (!edgeRL(`notify_pw:${ip}`, 10, 60_000)) {
     return new Response(JSON.stringify({ error: 'Rate limited' }), {
@@ -34,7 +33,7 @@ Deno.serve(async (req) => {
     const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
     const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID');
     if (!BOT_TOKEN || !ADMIN_CHAT_ID) {
-      return new Response(JSON.stringify({ error: 'Bot not configured' }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: 'Bot not configured' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const escMd = (t: string) => String(t || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
@@ -91,6 +90,6 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {
     console.error('notify-password-reset error:', e);
-    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: 'Internal error' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
