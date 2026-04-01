@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef } from "react";
 import { motion } from "framer-motion";
 import {
   Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
@@ -70,17 +70,18 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
-const CountdownDigit = ({ value, label }: { value: number; label: string }) => {
+const CountdownDigit = forwardRef<HTMLDivElement, { value: number; label: string }>(({ value, label }, ref) => {
   const formatted = value.toString().padStart(2, "0");
   return (
-    <div className="flex items-center gap-0.5">
+    <div ref={ref} className="flex items-center gap-0.5">
       <span className="font-mono text-xs font-bold text-white tabular-nums">
         {formatted}
       </span>
       <span className="text-[7px] uppercase text-white/60 font-medium">{label}</span>
     </div>
   );
-};
+});
+CountdownDigit.displayName = "CountdownDigit";
 
 const ShowCard = ({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
