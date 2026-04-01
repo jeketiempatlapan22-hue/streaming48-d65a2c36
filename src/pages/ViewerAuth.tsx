@@ -150,9 +150,24 @@ const ViewerAuth = () => {
       if (mode === "signup") {
         // Always use signup-simple edge function (bypasses weak password + auto-confirms)
         try {
-          const { data: fnData, error: fnError } = await supabase.functions.invoke("signup-simple", {
-            body: { email: authEmail, password, username: username.trim() },
-          });
+          let fnData: any = null;
+          let fnError: any = null;
+          try {
+            const result = await supabase.functions.invoke("signup-simple", {
+              body: { email: authEmail, password, username: username.trim() },
+            });
+            fnData = result.data;
+            fnError = result.error;
+            // If invoke threw FunctionsHttpError, try to parse the body
+            if (fnError && !fnData) {
+              try {
+                const errBody = await (fnError as any)?.context?.json?.();
+                if (errBody) fnData = errBody;
+              } catch {}
+            }
+          } catch (invokeErr: any) {
+            fnError = invokeErr;
+          }
 
           const ms = Math.round(performance.now() - authStart);
 
