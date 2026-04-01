@@ -441,7 +441,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                       } catch {}
                       ytQualityForcedRef.current = false;
                     }
-                  }, 10000);
+                  }, 5000);
                 }
               } else if (e.data === 1) {
                 setIsLoading(false);
