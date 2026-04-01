@@ -148,107 +148,50 @@ const ViewerAuth = () => {
 
     try {
       if (mode === "signup") {
-        const result = await authWithRetry(
-          () => supabase.auth.signUp({ email: authEmail, password, options: { data: { username: username.trim() } } }),
-          15_000,
-          2
-        );
+        // Always use signup-simple edge function (bypasses weak password + auto-confirms)
+        try {
+          const { data: fnData, error: fnError } = await supabase.functions.invoke("signup-simple", {
+            body: { email: authEmail, password, username: username.trim() },
+          });
 
-        const ms = Math.round(performance.now() - authStart);
+          const ms = Math.round(performance.now() - authStart);
 
-        if (result.error) {
-          const msg = String(result.error?.message || "Gagal daftar");
-          const isTimeout = TRANSIENT_AUTH_ERROR.test(msg);
-          recordAuthMetric(isTimeout ? "signup_timeout" : "signup_error", ms, "viewer", msg);
+          if (fnError || !fnData?.success) {
+            const fnMsg = fnData?.error || fnError?.message || "Pendaftaran gagal";
+            const isTimeout = TRANSIENT_AUTH_ERROR.test(fnMsg);
+            recordAuthMetric(isTimeout ? "signup_timeout" : "signup_error", ms, "viewer", fnMsg);
 
-          if (isTimeout) {
-            const sessionCheck = await Promise.race([
-              supabase.auth.getSession(),
-              new Promise<{ data: { session: null } }>((r) => setTimeout(() => r({ data: { session: null } }), 4000)),
-            ]).catch(() => ({ data: { session: null } }));
-
-            if ((sessionCheck.data as any)?.session?.user) {
-              recordAuthMetric("signup_success_late", ms, "viewer");
-              toast.success("Berhasil mendaftar!");
-              if (refCode) await claimReferral(refCode);
-              navigate("/coins");
-              return;
+            if (isTimeout) {
+              toast.error("Server sedang sibuk, coba lagi sebentar.");
+            } else if (fnMsg.includes("already registered") || fnMsg.includes("already been registered")) {
+              const loginResult = await authWithRetry(
+                () => supabase.auth.signInWithPassword({ email: authEmail, password }),
+                15_000, 1
+              );
+              if (!loginResult.error && loginResult.data) {
+                recordAuthMetric("login_success", ms, "viewer");
+                toast.success("Akun sudah ada, berhasil login!");
+                navigate("/coins");
+                return;
+              }
+              setFailCount((c) => c + 1);
+              setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
+              toast.error("Nomor/email sudah terdaftar tapi password tidak cocok.");
+              setMode("login");
+            } else if (fnMsg.includes("email_address_invalid") || fnMsg.includes("valid email")) {
+              toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
+            } else {
+              toast.error(fnMsg);
             }
-            toast.error("Server sedang sibuk, coba lagi sebentar.");
-          } else if (msg.includes("already registered") || msg.includes("already been registered") || msg.includes("User already registered")) {
+          } else {
+            // User created — now login
             const loginResult = await authWithRetry(
               () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-              15_000, 1
+              15_000, 2
             );
-            if (!loginResult.error && loginResult.data) {
-              recordAuthMetric("login_success", ms, "viewer");
-              toast.success("Akun sudah ada, berhasil login!");
-              navigate("/coins");
-              return;
-            }
-            setFailCount((c) => c + 1);
-            setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
-            toast.error("Nomor/email sudah terdaftar tapi password tidak cocok.");
-            setMode("login");
-          } else if (msg.includes("weak_password") || msg.includes("known to be weak") || msg.includes("Password is known")) {
-            // Weak password — use admin edge function to bypass check
-            try {
-              const { data: fnData, error: fnError } = await supabase.functions.invoke("signup-simple", {
-                body: { email: authEmail, password, username: username.trim() },
-              });
-              if (fnError || !fnData?.success) {
-                const fnMsg = fnData?.error || fnError?.message || "";
-                if (fnMsg.includes("already registered")) {
-                  const loginResult = await authWithRetry(
-                    () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-                    15_000, 1
-                  );
-                  if (!loginResult.error) {
-                    toast.success("Akun sudah ada, berhasil login!");
-                    navigate("/coins");
-                    return;
-                  }
-                  setFailCount((c) => c + 1);
-                  setLoginError("Nomor/email sudah terdaftar tapi password tidak cocok.");
-                  setMode("login");
-                } else {
-                  toast.error(fnMsg || "Pendaftaran gagal, coba lagi.");
-                }
-              } else {
-                // User created via admin — now login with original password
-                const loginResult = await authWithRetry(
-                  () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-                  15_000, 2
-                );
-                if (!loginResult.error) {
-                  recordAuthMetric("signup_success", ms, "viewer");
-                  toast.success("Berhasil mendaftar!");
-                  if (refCode) await claimReferral(refCode);
-                  navigate("/coins");
-                  return;
-                }
-                toast.success("Akun berhasil dibuat! Silakan login.");
-                setMode("login");
-              }
-            } catch {
-              toast.error("Pendaftaran gagal, coba lagi.");
-            }
-          } else if (msg.includes("email_address_invalid") || msg.includes("valid email")) {
-            toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
-          } else {
-            toast.error(msg);
-          }
-        } else {
-          // Check if signup returned a user without session (unconfirmed — shouldn't happen now)
-          const signupData = result.data as any;
-          if (signupData?.user && !signupData?.session) {
-            // Try login immediately (auto-confirm should have confirmed it)
-            const loginRetry = await authWithRetry(
-              () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-              10_000, 1
-            );
-            if (!loginRetry.error) {
-              recordAuthMetric("signup_success", ms, "viewer");
+            const msTotal = Math.round(performance.now() - authStart);
+            if (!loginResult.error) {
+              recordAuthMetric("signup_success", msTotal, "viewer");
               toast.success("Berhasil mendaftar!");
               if (refCode) await claimReferral(refCode);
               navigate("/coins");
@@ -256,12 +199,9 @@ const ViewerAuth = () => {
             }
             toast.success("Akun berhasil dibuat! Silakan login.");
             setMode("login");
-          } else {
-            recordAuthMetric("signup_success", ms, "viewer");
-            toast.success("Berhasil mendaftar!");
-            if (refCode) await claimReferral(refCode);
-            navigate("/coins");
           }
+        } catch {
+          toast.error("Koneksi bermasalah, coba lagi.");
         }
       } else {
         // LOGIN
