@@ -149,8 +149,8 @@ const UserManager = () => {
   };
 
   const resetPassword = async () => {
-    if (!resetUser || !newPassword || newPassword.length < 6) {
-      toast.error("Password minimal 6 karakter");
+    if (!resetUser || !newPassword || newPassword.length < 8) {
+      toast.error("Password minimal 8 karakter dengan kombinasi huruf, angka, simbol");
       return;
     }
     setResetting(true);
