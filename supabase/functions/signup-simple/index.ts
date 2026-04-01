@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
       const users = lookupData?.users || [];
       const exactMatch = users.find((u: any) => u.email === email);
       if (exactMatch) {
-        return new Response(JSON.stringify({ error: "User already registered" }), {
-          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        return new Response(JSON.stringify({ success: false, error: "User already registered" }), {
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     }
