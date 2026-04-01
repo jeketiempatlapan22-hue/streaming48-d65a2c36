@@ -358,7 +358,7 @@ const UserManager = () => {
                   type={showPassword ? "text" : "password"}
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Minimal 6 karakter"
+                  placeholder="Min 8 karakter (huruf+angka+simbol)"
                   className="pr-10"
                 />
                 <button
