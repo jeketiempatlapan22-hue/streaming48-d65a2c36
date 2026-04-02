@@ -11,8 +11,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// In-memory rate limiter
+const rlMap = new Map<string, { count: number; resetAt: number }>();
+function edgeRL(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  if (rlMap.size > 500) { for (const [k, v] of rlMap) { if (now > v.resetAt) rlMap.delete(k); } }
+  const e = rlMap.get(key);
+  if (!e || now > e.resetAt) { rlMap.set(key, { count: 1, resetAt: now + windowMs }); return true; }
+  if (e.count >= max) return false;
+  e.count++;
+  return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'cron';
+  if (!edgeRL(`tg_poll:${ip}`, 5, 60_000)) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
 
   // Handle token block notification from admin panel
   if (req.method === 'POST') {
