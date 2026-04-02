@@ -154,9 +154,20 @@ const ShowManager = () => {
         <Button onClick={createShow} size="sm"><Plus className="mr-1 h-4 w-4" /> Tambah Show</Button>
       </div>
 
+      <Tabs value={showTab} onValueChange={(v) => setShowTab(v as "active" | "replay")}>
+        <TabsList className="w-full">
+          <TabsTrigger value="active" className="flex-1 gap-1.5">
+            <Eye className="h-3.5 w-3.5" /> Show Aktif ({shows.filter(s => !s.is_replay).length})
+          </TabsTrigger>
+          <TabsTrigger value="replay" className="flex-1 gap-1.5">
+            <Film className="h-3.5 w-3.5" /> Replay ({shows.filter(s => s.is_replay).length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          {shows.map((show) => (
+          {filteredShows.map((show) => (
             <button
               key={show.id}
               onClick={() => setEditing(show)}
