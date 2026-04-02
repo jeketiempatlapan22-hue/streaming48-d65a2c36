@@ -6,49 +6,55 @@
 
 @layer base {
   :root {
-    --background: 222 47% 4%;
+    --background: 230 25% 5%;
     --foreground: 210 40% 95%;
 
-    --card: 222 47% 7%;
+    --card: 230 25% 8%;
     --card-foreground: 210 40% 95%;
 
-    --popover: 222 47% 7%;
+    --popover: 230 25% 8%;
     --popover-foreground: 210 40% 95%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 4%;
+    --primary: 200 100% 50%;
+    --primary-foreground: 230 25% 4%;
 
-    --secondary: 222 30% 14%;
+    --secondary: 230 20% 14%;
     --secondary-foreground: 210 40% 90%;
 
-    --muted: 222 30% 12%;
+    --muted: 230 20% 12%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 217 91% 60%;
-    --accent-foreground: 222 47% 4%;
+    --accent: 280 100% 65%;
+    --accent-foreground: 230 25% 4%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 222 30% 15%;
-    --input: 222 30% 15%;
-    --ring: 217 91% 60%;
+    --border: 230 20% 16%;
+    --input: 230 20% 16%;
+    --ring: 200 100% 50%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 222 47% 6%;
+    --sidebar-background: 230 25% 6%;
     --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 222 47% 4%;
-    --sidebar-accent: 222 30% 12%;
+    --sidebar-primary: 200 100% 50%;
+    --sidebar-primary-foreground: 230 25% 4%;
+    --sidebar-accent: 230 20% 12%;
     --sidebar-accent-foreground: 210 40% 90%;
-    --sidebar-border: 222 30% 15%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-border: 230 20% 16%;
+    --sidebar-ring: 200 100% 50%;
 
-    --surface: 222 47% 7%;
+    --surface: 230 25% 7%;
     --surface-foreground: 210 40% 85%;
     --success: 142 71% 45%;
     --warning: 38 92% 50%;
+
+    /* Neon specific tokens */
+    --neon-cyan: 180 100% 50%;
+    --neon-magenta: 300 100% 60%;
+    --neon-purple: 270 100% 65%;
+    --neon-pink: 330 100% 60%;
   }
 }
 
@@ -103,14 +109,16 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border));
+    background: hsl(var(--neon-cyan) / 0.3);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--primary) / 0.5);
+    background: hsl(var(--neon-cyan) / 0.6);
   }
 }
+
+/* === Neon Keyframes === */
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
@@ -118,8 +126,8 @@
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 8px hsl(var(--primary) / 0.3); }
-  50% { box-shadow: 0 0 20px hsl(var(--primary) / 0.6); }
+  0%, 100% { box-shadow: 0 0 8px hsl(var(--primary) / 0.3), 0 0 20px hsl(var(--primary) / 0.1); }
+  50% { box-shadow: 0 0 20px hsl(var(--primary) / 0.6), 0 0 40px hsl(var(--primary) / 0.2); }
 }
 
 @keyframes shimmer {
@@ -130,6 +138,42 @@
 @keyframes gradient-shift {
   0%, 100% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
+}
+
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: 0 0 4px hsl(var(--neon-cyan) / 0.6), 0 0 11px hsl(var(--neon-cyan) / 0.4), 0 0 19px hsl(var(--neon-cyan) / 0.2);
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+  }
+}
+
+@keyframes neon-border-pulse {
+  0%, 100% {
+    border-color: hsl(var(--neon-cyan) / 0.3);
+    box-shadow: 0 0 8px hsl(var(--neon-cyan) / 0.1), inset 0 0 8px hsl(var(--neon-cyan) / 0.05);
+  }
+  50% {
+    border-color: hsl(var(--neon-cyan) / 0.6);
+    box-shadow: 0 0 16px hsl(var(--neon-cyan) / 0.2), inset 0 0 16px hsl(var(--neon-cyan) / 0.08);
+  }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes neon-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes cyber-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
 }
 
 .animate-float {
@@ -150,19 +194,97 @@
   background-size: 200% 200%;
 }
 
-/* Glassmorphism utility */
+.animate-neon-flicker {
+  animation: neon-flicker 4s linear infinite;
+}
+
+.animate-neon-border {
+  animation: neon-border-pulse 3s ease-in-out infinite;
+}
+
+/* === Glassmorphism + Neon Utilities === */
+
 .glass {
-  background: hsl(var(--card) / 0.6);
+  background: hsl(var(--card) / 0.5);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid hsl(var(--border) / 0.5);
+  border: 1px solid hsl(var(--neon-cyan) / 0.15);
 }
 
 .glass-strong {
-  background: hsl(var(--card) / 0.8);
+  background: hsl(var(--card) / 0.7);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid hsl(var(--border) / 0.6);
+  border: 1px solid hsl(var(--neon-cyan) / 0.25);
+}
+
+.glass-neon {
+  background: hsl(var(--card) / 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--neon-cyan) / 0.2);
+  box-shadow: 0 0 15px hsl(var(--neon-cyan) / 0.05), inset 0 1px 0 hsl(var(--neon-cyan) / 0.1);
+}
+
+/* Neon glow text */
+.neon-text {
+  color: hsl(var(--neon-cyan));
+  text-shadow: 0 0 7px hsl(var(--neon-cyan) / 0.6), 0 0 20px hsl(var(--neon-cyan) / 0.3);
+}
+
+.neon-text-magenta {
+  color: hsl(var(--neon-magenta));
+  text-shadow: 0 0 7px hsl(var(--neon-magenta) / 0.6), 0 0 20px hsl(var(--neon-magenta) / 0.3);
+}
+
+/* Neon border glow on hover */
+.neon-hover {
+  transition: all 0.3s ease;
+}
+.neon-hover:hover {
+  border-color: hsl(var(--neon-cyan) / 0.5);
+  box-shadow: 0 0 15px hsl(var(--neon-cyan) / 0.15), 0 0 30px hsl(var(--neon-cyan) / 0.05);
+}
+
+/* Neon button glow */
+.neon-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.3);
+}
+.neon-btn:hover {
+  box-shadow: 0 0 15px hsl(var(--primary) / 0.5), 0 0 30px hsl(var(--primary) / 0.2);
+}
+.neon-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(45deg, transparent 30%, hsl(var(--neon-cyan) / 0.1) 50%, transparent 70%);
+  background-size: 200% 200%;
+  animation: neon-rotate 3s ease infinite;
+}
+
+/* Scan line overlay (subtle) */
+.scan-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, hsl(var(--neon-cyan) / 0.3), transparent);
+  animation: scan-line 8s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Cyber grid background */
+.cyber-grid {
+  background-image:
+    linear-gradient(hsl(var(--neon-cyan) / 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--neon-cyan) / 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 /* Skeleton loading */
@@ -170,7 +292,7 @@
   background: linear-gradient(
     90deg,
     hsl(var(--muted)) 25%,
-    hsl(var(--muted) / 0.5) 50%,
+    hsl(var(--neon-cyan) / 0.1) 50%,
     hsl(var(--muted)) 75%
   );
   background-size: 200% 100%;

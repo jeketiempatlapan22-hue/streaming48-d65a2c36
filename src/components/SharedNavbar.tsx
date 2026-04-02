@@ -100,13 +100,13 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
+      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-[hsl(var(--neon-cyan)/0.15)] bg-background/85 backdrop-blur-xl shadow-[0_2px_20px_hsl(var(--neon-cyan)/0.05)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <a href="/" className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-full border border-border/60 overflow-hidden shadow-sm">
               <img src={logo} alt="RealTime48" className="h-full w-full object-cover" />
             </div>
-            <span className="text-sm font-black font-heading tracking-tight">Real<span className="text-primary">Time48</span></span>
+            <span className="text-sm font-black font-heading tracking-tight">Real<span className="neon-text">Time48</span></span>
           </a>
           <div className="flex items-center gap-2">
             
@@ -128,11 +128,11 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
             )}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]">
+                <button className="rounded-lg border border-[hsl(var(--neon-cyan)/0.2)] bg-secondary p-2 text-secondary-foreground transition hover:bg-[hsl(var(--neon-cyan)/0.1)] hover:border-[hsl(var(--neon-cyan)/0.4)] hover:shadow-[0_0_12px_hsl(var(--neon-cyan)/0.15)] active:scale-[0.95]">
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80 border-border bg-card p-0 flex flex-col">
+              <SheetContent side="right" className="w-80 border-[hsl(var(--neon-cyan)/0.15)] bg-card/95 backdrop-blur-xl p-0 flex flex-col">
                 <SheetHeader className="px-6 pt-6 pb-2">
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <img src={logo} alt="RealTime48" className="h-6 w-6 rounded-full object-cover" />
@@ -192,7 +192,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                           </div>
                         </>
                       );
-                      const cls = "flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5";
+                      const cls = "flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition-all duration-300 hover:border-[hsl(var(--neon-cyan)/0.3)] hover:bg-[hsl(var(--neon-cyan)/0.05)] hover:shadow-[0_0_12px_hsl(var(--neon-cyan)/0.08)]";
 
                       if (item.onClick) {
                         return (

@@ -117,7 +117,7 @@ const ShowCard = ({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group relative overflow-hidden rounded-2xl glass transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10"
+      className="group relative overflow-hidden rounded-2xl glass-neon transition-all duration-500 hover:border-[hsl(var(--neon-cyan)/0.5)] hover:shadow-[0_0_25px_hsl(var(--neon-cyan)/0.12),0_0_50px_hsl(var(--neon-cyan)/0.05)]"
     >
       {/* Image */}
       <div className="relative h-48 overflow-hidden">
