@@ -1,96 +1,80 @@
 
 
-# Rencana Implementasi: 5 Fitur Perbaikan & Penambahan
+# Rencana: Global Search Mobile, Optimasi, & Auto-Schedule Live
 
 ## Ringkasan
-1. Pisahkan show aktif dan replay di admin panel
-2. Urutkan kartu show berdasarkan jadwal terdekat
-3. Tambahkan tombol PiP di halaman live
-4. Perbaiki error login/signup
-5. Tambahkan global search di admin panel
+1. **Global Search mobile-friendly** — pastikan AdminGlobalSearch accessible di mobile header (sudah ada di line 214, tinggal pastikan responsif)
+2. **Optimasi website & database** — perbaiki query patterns, tambah error boundary, dan stabilkan auth flow
+3. **Auto-schedule live ON/OFF** — admin bisa set jadwal kapan live otomatis ON dan OFF
 
 ---
 
-## 1. Pisahkan Show Aktif & Replay di Admin Panel
+## 1. Global Search di Mobile
 
-**File:** `src/components/admin/ShowManager.tsx`
+**File:** `src/components/admin/AdminGlobalSearch.tsx`, `src/pages/AdminDashboard.tsx`
 
-- Tambahkan tab/filter di atas daftar show: **"Show Aktif"** dan **"Replay"**
-- Tab "Show Aktif" menampilkan show yang `is_replay === false`
-- Tab "Replay" menampilkan show yang `is_replay === true`
-- Urutkan show dalam tiap tab berdasarkan jadwal terdekat (menggunakan fungsi `parseShowSchedule` yang sama dengan Index.tsx)
-- Show dengan jadwal terdekat di paling atas
+AdminGlobalSearch sudah dirender di mobile header (line 214). Perbaikan:
+- Pada mobile, tampilkan hanya icon search (tanpa teks "Cari menu...") agar hemat ruang
+- Pastikan CommandDialog full-width di mobile
+- Sudah ada `hidden sm:inline` pada teks — ini sudah benar. Verifikasi tampilan.
 
-## 2. Urutkan Kartu Show Berdasarkan Jadwal Terdekat
+## 2. Optimasi Website & Stabilitas
 
-**File:** `src/pages/Index.tsx` (sudah ada `sortBySchedule`), `src/pages/SchedulePage.tsx`
-
-- Landing page sudah memiliki sorting — pastikan konsisten
-- Verifikasi bahwa `sortBySchedule` juga diterapkan di SchedulePage jika belum
-- Show yang jadwalnya paling dekat (upcoming) di paling atas, lalu show yang sudah lewat diurutkan terbaru dulu
-
-## 3. Tombol PiP di Halaman Live
-
-**File:** `src/pages/LivePage.tsx`, `src/components/viewer/PipButton.tsx`
-
-- PipButton sudah ada dan sudah dirender di LivePage header (line 524)
-- Namun saat ini PiP hanya bekerja untuk `<video>` element (HLS/m3u8)
-- Untuk YouTube embed (iframe), PiP native tidak didukung browser
-- Perbaikan: tambahkan fallback untuk YouTube — gunakan `Document Picture-in-Picture API` jika tersedia, atau tampilkan tooltip "PiP tidak tersedia untuk YouTube"
-- Update PipButton agar mendeteksi apakah player aktif adalah YouTube dan menyesuaikan behavior
-
-## 4. Perbaiki Error Login/Signup
-
-**File:** `src/pages/ViewerAuth.tsx`, `supabase/functions/signup-simple/index.ts`
-
-Masalah yang sering terjadi:
-- **Signup error saat edge function timeout** — Sudah ada retry, tapi perlu perkuat
-- **"Email not confirmed" error** — auto_confirm sudah diaktifkan, tapi jika edge function gagal dan user mendaftar ulang via SDK langsung, bisa terjadi
-- **Race condition pada submitRef** — Jika error terjadi di catch block, submitRef tidak selalu di-reset
+**File:** `src/pages/ViewerAuth.tsx`, `src/pages/LivePage.tsx`, `src/components/admin/LiveControl.tsx`
 
 Perbaikan:
-- Tambahkan fallback: jika `signup-simple` gagal dengan network error, coba direct `supabase.auth.signUp()` sebagai fallback
-- Pastikan `submitRef.current = false` selalu di-reset di semua path
-- Tambahkan auto-retry login setelah signup sukses dengan delay yang lebih panjang (2 detik) untuk menunggu trigger `handle_new_user` selesai
-- Tambahkan penanganan error "Email not confirmed" yang lebih baik — langsung coba signup-simple lagi untuk re-confirm
+- **ViewerAuth**: Pastikan `submitRef.current = false` di semua exit paths (sudah ada di finally block — OK). Tambahkan guard agar loading state selalu di-reset.
+- **LivePage**: Kurangi jumlah realtime channel yang di-subscribe bersamaan. Gunakan satu channel gabungan untuk `streams` + `site_settings` + `shows`.
+- **LiveControl**: Tambahkan error handling pada setiap Supabase call (saat ini banyak yang tidak di-handle).
+- **General**: Pastikan cleanup effect pada unmount untuk menghindari memory leak.
 
-## 5. Global Search di Admin Panel
+## 3. Auto-Schedule Live ON/OFF (Fitur Baru)
 
-**File baru:** `src/components/admin/AdminGlobalSearch.tsx`
-**File diubah:** `src/pages/AdminDashboard.tsx`, `src/components/admin/AdminSidebar.tsx`
+### Konsep
+Admin mengatur jadwal: "Live ON jam 19:00, Live OFF jam 22:00" → sistem otomatis toggle `is_live` pada stream.
 
-- Tambahkan search bar di header admin panel (dan di sidebar)
-- Search mencari di nama section admin (Live, Token, Show, Orders, dll)
-- Ketik keyword → tampilkan section yang cocok → klik untuk navigasi
-- Menggunakan komponen `Command` (cmdk) yang sudah ada di project
-- Trigger: tombol di header + shortcut `Ctrl+K`
-- Pencarian lokal (client-side) berdasarkan label dan keyword section
+### Implementasi
+
+**A. Database** — Tambah 2 site_settings keys:
+- `auto_live_on_time` — waktu live ON (format "HH:mm", timezone WIB)  
+- `auto_live_off_time` — waktu live OFF (format "HH:mm", timezone WIB)
+- `auto_live_enabled` — "true"/"false"
+
+**B. Edge Function baru:** `supabase/functions/auto-live-toggle/index.ts`
+- Dipanggil oleh cron job setiap menit
+- Cek waktu WIB saat ini vs `auto_live_on_time` dan `auto_live_off_time`
+- Jika cocok, toggle `streams.is_live`
+- Hanya toggle jika status saat ini berbeda (hindari update berulang)
+
+**C. Cron Job** — Setup `pg_cron` untuk memanggil edge function setiap menit
+
+**D. UI Admin:** `src/components/admin/LiveControl.tsx`
+- Tambah section "⏰ Jadwal Live Otomatis" di bawah Live Toggle
+- Toggle enable/disable auto-schedule
+- Input waktu ON dan waktu OFF (format HH:mm WIB)
+- Simpan ke `site_settings`
+
+### Alur
+```text
+Admin set: ON=19:00, OFF=22:00, enabled=true
+  ↓
+pg_cron → setiap menit → call auto-live-toggle
+  ↓
+Edge function cek waktu WIB:
+  - 19:00 → SET is_live=true (jika belum ON)
+  - 22:00 → SET is_live=false (jika belum OFF)
+  - Lainnya → skip
+```
 
 ---
 
-## Detail Teknis
+## File yang akan diubah/dibuat
 
-### ShowManager — Tab Filter + Sort
-```text
-[Show Aktif] [Replay]     ← Tab buttons
-┌─────────────────────┐
-│ Show terdekat        │   ← sorted by schedule
-│ Show berikutnya      │
-│ Show yang sudah lewat│
-└─────────────────────┘
-```
-
-### AdminGlobalSearch — Command Palette
-- Buka dengan `Ctrl+K` atau klik icon search
-- Gunakan `CommandDialog` dari `src/components/ui/command.tsx`
-- Sections array dari AdminSidebar di-reuse sebagai data source
-- Setiap section memiliki keywords tambahan (misal "shows" → "show, pertunjukan, replay")
-
-### File yang akan diubah/dibuat:
-1. `src/components/admin/ShowManager.tsx` — Tab filter + sort
-2. `src/components/admin/AdminGlobalSearch.tsx` — Baru: command palette
-3. `src/pages/AdminDashboard.tsx` — Integrasikan global search
-4. `src/components/admin/AdminSidebar.tsx` — Tambah search trigger
-5. `src/pages/ViewerAuth.tsx` — Perbaikan error handling login/signup
-6. `src/components/viewer/PipButton.tsx` — Fallback untuk YouTube
+1. `src/components/admin/AdminGlobalSearch.tsx` — Optimasi mobile view
+2. `src/components/admin/LiveControl.tsx` — Tambah UI auto-schedule live
+3. `src/pages/ViewerAuth.tsx` — Guard tambahan untuk stabilitas
+4. `src/pages/LivePage.tsx` — Konsolidasi realtime subscriptions
+5. `supabase/functions/auto-live-toggle/index.ts` — Edge function baru
+6. Database: Setup `pg_cron` job untuk auto-live-toggle
+7. Database: Insert `auto_live_enabled`, `auto_live_on_time`, `auto_live_off_time` ke `site_settings`
 
