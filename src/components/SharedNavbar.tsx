@@ -128,7 +128,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
             )}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]">
+                <button className="rounded-lg border border-[hsl(var(--neon-cyan)/0.2)] bg-secondary p-2 text-secondary-foreground transition hover:bg-[hsl(var(--neon-cyan)/0.1)] hover:border-[hsl(var(--neon-cyan)/0.4)] hover:shadow-[0_0_12px_hsl(var(--neon-cyan)/0.15)] active:scale-[0.95]">
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
