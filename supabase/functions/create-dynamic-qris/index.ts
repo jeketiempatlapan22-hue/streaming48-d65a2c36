@@ -22,7 +22,16 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+
+  // Quick blocked IP check
+  const _sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: ipBlocked } = await _sb.rpc("is_ip_blocked", { _ip: ip });
+  if (ipBlocked === true) {
+    return new Response(JSON.stringify({ error: "Akses ditolak." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   if (!edgeRL(`qris:${ip}`, 10, 60_000)) {
+    await _sb.rpc("record_rate_limit_violation", { _ip: ip, _endpoint: "create-dynamic-qris", _violation_key: `qris:${ip}` });
     return new Response(JSON.stringify({ error: "Terlalu banyak permintaan. Tunggu sebentar." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

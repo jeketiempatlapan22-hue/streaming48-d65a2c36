@@ -48,9 +48,7 @@ Deno.serve(async (req) => {
       return ok({ success: false, error: 'Data tidak valid' });
     }
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+    // DB rate limit already checked above
 
     // Persistent DB-level rate limit: 10 reset requests per hour per IP
     const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
