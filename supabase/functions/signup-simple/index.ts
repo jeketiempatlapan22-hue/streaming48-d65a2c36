@@ -32,7 +32,34 @@ Deno.serve(async (req) => {
   }
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+  // Check if IP is blocked
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  const { data: ipBlocked } = await supabaseAdmin.rpc("is_ip_blocked", { _ip: ip });
+  if (ipBlocked === true) {
+    return jsonResponse({ success: false, error: 'Akses ditolak.' });
+  }
+
   if (!edgeRL(`signup:${ip}`, 5, 60_000)) {
+    // Record violation and auto-block if threshold met
+    const { data: vResult } = await supabaseAdmin.rpc("record_rate_limit_violation", {
+      _ip: ip, _endpoint: "signup-simple", _violation_key: `signup:${ip}`,
+    });
+    if (vResult?.auto_blocked) {
+      // Send Telegram alert
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/notify-ip-blocked`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ip_address: ip, reason: "Rate limit signup-simple", violation_count: vResult.violation_count }),
+        });
+      } catch { /* best effort */ }
+    }
     return jsonResponse({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
   }
 
