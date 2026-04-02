@@ -196,7 +196,7 @@ const ShowManager = () => {
               {show.is_active ? <Eye className="h-4 w-4 text-[hsl(var(--success))]" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
             </button>
           ))}
-          {shows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Belum ada show</p>}
+          {filteredShows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{showTab === "replay" ? "Belum ada replay" : "Belum ada show aktif"}</p>}
         </div>
 
         {editing && (
