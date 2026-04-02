@@ -192,7 +192,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                           </div>
                         </>
                       );
-                      const cls = "flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/30 hover:bg-primary/5";
+                      const cls = "flex w-full items-start gap-3 rounded-xl border border-border bg-background p-4 text-left transition-all duration-300 hover:border-[hsl(var(--neon-cyan)/0.3)] hover:bg-[hsl(var(--neon-cyan)/0.05)] hover:shadow-[0_0_12px_hsl(var(--neon-cyan)/0.08)]";
 
                       if (item.onClick) {
                         return (
