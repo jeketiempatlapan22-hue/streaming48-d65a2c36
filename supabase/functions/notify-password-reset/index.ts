@@ -80,8 +80,7 @@ Deno.serve(async (req) => {
     // Also notify WhatsApp admins
     const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
     if (FONNTE_TOKEN) {
-      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-      const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const supabase = _supabase;
       const { data: waSetting } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle();
       const { data: primarySetting } = await supabase.from('site_settings').select('value').eq('key', 'whatsapp_number').maybeSingle();
       const numbers: string[] = [];
