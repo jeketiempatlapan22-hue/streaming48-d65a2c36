@@ -1,0 +1,48 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const { ip_address, reason, violation_count } = await req.json();
+    if (!ip_address) {
+      return new Response(JSON.stringify({ error: "Missing ip_address" }), { status: 400, headers: corsHeaders });
+    }
+
+    const GATEWAY_URL = "https://connector-gateway.lovable.dev/telegram";
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const TELEGRAM_API_KEY = Deno.env.get("TELEGRAM_API_KEY");
+    const chatId = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
+
+    if (!LOVABLE_API_KEY || !TELEGRAM_API_KEY || !chatId) {
+      console.log("Telegram not configured, skipping alert");
+      return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    const message = `🚨 <b>IP Auto-Blocked</b>\n\n` +
+      `<b>IP:</b> <code>${ip_address}</code>\n` +
+      `<b>Alasan:</b> ${reason || "Rate limit exceeded"}\n` +
+      `<b>Jumlah Pelanggaran:</b> ${violation_count || "N/A"}\n` +
+      `<b>Waktu:</b> ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}\n\n` +
+      `Buka admin panel untuk mengonfirmasi atau unblock IP ini.`;
+
+    await fetch(`${GATEWAY_URL}/sendMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": TELEGRAM_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: "HTML" }),
+    });
+
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+  }
+});
