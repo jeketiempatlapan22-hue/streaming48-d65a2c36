@@ -20,6 +20,12 @@ const LiveControl = () => {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Auto-schedule live state
+  const [autoLiveEnabled, setAutoLiveEnabled] = useState(false);
+  const [autoLiveOnTime, setAutoLiveOnTime] = useState("");
+  const [autoLiveOffTime, setAutoLiveOffTime] = useState("");
+  const [autoSaving, setAutoSaving] = useState(false);
+
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState("youtube");
@@ -59,6 +65,9 @@ const LiveControl = () => {
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
           if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
+          if (s.key === "auto_live_enabled") setAutoLiveEnabled(s.value === "true");
+          if (s.key === "auto_live_on_time") setAutoLiveOnTime(s.value);
+          if (s.key === "auto_live_off_time") setAutoLiveOffTime(s.value);
         });
       }
     };
@@ -135,6 +144,21 @@ const LiveControl = () => {
     toast({ title: "Playlist dihapus" });
   };
 
+  const saveAutoLive = async () => {
+    setAutoSaving(true);
+    try {
+      await Promise.all([
+        supabase.from("site_settings").upsert({ key: "auto_live_enabled", value: autoLiveEnabled ? "true" : "false" } as any, { onConflict: "key" }),
+        supabase.from("site_settings").upsert({ key: "auto_live_on_time", value: autoLiveOnTime } as any, { onConflict: "key" }),
+        supabase.from("site_settings").upsert({ key: "auto_live_off_time", value: autoLiveOffTime } as any, { onConflict: "key" }),
+      ]);
+      toast({ title: "Jadwal live otomatis disimpan!" });
+    } catch {
+      toast({ title: "Gagal menyimpan", variant: "destructive" });
+    }
+    setAutoSaving(false);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-foreground">🔴 Live Control</h2>
@@ -169,6 +193,46 @@ const LiveControl = () => {
             toast({ title: checked ? "💬 Live chat dibuka untuk user" : "🔇 Live chat ditutup untuk user" });
           }}
         />
+      </div>
+
+      {/* Auto-Schedule Live */}
+      <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Live Otomatis</h3>
+            <p className="text-xs text-muted-foreground">Sistem akan otomatis ON/OFF live sesuai jam yang diatur (WIB)</p>
+          </div>
+          <Switch
+            checked={autoLiveEnabled}
+            onCheckedChange={(checked) => {
+              setAutoLiveEnabled(checked);
+            }}
+          />
+        </div>
+        {autoLiveEnabled && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Live ON (WIB)</label>
+                <Input type="time" value={autoLiveOnTime} onChange={(e) => setAutoLiveOnTime(e.target.value)} className="bg-background" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Live OFF (WIB)</label>
+                <Input type="time" value={autoLiveOffTime} onChange={(e) => setAutoLiveOffTime(e.target.value)} className="bg-background" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={saveAutoLive} disabled={autoSaving} size="sm">
+                {autoSaving ? "Menyimpan..." : "Simpan Jadwal"}
+              </Button>
+              {autoLiveOnTime && autoLiveOffTime && (
+                <p className="text-xs text-muted-foreground">
+                  🟢 ON: {autoLiveOnTime} WIB → 🔴 OFF: {autoLiveOffTime} WIB
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active Show Selector */}

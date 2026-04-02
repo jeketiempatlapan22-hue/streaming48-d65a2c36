@@ -311,7 +311,8 @@ const ViewerAuth = () => {
       toast.error("Koneksi bermasalah, coba lagi.");
     } finally {
       setLoading(false);
-      submitRef.current = false;
+      // Always reset submit guard - prevents stuck states
+      setTimeout(() => { submitRef.current = false; }, 100);
     }
   };
 
