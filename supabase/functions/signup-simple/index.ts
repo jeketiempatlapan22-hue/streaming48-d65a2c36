@@ -54,6 +54,14 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Persistent DB-level rate limit: 20 signups per hour per IP
+    const { data: dbAllowed } = await supabaseAdmin.rpc("check_rate_limit", {
+      _key: "signup_ip:" + ip, _max_requests: 20, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return jsonResponse({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    }
+
     // Check if user already exists using Admin API with email filter
     const lookupRes = await fetch(
       `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&page=1&per_page=1`,
