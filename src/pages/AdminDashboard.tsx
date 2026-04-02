@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { lazy, Suspense } from "react";
 import { recordAuthMetric } from "@/lib/authMetrics";
+import AdminGlobalSearch from "@/components/admin/AdminGlobalSearch";
 
 const AdminDashboardStats = lazy(() => import("@/components/admin/AdminDashboardStats"));
 const LiveControl = lazy(() => import("@/components/admin/LiveControl"));
