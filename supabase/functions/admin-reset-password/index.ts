@@ -47,6 +47,14 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const adminClient = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Persistent DB-level rate limit: 15 resets per hour per IP
+    const { data: dbAllowed } = await adminClient.rpc("check_rate_limit", {
+      _key: "admin_reset_ip:" + ip, _max_requests: 15, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return ok({ success: false, error: 'Terlalu banyak permintaan. Tunggu sebentar.' });
+    }
+
     const { data: isAdmin } = await adminClient.rpc('has_role', { _user_id: user.id, _role: 'admin' });
     if (!isAdmin) return ok({ success: false, error: 'Forbidden' });
 

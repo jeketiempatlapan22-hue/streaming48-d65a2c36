@@ -45,6 +45,14 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Persistent DB-level rate limit: 15 attempts per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "pw_apply_ip:" + ip, _max_requests: 15, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return ok({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
+    }
+
     // Try plaintext token first, then hashed token
     let request: any = null;
 

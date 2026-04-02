@@ -51,6 +51,16 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Persistent DB-level rate limit: 30 QRIS requests per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "qris_ip:" + ip, _max_requests: 30, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return new Response(JSON.stringify({ error: "Terlalu banyak permintaan. Tunggu sebentar." }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // For show orders, check if show has a separate qris_price (to absorb fees)
     let finalAmount = Math.round(amount);
     if (!isCoinOrder && show_id) {

@@ -46,6 +46,16 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // Persistent DB-level rate limit: 60 callbacks per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "pakasir_ip:" + ip, _max_requests: 60, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return new Response(JSON.stringify({ error: "Rate limited" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Find order by short_id or payment_gateway_order_id
     const { data: subOrder } = await supabase
       .from("subscription_orders")

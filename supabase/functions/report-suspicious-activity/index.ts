@@ -41,6 +41,16 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+    // Persistent DB-level rate limit: 30 reports per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "report_ip:" + ip, _max_requests: 30, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return new Response(JSON.stringify({ error: 'Rate limited' }), {
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Log the suspicious activity
     await supabase.from('suspicious_activity_log').insert({
       user_id, activity_type, severity: severity || 'medium', description: description || '', metadata: metadata || {},

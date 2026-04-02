@@ -34,6 +34,16 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    // Persistent DB-level rate limit: 10 toggles per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "auto_live_ip:" + ip, _max_requests: 10, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return new Response(JSON.stringify({ error: "Rate limited" }), {
+        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Get auto-live settings
     const { data: settings } = await supabase
       .from("site_settings")

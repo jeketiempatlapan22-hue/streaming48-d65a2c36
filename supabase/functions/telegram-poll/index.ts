@@ -69,6 +69,16 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+  // Persistent DB-level rate limit: 10 polls per hour per IP
+  const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+    _key: "tg_poll_ip:" + ip, _max_requests: 10, _window_seconds: 3600,
+  });
+  if (dbAllowed === false) {
+    return new Response(JSON.stringify({ error: 'Rate limited' }), {
+      status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   const lock = await acquireLock(supabase);
   if (!lock.acquired) return jsonResponse({ ok: true, skipped: true, reason: 'previous run still active' });
 

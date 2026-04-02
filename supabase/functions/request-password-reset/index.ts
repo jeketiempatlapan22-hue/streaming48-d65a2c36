@@ -42,6 +42,14 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+    // Persistent DB-level rate limit: 10 reset requests per hour per IP
+    const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
+      _key: "pw_request_ip:" + ip, _max_requests: 10, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return ok({ success: false, error: 'Terlalu banyak permintaan. Tunggu sebentar.' });
+    }
+
     // Prevent spam
     const { data: existingPending } = await supabase
       .from('password_reset_requests')
