@@ -30,13 +30,51 @@ const CATEGORY_OPTIONS = [
   { value: "last_show", label: "👋 Last Show", color: "bg-red-500/10 text-red-500", hasMember: true },
 ];
 
+const MONTH_MAP: Record<string, number> = { januari:1, februari:2, maret:3, april:4, mei:5, juni:6, juli:7, agustus:8, september:9, oktober:10, november:11, desember:12 };
+
+function parseShowSchedule(show: Show): number {
+  if (!show.schedule_date) return Infinity;
+  const d = show.schedule_date.trim();
+  const t = (show.schedule_time || "23.59 WIB").replace(/\s*WIB\s*/i, "").replace(".", ":");
+  // Try ISO-like parse first
+  const attempt = new Date(`${d} ${t}`);
+  if (!isNaN(attempt.getTime())) return attempt.getTime();
+  // Try "20 Maret 2026" format
+  const parts = d.toLowerCase().split(/\s+/);
+  if (parts.length === 3) {
+    const day = parseInt(parts[0]); const month = MONTH_MAP[parts[1]]; const year = parseInt(parts[2]);
+    if (month) {
+      const [h, m] = t.split(":").map(Number);
+      return new Date(year, month - 1, day, h || 0, m || 0).getTime();
+    }
+  }
+  return Infinity;
+}
+
+function sortShowsBySchedule(list: Show[]): Show[] {
+  const now = Date.now();
+  return [...list].sort((a, b) => {
+    const ta = parseShowSchedule(a); const tb = parseShowSchedule(b);
+    const aUp = ta >= now; const bUp = tb >= now;
+    if (aUp && bUp) return ta - tb; // both upcoming: nearest first
+    if (aUp) return -1; if (bUp) return 1;
+    return tb - ta; // both past: most recent first
+  });
+}
+
 const ShowManager = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [editing, setEditing] = useState<Show | null>(null);
   const [uploading, setUploading] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryTarget, setGalleryTarget] = useState<"bg" | "qris">("bg");
+  const [showTab, setShowTab] = useState<"active" | "replay">("active");
   const { toast } = useToast();
+
+  const filteredShows = useMemo(() => {
+    const filtered = shows.filter(s => showTab === "replay" ? s.is_replay : !s.is_replay);
+    return sortShowsBySchedule(filtered);
+  }, [shows, showTab]);
 
   const fetchShows = async () => {
     const { data } = await supabase.from("shows").select("*").order("created_at", { ascending: false });
