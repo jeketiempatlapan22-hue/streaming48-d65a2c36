@@ -28,6 +28,19 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const _supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // Persistent DB-level rate limit: 30 notifications per hour per IP
+    const { data: dbAllowed } = await _supabase.rpc("check_rate_limit", {
+      _key: "notify_pw_ip:" + ip, _max_requests: 30, _window_seconds: 3600,
+    });
+    if (dbAllowed === false) {
+      return new Response(JSON.stringify({ error: 'Rate limited' }), {
+        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { short_id, identifier, username } = await req.json();
 
     const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
