@@ -195,6 +195,46 @@ const LiveControl = () => {
         />
       </div>
 
+      {/* Auto-Schedule Live */}
+      <div className="space-y-4 rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Live Otomatis</h3>
+            <p className="text-xs text-muted-foreground">Sistem akan otomatis ON/OFF live sesuai jam yang diatur (WIB)</p>
+          </div>
+          <Switch
+            checked={autoLiveEnabled}
+            onCheckedChange={(checked) => {
+              setAutoLiveEnabled(checked);
+            }}
+          />
+        </div>
+        {autoLiveEnabled && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Live ON (WIB)</label>
+                <Input type="time" value={autoLiveOnTime} onChange={(e) => setAutoLiveOnTime(e.target.value)} className="bg-background" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Live OFF (WIB)</label>
+                <Input type="time" value={autoLiveOffTime} onChange={(e) => setAutoLiveOffTime(e.target.value)} className="bg-background" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={saveAutoLive} disabled={autoSaving} size="sm">
+                {autoSaving ? "Menyimpan..." : "Simpan Jadwal"}
+              </Button>
+              {autoLiveOnTime && autoLiveOffTime && (
+                <p className="text-xs text-muted-foreground">
+                  🟢 ON: {autoLiveOnTime} WIB → 🔴 OFF: {autoLiveOffTime} WIB
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Active Show Selector */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
         <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
