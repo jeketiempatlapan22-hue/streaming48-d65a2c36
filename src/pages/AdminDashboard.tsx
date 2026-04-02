@@ -200,6 +200,7 @@ const AdminDashboard = () => {
       case "password-resets": return <PasswordResetManager />;
       case "auth-metrics": return <AdminAuthMetrics />;
       case "traffic": return <AdminTrafficMonitor />;
+      case "rate-limits": return <RateLimitMonitor />;
       default: return <LiveControl />;
     }
   };
