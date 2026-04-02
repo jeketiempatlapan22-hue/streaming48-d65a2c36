@@ -30,6 +30,7 @@ const sections = [
   { id: "password-resets", label: "Reset Password", icon: KeyRound },
   { id: "auth-metrics", label: "Auth Metrics", icon: BarChart3 },
   { id: "traffic", label: "Traffic Monitor", icon: Gauge },
+  { id: "rate-limits", label: "Rate Limits", icon: Shield },
 ];
 
 const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, onMobileOpenChange }: AdminSidebarProps) => {

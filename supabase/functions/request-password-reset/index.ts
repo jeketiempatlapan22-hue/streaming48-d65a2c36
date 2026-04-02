@@ -27,7 +27,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+
+  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+  // Check if IP is blocked
+  const { data: ipBlocked } = await supabase.rpc("is_ip_blocked", { _ip: ip });
+  if (ipBlocked === true) return ok({ success: false, error: 'Akses ditolak.' });
+
   if (!edgeRL(`pw_reset:${ip}`, 5, 60_000)) {
+    await supabase.rpc("record_rate_limit_violation", { _ip: ip, _endpoint: "request-password-reset", _violation_key: `pw_reset:${ip}` });
     return ok({ success: false, error: 'Terlalu banyak permintaan. Tunggu sebentar.' });
   }
 
@@ -38,9 +48,7 @@ Deno.serve(async (req) => {
       return ok({ success: false, error: 'Data tidak valid' });
     }
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+    // DB rate limit already checked above
 
     // Persistent DB-level rate limit: 10 reset requests per hour per IP
     const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {

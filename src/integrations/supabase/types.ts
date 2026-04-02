@@ -71,6 +71,45 @@ export type Database = {
         }
         Relationships: []
       }
+      blocked_ips: {
+        Row: {
+          auto_blocked: boolean
+          blocked_at: string
+          created_at: string
+          id: string
+          ip_address: string
+          is_active: boolean
+          reason: string
+          unblocked_at: string | null
+          unblocked_by: string | null
+          violation_count: number
+        }
+        Insert: {
+          auto_blocked?: boolean
+          blocked_at?: string
+          created_at?: string
+          id?: string
+          ip_address: string
+          is_active?: boolean
+          reason?: string
+          unblocked_at?: string | null
+          unblocked_by?: string | null
+          violation_count?: number
+        }
+        Update: {
+          auto_blocked?: boolean
+          blocked_at?: string
+          created_at?: string
+          id?: string
+          ip_address?: string
+          is_active?: boolean
+          reason?: string
+          unblocked_at?: string | null
+          unblocked_by?: string | null
+          violation_count?: number
+        }
+        Relationships: []
+      }
       chat_messages: {
         Row: {
           created_at: string
@@ -465,6 +504,30 @@ export type Database = {
           id?: string
           updated_at?: string
           username?: string | null
+        }
+        Relationships: []
+      }
+      rate_limit_violations: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          ip_address: string
+          violation_key: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          ip_address: string
+          violation_key?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          ip_address?: string
+          violation_key?: string
         }
         Relationships: []
       }
@@ -1120,10 +1183,21 @@ export type Database = {
         Returns: boolean
       }
       hash_token: { Args: { _token: string }; Returns: string }
+      is_ip_blocked: { Args: { _ip: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       parse_show_datetime: {
         Args: { _date: string; _time: string }
         Returns: string
+      }
+      record_rate_limit_violation: {
+        Args: {
+          _endpoint: string
+          _ip: string
+          _threshold?: number
+          _violation_key: string
+          _window_minutes?: number
+        }
+        Returns: Json
       }
       redeem_coins_for_membership: {
         Args: { _email: string; _phone: string; _show_id: string }
