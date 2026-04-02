@@ -125,7 +125,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       const order = orders.find((o) => o.id === id);
       const showInfo = order ? shows[order.show_id] : null;
       const siteUrl = "https://realtime48stream.my.id";
-      const replayUrl = "https://realtime48stream.my.id/replay";
+      const replayUrl = "https://replaytime.lovable.app/replay";
 
       // Save token to state immediately so it shows in the panel
       if (result.token_code) {
@@ -360,7 +360,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       // Auto-send WhatsApp if phone provided and token created
       if (result.token_code && newOrder.phone.trim() && showInfo) {
         const siteUrl = "https://realtime48stream.my.id";
-        const replayUrl = "https://realtime48stream.my.id/replay";
+        const replayUrl = "https://replaytime.lovable.app/replay";
         const liveLink = `${siteUrl}/live?t=${result.token_code}`;
         let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
         if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
