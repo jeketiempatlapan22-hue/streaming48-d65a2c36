@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, GripVertical, Eye, EyeOff, Upload, Crown, Film, Copy, ExternalLink, Image } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
@@ -29,13 +30,51 @@ const CATEGORY_OPTIONS = [
   { value: "last_show", label: "👋 Last Show", color: "bg-red-500/10 text-red-500", hasMember: true },
 ];
 
+const MONTH_MAP: Record<string, number> = { januari:1, februari:2, maret:3, april:4, mei:5, juni:6, juli:7, agustus:8, september:9, oktober:10, november:11, desember:12 };
+
+function parseShowSchedule(show: Show): number {
+  if (!show.schedule_date) return Infinity;
+  const d = show.schedule_date.trim();
+  const t = (show.schedule_time || "23.59 WIB").replace(/\s*WIB\s*/i, "").replace(".", ":");
+  // Try ISO-like parse first
+  const attempt = new Date(`${d} ${t}`);
+  if (!isNaN(attempt.getTime())) return attempt.getTime();
+  // Try "20 Maret 2026" format
+  const parts = d.toLowerCase().split(/\s+/);
+  if (parts.length === 3) {
+    const day = parseInt(parts[0]); const month = MONTH_MAP[parts[1]]; const year = parseInt(parts[2]);
+    if (month) {
+      const [h, m] = t.split(":").map(Number);
+      return new Date(year, month - 1, day, h || 0, m || 0).getTime();
+    }
+  }
+  return Infinity;
+}
+
+function sortShowsBySchedule(list: Show[]): Show[] {
+  const now = Date.now();
+  return [...list].sort((a, b) => {
+    const ta = parseShowSchedule(a); const tb = parseShowSchedule(b);
+    const aUp = ta >= now; const bUp = tb >= now;
+    if (aUp && bUp) return ta - tb; // both upcoming: nearest first
+    if (aUp) return -1; if (bUp) return 1;
+    return tb - ta; // both past: most recent first
+  });
+}
+
 const ShowManager = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [editing, setEditing] = useState<Show | null>(null);
   const [uploading, setUploading] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryTarget, setGalleryTarget] = useState<"bg" | "qris">("bg");
+  const [showTab, setShowTab] = useState<"active" | "replay">("active");
   const { toast } = useToast();
+
+  const filteredShows = useMemo(() => {
+    const filtered = shows.filter(s => showTab === "replay" ? s.is_replay : !s.is_replay);
+    return sortShowsBySchedule(filtered);
+  }, [shows, showTab]);
 
   const fetchShows = async () => {
     const { data } = await supabase.from("shows").select("*").order("created_at", { ascending: false });
@@ -115,9 +154,20 @@ const ShowManager = () => {
         <Button onClick={createShow} size="sm"><Plus className="mr-1 h-4 w-4" /> Tambah Show</Button>
       </div>
 
+      <Tabs value={showTab} onValueChange={(v) => setShowTab(v as "active" | "replay")}>
+        <TabsList className="w-full">
+          <TabsTrigger value="active" className="flex-1 gap-1.5">
+            <Eye className="h-3.5 w-3.5" /> Show Aktif ({shows.filter(s => !s.is_replay).length})
+          </TabsTrigger>
+          <TabsTrigger value="replay" className="flex-1 gap-1.5">
+            <Film className="h-3.5 w-3.5" /> Replay ({shows.filter(s => s.is_replay).length})
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          {shows.map((show) => (
+          {filteredShows.map((show) => (
             <button
               key={show.id}
               onClick={() => setEditing(show)}
@@ -146,7 +196,7 @@ const ShowManager = () => {
               {show.is_active ? <Eye className="h-4 w-4 text-[hsl(var(--success))]" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
             </button>
           ))}
-          {shows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Belum ada show</p>}
+          {filteredShows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{showTab === "replay" ? "Belum ada replay" : "Belum ada show aktif"}</p>}
         </div>
 
         {editing && (

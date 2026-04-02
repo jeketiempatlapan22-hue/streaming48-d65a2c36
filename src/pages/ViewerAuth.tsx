@@ -148,17 +148,23 @@ const ViewerAuth = () => {
 
     try {
       if (mode === "signup") {
-        // Always use signup-simple edge function (bypasses weak password + auto-confirms)
         try {
           let fnData: any = null;
           let fnError: any = null;
+          let usedFallback = false;
+
+          // Attempt signup-simple edge function
           try {
-            const result = await supabase.functions.invoke("signup-simple", {
-              body: { email: authEmail, password, username: username.trim() },
-            });
+            const result = await Promise.race([
+              supabase.functions.invoke("signup-simple", {
+                body: { email: authEmail, password, username: username.trim() },
+              }),
+              new Promise<{ data: null; error: { message: string } }>((resolve) =>
+                setTimeout(() => resolve({ data: null, error: { message: "Edge function timeout" } }), 20_000)
+              ),
+            ]);
             fnData = result.data;
             fnError = result.error;
-            // If invoke threw FunctionsHttpError, try to parse the body
             if (fnError && !fnData) {
               try {
                 const errBody = await (fnError as any)?.context?.json?.();
@@ -167,6 +173,25 @@ const ViewerAuth = () => {
             }
           } catch (invokeErr: any) {
             fnError = invokeErr;
+          }
+
+          // Fallback: if edge function failed with network/timeout error, try direct signUp
+          if ((fnError && !fnData?.success) && TRANSIENT_AUTH_ERROR.test(String(fnError?.message || fnData?.error || ""))) {
+            try {
+              const directResult = await authWithRetry(
+                () => supabase.auth.signUp({
+                  email: authEmail,
+                  password,
+                  options: { data: { username: username.trim() } },
+                }),
+                15_000, 1
+              );
+              if (!directResult.error && directResult.data?.user) {
+                fnData = { success: true, user_id: directResult.data.user.id };
+                fnError = null;
+                usedFallback = true;
+              }
+            } catch {}
           }
 
           const ms = Math.round(performance.now() - authStart);
@@ -195,11 +220,22 @@ const ViewerAuth = () => {
               setMode("login");
             } else if (fnMsg.includes("email_address_invalid") || fnMsg.includes("valid email")) {
               toast.error("Format nomor HP atau email tidak valid. Periksa kembali.");
+            } else if (fnMsg.includes("Email not confirmed")) {
+              // Try re-signup via edge function to auto-confirm
+              toast.info("Mengkonfirmasi akun...");
+              try {
+                await supabase.functions.invoke("signup-simple", {
+                  body: { email: authEmail, password, username: username.trim() },
+                });
+              } catch {}
+              setMode("login");
+              toast.success("Silakan coba login kembali.");
             } else {
               toast.error(fnMsg);
             }
           } else {
-            // User created — now login
+            // User created — wait a bit for handle_new_user trigger, then login
+            await new Promise((r) => setTimeout(r, usedFallback ? 2500 : 1500));
             const loginResult = await authWithRetry(
               () => supabase.auth.signInWithPassword({ email: authEmail, password }),
               15_000, 2

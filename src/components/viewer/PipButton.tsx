@@ -4,16 +4,31 @@ import { PictureInPicture2 } from "lucide-react";
 const PipButton = () => {
   const [supported, setSupported] = useState(false);
   const [active, setActive] = useState(false);
+  const [isYouTube, setIsYouTube] = useState(false);
 
   useEffect(() => {
-    setSupported('pictureInPictureEnabled' in document && (document as any).pictureInPictureEnabled);
+    const hasPip = 'pictureInPictureEnabled' in document && (document as any).pictureInPictureEnabled;
+    setSupported(hasPip);
+
     const onEnter = () => setActive(true);
     const onLeave = () => setActive(false);
     document.addEventListener("enterpictureinpicture", onEnter);
     document.addEventListener("leavepictureinpicture", onLeave);
+
+    // Detect if YouTube player is active (no native <video>)
+    const checkYt = () => {
+      const video = document.querySelector("video");
+      const ytIframe = document.querySelector('iframe[src*="youtube"]');
+      setIsYouTube(!video && !!ytIframe);
+      setSupported(hasPip && !!video);
+    };
+    checkYt();
+    const interval = setInterval(checkYt, 3000);
+
     return () => {
       document.removeEventListener("enterpictureinpicture", onEnter);
       document.removeEventListener("leavepictureinpicture", onLeave);
+      clearInterval(interval);
     };
   }, []);
 
@@ -27,6 +42,19 @@ const PipButton = () => {
       }
     } catch {}
   }, []);
+
+  // Show disabled state for YouTube
+  if (isYouTube) {
+    return (
+      <button
+        disabled
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/40 text-muted-foreground cursor-not-allowed opacity-50"
+        title="PiP tidak tersedia untuk YouTube"
+      >
+        <PictureInPicture2 className="h-4 w-4" />
+      </button>
+    );
+  }
 
   if (!supported) return null;
 
