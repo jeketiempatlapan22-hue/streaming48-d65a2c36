@@ -65,6 +65,9 @@ const LiveControl = () => {
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
           if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
+          if (s.key === "auto_live_enabled") setAutoLiveEnabled(s.value === "true");
+          if (s.key === "auto_live_on_time") setAutoLiveOnTime(s.value);
+          if (s.key === "auto_live_off_time") setAutoLiveOffTime(s.value);
         });
       }
     };
