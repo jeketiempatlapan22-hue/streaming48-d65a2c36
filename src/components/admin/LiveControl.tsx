@@ -20,6 +20,12 @@ const LiveControl = () => {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Auto-schedule live state
+  const [autoLiveEnabled, setAutoLiveEnabled] = useState(false);
+  const [autoLiveOnTime, setAutoLiveOnTime] = useState("");
+  const [autoLiveOffTime, setAutoLiveOffTime] = useState("");
+  const [autoSaving, setAutoSaving] = useState(false);
+
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState("youtube");

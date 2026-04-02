@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Radio, Key, Monitor, Settings, LogOut, Theater, FileText, ClipboardList, Coins, Package, Shield, Activity, ScrollText, UsersRound, UserCog, Image, BarChart3, Gauge, Ticket, KeyRound, Search } from "lucide-react";
+import { Radio, Key, Monitor, Settings, Theater, FileText, ClipboardList, Coins, Package, Shield, Activity, ScrollText, UsersRound, UserCog, Image, BarChart3, Gauge, Ticket, KeyRound, Search } from "lucide-react";
 
 const sections = [
   { id: "live", label: "Live & Playlist", icon: Radio, keywords: ["live", "stream", "playlist", "siaran"] },
@@ -51,16 +51,17 @@ const AdminGlobalSearch = ({ onNavigate }: AdminGlobalSearchProps) => {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-3 py-1.5 text-xs text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+        className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/50 px-2 py-1.5 text-xs text-muted-foreground transition hover:bg-secondary hover:text-foreground sm:gap-2 sm:px-3"
+        aria-label="Cari menu admin"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Search className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
         <span className="hidden sm:inline">Cari menu...</span>
         <kbd className="hidden rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] sm:inline">⌘K</kbd>
       </button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="Cari menu admin..." />
-        <CommandList>
+        <CommandList className="max-h-[60vh]">
           <CommandEmpty>Tidak ditemukan.</CommandEmpty>
           <CommandGroup heading="Menu Admin">
             {sections.map((s) => {
