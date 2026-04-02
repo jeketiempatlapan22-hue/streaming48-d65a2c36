@@ -14,12 +14,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing ip_address" }), { status: 400, headers: corsHeaders });
     }
 
-    const GATEWAY_URL = "https://connector-gateway.lovable.dev/telegram";
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const TELEGRAM_API_KEY = Deno.env.get("TELEGRAM_API_KEY");
+    const botToken = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const chatId = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
 
-    if (!LOVABLE_API_KEY || !TELEGRAM_API_KEY || !chatId) {
+    if (!botToken || !chatId) {
       console.log("Telegram not configured, skipping alert");
       return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
