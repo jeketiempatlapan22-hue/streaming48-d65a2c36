@@ -144,6 +144,21 @@ const LiveControl = () => {
     toast({ title: "Playlist dihapus" });
   };
 
+  const saveAutoLive = async () => {
+    setAutoSaving(true);
+    try {
+      await Promise.all([
+        supabase.from("site_settings").upsert({ key: "auto_live_enabled", value: autoLiveEnabled ? "true" : "false" } as any, { onConflict: "key" }),
+        supabase.from("site_settings").upsert({ key: "auto_live_on_time", value: autoLiveOnTime } as any, { onConflict: "key" }),
+        supabase.from("site_settings").upsert({ key: "auto_live_off_time", value: autoLiveOffTime } as any, { onConflict: "key" }),
+      ]);
+      toast({ title: "Jadwal live otomatis disimpan!" });
+    } catch {
+      toast({ title: "Gagal menyimpan", variant: "destructive" });
+    }
+    setAutoSaving(false);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-foreground">🔴 Live Control</h2>
