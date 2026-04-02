@@ -608,7 +608,7 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
           let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
           if (show?.access_password) {
-            waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi: ${show.access_password}\n`;
+            waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: https://replaytime.lovable.app/replay\n🔑 Sandi: ${show.access_password}\n`;
           }
           waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
           await sendFonnteWhatsApp(order.phone, waMsg);
