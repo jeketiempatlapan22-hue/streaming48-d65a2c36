@@ -132,7 +132,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-80 border-border bg-card p-0 flex flex-col">
+              <SheetContent side="right" className="w-80 border-[hsl(var(--neon-cyan)/0.15)] bg-card/95 backdrop-blur-xl p-0 flex flex-col">
                 <SheetHeader className="px-6 pt-6 pb-2">
                   <SheetTitle className="flex items-center gap-2 text-foreground">
                     <img src={logo} alt="RealTime48" className="h-6 w-6 rounded-full object-cover" />
