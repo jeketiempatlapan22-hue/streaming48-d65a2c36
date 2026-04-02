@@ -74,14 +74,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "Password minimal 6 karakter" });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-
-    // Persistent DB-level rate limit: 20 signups per hour per IP
+    // DB-level rate limit: 20 signups per hour per IP
     const { data: dbAllowed } = await supabaseAdmin.rpc("check_rate_limit", {
       _key: "signup_ip:" + ip, _max_requests: 20, _window_seconds: 3600,
     });
