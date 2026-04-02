@@ -33,7 +33,7 @@ const MaintenancePage = ({ message }: { message?: string }) => (
     </div>
     <div className="space-y-3 max-w-sm">
       <h1 className="text-2xl font-bold text-foreground">
-        Real<span className="text-primary">Time48</span>
+        Real<span className="neon-text">Time48</span>
       </h1>
       <p className="text-lg font-semibold text-foreground">🔧 Sedang Maintenance</p>
       <p className="text-sm text-muted-foreground">
