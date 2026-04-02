@@ -66,6 +66,12 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        neon: {
+          cyan: "hsl(var(--neon-cyan))",
+          magenta: "hsl(var(--neon-magenta))",
+          purple: "hsl(var(--neon-purple))",
+          pink: "hsl(var(--neon-pink))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -86,12 +92,16 @@ export default {
           to: { opacity: "1", transform: "translateY(0)", filter: "blur(0)" },
         },
         "glow-pulse": {
-          "0%, 100%": { boxShadow: "0 0 20px hsl(217 91% 60% / 0.15)" },
-          "50%": { boxShadow: "0 0 30px hsl(217 91% 60% / 0.3)" },
+          "0%, 100%": { boxShadow: "0 0 20px hsl(200 100% 50% / 0.15)" },
+          "50%": { boxShadow: "0 0 40px hsl(200 100% 50% / 0.3)" },
         },
         "float": {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
+        },
+        "neon-glow": {
+          "0%, 100%": { boxShadow: "0 0 5px hsl(180 100% 50% / 0.2), 0 0 10px hsl(180 100% 50% / 0.1)" },
+          "50%": { boxShadow: "0 0 15px hsl(180 100% 50% / 0.4), 0 0 30px hsl(180 100% 50% / 0.15)" },
         },
       },
       animation: {
@@ -100,6 +110,7 @@ export default {
         "fade-in-up": "fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "glow-pulse": "glow-pulse 3s ease-in-out infinite",
         "float": "float 3s ease-in-out infinite",
+        "neon-glow": "neon-glow 3s ease-in-out infinite",
       },
     },
   },
