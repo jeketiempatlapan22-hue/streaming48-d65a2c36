@@ -6,8 +6,27 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// In-memory rate limiter
+const rlMap = new Map<string, { count: number; resetAt: number }>();
+function edgeRL(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  if (rlMap.size > 500) { for (const [k, v] of rlMap) { if (now > v.resetAt) rlMap.delete(k); } }
+  const e = rlMap.get(key);
+  if (!e || now > e.resetAt) { rlMap.set(key, { count: 1, resetAt: now + windowMs }); return true; }
+  if (e.count >= max) return false;
+  e.count++;
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  if (!edgeRL(`qris:${ip}`, 10, 60_000)) {
+    return new Response(JSON.stringify({ error: "Terlalu banyak permintaan. Tunggu sebentar." }), {
+      status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const PAKASIR_API_KEY = Deno.env.get("PAKASIR_API_KEY");
