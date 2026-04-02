@@ -100,7 +100,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
+      <nav className="fixed top-0 left-0 right-0 z-40 border-b border-[hsl(var(--neon-cyan)/0.15)] bg-background/85 backdrop-blur-xl shadow-[0_2px_20px_hsl(var(--neon-cyan)/0.05)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <a href="/" className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-full border border-border/60 overflow-hidden shadow-sm">
