@@ -610,8 +610,12 @@ const LivePage = () => {
           )}
         </div>
         {isLive && playlists.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto border-t border-border px-4 py-2">
-            {playlists.map((p: any) => <button key={p.id} onClick={() => handlePlaylistSwitch(p)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-all ${activePlaylist?.id === p.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{p.title}</button>)}
+          <div className="border-t border-border px-3 py-2">
+            <PlaylistSwitcher
+              playlists={playlists}
+              activePlaylistId={activePlaylist?.id ?? null}
+              onSelect={handlePlaylistSwitch}
+            />
           </div>
         )}
         <Suspense fallback={null}>
