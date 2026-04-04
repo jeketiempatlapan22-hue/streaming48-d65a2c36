@@ -1604,6 +1604,103 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
   }
 }
 
+async function handleBulkTokenWa(supabase: any, showInput: string, count: number, maxDevices: number): Promise<string> {
+  try {
+    if (count < 1 || count > 100) return '⚠️ Jumlah token harus antara 1-100';
+    if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
+
+    // Find show by custom short_id, hex ID, or name
+    const cleanInput = showInput.replace(/^#/, '').trim();
+    let show: any = null;
+
+    // Try custom short_id first
+    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
+    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+
+    if (!show) {
+      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+      if (isHexId) {
+        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+        if (!show && hexOnly.length >= 6) {
+          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+          if (prefixMatches.length === 1) show = prefixMatches[0];
+        }
+      } else {
+        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
+      }
+    }
+
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
+
+    let expiresAt: string | null = null;
+    if (show.schedule_date && show.schedule_time) {
+      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
+      if (parsed) {
+        const showDt = new Date(parsed);
+        const endOfDay = new Date(showDt);
+        endOfDay.setHours(23, 59, 59, 0);
+        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const tokens: string[] = [];
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+      const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      tokens.push(code);
+      rows.push({ code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active' });
+    }
+
+    const { error: insertErr } = await supabase.from('tokens').insert(rows);
+    if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *${count} Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n`;
+    msg += `🎬 Show: *${show.title}*\n`;
+    msg += `📱 Max Device: *${maxDevices}*\n`;
+    msg += `⏰ Kedaluwarsa: ${expDate}\n\n`;
+
+    msg += `🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+    if (show.access_password) {
+      msg += `🔐 Sandi Replay: ${show.access_password}\n`;
+    }
+    msg += `\n🔑 *Daftar Token:*\n`;
+    for (const code of tokens) {
+      msg += `${code}\n`;
+    }
+    msg += `\n📺 *Link Nonton (contoh):*\nrealtime48stream.my.id/live?t=${tokens[0]}`;
+    msg += `\n━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleSetShortIdWa(supabase: any, hexId: string, shortId: string): Promise<string> {
+  try {
+    const { data: allShows } = await supabase.from('shows').select('id, title, short_id');
+    const hexOnly = hexId.replace(/-/g, '').toLowerCase();
+    const show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+    if (!show) return `⚠️ Show dengan ID #${hexId} tidak ditemukan.`;
+
+    if (!/^[a-zA-Z0-9_-]{2,30}$/.test(shortId)) {
+      return '⚠️ Custom ID hanya boleh huruf, angka, - dan _ (2-30 karakter)';
+    }
+
+    const existing = (allShows || []).find((s: any) => s.short_id === shortId && s.id !== show.id);
+    if (existing) return `⚠️ ID "${shortId}" sudah dipakai show lain.`;
+
+    await supabase.from('shows').update({ short_id: shortId }).eq('id', show.id);
+    return `✅ Custom ID berhasil diset!\n\n🎬 Show: *${show.title}*\n🏷️ Custom ID: *${shortId}*\n\n💡 Sekarang bisa gunakan ID ini di semua command:\n/createtoken ${shortId}\n/bulktoken ${shortId} 10`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
