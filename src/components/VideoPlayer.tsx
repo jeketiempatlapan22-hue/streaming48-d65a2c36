@@ -565,6 +565,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     if (level === -1) {
       hls.currentLevel = -1;
       hls.nextLevel = -1;
+      hls.autoLevelCapping = -1;
       try { hls.autoLevelEnabled = true; } catch {}
     } else {
       try { hls.autoLevelEnabled = false; } catch {}
