@@ -442,7 +442,7 @@ async function handleShowsCommand(supabase: any, botToken: string, chatId: strin
   try {
     const { data: shows } = await supabase
       .from('shows')
-      .select('id, title, schedule_date, schedule_time, is_replay, is_active, coin_price, replay_coin_price')
+      .select('id, title, schedule_date, schedule_time, is_replay, is_active, coin_price, replay_coin_price, short_id')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -454,10 +454,10 @@ async function handleShowsCommand(supabase: any, botToken: string, chatId: strin
 
     let message = `🎬 *DAFTAR SHOW AKTIF \\(${shows.length}\\)*\n\n`;
     for (const s of shows) {
-      const sid = showShortId(s.id);
+      const sid = s.short_id || showShortId(s.id);
       const replay = s.is_replay ? ' 🔁 REPLAY' : '';
       const schedule = s.schedule_date ? `📅 ${escapeMarkdown(s.schedule_date)} ${escapeMarkdown(s.schedule_time || '')}` : '📅 \\-';
-      message += `\`#${sid}\` *${escapeMarkdown(s.title)}*${replay}\n   ${schedule} \\| 🪙 ${s.coin_price}/${s.replay_coin_price}\n\n`;
+      message += `\`${s.short_id ? s.short_id : '#' + showShortId(s.id)}\` *${escapeMarkdown(s.title)}*${replay}\n   ${schedule} \\| 🪙 ${s.coin_price}/${s.replay_coin_price}\n\n`;
     }
     message += `💡 Gunakan ID untuk aksi:\n\`/setlive #ID\` \\| \`/replay #ID\` \\| \`/setactive #ID\``;
     await sendTelegramMessage(botToken, chatId, message);
