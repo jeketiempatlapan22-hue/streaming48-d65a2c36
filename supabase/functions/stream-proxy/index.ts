@@ -101,10 +101,12 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 // --- CACHES ---
 const M3U8_CACHE_TTL_MS = 2000; // 2s (tighter)
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
+const PROXY_TOKEN_CACHE_TTL_MS = 300000; // 5 min cache for hanabira48 tokens
 
 interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
+const proxyTokenCache = new Map<string, { headers: Record<string, string>; cachedAt: number }>();
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
@@ -135,6 +137,98 @@ async function getPlaylistData(pid: string): Promise<{ url: string; type: string
   if (!data) return null;
   playlistUrlCache.set(pid, { url: data.url, type: data.type, cachedAt: Date.now() });
   return { url: data.url, type: data.type };
+}
+
+// --- PROXY STREAM HELPERS ---
+async function getProxyStreamHeaders(externalShowId: string): Promise<Record<string, string> | null> {
+  const cached = proxyTokenCache.get(externalShowId);
+  if (cached && Date.now() - cached.cachedAt < PROXY_TOKEN_CACHE_TTL_MS) {
+    return cached.headers;
+  }
+  try {
+    const res = await fetch(`https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`);
+    if (!res.ok) {
+      console.error("[proxy] Failed to get stream token from hanabira48:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const headers: Record<string, string> = {
+      xapi: data.xapi || "",
+      xsec: data.xsec || "",
+      xshowid: data.xshowid || "",
+      xtoken: data.xtoken || "",
+    };
+    proxyTokenCache.set(externalShowId, { headers, cachedAt: Date.now() });
+    return headers;
+  } catch (err) {
+    console.error("[proxy] Error fetching hanabira48 token:", err);
+    return null;
+  }
+}
+
+async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise<string | null> {
+  try {
+    const res = await fetch("https://proxy.mediastream48.workers.dev/api/proxy/playback", {
+      headers: {
+        ...proxyHeaders,
+        "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+      },
+    });
+    if (!res.ok) {
+      console.error("[proxy] Failed to fetch manifest from mediastream48:", res.status);
+      return null;
+    }
+    return await res.text();
+  } catch (err) {
+    console.error("[proxy] Error fetching proxy manifest:", err);
+    return null;
+  }
+}
+
+async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
+  const encoded = base64UrlEncode(rawUrl);
+  const eid = base64UrlEncode(externalShowId);
+  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${ipHash}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+}
+
+async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const lines = content.split("\n");
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { result.push(line); continue; }
+
+    if (trimmed.startsWith("#")) {
+      if (trimmed.includes('URI="')) {
+        const match = trimmed.match(/URI="([^"]+)"/);
+        if (match) {
+          const absUrl = resolveUrl(match[1], baseUrl);
+          const signed = await generateProxySegSignedUrl(absUrl, functionUrl, ipHash, externalShowId);
+          result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
+        } else { result.push(line); }
+      } else { result.push(line); }
+      continue;
+    }
+
+    const absoluteUrl = resolveUrl(trimmed, baseUrl);
+    if (isM3u8Url(absoluteUrl)) {
+      result.push(await generateProxySegSignedUrl(absoluteUrl, functionUrl, ipHash, externalShowId));
+    } else {
+      // Segments must also go through proxy (needs custom headers)
+      result.push(await generateProxySegSignedUrl(absoluteUrl, functionUrl, ipHash, externalShowId));
+    }
+  }
+  return result.join("\n");
+}
+
+async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
+  const eid = base64UrlEncode(externalShowId);
+  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${ipHash}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
 }
 
 // --- CRYPTO HELPERS ---
@@ -507,6 +601,30 @@ Deno.serve(async (req) => {
         );
       }
 
+      if (playlist.type === "proxy") {
+        // Get active show's external_show_id
+        const { data: activeShowSetting } = await supabase.from("site_settings").select("value").eq("key", "active_show_id").single();
+        if (!activeShowSetting?.value) {
+          return new Response(
+            JSON.stringify({ error: "Tidak ada show aktif yang dipilih" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
+        if (!showData?.external_show_id) {
+          return new Response(
+            JSON.stringify({ error: "External Show ID belum diatur untuk show aktif" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const signedUrl = await generateProxyPlaylistSignedUrl(playlist_id, functionUrl, ipH, showData.external_show_id);
+        return new Response(
+          JSON.stringify({ signed_url: signedUrl, expires_in: PLAYLIST_TOKEN_TTL, type: "m3u8" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const realUrl = await getPlaylistData(playlist_id);
       return new Response(
         JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: playlist.type }),
@@ -768,6 +886,168 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
+    // ===== MODE: proxyplay (GET) - Proxy stream manifest =====
+    if (req.method === "GET" && mode === "proxyplay") {
+      const pid = url.searchParams.get("pid");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
+      const eid = url.searchParams.get("eid");
+
+      if (pid && !edgeRateLimit(`proxyplay:${clientIp}:${pid}`, 150, 60000)) {
+        return getRateLimitResponse(true);
+      }
+
+      if (!pid || !exp || !sig || !h || !eid) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Token expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${h}:${eid}`, sig))) {
+        trackAbuse(clientIp);
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const externalShowId = base64UrlDecode(eid);
+      const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+      if (!proxyHeaders) {
+        return new Response("Failed to get proxy stream token", { status: 502, headers: corsHeaders });
+      }
+
+      const cacheKey = `proxyplay:${pid}:${ipH}`;
+      const cached = getCachedM3u8(cacheKey);
+      if (cached) {
+        return new Response(cached, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/vnd.apple.mpegurl",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        });
+      }
+
+      const manifest = await fetchProxyManifest(proxyHeaders);
+      if (!manifest) {
+        return new Response("Failed to fetch proxy stream", { status: 502, headers: corsHeaders });
+      }
+
+      const functionUrl = `${SUPABASE_URL}/functions/v1`;
+      const baseUrl = "https://proxy.mediastream48.workers.dev/api/proxy/";
+      const rewritten = await rewriteProxyM3u8(manifest, baseUrl, functionUrl, ipH, externalShowId);
+      setCachedM3u8(cacheKey, rewritten);
+
+      return new Response(rewritten, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/vnd.apple.mpegurl",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
+    // ===== MODE: proxyseg (GET) - Proxy segment with custom headers =====
+    if (req.method === "GET" && mode === "proxyseg") {
+      const encoded = url.searchParams.get("u");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
+      const eid = url.searchParams.get("eid");
+
+      if (encoded && !edgeRateLimit(`proxyseg:${clientIp}:${encoded.slice(0, 20)}`, 300, 60000)) {
+        return getRateLimitResponse(true);
+      }
+
+      if (!encoded || !exp || !sig || !h || !eid) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Segment expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${h}:${eid}`, sig))) {
+        trackAbuse(clientIp);
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const actualUrl = base64UrlDecode(encoded);
+      const externalShowId = base64UrlDecode(eid);
+
+      // Check if this is a sub-playlist (.m3u8) or a segment
+      if (isM3u8Url(actualUrl)) {
+        // Sub-playlist: fetch with headers and rewrite
+        const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+        if (!proxyHeaders) {
+          return new Response("Failed to get proxy token", { status: 502, headers: corsHeaders });
+        }
+
+        const res = await fetch(actualUrl, {
+          headers: {
+            ...proxyHeaders,
+            "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+          },
+        });
+        if (!res.ok) {
+          return new Response("Failed to fetch sub-playlist", { status: 502, headers: corsHeaders });
+        }
+
+        const content = await res.text();
+        const baseUrl = actualUrl.substring(0, actualUrl.lastIndexOf("/") + 1);
+        const functionUrl = `${SUPABASE_URL}/functions/v1`;
+        const rewritten = await rewriteProxyM3u8(content, baseUrl, functionUrl, ipH, externalShowId);
+
+        return new Response(rewritten, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/vnd.apple.mpegurl",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        });
+      }
+
+      // Segment: proxy the actual content with headers
+      const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+      if (!proxyHeaders) {
+        return new Response("Failed to get proxy token", { status: 502, headers: corsHeaders });
+      }
+
+      const segRes = await fetch(actualUrl, {
+        headers: {
+          ...proxyHeaders,
+          "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+        },
+      });
+
+      if (!segRes.ok) {
+        return new Response("Failed to fetch segment", { status: 502, headers: corsHeaders });
+      }
+
+      return new Response(segRes.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": segRes.headers.get("Content-Type") || "video/mp2t",
+          "Cache-Control": "private, max-age=5",
         },
       });
     }

@@ -22,6 +22,7 @@ interface Show {
   qris_price: number;
   membership_duration_days: number;
   short_id: string | null;
+  external_show_id: string | null;
 }
 
 const CATEGORY_OPTIONS = [
@@ -105,6 +106,7 @@ const ShowManager = () => {
       qris_price: show.qris_price || 0,
       membership_duration_days: show.membership_duration_days || 30,
       short_id: show.short_id || null,
+      external_show_id: show.external_show_id || null,
     }).eq("id", show.id);
     await fetchShows();
     toast({ title: "Show diperbarui" });
@@ -292,6 +294,11 @@ const ShowManager = () => {
               <label className="mb-1 block text-xs font-medium text-muted-foreground">🏷️ Custom ID (untuk bot command, opsional)</label>
               <Input value={editing.short_id || ""} onChange={(e) => setEditing({ ...editing, short_id: e.target.value.replace(/[^a-zA-Z0-9_-]/g, '') || null })} onBlur={() => updateShow(editing)} className="bg-background font-mono" placeholder="contoh: sts-freya" />
               <p className="mt-1 text-[10px] text-muted-foreground">Huruf, angka, - dan _ saja. Jika kosong, akan pakai auto hex ID</p>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🌐 External Show ID (hanabira48)</label>
+              <Input value={editing.external_show_id || ""} onChange={(e) => setEditing({ ...editing, external_show_id: e.target.value || null })} onBlur={() => updateShow(editing)} className="bg-background font-mono" placeholder="ID show dari hanabira48" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Digunakan untuk Player 3 (Proxy Stream). Masukkan showId dari hanabira48.com</p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Tampilan (dilihat user)</label>

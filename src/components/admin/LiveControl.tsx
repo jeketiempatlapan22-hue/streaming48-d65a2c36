@@ -111,9 +111,10 @@ const LiveControl = () => {
   };
 
   const addPlaylist = async () => {
-    if (!newLabel || !newUrl) return;
+    if (!newLabel) return;
+    if (newType !== "proxy" && !newUrl) return;
     setPlLoading(true);
-    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : newUrl;
+    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : (newType === "proxy" ? "proxy" : newUrl);
     await supabase.from("playlists").insert({ title: newLabel, type: newType, url: urlToSave, sort_order: playlists.length });
     setNewLabel(""); setNewUrl("");
     await fetchPlaylists();
@@ -326,11 +327,13 @@ const LiveControl = () => {
                 <SelectItem value="youtube">YouTube</SelectItem>
                 <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
                 <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
+                <SelectItem value="proxy">Proxy Stream</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />
-          <Button onClick={addPlaylist} disabled={plLoading || !newLabel || !newUrl}>
+          {newType !== "proxy" && <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />}
+          {newType === "proxy" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">⚡ Proxy Stream otomatis mengambil dari hanabira48 berdasarkan External Show ID di show aktif</p>}
+          <Button onClick={addPlaylist} disabled={plLoading || !newLabel || (newType !== "proxy" && !newUrl)}>
             <Plus className="mr-1 h-4 w-4" /> Tambah
           </Button>
         </div>
@@ -348,6 +351,7 @@ const LiveControl = () => {
                         <SelectItem value="youtube">YouTube</SelectItem>
                         <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
                         <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
+                        <SelectItem value="proxy">Proxy Stream</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
