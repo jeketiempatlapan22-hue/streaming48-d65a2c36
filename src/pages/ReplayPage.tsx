@@ -76,8 +76,10 @@ const ReplayPage = () => {
       if (showsRes.data) {
         const streamLive = (streamRes.data as any)?.is_live ?? true;
         const pastShows = (showsRes.data as any[]).filter((s) => {
-          if (s.is_subscription || s.replay_coin_price <= 0) return false;
+          if (s.is_subscription) return false;
+          // Show replay shows even with replay_coin_price=0 so purchased users can see their passwords
           if (s.is_replay) return true;
+          if (s.replay_coin_price <= 0) return false;
           if (isShowPast4Hours(s)) return true;
           if (!streamLive && isShowPastSchedule(s)) return true;
           return false;
