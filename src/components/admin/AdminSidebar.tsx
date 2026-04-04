@@ -27,6 +27,7 @@ const sections = [
   { id: "moderators", label: "Akun Moderator", icon: UsersRound },
   { id: "users", label: "Manajemen User", icon: UserCog },
   { id: "media", label: "Media Library", icon: Image },
+  { id: "member-photos", label: "Foto Member", icon: UsersRound },
   { id: "password-resets", label: "Reset Password", icon: KeyRound },
   { id: "auth-metrics", label: "Auth Metrics", icon: BarChart3 },
   { id: "traffic", label: "Traffic Monitor", icon: Gauge },

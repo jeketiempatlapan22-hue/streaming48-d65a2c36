@@ -202,6 +202,7 @@ const AdminDashboard = () => {
       case "auth-metrics": return <AdminAuthMetrics />;
       case "traffic": return <AdminTrafficMonitor />;
       case "rate-limits": return <RateLimitMonitor />;
+      case "member-photos": return <MemberPhotoManager />;
       default: return <LiveControl />;
     }
   };
