@@ -1076,6 +1076,7 @@ export type Database = {
     }
     Functions: {
       auto_cleanup_chat: { Args: never; Returns: undefined }
+      auto_unblock_expired_ips: { Args: never; Returns: undefined }
       change_poll_vote: {
         Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
         Returns: undefined
