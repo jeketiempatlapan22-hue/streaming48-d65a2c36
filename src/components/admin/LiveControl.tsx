@@ -111,9 +111,10 @@ const LiveControl = () => {
   };
 
   const addPlaylist = async () => {
-    if (!newLabel || !newUrl) return;
+    if (!newLabel) return;
+    if (newType !== "proxy" && !newUrl) return;
     setPlLoading(true);
-    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : newUrl;
+    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : (newType === "proxy" ? "proxy" : newUrl);
     await supabase.from("playlists").insert({ title: newLabel, type: newType, url: urlToSave, sort_order: playlists.length });
     setNewLabel(""); setNewUrl("");
     await fetchPlaylists();
