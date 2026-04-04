@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore: Deno.serve is the modern API
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -18,7 +18,7 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   // Rate limit: 10 notifications per minute per IP
