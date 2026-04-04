@@ -102,6 +102,7 @@ const ShowManager = () => {
       coin_price: show.coin_price, replay_coin_price: show.replay_coin_price,
       access_password: show.access_password, is_replay: show.is_replay,
       qris_price: show.qris_price || 0,
+      membership_duration_days: show.membership_duration_days || 30,
     }).eq("id", show.id);
     await fetchShows();
     toast({ title: "Show diperbarui" });
