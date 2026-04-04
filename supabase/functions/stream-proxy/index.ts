@@ -601,6 +601,30 @@ Deno.serve(async (req) => {
         );
       }
 
+      if (playlist.type === "proxy") {
+        // Get active show's external_show_id
+        const { data: activeShowSetting } = await supabase.from("site_settings").select("value").eq("key", "active_show_id").single();
+        if (!activeShowSetting?.value) {
+          return new Response(
+            JSON.stringify({ error: "Tidak ada show aktif yang dipilih" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
+        if (!showData?.external_show_id) {
+          return new Response(
+            JSON.stringify({ error: "External Show ID belum diatur untuk show aktif" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const signedUrl = await generateProxyPlaylistSignedUrl(playlist_id, functionUrl, ipH, showData.external_show_id);
+        return new Response(
+          JSON.stringify({ signed_url: signedUrl, expires_in: PLAYLIST_TOKEN_TTL, type: "m3u8" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const realUrl = await getPlaylistData(playlist_id);
       return new Response(
         JSON.stringify({ signed_url: realUrl?.url || "", expires_in: YT_TOKEN_TTL, type: playlist.type }),
