@@ -75,11 +75,20 @@ serve(async (req) => {
     if (!isCoinOrder && show_id) {
       const { data: showData } = await supabase
         .from("shows")
-        .select("qris_price")
+        .select("qris_price, is_subscription, max_subscribers")
         .eq("id", show_id)
         .maybeSingle();
       if (showData?.qris_price && showData.qris_price > 0) {
         finalAmount = showData.qris_price;
+      }
+      // Check membership quota before generating QRIS
+      if (showData?.is_subscription && showData.max_subscribers > 0) {
+        const { data: confirmedCount } = await supabase.rpc("get_order_count", { _show_id: show_id });
+        if ((confirmedCount as number) >= showData.max_subscribers) {
+          return new Response(JSON.stringify({ error: "Kuota membership sudah penuh. QRIS tidak dapat dibuat." }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 

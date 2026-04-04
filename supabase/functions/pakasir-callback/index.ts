@@ -32,10 +32,8 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Pakasir callback received:", JSON.stringify(body));
 
-    // Pak Kasir webhook format: { amount, order_id, project, status, payment_method, completed_at }
     const orderId = body.order_id;
     const status = body.status;
-    const transactionId = body.transaction_id || body.completed_at || orderId;
 
     if (!orderId) {
       return new Response(JSON.stringify({ error: "order_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -46,7 +44,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Persistent DB-level rate limit: 60 callbacks per hour per IP
     const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
       _key: "pakasir_ip:" + ip, _max_requests: 60, _window_seconds: 3600,
     });
@@ -56,7 +53,6 @@ serve(async (req) => {
       });
     }
 
-    // Find order by short_id or payment_gateway_order_id
     const { data: subOrder } = await supabase
       .from("subscription_orders")
       .select("id, show_id, phone, email, status, payment_status, user_id")
@@ -69,16 +65,11 @@ serve(async (req) => {
       .or(`short_id.eq.${orderId},payment_gateway_order_id.eq.${orderId}`)
       .maybeSingle();
 
-    console.log("Found subOrder:", JSON.stringify(subOrder));
-    console.log("Found coinOrder:", JSON.stringify(coinOrder));
-
     if (!subOrder && !coinOrder) {
       return new Response(JSON.stringify({ error: "Order not found", order_id: orderId }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Pak Kasir sends status "completed" on successful payment
     const isPaid = status === "completed" || status === "paid" || status === "success" || status === "settlement";
-    console.log(`Payment status: ${status}, isPaid: ${isPaid}`);
 
     // ===== COIN ORDER =====
     if (coinOrder && coinOrder.status === "pending") {
@@ -87,40 +78,22 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true, status }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // Auto-confirm coin order
       const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_coin_order", { _order_id: coinOrder.id });
       console.log("Coin confirm result:", JSON.stringify(confirmResult), "error:", confirmErr?.message);
 
-      // Send Telegram notification
       const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
       const ADMIN_TELEGRAM_CHAT_ID = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
 
       if (TELEGRAM_BOT_TOKEN && ADMIN_TELEGRAM_CHAT_ID) {
         const newBalance = (confirmResult as any)?.new_balance || "-";
-        const message = [
-          `✅ *Pembelian Koin QRIS Otomatis*`,
-          ``,
-          `🪙 Jumlah: ${coinOrder.coin_amount} koin`,
-          `💰 Harga: ${coinOrder.price || "-"}`,
-          `📱 Phone: ${coinOrder.phone || "-"}`,
-          `💳 Metode: QRIS Dinamis (Pak Kasir)`,
-          `🔖 Order ID: ${coinOrder.short_id || orderId}`,
-          `💎 Saldo baru: ${newBalance} koin`,
-        ].join("\n");
-
+        const message = `✅ *Pembelian Koin QRIS Otomatis*\n\n🪙 Jumlah: ${coinOrder.coin_amount} koin\n💰 Harga: ${coinOrder.price || "-"}\n📱 Phone: ${coinOrder.phone || "-"}\n💳 Metode: QRIS Dinamis (Pak Kasir)\n🔖 Order ID: ${coinOrder.short_id || orderId}\n💎 Saldo baru: ${newBalance} koin`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: ADMIN_TELEGRAM_CHAT_ID,
-            text: message,
-            parse_mode: "Markdown",
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: ADMIN_TELEGRAM_CHAT_ID, text: message, parse_mode: "Markdown" }),
         }).catch((e) => console.error("Telegram error:", e));
       }
 
-      // Send WhatsApp to buyer
-      await sendBuyerWhatsApp(coinOrder.phone, 
+      await sendBuyerWhatsApp(coinOrder.phone,
         `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${(confirmResult as any)?.new_balance || 0} koin*\n\n_Terima kasih atas pembelian Anda!_ 🙏\n━━━━━━━━━━━━━━━━━━`
       );
 
@@ -129,9 +102,7 @@ serve(async (req) => {
 
     // ===== SUBSCRIPTION / SHOW ORDER =====
     if (subOrder) {
-      // Already processed
       if (subOrder.payment_status === "paid" || subOrder.status === "confirmed") {
-        console.log("Order already processed:", subOrder.id);
         return new Response(JSON.stringify({ success: true, message: "Already processed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
@@ -141,23 +112,32 @@ serve(async (req) => {
       }
 
       // Update payment status
-      await supabase
-        .from("subscription_orders")
-        .update({ payment_status: "paid" })
-        .eq("id", subOrder.id);
+      await supabase.from("subscription_orders").update({ payment_status: "paid" }).eq("id", subOrder.id);
 
-      // Auto-confirm: creates NEW unique token via confirm_regular_order RPC
-      const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_regular_order", { _order_id: subOrder.id });
-      console.log("Show confirm result:", JSON.stringify(confirmResult), "error:", confirmErr?.message);
-
-      // Get show details for notification
+      // Get show details
       const { data: show } = await supabase
         .from("shows")
-        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link")
+        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days")
         .eq("id", subOrder.show_id)
         .maybeSingle();
 
-      const tokenCode = (confirmResult as any)?.token_code || null;
+      let tokenCode: string | null = null;
+      let expiresAt: string | null = null;
+      let durationDays: number | null = null;
+
+      // Use membership-specific confirmation for subscription shows
+      if (show?.is_subscription) {
+        const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_membership_order", { _order_id: subOrder.id });
+        console.log("Membership confirm result:", JSON.stringify(confirmResult), "error:", confirmErr?.message);
+        tokenCode = (confirmResult as any)?.token_code || null;
+        expiresAt = (confirmResult as any)?.expires_at || null;
+        durationDays = (confirmResult as any)?.duration_days || null;
+      } else {
+        const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_regular_order", { _order_id: subOrder.id });
+        console.log("Show confirm result:", JSON.stringify(confirmResult), "error:", confirmErr?.message);
+        tokenCode = (confirmResult as any)?.token_code || null;
+      }
+
       const siteUrl = "realtime48stream.my.id";
 
       // Send Telegram notification
@@ -173,30 +153,38 @@ serve(async (req) => {
           `📱 Phone: ${subOrder.phone || "-"}`,
           `📧 Email: ${subOrder.email || "-"}`,
           tokenCode ? `🎫 Token: \`${tokenCode}\`` : null,
+          durationDays ? `⏰ Durasi: ${durationDays} hari` : null,
           `📦 Tipe: ${orderType}`,
           `💳 Metode: QRIS Dinamis`,
           `👤 User: ${subOrder.user_id ? "Login" : "Guest"}`,
         ].filter(Boolean).join("\n");
 
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: ADMIN_TELEGRAM_CHAT_ID,
-            text: message,
-            parse_mode: "Markdown",
-          }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: ADMIN_TELEGRAM_CHAT_ID, text: message, parse_mode: "Markdown" }),
         }).catch((e) => console.error("Telegram error:", e));
       }
 
-      // Send comprehensive WhatsApp to buyer
+      // Send WhatsApp to buyer
       if (subOrder.phone) {
         let waMessage = `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || "Show"}*\n`;
-        
+
         if (show?.is_subscription) {
           waMessage += `📦 Tipe: *Membership*\n`;
+          if (durationDays) {
+            waMessage += `⏰ Durasi: *${durationDays} hari*\n`;
+          }
+          if (tokenCode) {
+            waMessage += `\n🎫 *Token Membership:* ${tokenCode}\n`;
+            waMessage += `📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${tokenCode}\n`;
+          }
           if (show.group_link) {
             waMessage += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+          }
+          // Include replay info for membership
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+          if (show.access_password) {
+            waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
         } else if (show?.is_replay) {
           waMessage += `📦 Tipe: *Replay*\n`;
@@ -215,13 +203,12 @@ serve(async (req) => {
           if (show?.schedule_date) {
             waMessage += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
           }
-          // Always include replay info for regular shows
           waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
           if (show?.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
         }
-        
+
         waMessage += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
         await sendBuyerWhatsApp(subOrder.phone, waMessage);
       }
@@ -241,11 +228,10 @@ async function sendBuyerWhatsApp(phone: string | null, message: string) {
   if (!phone) return;
   const FONNTE_API_TOKEN = Deno.env.get("FONNTE_API_TOKEN");
   if (!FONNTE_API_TOKEN) return;
-  
-  // Clean phone number
+
   let cleanPhone = phone.replace(/[^0-9]/g, "");
   if (cleanPhone.startsWith("0")) cleanPhone = "62" + cleanPhone.slice(1);
-  if (!cleanPhone.startsWith("62")) cleanPhone = "62" + cleanPhone;
+  if (!cleanPhone.startsWith("62") && !cleanPhone.startsWith("+")) cleanPhone = "62" + cleanPhone;
 
   try {
     const res = await fetch("https://api.fonnte.com/send", {
