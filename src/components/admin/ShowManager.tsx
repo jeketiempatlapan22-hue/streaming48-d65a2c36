@@ -21,6 +21,7 @@ interface Show {
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
   qris_price: number;
   membership_duration_days: number;
+  short_id: string | null;
 }
 
 const CATEGORY_OPTIONS = [
