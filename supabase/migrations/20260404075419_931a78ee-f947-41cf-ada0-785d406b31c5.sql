@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_coin_order_confirmed ON public.coin_orders;

@@ -71,20 +71,35 @@ Deno.serve(async (req) => {
     const isPaid = status === "completed" || status === "paid" || status === "success" || status === "settlement";
 
     // ===== COIN ORDER =====
-    if (coinOrder && coinOrder.status === "pending") {
+    if (coinOrder) {
+      // Already confirmed
+      if (coinOrder.status === "confirmed") {
+        console.log("Coin order already confirmed:", coinOrder.id);
+        return new Response(JSON.stringify({ success: true, message: "Already confirmed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       if (!isPaid) {
         await supabase.from("coin_orders").update({ status: status || "failed" }).eq("id", coinOrder.id);
         return new Response(JSON.stringify({ success: true, status }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
+      // Confirm the coin order - this adds coins to user balance
       const { data: confirmResult, error: confirmErr } = await supabase.rpc("confirm_coin_order", { _order_id: coinOrder.id });
       console.log("Coin confirm result:", JSON.stringify(confirmResult), "error:", confirmErr?.message);
 
+      if (confirmErr || !(confirmResult as any)?.success) {
+        console.error("Failed to confirm coin order:", confirmErr?.message || (confirmResult as any)?.error);
+        // Still return 200 so Pakasir doesn't retry endlessly
+        return new Response(JSON.stringify({ success: false, error: "Confirm failed" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const newBalance = (confirmResult as any)?.new_balance || 0;
+
+      // Send Telegram notification to admin
       const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
       const ADMIN_TELEGRAM_CHAT_ID = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
 
       if (TELEGRAM_BOT_TOKEN && ADMIN_TELEGRAM_CHAT_ID) {
-        const newBalance = (confirmResult as any)?.new_balance || "-";
         const message = `✅ *Pembelian Koin QRIS Otomatis*\n\n🪙 Jumlah: ${coinOrder.coin_amount} koin\n💰 Harga: ${coinOrder.price || "-"}\n📱 Phone: ${coinOrder.phone || "-"}\n💳 Metode: QRIS Dinamis (Pak Kasir)\n🔖 Order ID: ${coinOrder.short_id || orderId}\n💎 Saldo baru: ${newBalance} koin`;
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -92,11 +107,16 @@ Deno.serve(async (req) => {
         }).catch((e) => console.error("Telegram error:", e));
       }
 
-      await sendBuyerWhatsApp(coinOrder.phone,
-        `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${(confirmResult as any)?.new_balance || 0} koin*\n\n_Terima kasih atas pembelian Anda!_ 🙏\n━━━━━━━━━━━━━━━━━━`
-      );
+      // Send WhatsApp notification to buyer
+      if (coinOrder.phone) {
+        await sendBuyerWhatsApp(coinOrder.phone,
+          `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Koin Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${newBalance} koin*\n\n🛒 Koin dapat digunakan untuk membeli akses show di halaman utama atau halaman jadwal.\n\n_Terima kasih atas pembelian Anda!_ 🙏\n━━━━━━━━━━━━━━━━━━`
+        );
+      } else {
+        console.log("No phone number for coin order, skipping WhatsApp notification");
+      }
 
-      return new Response(JSON.stringify({ success: true, confirmed: true, type: "coin" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ success: true, confirmed: true, type: "coin", new_balance: newBalance }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // ===== SUBSCRIPTION / SHOW ORDER =====
