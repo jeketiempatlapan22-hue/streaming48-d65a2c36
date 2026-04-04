@@ -27,6 +27,14 @@ interface Violation {
   created_at: string;
 }
 
+const UNBLOCK_OPTIONS = [
+  { value: "6", label: "6 jam" },
+  { value: "12", label: "12 jam" },
+  { value: "24", label: "24 jam" },
+  { value: "48", label: "48 jam" },
+  { value: "72", label: "72 jam" },
+];
+
 const RateLimitMonitor = () => {
   const [blockedIPs, setBlockedIPs] = useState<BlockedIP[]>([]);
   const [violations, setViolations] = useState<Violation[]>([]);
@@ -35,15 +43,19 @@ const RateLimitMonitor = () => {
   const [manualIP, setManualIP] = useState("");
   const [manualReason, setManualReason] = useState("");
   const [tab, setTab] = useState<"blocked" | "violations">("blocked");
+  const [unblockHours, setUnblockHours] = useState("24");
+  const [savingHours, setSavingHours] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [blockedRes, violationsRes] = await Promise.all([
+      const [blockedRes, violationsRes, settingsRes] = await Promise.all([
         supabase.from("blocked_ips").select("*").order("blocked_at", { ascending: false }),
         supabase.from("rate_limit_violations").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("site_settings").select("value").eq("key", "auto_unblock_hours").maybeSingle(),
       ]);
       if (blockedRes.data) setBlockedIPs(blockedRes.data as BlockedIP[]);
       if (violationsRes.data) setViolations(violationsRes.data as Violation[]);
+      if (settingsRes.data?.value) setUnblockHours(settingsRes.data.value);
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
@@ -52,6 +64,14 @@ const RateLimitMonitor = () => {
     const interval = setInterval(fetchData, 30_000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const saveUnblockHours = async (val: string) => {
+    setUnblockHours(val);
+    setSavingHours(true);
+    await supabase.from("site_settings").upsert({ key: "auto_unblock_hours", value: val }, { onConflict: "key" });
+    setSavingHours(false);
+    toast.success(`Durasi auto-unblock diubah ke ${val} jam`);
+  };
 
   const handleBlock = async () => {
     const ip = manualIP.trim();
