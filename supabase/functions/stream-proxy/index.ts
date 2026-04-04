@@ -101,10 +101,12 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 // --- CACHES ---
 const M3U8_CACHE_TTL_MS = 2000; // 2s (tighter)
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
+const PROXY_TOKEN_CACHE_TTL_MS = 300000; // 5 min cache for hanabira48 tokens
 
 interface CacheEntry { content: string; cachedAt: number }
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
+const proxyTokenCache = new Map<string, { headers: Record<string, string>; cachedAt: number }>();
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
@@ -135,6 +137,98 @@ async function getPlaylistData(pid: string): Promise<{ url: string; type: string
   if (!data) return null;
   playlistUrlCache.set(pid, { url: data.url, type: data.type, cachedAt: Date.now() });
   return { url: data.url, type: data.type };
+}
+
+// --- PROXY STREAM HELPERS ---
+async function getProxyStreamHeaders(externalShowId: string): Promise<Record<string, string> | null> {
+  const cached = proxyTokenCache.get(externalShowId);
+  if (cached && Date.now() - cached.cachedAt < PROXY_TOKEN_CACHE_TTL_MS) {
+    return cached.headers;
+  }
+  try {
+    const res = await fetch(`https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`);
+    if (!res.ok) {
+      console.error("[proxy] Failed to get stream token from hanabira48:", res.status);
+      return null;
+    }
+    const data = await res.json();
+    const headers: Record<string, string> = {
+      xapi: data.xapi || "",
+      xsec: data.xsec || "",
+      xshowid: data.xshowid || "",
+      xtoken: data.xtoken || "",
+    };
+    proxyTokenCache.set(externalShowId, { headers, cachedAt: Date.now() });
+    return headers;
+  } catch (err) {
+    console.error("[proxy] Error fetching hanabira48 token:", err);
+    return null;
+  }
+}
+
+async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise<string | null> {
+  try {
+    const res = await fetch("https://proxy.mediastream48.workers.dev/api/proxy/playback", {
+      headers: {
+        ...proxyHeaders,
+        "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+      },
+    });
+    if (!res.ok) {
+      console.error("[proxy] Failed to fetch manifest from mediastream48:", res.status);
+      return null;
+    }
+    return await res.text();
+  } catch (err) {
+    console.error("[proxy] Error fetching proxy manifest:", err);
+    return null;
+  }
+}
+
+async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
+  const encoded = base64UrlEncode(rawUrl);
+  const eid = base64UrlEncode(externalShowId);
+  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${ipHash}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+}
+
+async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const lines = content.split("\n");
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { result.push(line); continue; }
+
+    if (trimmed.startsWith("#")) {
+      if (trimmed.includes('URI="')) {
+        const match = trimmed.match(/URI="([^"]+)"/);
+        if (match) {
+          const absUrl = resolveUrl(match[1], baseUrl);
+          const signed = await generateProxySegSignedUrl(absUrl, functionUrl, ipHash, externalShowId);
+          result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
+        } else { result.push(line); }
+      } else { result.push(line); }
+      continue;
+    }
+
+    const absoluteUrl = resolveUrl(trimmed, baseUrl);
+    if (isM3u8Url(absoluteUrl)) {
+      result.push(await generateProxySegSignedUrl(absoluteUrl, functionUrl, ipHash, externalShowId));
+    } else {
+      // Segments must also go through proxy (needs custom headers)
+      result.push(await generateProxySegSignedUrl(absoluteUrl, functionUrl, ipHash, externalShowId));
+    }
+  }
+  return result.join("\n");
+}
+
+async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
+  const eid = base64UrlEncode(externalShowId);
+  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${ipHash}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
 }
 
 // --- CRYPTO HELPERS ---
