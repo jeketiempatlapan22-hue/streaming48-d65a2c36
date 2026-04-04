@@ -890,6 +890,168 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       });
     }
 
+    // ===== MODE: proxyplay (GET) - Proxy stream manifest =====
+    if (req.method === "GET" && mode === "proxyplay") {
+      const pid = url.searchParams.get("pid");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
+      const eid = url.searchParams.get("eid");
+
+      if (pid && !edgeRateLimit(`proxyplay:${clientIp}:${pid}`, 150, 60000)) {
+        return getRateLimitResponse(true);
+      }
+
+      if (!pid || !exp || !sig || !h || !eid) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Token expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${h}:${eid}`, sig))) {
+        trackAbuse(clientIp);
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const externalShowId = base64UrlDecode(eid);
+      const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+      if (!proxyHeaders) {
+        return new Response("Failed to get proxy stream token", { status: 502, headers: corsHeaders });
+      }
+
+      const cacheKey = `proxyplay:${pid}:${ipH}`;
+      const cached = getCachedM3u8(cacheKey);
+      if (cached) {
+        return new Response(cached, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/vnd.apple.mpegurl",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        });
+      }
+
+      const manifest = await fetchProxyManifest(proxyHeaders);
+      if (!manifest) {
+        return new Response("Failed to fetch proxy stream", { status: 502, headers: corsHeaders });
+      }
+
+      const functionUrl = `${SUPABASE_URL}/functions/v1`;
+      const baseUrl = "https://proxy.mediastream48.workers.dev/api/proxy/";
+      const rewritten = await rewriteProxyM3u8(manifest, baseUrl, functionUrl, ipH, externalShowId);
+      setCachedM3u8(cacheKey, rewritten);
+
+      return new Response(rewritten, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/vnd.apple.mpegurl",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
+    // ===== MODE: proxyseg (GET) - Proxy segment with custom headers =====
+    if (req.method === "GET" && mode === "proxyseg") {
+      const encoded = url.searchParams.get("u");
+      const exp = url.searchParams.get("exp");
+      const sig = url.searchParams.get("sig");
+      const h = url.searchParams.get("h");
+      const eid = url.searchParams.get("eid");
+
+      if (encoded && !edgeRateLimit(`proxyseg:${clientIp}:${encoded.slice(0, 20)}`, 300, 60000)) {
+        return getRateLimitResponse(true);
+      }
+
+      if (!encoded || !exp || !sig || !h || !eid) {
+        return new Response("Missing parameters", { status: 400, headers: corsHeaders });
+      }
+
+      if (Date.now() / 1000 > parseInt(exp, 10)) {
+        return new Response("Segment expired", { status: 403, headers: corsHeaders });
+      }
+
+      if (h !== ipH) {
+        trackAbuse(clientIp);
+        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
+      }
+
+      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${h}:${eid}`, sig))) {
+        trackAbuse(clientIp);
+        return new Response("Invalid signature", { status: 403, headers: corsHeaders });
+      }
+
+      const actualUrl = base64UrlDecode(encoded);
+      const externalShowId = base64UrlDecode(eid);
+
+      // Check if this is a sub-playlist (.m3u8) or a segment
+      if (isM3u8Url(actualUrl)) {
+        // Sub-playlist: fetch with headers and rewrite
+        const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+        if (!proxyHeaders) {
+          return new Response("Failed to get proxy token", { status: 502, headers: corsHeaders });
+        }
+
+        const res = await fetch(actualUrl, {
+          headers: {
+            ...proxyHeaders,
+            "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+          },
+        });
+        if (!res.ok) {
+          return new Response("Failed to fetch sub-playlist", { status: 502, headers: corsHeaders });
+        }
+
+        const content = await res.text();
+        const baseUrl = actualUrl.substring(0, actualUrl.lastIndexOf("/") + 1);
+        const functionUrl = `${SUPABASE_URL}/functions/v1`;
+        const rewritten = await rewriteProxyM3u8(content, baseUrl, functionUrl, ipH, externalShowId);
+
+        return new Response(rewritten, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/vnd.apple.mpegurl",
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+          },
+        });
+      }
+
+      // Segment: proxy the actual content with headers
+      const proxyHeaders = await getProxyStreamHeaders(externalShowId);
+      if (!proxyHeaders) {
+        return new Response("Failed to get proxy token", { status: 502, headers: corsHeaders });
+      }
+
+      const segRes = await fetch(actualUrl, {
+        headers: {
+          ...proxyHeaders,
+          "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
+        },
+      });
+
+      if (!segRes.ok) {
+        return new Response("Failed to fetch segment", { status: 502, headers: corsHeaders });
+      }
+
+      return new Response(segRes.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": segRes.headers.get("Content-Type") || "video/mp2t",
+          "Cache-Control": "private, max-age=5",
+        },
+      });
+    }
+
     return new Response("Not found", { status: 404, headers: corsHeaders });
   } catch (err) {
     console.error("stream-proxy error:", err);
