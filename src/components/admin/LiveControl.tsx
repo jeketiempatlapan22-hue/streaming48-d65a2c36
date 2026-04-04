@@ -326,6 +326,7 @@ const LiveControl = () => {
                 <SelectItem value="youtube">YouTube</SelectItem>
                 <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
                 <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
+                <SelectItem value="proxy">Proxy Stream</SelectItem>
               </SelectContent>
             </Select>
           </div>
