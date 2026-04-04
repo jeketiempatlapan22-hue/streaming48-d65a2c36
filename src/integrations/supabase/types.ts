@@ -661,6 +661,7 @@ export type Database = {
           category_member: string | null
           coin_price: number
           created_at: string
+          external_show_id: string | null
           group_link: string | null
           id: string
           is_active: boolean
@@ -688,6 +689,7 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
+          external_show_id?: string | null
           group_link?: string | null
           id?: string
           is_active?: boolean
@@ -715,6 +717,7 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
+          external_show_id?: string | null
           group_link?: string | null
           id?: string
           is_active?: boolean
@@ -1157,6 +1160,7 @@ export type Database = {
           category_member: string | null
           coin_price: number
           created_at: string
+          external_show_id: string | null
           group_link: string | null
           id: string
           is_active: boolean
