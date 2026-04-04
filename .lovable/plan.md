@@ -1,132 +1,95 @@
 
 
-# Rencana: Membership Token 30 Hari + Kuota Realtime + Notifikasi WhatsApp
+## Plan: Player 3 — Proxy Stream dari hanabira48.com
 
-## Ringkasan
-1. Membership purchase menghasilkan token dengan durasi yang bisa diatur admin (default 30 hari)
-2. Kuota membership di-enforce di backend (QRIS + coin) dan UI realtime
-3. WhatsApp notifikasi otomatis berisi token + info replay + sandi
-4. Format nomor internasional di admin panel
-5. Badge sisa durasi membership di player
-6. Admin toggle untuk fitur membership token
+### Ringkasan
+Menambahkan tipe player baru "proxy" yang mengambil stream HLS dari `proxy.mediastream48.workers.dev` dengan header autentikasi yang didapat dari API `hanabira48.com`. Admin dapat menyimpan "External Show ID" di setiap show melalui Show Manager.
 
----
-
-## 1. Database Changes
-
-### A. Tambah kolom `membership_duration_days` di tabel `shows`
-- Default: 30 (hari)
-- Admin bisa atur per-show berapa hari durasi membership
-
-### B. Buat RPC `confirm_membership_order(_order_id uuid)`
-Logika:
-- Validasi order pending + show `is_subscription = true`
-- Cek kuota: `get_order_count(show_id)` vs `max_subscribers` → tolak jika penuh
-- Generate token `MBR-xxxx` dengan `expires_at = now() + membership_duration_days days`
-- Update order → confirmed, payment_status → paid
-- Return `{ success, token_code, expires_at, access_password, group_link, replay_password }`
-
-### C. Update RPC `redeem_coins_for_membership`
-- Tambah cek kuota sebelum redeem
-- Generate token `MBR-xxxx` dengan durasi sesuai `membership_duration_days`
-- Return token_code + expires_at + access_password + group_link
-
-### D. Insert site_settings: `membership_token_enabled` = "true"
-
----
-
-## 2. Edge Function: `create-dynamic-qris` — Cek Kuota Membership
-
-Sebelum generate QRIS untuk show `is_subscription = true`:
-- Query `get_order_count` + `shows.max_subscribers`
-- Jika penuh → return error 400, QRIS tidak dibuat
-
----
-
-## 3. Edge Function: `pakasir-callback` — Membership Flow
-
-Saat show `is_subscription = true`:
-- Panggil `confirm_membership_order` (bukan `confirm_regular_order`)
-- Cek apakah `membership_token_enabled` aktif
-- Kirim WhatsApp ke buyer:
-  - ✅ Berhasil membeli membership
-  - 🎫 Token + link live
-  - ⏰ Durasi X hari
-  - 🔄 Info replay + sandi replay
-  - 🔗 Link grup (jika ada)
-
----
-
-## 4. Frontend: `MembershipPage.tsx` — Realtime Kuota + Token Display
-
-- Realtime subscribe ke `subscription_orders` INSERT → refresh count otomatis
-- Disable tombol + hide QRIS/coin saat kuota penuh (realtime)
-- Dynamic QRIS flow: wajib isi phone + email sebelum generate QRIS
-- Coin flow: setelah sukses, tampilkan token + info replay + sandi di UI "done"
-- Kirim notifikasi WhatsApp via edge function setelah coin purchase berhasil
-
----
-
-## 5. Admin Panel: Format Nomor Internasional
-
-**File:** `src/components/admin/SubscriptionOrderManager.tsx`
-- Deteksi nomor non-Indonesia (tidak awali 08/62/+62)
-- Tampilkan badge "🌍 Internasional" di samping nomor
-- Format Indonesia: `+62xxx`, lainnya: as-is
-
----
-
-## 6. Player: Sisa Durasi Membership
-
-**File:** `src/pages/LivePage.tsx`
-- Setelah validate token, cek prefix `MBR-` dan `expires_at`
-- Tampilkan floating badge: "Membership: X hari tersisa"
-
----
-
-## 7. Admin Toggle + Durasi
-
-**File:** `src/components/admin/SiteSettingsManager.tsx`
-- Toggle `membership_token_enabled` (ON/OFF)
-- Jika OFF → membership berfungsi seperti sekarang (tanpa token otomatis)
-
-**File:** `src/components/admin/ShowManager.tsx`
-- Tambah input `membership_duration_days` pada show yang `is_subscription = true`
-- Default 30 hari
-
----
-
-## Alur Lengkap
+### Arsitektur
 
 ```text
-QRIS Dinamis:
-  User pilih membership → Cek kuota (penuh? tolak)
-  → Input phone+email → Generate QRIS
-  → Scan → Pakasir callback → confirm_membership_order
-  → Token MBR-xxx (30 hari) → WhatsApp: token+replay+sandi
-  → UI: success
-
-Koin:
-  User pilih koin → Cek kuota (penuh? tolak)
-  → Input phone+email → redeem_coins_for_membership
-  → Token MBR-xxx (30 hari) → WhatsApp: token+replay+sandi
-  → UI: success + token display
-
-Realtime:
-  Order INSERT → refresh count → kuota penuh → disable UI instantly
-
-Player:
-  Token MBR- → badge "Membership: X hari tersisa"
+┌──────────────┐     POST /stream-token     ┌──────────────────┐
+│  Edge Func   │ ──────────────────────────► │ hanabira48.com   │
+│ proxy-stream │ ◄────────────────────────── │ (xapi,xsec,etc)  │
+│              │                             └──────────────────┘
+│              │     GET /playback + headers  ┌──────────────────┐
+│              │ ──────────────────────────► │ proxy.media...   │
+│              │ ◄────────── m3u8 content ── │ workers.dev      │
+│              │                             └──────────────────┘
+└──────┬───────┘
+       │ rewrite m3u8 URLs → signed proxy
+       ▼
+  ┌──────────┐
+  │ Browser  │  (sama seperti m3u8 biasa via HLS.js)
+  └──────────┘
 ```
 
-## File yang akan diubah/dibuat
+Browser **tidak bisa** langsung memasang custom headers di HLS.js request ke domain berbeda (CORS), jadi dibutuhkan edge function sebagai proxy server-side.
 
-1. **Migration SQL** — kolom `membership_duration_days`, RPC `confirm_membership_order`, update `redeem_coins_for_membership`
-2. `supabase/functions/create-dynamic-qris/index.ts` — kuota check untuk membership
-3. `supabase/functions/pakasir-callback/index.ts` — membership flow + WhatsApp token
-4. `src/pages/MembershipPage.tsx` — realtime kuota, token display, phone/email wajib, WhatsApp notif coin
-5. `src/components/admin/SubscriptionOrderManager.tsx` — badge nomor internasional
-6. `src/pages/LivePage.tsx` — badge sisa membership
-7. `src/components/admin/SiteSettingsManager.tsx` — toggle membership_token_enabled
-8. `src/components/admin/ShowManager.tsx` — input membership_duration_days
+---
+
+### Langkah Implementasi
+
+#### 1. Database — Tambah kolom `external_show_id` di tabel `shows`
+- Migrasi: `ALTER TABLE public.shows ADD COLUMN external_show_id text DEFAULT NULL;`
+- Update fungsi `get_public_shows` untuk menyertakan kolom baru
+
+#### 2. Admin Panel — Input External Show ID di Show Manager
+- Tambah field input "External Show ID (hanabira48)" di form edit show (`ShowManager.tsx`)
+- Field muncul di bawah "Custom ID" yang sudah ada
+- Auto-save on blur seperti field lainnya
+
+#### 3. Admin Panel — Tipe playlist baru "proxy"
+- Di `LiveControl.tsx` dan `PlaylistManager.tsx`, tambah opsi `<SelectItem value="proxy">Proxy Stream</SelectItem>` pada dropdown tipe
+- Untuk tipe "proxy", URL field tidak diperlukan (akan otomatis menggunakan endpoint proxy). Bisa diisi placeholder atau dikosongkan
+
+#### 4. Edge Function — `proxy-stream/index.ts` (baru)
+Edge function ini menangani:
+
+**POST (generate mode):**
+1. Validasi token (sama seperti stream-proxy)
+2. Cari playlist tipe "proxy" → ambil `active_show_id` dari `site_settings`
+3. Cari show → ambil `external_show_id`
+4. Fetch token dari `https://hanabira48.com/api/stream-token?showId={external_show_id}`
+5. Gunakan response headers (xapi, xsec, xshowid, xtoken) untuk fetch manifest dari `https://proxy.mediastream48.workers.dev/api/proxy/playback`
+6. Cache manifest, rewrite segment URLs → signed proxy URLs
+7. Return signed manifest URL ke client
+
+**GET mode=play:** Fetch & rewrite manifest dengan headers yang sudah di-cache
+**GET mode=seg:** Proxy segment request dengan headers yang benar
+
+#### 5. Stream Proxy Integration — Update `stream-proxy/index.ts`
+- Tambah handler untuk `playlist.type === "proxy"`:
+  - Ambil `active_show_id` dari site_settings
+  - Cari `external_show_id` dari show
+  - Fetch token headers dari hanabira48 API
+  - Fetch manifest dari proxy.mediastream48 dengan headers
+  - Rewrite manifest URLs → signed proxy URLs (segment proxy)
+  - Return signed URL untuk manifest
+- Tambah mode `proxyseg` untuk GET requests yang memproxy segment dengan custom headers
+
+#### 6. VideoPlayer — Tidak perlu perubahan besar
+- Tipe "proxy" akan di-treat sama seperti "m3u8" di sisi frontend karena edge function sudah menghasilkan M3U8 yang valid
+- Di `useSignedStreamUrl`, proxy type "proxy" akan dikembalikan sebagai type "m3u8" dari edge function
+- Tidak perlu perubahan di `VideoPlayer.tsx`
+
+---
+
+### Detail Teknis
+
+**Token caching di edge function:**
+- Header dari hanabira48 API di-cache selama 5 menit (in-memory) per show ID untuk menghindari request berlebihan
+- Manifest di-cache selama 3 detik (sama seperti m3u8 biasa)
+
+**Segment proxying:**
+- Setiap segment URL di manifest di-rewrite ke signed proxy URL
+- Edge function mem-proxy segment request ke workers.dev dengan header yang benar
+- HMAC signature + IP binding + expiry (sama seperti m3u8 proxy yang sudah ada)
+
+**File yang akan diubah/dibuat:**
+1. `supabase/migrations/` — Tambah kolom `external_show_id`
+2. `src/components/admin/ShowManager.tsx` — Input field external_show_id
+3. `src/components/admin/LiveControl.tsx` — Tambah opsi "Proxy Stream" di dropdown tipe playlist
+4. `src/components/admin/PlaylistManager.tsx` — Tambah opsi "Proxy Stream"
+5. `supabase/functions/stream-proxy/index.ts` — Tambah handler tipe "proxy"
 
