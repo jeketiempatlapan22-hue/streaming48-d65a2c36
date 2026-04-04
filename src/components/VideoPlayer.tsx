@@ -254,7 +254,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
-        if (!destroyed) setSelectedQuality(d.level);
+        if (!destroyed) {
+          // Only update UI if user is on Auto mode; otherwise keep their selection displayed
+          if (userQualityRef.current === -1) {
+            setSelectedQuality(d.level);
+          }
+        }
       });
 
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
