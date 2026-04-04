@@ -670,22 +670,40 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
-      {/* YouTube iframe fallback — no blocking overlay so user can use native YouTube controls */}
+      {/* YouTube iframe fallback — full overlay blocks all YouTube UI, custom controls handle play/pause */}
       {playlistType === "youtube" && ytMode === "iframe" && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
           <iframe
+            ref={(el) => {
+              // Store iframe ref for postMessage control
+              if (el) (containerRef.current as any).__ytIframe = el;
+            }}
             src={ytIframeUrl}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
             allowFullScreen
-            className="absolute inset-0 w-full h-full border-0"
+            className="absolute inset-0 w-full h-full border-0 z-[1]"
             // @ts-ignore
             playsInline=""
           />
-          {/* Minimal overlay only for right-click protection — allows click-through for controls */}
+          {/* Full overlay — blocks all YouTube buttons & source URL access */}
           <div
-            className="absolute inset-0 z-[2]"
-            style={{ pointerEvents: "none" }}
+            className="absolute inset-0 z-[2] cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
             onContextMenu={e => e.preventDefault()}
+            onClick={e => {
+              e.stopPropagation();
+              // Toggle play/pause via postMessage to YouTube iframe
+              const iframe = (containerRef.current as any)?.__ytIframe as HTMLIFrameElement | undefined;
+              if (iframe?.contentWindow) {
+                if (isPlaying) {
+                  iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                  setIsPlaying(false);
+                } else {
+                  iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                  setIsPlaying(true);
+                }
+              }
+            }}
           />
         </div>
       )}
