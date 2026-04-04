@@ -20,6 +20,7 @@ import { withRetry, withTimeout } from "@/lib/queryCache";
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
 const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
 const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
+const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void }) => {
   const [resetting, setResetting] = useState(false);
@@ -612,6 +613,9 @@ const LivePage = () => {
             {playlists.map((p: any) => <button key={p.id} onClick={() => handlePlaylistSwitch(p)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-all ${activePlaylist?.id === p.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{p.title}</button>)}
           </div>
         )}
+        <Suspense fallback={null}>
+          <LineupAvatars />
+        </Suspense>
         <div className="border-t border-border px-4 py-3"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col">
