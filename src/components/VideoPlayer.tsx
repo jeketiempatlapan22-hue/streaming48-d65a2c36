@@ -41,6 +41,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const userQualityRef = useRef<number>(-1); // track user's manual quality choice
 
   const playlistUrl = playlist.url;
   const playlistType = playlist.type;
@@ -149,6 +150,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setSelectedQuality(-1);
     setIsBehindLive(false);
     setPlayerError(null);
+    userQualityRef.current = -1;
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -199,14 +201,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
-        backBufferLength: 30,
-        maxBufferLength: 15,
-        maxMaxBufferLength: 30,
-        maxBufferHole: 1.0,
-        nudgeOffset: 0.2,
+        backBufferLength: 15,
+        maxBufferLength: 10,
+        maxMaxBufferLength: 20,
+        maxBufferHole: 0.5,
+        nudgeOffset: 0.1,
         nudgeMaxRetry: 5,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 4,
+        liveBackBufferLength: 10,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
@@ -214,10 +217,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         fragLoadingMaxRetry: 8,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 1000,
-        manifestLoadingTimeOut: 15000,
-        fragLoadingTimeOut: 20000,
-        levelLoadingTimeOut: 15000,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingTimeOut: 10000,
+        fragLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 10000,
+        testBandwidth: true,
+        abrEwmaDefaultEstimate: 500000,
         xhrSetup: (xhr: XMLHttpRequest) => { xhr.withCredentials = false; },
       });
       hlsRef.current = hls;
@@ -250,7 +255,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
-        if (!destroyed) setSelectedQuality(d.level);
+        if (!destroyed) {
+          // Only update UI if user is on Auto mode; otherwise keep their selection displayed
+          if (userQualityRef.current === -1) {
+            setSelectedQuality(d.level);
+          }
+        }
       });
 
       hls.on(Hls.Events.ERROR, (_: any, data: any) => {
@@ -551,14 +561,18 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const handleQualityChange = useCallback((level: number) => {
     const hls = hlsRef.current;
     if (!hls) return;
+    userQualityRef.current = level;
     if (level === -1) {
       hls.currentLevel = -1;
       hls.nextLevel = -1;
+      hls.autoLevelCapping = -1;
       try { hls.autoLevelEnabled = true; } catch {}
     } else {
       try { hls.autoLevelEnabled = false; } catch {}
       hls.currentLevel = level;
       hls.nextLevel = level;
+      // Lock to this level so ABR doesn't switch away
+      hls.autoLevelCapping = level;
     }
     setSelectedQuality(level);
     setShowQualityMenu(false);
