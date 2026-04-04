@@ -22,6 +22,7 @@ interface Show {
   qris_price: number;
   membership_duration_days: number;
   short_id: string | null;
+  external_show_id: string | null;
 }
 
 const CATEGORY_OPTIONS = [
