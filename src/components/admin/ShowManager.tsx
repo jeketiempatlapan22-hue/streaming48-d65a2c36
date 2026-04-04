@@ -331,6 +331,11 @@ const ShowManager = () => {
                   <Input type="number" value={editing.max_subscribers} onChange={(e) => setEditing({ ...editing, max_subscribers: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" />
                 </div>
                 <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">⏰ Durasi Membership (hari)</label>
+                  <Input type="number" value={editing.membership_duration_days || 30} onChange={(e) => setEditing({ ...editing, membership_duration_days: parseInt(e.target.value) || 30 })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="30" />
+                  <p className="mt-1 text-[10px] text-muted-foreground">Token membership akan berlaku selama {editing.membership_duration_days || 30} hari sejak pembelian</p>
+                </div>
+                <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Benefit Langganan</label>
                   <Textarea value={editing.subscription_benefits} onChange={(e) => setEditing({ ...editing, subscription_benefits: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" rows={3} />
                 </div>

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Crown, Sparkles, CheckCircle, Star, Upload, Users, Calendar, Coins, AlertTriangle, MessageCircle, Phone } from "lucide-react";
+import { Crown, Sparkles, CheckCircle, Star, Upload, Users, Calendar, Coins, AlertTriangle, MessageCircle, Phone, Clock, Copy, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -45,6 +45,14 @@ const MembershipPage = () => {
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
   const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  // Membership token result state
+  const [membershipResult, setMembershipResult] = useState<{
+    token_code?: string;
+    expires_at?: string;
+    duration_days?: number;
+    access_password?: string;
+    group_link?: string;
+  } | null>(null);
 
   const fetchMyOrders = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -90,8 +98,16 @@ const MembershipPage = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
       .subscribe();
 
-    const orderChannel = supabase.channel("membership-orders")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscription_orders" }, () => fetchData())
+    // Realtime quota tracking - refresh counts when new orders come in
+    const orderChannel = supabase.channel("membership-orders-realtime")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscription_orders" }, () => {
+        fetchData();
+        fetchMyOrders();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "subscription_orders" }, () => {
+        fetchData();
+        fetchMyOrders();
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(showChannel); supabase.removeChannel(orderChannel); };
@@ -114,6 +130,7 @@ const MembershipPage = () => {
     setPhone("");
     setEmail("");
     setResultGroupLink("");
+    setMembershipResult(null);
     await fetchBalance();
     if (coinOnly && show.coin_price > 0) {
       const { data: { session } } = await supabase.auth.getSession();
@@ -191,17 +208,61 @@ const MembershipPage = () => {
   const handleCoinPurchase = async () => {
     if (!selectedShow || !phone || !email) return;
     setSubmitting(true);
+
+    // Re-check quota before purchasing
+    const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: selectedShow.id });
+    const confirmed = (count as number) || 0;
+    if (selectedShow.max_subscribers > 0 && confirmed >= selectedShow.max_subscribers) {
+      toast({ title: "Kuota membership sudah penuh", variant: "destructive" });
+      setSubmitting(false);
+      setSelectedShow(null);
+      return;
+    }
+
     const { data, error } = await supabase.rpc("redeem_coins_for_membership" as any, {
       _show_id: selectedShow.id, _phone: phone, _email: email,
     });
     setSubmitting(false);
-    if (error || !(data as any)?.success) {
-      toast({ title: (data as any)?.error || "Gagal menukar koin", variant: "destructive" }); return;
+    const result = data as any;
+    if (error || !result?.success) {
+      toast({ title: result?.error || "Gagal menukar koin", variant: "destructive" }); return;
     }
-    setResultGroupLink((data as any).group_link || selectedShow.group_link || "");
-    setCoinBalance((data as any).remaining_balance || 0);
+    setResultGroupLink(result.group_link || selectedShow.group_link || "");
+    setCoinBalance(result.remaining_balance || 0);
+
+    // Set membership token result if available
+    if (result.token_code) {
+      setMembershipResult({
+        token_code: result.token_code,
+        expires_at: result.expires_at,
+        duration_days: result.duration_days,
+        access_password: result.access_password,
+        group_link: result.group_link,
+      });
+    }
+
     setPurchaseStep("done");
     fetchMyOrders();
+
+    // Send WhatsApp notification for coin purchase
+    if (result.token_code) {
+      supabase.functions.invoke("notify-subscription-order", {
+        body: {
+          show_title: selectedShow.title,
+          phone,
+          email,
+          order_type: "membership_coin",
+          token_code: result.token_code,
+          duration_days: result.duration_days,
+          access_password: result.access_password,
+        },
+      }).catch(() => {});
+    }
+  };
+
+  const copyToken = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Token disalin!" });
   };
 
   return (
@@ -367,9 +428,9 @@ const MembershipPage = () => {
             {purchaseStep === "info" && (
               <div className="space-y-4">
                 <div className="rounded-lg bg-[hsl(var(--success))]/10 p-3 text-sm text-[hsl(var(--success))]">✅ Bukti pembayaran berhasil diupload</div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
-                <Button onClick={handleSubmitSubscription} disabled={submitting || !phone} className="w-full">{submitting ? "Mengirim..." : "Kirim Pendaftaran"}</Button>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
+                <Button onClick={handleSubmitSubscription} disabled={submitting || !phone || !email} className="w-full">{submitting ? "Mengirim..." : "Kirim Pendaftaran"}</Button>
               </div>
             )}
 
@@ -377,8 +438,8 @@ const MembershipPage = () => {
               <div className="space-y-4">
                 <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">💰 Saldo koin: {coinBalance} · Harga: {selectedShow.coin_price} koin</div>
                 <p className="text-xs text-muted-foreground">Isi data di bawah agar admin dapat menghubungi Anda:</p>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
                 <Button onClick={handleCoinPurchase} disabled={submitting || !phone || !email} className="w-full">{submitting ? "Memproses..." : `Bayar ${selectedShow.coin_price} Koin`}</Button>
                 <p className="text-[10px] text-center text-muted-foreground">* Tidak perlu upload bukti transaksi, koin akan langsung dipotong</p>
               </div>
@@ -394,16 +455,54 @@ const MembershipPage = () => {
             {purchaseStep === "done" && (
               <div className="space-y-4 text-center">
                 <div className="text-4xl">🎉</div>
-                <h4 className="text-lg font-bold text-foreground">Pendaftaran Berhasil!</h4>
-                {orderShortId && (
+                <h4 className="text-lg font-bold text-foreground">
+                  {membershipResult?.token_code ? "Membership Berhasil Dibeli!" : "Pendaftaran Berhasil!"}
+                </h4>
+
+                {/* Membership token info */}
+                {membershipResult?.token_code && (
+                  <div className="space-y-3 text-left">
+                    <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
+                      <p className="text-[10px] font-medium text-muted-foreground mb-1">🎫 Token Membership</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono text-lg font-bold text-primary flex-1 break-all">{membershipResult.token_code}</p>
+                        <button onClick={() => copyToken(membershipResult.token_code!)} className="rounded-lg bg-primary/10 p-2 hover:bg-primary/20 transition">
+                          <Copy className="h-4 w-4 text-primary" />
+                        </button>
+                      </div>
+                    </div>
+                    {membershipResult.duration_days && (
+                      <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-600">
+                        <Clock className="h-4 w-4" /> Durasi: <strong>{membershipResult.duration_days} hari</strong>
+                      </div>
+                    )}
+                    <a href={`/live?t=${membershipResult.token_code}`}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 transition">
+                      <ExternalLink className="h-4 w-4" /> Tonton Live
+                    </a>
+                    {membershipResult.access_password && (
+                      <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">🔑 Sandi Replay</p>
+                        <p className="font-mono font-bold text-foreground">{membershipResult.access_password}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">🔗 Link Replay: replaytime.lovable.app/replay</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {orderShortId && !membershipResult?.token_code && (
                   <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
                     <p className="text-[10px] font-medium text-muted-foreground mb-1">🆔 ID Pesanan</p>
                     <p className="font-mono text-lg font-bold text-primary">{orderShortId}</p>
                   </div>
                 )}
-                <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar. Admin akan menghubungi Anda." : "Admin akan memverifikasi pembayaran Anda"}</p>
-                {resultGroupLink && (
-                  <a href={resultGroupLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
+
+                {!membershipResult?.token_code && (
+                  <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar. Admin akan menghubungi Anda." : "Admin akan memverifikasi pembayaran Anda"}</p>
+                )}
+
+                {(resultGroupLink || membershipResult?.group_link) && (
+                  <a href={resultGroupLink || membershipResult?.group_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
                     📱 Gabung Grup
                   </a>
                 )}
