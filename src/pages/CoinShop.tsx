@@ -251,6 +251,19 @@ const CoinShop = () => {
       const stored = JSON.parse(localStorage.getItem(`redeemed_tokens_${user.id}`) || "{}");
       stored[showId] = result.token_code;
       localStorage.setItem(`redeemed_tokens_${user.id}`, JSON.stringify(stored));
+
+      // Find show title for notification
+      const targetShow = shows.find((s: any) => s.id === showId);
+      supabase.functions.invoke("notify-coin-show-purchase", {
+        body: {
+          user_id: user.id,
+          show_id: showId,
+          token_code: result.token_code,
+          access_password: result.access_password,
+          show_title: targetShow?.title || "",
+          purchase_type: targetShow?.is_replay ? "replay" : "regular",
+        },
+      }).catch(() => {});
     }
   };
 

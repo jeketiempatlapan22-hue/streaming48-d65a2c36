@@ -274,6 +274,18 @@ const Index = () => {
       addRedeemedToken(coinShowTarget.id, result.token_code);
       if (result.replay_password) addReplayPassword(coinShowTarget.id, result.replay_password);
       if (result.access_password) addAccessPassword(coinShowTarget.id, result.access_password);
+
+      // Send WhatsApp notification with token + replay info
+      supabase.functions.invoke("notify-coin-show-purchase", {
+        body: {
+          user_id: coinUser.id,
+          show_id: coinShowTarget.id,
+          token_code: result.token_code,
+          access_password: result.access_password || result.replay_password,
+          show_title: coinShowTarget.title,
+          purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
+        },
+      }).catch(() => {});
     }
   };
 
