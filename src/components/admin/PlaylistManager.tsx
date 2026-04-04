@@ -27,9 +27,10 @@ const PlaylistManager = () => {
   useEffect(() => { fetchPlaylists(); }, []);
 
   const addPlaylist = async () => {
-    if (!newTitle || !newUrl) return;
+    if (!newTitle) return;
+    if (newType !== "proxy" && !newUrl) return;
     setLoading(true);
-    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : newUrl;
+    const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : (newType === "proxy" ? "proxy" : newUrl);
     await supabase.from("playlists").insert({ title: newTitle, type: newType, url: urlToSave, sort_order: playlists.length });
     setNewTitle(""); setNewUrl("");
     await fetchPlaylists();
