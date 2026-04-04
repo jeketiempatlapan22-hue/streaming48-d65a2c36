@@ -106,6 +106,7 @@ const ShowManager = () => {
       qris_price: show.qris_price || 0,
       membership_duration_days: show.membership_duration_days || 30,
       short_id: show.short_id || null,
+      external_show_id: show.external_show_id || null,
     }).eq("id", show.id);
     await fetchShows();
     toast({ title: "Show diperbarui" });
