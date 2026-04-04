@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
