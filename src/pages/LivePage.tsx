@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
@@ -113,7 +114,7 @@ const LivePage = () => {
     fp
   );
 
-  const effectiveType = proxyType === "youtube" ? "youtube" : (activePlaylist?.type || "m3u8");
+  const effectiveType = proxyType || (activePlaylist?.type === "proxy" ? "m3u8" : activePlaylist?.type) || "m3u8";
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
@@ -609,8 +610,12 @@ const LivePage = () => {
           )}
         </div>
         {isLive && playlists.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto border-t border-border px-4 py-2">
-            {playlists.map((p: any) => <button key={p.id} onClick={() => handlePlaylistSwitch(p)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-xs font-medium transition-all ${activePlaylist?.id === p.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>{p.title}</button>)}
+          <div className="border-t border-border px-3 py-2">
+            <PlaylistSwitcher
+              playlists={playlists}
+              activePlaylistId={activePlaylist?.id ?? null}
+              onSelect={handlePlaylistSwitch}
+            />
           </div>
         )}
         <Suspense fallback={null}>

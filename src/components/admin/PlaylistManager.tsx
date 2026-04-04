@@ -31,7 +31,12 @@ const PlaylistManager = () => {
     if (newType !== "proxy" && !newUrl) return;
     setLoading(true);
     const urlToSave = newType === "youtube" ? encryptEmbedId(newUrl) : (newType === "proxy" ? "proxy" : newUrl);
-    await supabase.from("playlists").insert({ title: newTitle, type: newType, url: urlToSave, sort_order: playlists.length });
+    const { error } = await supabase.from("playlists").insert({ title: newTitle, type: newType, url: urlToSave, sort_order: playlists.length });
+    if (error) {
+      toast({ title: "Gagal menambah playlist: " + error.message, variant: "destructive" });
+      setLoading(false);
+      return;
+    }
     setNewTitle(""); setNewUrl("");
     await fetchPlaylists();
     toast({ title: "Playlist ditambahkan!" });
