@@ -655,6 +655,7 @@ export type Database = {
           replay_coin_price: number
           schedule_date: string | null
           schedule_time: string | null
+          short_id: string | null
           subscription_benefits: string | null
           title: string
           updated_at: string
@@ -681,6 +682,7 @@ export type Database = {
           replay_coin_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
+          short_id?: string | null
           subscription_benefits?: string | null
           title: string
           updated_at?: string
@@ -707,6 +709,7 @@ export type Database = {
           replay_coin_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
+          short_id?: string | null
           subscription_benefits?: string | null
           title?: string
           updated_at?: string
@@ -1148,6 +1151,7 @@ export type Database = {
           replay_coin_price: number
           schedule_date: string | null
           schedule_time: string | null
+          short_id: string | null
           subscription_benefits: string | null
           title: string
           updated_at: string
