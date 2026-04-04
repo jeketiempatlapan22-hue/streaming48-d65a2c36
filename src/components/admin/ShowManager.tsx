@@ -208,8 +208,8 @@ const ShowManager = () => {
               <div>
                 <h3 className="font-semibold text-foreground">Edit Show</h3>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  ID: #{editing.id.replace(/-/g, '').slice(0, 6)}
-                  <button className="ml-2 text-primary hover:underline" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(editing.id.replace(/-/g, '').slice(0, 6)); sonnerToast.success("ID disalin!"); }}>Salin</button>
+                  ID: {editing.short_id || `#${editing.id.replace(/-/g, '').slice(0, 6)}`}
+                  <button className="ml-2 text-primary hover:underline" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(editing.short_id || editing.id.replace(/-/g, '').slice(0, 6)); sonnerToast.success("ID disalin!"); }}>Salin</button>
                 </p>
               </div>
               <div className="flex gap-2">
