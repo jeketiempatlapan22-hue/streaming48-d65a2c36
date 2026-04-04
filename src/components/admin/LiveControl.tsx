@@ -331,8 +331,9 @@ const LiveControl = () => {
               </SelectContent>
             </Select>
           </div>
-          <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />
-          <Button onClick={addPlaylist} disabled={plLoading || !newLabel || !newUrl}>
+          {newType !== "proxy" && <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />}
+          {newType === "proxy" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">⚡ Proxy Stream otomatis mengambil dari hanabira48 berdasarkan External Show ID di show aktif</p>}
+          <Button onClick={addPlaylist} disabled={plLoading || !newLabel || (newType !== "proxy" && !newUrl)}>
             <Plus className="mr-1 h-4 w-4" /> Tambah
           </Button>
         </div>
