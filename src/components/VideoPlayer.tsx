@@ -560,6 +560,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const handleQualityChange = useCallback((level: number) => {
     const hls = hlsRef.current;
     if (!hls) return;
+    userQualityRef.current = level;
     if (level === -1) {
       hls.currentLevel = -1;
       hls.nextLevel = -1;
@@ -568,6 +569,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       try { hls.autoLevelEnabled = false; } catch {}
       hls.currentLevel = level;
       hls.nextLevel = level;
+      // Lock to this level so ABR doesn't switch away
+      hls.autoLevelCapping = level;
     }
     setSelectedQuality(level);
     setShowQualityMenu(false);
