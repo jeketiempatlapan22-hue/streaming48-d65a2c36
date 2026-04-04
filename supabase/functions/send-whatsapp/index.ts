@@ -18,7 +18,7 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   // Rate limit: 10 per minute per IP
