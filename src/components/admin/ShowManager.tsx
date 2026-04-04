@@ -183,7 +183,7 @@ const ShowManager = () => {
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-foreground truncate">{show.title}</p>
                   <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground" title="Show ID untuk bot command">
-                    #{show.id.replace(/-/g, '').slice(0, 6)}
+                    {show.short_id || `#${show.id.replace(/-/g, '').slice(0, 6)}`}
                   </span>
                   {show.is_subscription && <Crown className="h-3 w-3 text-yellow-500" />}
                   {show.is_replay && <Film className="h-3 w-3 text-accent" />}
