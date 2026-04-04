@@ -34,6 +34,7 @@ const AdminAuthMetrics = lazy(() => import("@/components/admin/AdminAuthMetrics"
 const AdminTrafficMonitor = lazy(() => import("@/components/admin/AdminTrafficMonitor"));
 const PasswordResetManager = lazy(() => import("@/components/admin/PasswordResetManager"));
 const RateLimitMonitor = lazy(() => import("@/components/admin/RateLimitMonitor"));
+const MemberPhotoManager = lazy(() => import("@/components/admin/MemberPhotoManager"));
 
 /** Safe race: returns result or fallback after timeout */
 async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
