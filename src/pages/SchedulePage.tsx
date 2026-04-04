@@ -156,6 +156,18 @@ const SchedulePage = () => {
     toast.success(`Token: ${result.token_code}`);
     addRedeemedToken(show.id, result.token_code);
     if (result.access_password) addAccessPassword(show.id, result.access_password);
+
+    // Send WhatsApp notification with token + replay info
+    supabase.functions.invoke("notify-coin-show-purchase", {
+      body: {
+        user_id: coinUser.id,
+        show_id: show.id,
+        token_code: result.token_code,
+        access_password: result.access_password,
+        show_title: show.title,
+        purchase_type: show.is_replay ? "replay" : "regular",
+      },
+    }).catch(() => {});
   };
 
   const openWhatsAppOrderDetail = (show: Show, orderPhone: string, orderEmail: string) => {

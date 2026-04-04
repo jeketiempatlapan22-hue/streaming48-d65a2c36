@@ -127,6 +127,17 @@ const ReplayPage = () => {
     setReplayResult({ replay_password: result.replay_password, remaining_balance: result.remaining_balance });
     setCoinBalance(result.remaining_balance);
     addReplayPassword(purchaseShow.id, result.replay_password);
+
+    // Send WhatsApp notification with replay info
+    supabase.functions.invoke("notify-coin-show-purchase", {
+      body: {
+        user_id: coinUser.id,
+        show_id: purchaseShow.id,
+        access_password: result.replay_password,
+        show_title: purchaseShow.title,
+        purchase_type: "replay",
+      },
+    }).catch(() => {});
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
