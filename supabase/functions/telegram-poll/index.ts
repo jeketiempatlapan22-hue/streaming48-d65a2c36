@@ -331,26 +331,30 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   }
 }
 
-// Helper: find show by short ID (first 6 hex chars of UUID) or by name
+// Helper: find show by short ID, custom short_id, hex prefix, or name
 async function findShowByIdOrName(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
   const cleanInput = input.replace(/^#/, '').trim();
+  
+  // First try matching by custom short_id
+  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id');
+  if (activeOnly) query0.eq('is_active', true);
+  const { data: allShows } = await query0;
+  
+  const shortIdMatch = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+  if (shortIdMatch) return { show: shortIdMatch, multiple: null, error: null };
   
   // Try matching by UUID (full or partial)
   const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
   const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
   
   if (isHexId) {
-    const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category');
-    if (activeOnly) query.eq('is_active', true);
-    const { data: shows } = await query;
-    
     // First try exact full UUID match
-    const exactMatch = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+    const exactMatch = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
     if (exactMatch) return { show: exactMatch, multiple: null, error: null };
     
     // Then try prefix match (6+ chars)
     if (hexOnly.length >= 6) {
-      const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+      const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
       if (prefixMatches.length === 1) return { show: prefixMatches[0], multiple: null, error: null };
       if (prefixMatches.length > 1) return { show: null, multiple: prefixMatches, error: null };
     }
@@ -359,12 +363,10 @@ async function findShowByIdOrName(supabase: any, input: string, activeOnly = tru
   }
   
   // Search by name
-  const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category').ilike('title', `%${cleanInput}%`).limit(5);
-  if (activeOnly) query.eq('is_active', true);
-  const { data: shows } = await query;
-  if (!shows || shows.length === 0) return { show: null, multiple: null, error: `Show "${cleanInput}" tidak ditemukan.` };
-  if (shows.length === 1) return { show: shows[0], multiple: null, error: null };
-  return { show: null, multiple: shows, error: null };
+  const nameMatches = (allShows || []).filter((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
+  if (nameMatches.length === 0) return { show: null, multiple: null, error: `Show "${cleanInput}" tidak ditemukan.` };
+  if (nameMatches.length === 1) return { show: nameMatches[0], multiple: null, error: null };
+  return { show: null, multiple: nameMatches, error: null };
 }
 
 function showShortId(id: string): string {
