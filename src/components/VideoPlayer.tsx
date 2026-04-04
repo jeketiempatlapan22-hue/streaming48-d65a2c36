@@ -516,13 +516,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const handlePlayPause = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (playlistType === "youtube") {
-      if (ytMode === "iframe") return;
-      if (!ytReadyRef.current || !ytPlayerRef.current) return;
-      try {
-        const state = ytPlayerRef.current.getPlayerState();
-        if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
-        else ytPlayerRef.current.playVideo();
-      } catch {}
+      if (ytMode === "api") {
+        if (!ytReadyRef.current || !ytPlayerRef.current) return;
+        try {
+          const state = ytPlayerRef.current.getPlayerState();
+          if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
+          else ytPlayerRef.current.playVideo();
+        } catch {}
+      } else if (ytMode === "iframe") {
+        // Control iframe via postMessage
+        const iframe = (containerRef.current as any)?.__ytIframe as HTMLIFrameElement | undefined;
+        if (iframe?.contentWindow) {
+          if (isPlaying) {
+            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            setIsPlaying(false);
+          } else {
+            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            setIsPlaying(true);
+          }
+        }
+      }
     } else if (playlistType === "cloudflare") {
       // cloudflare iframe has its own controls
     } else {
@@ -530,7 +543,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!v) return;
       v.paused ? v.play().catch(() => {}) : v.pause();
     }
-  }, [playlistType, ytMode]);
+  }, [playlistType, ytMode, isPlaying]);
 
   const handleQualityChange = useCallback((level: number) => {
     const hls = hlsRef.current;
