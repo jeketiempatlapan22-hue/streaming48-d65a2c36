@@ -1922,6 +1922,135 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
   }
 }
 
+async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: string, showInput: string, count: number, maxDevices: number) {
+  try {
+    if (count < 1 || count > 100) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Jumlah token harus antara 1\\-100');
+      return;
+    }
+    if (maxDevices < 1 || maxDevices > 10) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-10');
+      return;
+    }
+
+    const { show, error } = await findShowByIdOrName(supabase, showInput, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+
+    // Calculate expiry
+    let expiresAt: string | null = null;
+    if (show.schedule_date && show.schedule_time) {
+      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
+      if (parsed) {
+        const showDt = new Date(parsed);
+        const endOfDay = new Date(showDt);
+        endOfDay.setHours(23, 59, 59, 0);
+        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await sendTelegramMessage(botToken, chatId, `⏳ Membuat ${count} token untuk *${escapeMarkdown(show.title)}*\\.\\.\\.`);
+
+    const tokens: { code: string; last4: string }[] = [];
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+      const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      tokens.push({ code, last4: code.slice(-4) });
+      rows.push({ code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active' });
+    }
+
+    const { error: insertErr } = await supabase.from('tokens').insert(rows);
+    if (insertErr) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal membuat token: ${escapeMarkdown(insertErr.message)}`);
+      return;
+    }
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    let msg = `✅ *${count} Token Berhasil Dibuat\\!*\n\n`;
+    msg += `🎬 Show: *${escapeMarkdown(show.title)}*\n`;
+    msg += `📱 Max Device: *${maxDevices}*\n`;
+    msg += `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n`;
+
+    // Show replay info
+    msg += `🔄 *Info Replay:*\n🔗 Link: replaytime\\.lovable\\.app/replay\n`;
+    if (show.access_password) {
+      msg += `🔐 Sandi: ${escapeMarkdown(show.access_password)}\n`;
+    }
+    msg += `\n`;
+
+    msg += `🔑 *Daftar Token:*\n`;
+    // Split into chunks if too many
+    const chunkSize = 30;
+    const chunks: typeof tokens[] = [];
+    for (let i = 0; i < tokens.length; i += chunkSize) {
+      chunks.push(tokens.slice(i, i + chunkSize));
+    }
+
+    // Send first chunk with header
+    const firstChunk = chunks[0];
+    for (const t of firstChunk) {
+      msg += `\`${escapeMarkdown(t.code)}\`\n`;
+    }
+
+    if (chunks.length === 1) {
+      msg += `\n📺 *Link Nonton \\(contoh\\):*\nrealtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(firstChunk[0].code)}`;
+    }
+
+    await sendTelegramMessage(botToken, chatId, msg);
+
+    // Send remaining chunks
+    for (let i = 1; i < chunks.length; i++) {
+      let chunkMsg = `🔑 *Token \\(lanjutan ${i + 1}/${chunks.length}\\):*\n`;
+      for (const t of chunks[i]) {
+        chunkMsg += `\`${escapeMarkdown(t.code)}\`\n`;
+      }
+      await sendTelegramMessage(botToken, chatId, chunkMsg);
+    }
+
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handleSetShortIdCommand(supabase: any, botToken: string, chatId: string, hexId: string, shortId: string) {
+  try {
+    const { show, error } = await findShowByIdOrName(supabase, `#${hexId}`, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+
+    // Validate short_id format
+    if (!/^[a-zA-Z0-9_-]{2,30}$/.test(shortId)) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Custom ID hanya boleh huruf, angka, \\- dan \\_ \\(2\\-30 karakter\\)');
+      return;
+    }
+
+    // Check uniqueness
+    const { data: existing } = await supabase.from('shows').select('id').eq('short_id', shortId).neq('id', show.id).maybeSingle();
+    if (existing) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ID "${escapeMarkdown(shortId)}" sudah dipakai show lain\\.`);
+      return;
+    }
+
+    await supabase.from('shows').update({ short_id: shortId }).eq('id', show.id);
+    await sendTelegramMessage(botToken, chatId,
+      `✅ Custom ID berhasil diset\\!\n\n` +
+      `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
+      `🏷️ Custom ID: \`${escapeMarkdown(shortId)}\`\n\n` +
+      `💡 Sekarang bisa gunakan ID ini di semua command, contoh:\n` +
+      `\`/createtoken ${escapeMarkdown(shortId)}\`\n` +
+      `\`/bulktoken ${escapeMarkdown(shortId)} 10\``
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function errorResponse(msg: string) {
   console.error('telegram-poll error:', msg);
   return jsonResponse({ error: msg }, 500);
