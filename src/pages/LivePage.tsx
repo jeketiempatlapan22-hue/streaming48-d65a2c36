@@ -567,6 +567,15 @@ const LivePage = () => {
             </SheetContent>
           </Sheet>
         </header>
+        {/* Membership duration badge */}
+        {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (
+          <div className="mx-4 mb-2 mt-2 flex items-center gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2">
+            <span className="text-sm">👑</span>
+            <span className="text-xs font-semibold text-yellow-600">
+              Membership: {Math.max(0, Math.ceil((new Date(tokenData.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} hari tersisa
+            </span>
+          </div>
+        )}
         <div className="player-area relative z-10">
           {isLive && activePlaylist ? (
             <div className="relative">
