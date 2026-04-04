@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface SignedUrlResult {
@@ -8,15 +8,8 @@ interface SignedUrlResult {
   proxyType: string | null;
 }
 
-/**
- * Hook that generates signed proxy URLs for all stream types.
- * YouTube and m3u8 go through the stream-proxy edge function.
- * Cloudflare streams also get proxied.
- */
-export function useSignedStreamUrl(
+export function useAdminSignedStreamUrl(
   playlist: { id: string; type: string; url: string } | null,
-  tokenCode: string,
-  fingerprint?: string,
   refreshKey = 0
 ): SignedUrlResult {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -27,7 +20,7 @@ export function useSignedStreamUrl(
   const isMounted = useRef(true);
 
   const generateSignedUrl = useCallback(async () => {
-    if (!playlist || !tokenCode) return;
+    if (!playlist) return;
 
     try {
       setLoading(true);
@@ -36,14 +29,13 @@ export function useSignedStreamUrl(
       const response = await supabase.functions.invoke("stream-proxy", {
         method: "POST",
         body: {
-          token_code: tokenCode,
           playlist_id: playlist.id,
-          fingerprint: fingerprint || undefined,
+          admin_preview: true,
         },
       });
 
       if (response.error) {
-        throw new Error(response.error.message || "Failed to generate signed URL");
+        throw new Error(response.error.message || "Failed to generate admin preview URL");
       }
 
       const data = response.data as { signed_url: string; expires_in: number; type: string };
@@ -63,13 +55,13 @@ export function useSignedStreamUrl(
       }, refreshIn);
     } catch (err: any) {
       if (!isMounted.current) return;
-      console.error("[useSignedStreamUrl] Error:", err);
+      console.error("[useAdminSignedStreamUrl] Error:", err);
       setError(err.message || "Failed to get stream URL");
       setLoading(false);
       setSignedUrl(null);
       setProxyType(null);
     }
-  }, [playlist?.id, playlist?.type, tokenCode, fingerprint, refreshKey]);
+  }, [playlist?.id, playlist?.type, refreshKey]);
 
   useEffect(() => {
     isMounted.current = true;
