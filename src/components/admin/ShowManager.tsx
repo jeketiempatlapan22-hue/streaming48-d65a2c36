@@ -288,6 +288,11 @@ const ShowManager = () => {
               <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" />
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🏷️ Custom ID (untuk bot command, opsional)</label>
+              <Input value={editing.short_id || ""} onChange={(e) => setEditing({ ...editing, short_id: e.target.value.replace(/[^a-zA-Z0-9_-]/g, '') || null })} onBlur={() => updateShow(editing)} className="bg-background font-mono" placeholder="contoh: sts-freya" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Huruf, angka, - dan _ saja. Jika kosong, akan pakai auto hex ID</p>
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Tampilan (dilihat user)</label>
               <Input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Rp 50.000" />
             </div>
