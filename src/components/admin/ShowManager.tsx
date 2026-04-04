@@ -296,6 +296,11 @@ const ShowManager = () => {
               <p className="mt-1 text-[10px] text-muted-foreground">Huruf, angka, - dan _ saja. Jika kosong, akan pakai auto hex ID</p>
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🌐 External Show ID (hanabira48)</label>
+              <Input value={editing.external_show_id || ""} onChange={(e) => setEditing({ ...editing, external_show_id: e.target.value || null })} onBlur={() => updateShow(editing)} className="bg-background font-mono" placeholder="ID show dari hanabira48" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Digunakan untuk Player 3 (Proxy Stream). Masukkan showId dari hanabira48.com</p>
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Tampilan (dilihat user)</label>
               <Input value={editing.price} onChange={(e) => setEditing({ ...editing, price: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Rp 50.000" />
             </div>
