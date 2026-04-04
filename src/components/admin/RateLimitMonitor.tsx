@@ -175,6 +175,30 @@ const RateLimitMonitor = () => {
         </CardContent>
       </Card>
 
+      {/* Auto-unblock duration */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Timer className="h-4 w-4" /> Durasi Auto-Unblock
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <p className="text-xs text-muted-foreground flex-1">
+            IP yang diblokir otomatis akan dibebaskan setelah durasi ini. Blokir manual tidak terpengaruh.
+          </p>
+          <Select value={unblockHours} onValueChange={saveUnblockHours} disabled={savingHours}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UNBLOCK_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
       {/* Tabs */}
       <div className="flex gap-2">
         <Button variant={tab === "blocked" ? "default" : "outline"} size="sm" onClick={() => setTab("blocked")}>
