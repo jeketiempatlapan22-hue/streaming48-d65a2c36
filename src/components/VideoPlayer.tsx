@@ -150,6 +150,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setSelectedQuality(-1);
     setIsBehindLive(false);
     setPlayerError(null);
+    userQualityRef.current = -1;
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 
