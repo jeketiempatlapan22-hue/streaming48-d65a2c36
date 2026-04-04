@@ -653,14 +653,16 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                       </Button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setEditPhones((prev) => ({ ...prev, [order.id]: order.phone || "" }))}
-                      className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
-                      {order.phone || <span className="italic text-muted-foreground/60">Belum ada HP — klik untuk isi</span>}
-                    </button>
-                    {order.phone && !/^(\+?62|62|08)/.test(order.phone.replace(/[^0-9+]/g, "")) && (
-                      <span className="rounded-sm bg-accent/20 px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">🌍 Internasional</span>
-                    )}
+                    <>
+                      <button
+                        onClick={() => setEditPhones((prev) => ({ ...prev, [order.id]: order.phone || "" }))}
+                        className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors">
+                        {order.phone || <span className="italic text-muted-foreground/60">Belum ada HP — klik untuk isi</span>}
+                      </button>
+                      {order.phone && !/^(\+?62|62|08)/.test(order.phone.replace(/[^0-9+]/g, "")) && (
+                        <span className="rounded-sm bg-accent/20 px-1.5 py-0.5 text-[10px] font-bold text-accent-foreground">🌍 Internasional</span>
+                      )}
+                    </>
                   )}
                 </div>
                 {mode === "membership" && (
