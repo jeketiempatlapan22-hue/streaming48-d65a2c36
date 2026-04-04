@@ -21,6 +21,7 @@ interface Show {
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
   qris_price: number;
   membership_duration_days: number;
+  short_id: string | null;
 }
 
 const CATEGORY_OPTIONS = [
@@ -103,6 +104,7 @@ const ShowManager = () => {
       access_password: show.access_password, is_replay: show.is_replay,
       qris_price: show.qris_price || 0,
       membership_duration_days: show.membership_duration_days || 30,
+      short_id: show.short_id || null,
     }).eq("id", show.id);
     await fetchShows();
     toast({ title: "Show diperbarui" });
@@ -182,7 +184,7 @@ const ShowManager = () => {
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-foreground truncate">{show.title}</p>
                   <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground" title="Show ID untuk bot command">
-                    #{show.id.replace(/-/g, '').slice(0, 6)}
+                    {show.short_id || `#${show.id.replace(/-/g, '').slice(0, 6)}`}
                   </span>
                   {show.is_subscription && <Crown className="h-3 w-3 text-yellow-500" />}
                   {show.is_replay && <Film className="h-3 w-3 text-accent" />}
@@ -207,8 +209,8 @@ const ShowManager = () => {
               <div>
                 <h3 className="font-semibold text-foreground">Edit Show</h3>
                 <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  ID: #{editing.id.replace(/-/g, '').slice(0, 6)}
-                  <button className="ml-2 text-primary hover:underline" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(editing.id.replace(/-/g, '').slice(0, 6)); sonnerToast.success("ID disalin!"); }}>Salin</button>
+                  ID: {editing.short_id || `#${editing.id.replace(/-/g, '').slice(0, 6)}`}
+                  <button className="ml-2 text-primary hover:underline" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(editing.short_id || editing.id.replace(/-/g, '').slice(0, 6)); sonnerToast.success("ID disalin!"); }}>Salin</button>
                 </p>
               </div>
               <div className="flex gap-2">
@@ -285,6 +287,11 @@ const ShowManager = () => {
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Nama Show</label>
               <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} onBlur={() => updateShow(editing)} className="bg-background" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🏷️ Custom ID (untuk bot command, opsional)</label>
+              <Input value={editing.short_id || ""} onChange={(e) => setEditing({ ...editing, short_id: e.target.value.replace(/[^a-zA-Z0-9_-]/g, '') || null })} onBlur={() => updateShow(editing)} className="bg-background font-mono" placeholder="contoh: sts-freya" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Huruf, angka, - dan _ saja. Jika kosong, akan pakai auto hex ID</p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Harga Tampilan (dilihat user)</label>

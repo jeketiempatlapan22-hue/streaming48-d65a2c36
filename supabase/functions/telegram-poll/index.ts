@@ -241,8 +241,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
   const isBanlist = /^\/banlist$/i.test(rawText);
   const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
-  const createtokenMatch = rawText.match(/^\/createtoken\s+#?([a-f0-9\-]{6,36})(?:\s+(\d+))?$/i);
+  const createtokenMatch = rawText.match(/^\/createtoken\s+(\S+?)(?:\s+(\d+))?$/i);
   const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
+  const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
+  const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -320,6 +322,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleCreateTokenCommand(supabase, botToken, chatId, createtokenMatch[1], createtokenMatch[2] ? parseInt(createtokenMatch[2], 10) : 1);
   } else if (givetokenMatch) {
     await handleGiveTokenCommand(supabase, botToken, chatId, givetokenMatch[1], givetokenMatch[2].trim(), givetokenMatch[3] ? parseInt(givetokenMatch[3], 10) : 1);
+  } else if (bulktokenMatch) {
+    await handleBulkTokenCommand(supabase, botToken, chatId, bulktokenMatch[1].trim(), parseInt(bulktokenMatch[2], 10), bulktokenMatch[3] ? parseInt(bulktokenMatch[3], 10) : 1);
+  } else if (setshortidMatch) {
+    await handleSetShortIdCommand(supabase, botToken, chatId, setshortidMatch[1], setshortidMatch[2]);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
@@ -329,26 +335,30 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   }
 }
 
-// Helper: find show by short ID (first 6 hex chars of UUID) or by name
+// Helper: find show by short ID, custom short_id, hex prefix, or name
 async function findShowByIdOrName(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
   const cleanInput = input.replace(/^#/, '').trim();
+  
+  // First try matching by custom short_id
+  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id');
+  if (activeOnly) query0.eq('is_active', true);
+  const { data: allShows } = await query0;
+  
+  const shortIdMatch = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+  if (shortIdMatch) return { show: shortIdMatch, multiple: null, error: null };
   
   // Try matching by UUID (full or partial)
   const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
   const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
   
   if (isHexId) {
-    const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category');
-    if (activeOnly) query.eq('is_active', true);
-    const { data: shows } = await query;
-    
     // First try exact full UUID match
-    const exactMatch = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+    const exactMatch = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
     if (exactMatch) return { show: exactMatch, multiple: null, error: null };
     
     // Then try prefix match (6+ chars)
     if (hexOnly.length >= 6) {
-      const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+      const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
       if (prefixMatches.length === 1) return { show: prefixMatches[0], multiple: null, error: null };
       if (prefixMatches.length > 1) return { show: null, multiple: prefixMatches, error: null };
     }
@@ -357,12 +367,10 @@ async function findShowByIdOrName(supabase: any, input: string, activeOnly = tru
   }
   
   // Search by name
-  const query = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category').ilike('title', `%${cleanInput}%`).limit(5);
-  if (activeOnly) query.eq('is_active', true);
-  const { data: shows } = await query;
-  if (!shows || shows.length === 0) return { show: null, multiple: null, error: `Show "${cleanInput}" tidak ditemukan.` };
-  if (shows.length === 1) return { show: shows[0], multiple: null, error: null };
-  return { show: null, multiple: shows, error: null };
+  const nameMatches = (allShows || []).filter((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
+  if (nameMatches.length === 0) return { show: null, multiple: null, error: `Show "${cleanInput}" tidak ditemukan.` };
+  if (nameMatches.length === 1) return { show: nameMatches[0], multiple: null, error: null };
+  return { show: null, multiple: nameMatches, error: null };
 }
 
 function showShortId(id: string): string {
@@ -402,6 +410,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/deletetoken <4digit>\` \\- Hapus token\n` +
     `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
     `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n` +
+    `\`/bulktoken <show> <jumlah>\` \\- Buat banyak token sekaligus\n` +
+    `\`/bulktoken <show> <jumlah> <max>\` \\- Bulk token \\+ max device\n` +
     `\`/givetoken <user> <show>\` \\- Beri token ke user\n` +
     `\`/givetoken <user> <show> <max>\` \\- Beri token \\+ max device\n\n` +
     `🔐 *Password Reset:*\n` +
@@ -412,6 +422,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/msgmembers <pesan>\` \\- Kirim WA ke semua member\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
+    `\`/setshortid #ID <nama>\` \\- Set custom ID untuk show\n` +
     `\`/help\` \\- Tampilkan daftar command ini\n\n` +
     `📊 *Statistik & Analitik:*\n` +
     `\`/stats\` \\- Statistik lengkap platform\n` +
@@ -423,7 +434,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/announce <pesan>\` \\- Kirim WA ke semua user\n` +
     `\`/setprice #ID coin <harga>\` \\- Set harga koin show\n` +
     `\`/setprice #ID replay <harga>\` \\- Set harga replay show\n\n` +
-    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk show, 4 digit belakang untuk token\\._`;
+    `💡 _Gunakan \\#ID \\(6 digit hex\\) atau custom ID untuk show, 4 digit belakang untuk token\\._`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
@@ -431,7 +442,7 @@ async function handleShowsCommand(supabase: any, botToken: string, chatId: strin
   try {
     const { data: shows } = await supabase
       .from('shows')
-      .select('id, title, schedule_date, schedule_time, is_replay, is_active, coin_price, replay_coin_price')
+      .select('id, title, schedule_date, schedule_time, is_replay, is_active, coin_price, replay_coin_price, short_id')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(30);
@@ -443,10 +454,10 @@ async function handleShowsCommand(supabase: any, botToken: string, chatId: strin
 
     let message = `🎬 *DAFTAR SHOW AKTIF \\(${shows.length}\\)*\n\n`;
     for (const s of shows) {
-      const sid = showShortId(s.id);
+      const sid = s.short_id || showShortId(s.id);
       const replay = s.is_replay ? ' 🔁 REPLAY' : '';
       const schedule = s.schedule_date ? `📅 ${escapeMarkdown(s.schedule_date)} ${escapeMarkdown(s.schedule_time || '')}` : '📅 \\-';
-      message += `\`#${sid}\` *${escapeMarkdown(s.title)}*${replay}\n   ${schedule} \\| 🪙 ${s.coin_price}/${s.replay_coin_price}\n\n`;
+      message += `\`${s.short_id ? s.short_id : '#' + showShortId(s.id)}\` *${escapeMarkdown(s.title)}*${replay}\n   ${schedule} \\| 🪙 ${s.coin_price}/${s.replay_coin_price}\n\n`;
     }
     message += `💡 Gunakan ID untuk aksi:\n\`/setlive #ID\` \\| \`/replay #ID\` \\| \`/setactive #ID\``;
     await sendTelegramMessage(botToken, chatId, message);
@@ -1905,6 +1916,135 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
       `📱 Max Device: *${maxDevices}*\n` +
       `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n` +
       `💡 Link: realtime48stream\\.my\\.id/live?t\\=${escapedCode}`
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: string, showInput: string, count: number, maxDevices: number) {
+  try {
+    if (count < 1 || count > 100) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Jumlah token harus antara 1\\-100');
+      return;
+    }
+    if (maxDevices < 1 || maxDevices > 10) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-10');
+      return;
+    }
+
+    const { show, error } = await findShowByIdOrName(supabase, showInput, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+
+    // Calculate expiry
+    let expiresAt: string | null = null;
+    if (show.schedule_date && show.schedule_time) {
+      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
+      if (parsed) {
+        const showDt = new Date(parsed);
+        const endOfDay = new Date(showDt);
+        endOfDay.setHours(23, 59, 59, 0);
+        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      }
+    }
+    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await sendTelegramMessage(botToken, chatId, `⏳ Membuat ${count} token untuk *${escapeMarkdown(show.title)}*\\.\\.\\.`);
+
+    const tokens: { code: string; last4: string }[] = [];
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+      const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      tokens.push({ code, last4: code.slice(-4) });
+      rows.push({ code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active' });
+    }
+
+    const { error: insertErr } = await supabase.from('tokens').insert(rows);
+    if (insertErr) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal membuat token: ${escapeMarkdown(insertErr.message)}`);
+      return;
+    }
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+    let msg = `✅ *${count} Token Berhasil Dibuat\\!*\n\n`;
+    msg += `🎬 Show: *${escapeMarkdown(show.title)}*\n`;
+    msg += `📱 Max Device: *${maxDevices}*\n`;
+    msg += `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n`;
+
+    // Show replay info
+    msg += `🔄 *Info Replay:*\n🔗 Link: replaytime\\.lovable\\.app/replay\n`;
+    if (show.access_password) {
+      msg += `🔐 Sandi: ${escapeMarkdown(show.access_password)}\n`;
+    }
+    msg += `\n`;
+
+    msg += `🔑 *Daftar Token:*\n`;
+    // Split into chunks if too many
+    const chunkSize = 30;
+    const chunks: typeof tokens[] = [];
+    for (let i = 0; i < tokens.length; i += chunkSize) {
+      chunks.push(tokens.slice(i, i + chunkSize));
+    }
+
+    // Send first chunk with header
+    const firstChunk = chunks[0];
+    for (const t of firstChunk) {
+      msg += `\`${escapeMarkdown(t.code)}\`\n`;
+    }
+
+    if (chunks.length === 1) {
+      msg += `\n📺 *Link Nonton \\(contoh\\):*\nrealtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(firstChunk[0].code)}`;
+    }
+
+    await sendTelegramMessage(botToken, chatId, msg);
+
+    // Send remaining chunks
+    for (let i = 1; i < chunks.length; i++) {
+      let chunkMsg = `🔑 *Token \\(lanjutan ${i + 1}/${chunks.length}\\):*\n`;
+      for (const t of chunks[i]) {
+        chunkMsg += `\`${escapeMarkdown(t.code)}\`\n`;
+      }
+      await sendTelegramMessage(botToken, chatId, chunkMsg);
+    }
+
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handleSetShortIdCommand(supabase: any, botToken: string, chatId: string, hexId: string, shortId: string) {
+  try {
+    const { show, error } = await findShowByIdOrName(supabase, `#${hexId}`, false);
+    if (error || !show) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
+      return;
+    }
+
+    // Validate short_id format
+    if (!/^[a-zA-Z0-9_-]{2,30}$/.test(shortId)) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Custom ID hanya boleh huruf, angka, \\- dan \\_ \\(2\\-30 karakter\\)');
+      return;
+    }
+
+    // Check uniqueness
+    const { data: existing } = await supabase.from('shows').select('id').eq('short_id', shortId).neq('id', show.id).maybeSingle();
+    if (existing) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ ID "${escapeMarkdown(shortId)}" sudah dipakai show lain\\.`);
+      return;
+    }
+
+    await supabase.from('shows').update({ short_id: shortId }).eq('id', show.id);
+    await sendTelegramMessage(botToken, chatId,
+      `✅ Custom ID berhasil diset\\!\n\n` +
+      `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
+      `🏷️ Custom ID: \`${escapeMarkdown(shortId)}\`\n\n` +
+      `💡 Sekarang bisa gunakan ID ini di semua command, contoh:\n` +
+      `\`/createtoken ${escapeMarkdown(shortId)}\`\n` +
+      `\`/bulktoken ${escapeMarkdown(shortId)} 10\``
     );
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
