@@ -322,6 +322,10 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleCreateTokenCommand(supabase, botToken, chatId, createtokenMatch[1], createtokenMatch[2] ? parseInt(createtokenMatch[2], 10) : 1);
   } else if (givetokenMatch) {
     await handleGiveTokenCommand(supabase, botToken, chatId, givetokenMatch[1], givetokenMatch[2].trim(), givetokenMatch[3] ? parseInt(givetokenMatch[3], 10) : 1);
+  } else if (bulktokenMatch) {
+    await handleBulkTokenCommand(supabase, botToken, chatId, bulktokenMatch[1].trim(), parseInt(bulktokenMatch[2], 10), bulktokenMatch[3] ? parseInt(bulktokenMatch[3], 10) : 1);
+  } else if (setshortidMatch) {
+    await handleSetShortIdCommand(supabase, botToken, chatId, setshortidMatch[1], setshortidMatch[2]);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
