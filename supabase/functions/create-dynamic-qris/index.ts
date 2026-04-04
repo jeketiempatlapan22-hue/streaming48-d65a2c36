@@ -54,10 +54,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "amount dan coin_amount diperlukan untuk pembelian koin" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
 
     // Persistent DB-level rate limit: 30 QRIS requests per hour per IP
     const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
