@@ -86,10 +86,12 @@ Deno.serve(async (req) => {
     let isSubscription = false;
     let isReplay = false;
     let durationDays = 30;
+    let scheduleDate = '';
+    let scheduleTime = '';
 
     const { data: show } = await supabase
       .from('shows')
-      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days')
+      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time')
       .eq('id', show_id)
       .maybeSingle();
 
@@ -100,6 +102,8 @@ Deno.serve(async (req) => {
       isSubscription = show.is_subscription;
       isReplay = show.is_replay;
       durationDays = show.membership_duration_days || 30;
+      scheduleDate = show.schedule_date || '';
+      scheduleTime = show.schedule_time || '';
     }
 
     const siteUrl = 'realtime48stream.my.id';
