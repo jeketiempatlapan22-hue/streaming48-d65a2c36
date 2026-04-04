@@ -20,6 +20,7 @@ interface Show {
   is_order_closed: boolean; category: string; category_member: string;
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
   qris_price: number;
+  membership_duration_days: number;
 }
 
 const CATEGORY_OPTIONS = [
