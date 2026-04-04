@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -18,14 +17,14 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   // Quick blocked IP check
-  const _sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: ipBlocked } = await _sb.rpc("is_ip_blocked", { _ip: ip });
+  const { data: ipBlocked } = await supabase.rpc("is_ip_blocked", { _ip: ip });
   if (ipBlocked === true) {
     return new Response(JSON.stringify({ error: "Akses ditolak." }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
