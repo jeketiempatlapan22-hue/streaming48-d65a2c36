@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
       const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string' 
         ? { text: publicResponse, imageUrl: undefined } 
         : publicResponse;
+      await sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage);
       return jsonResponse({ ok: true, processed: true, type: 'public' });
     }
 
