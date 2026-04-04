@@ -78,8 +78,9 @@ const PlaylistManager = () => {
             </SelectContent>
           </Select>
         </div>
-        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />
-        <Button onClick={addPlaylist} disabled={loading || !newTitle || !newUrl}><Plus className="mr-1 h-4 w-4" /> Tambah</Button>
+        {newType !== "proxy" && <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />}
+        {newType === "proxy" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">⚡ Proxy Stream otomatis mengambil dari hanabira48 berdasarkan External Show ID</p>}
+        <Button onClick={addPlaylist} disabled={loading || !newTitle || (newType !== "proxy" && !newUrl)}><Plus className="mr-1 h-4 w-4" /> Tambah</Button>
       </div>
 
       <div className="space-y-2">
