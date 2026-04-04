@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import VideoPlayer from "@/components/VideoPlayer";
 import LiveChat from "@/components/viewer/LiveChat";
 import ChatModeratorManager from "@/components/admin/ChatModeratorManager";
 import PollManager from "@/components/admin/PollManager";
 import LivePoll from "@/components/viewer/LivePoll";
+import LiveViewerCount from "@/components/viewer/LiveViewerCount";
+import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
+import { useAdminSignedStreamUrl } from "@/hooks/useAdminSignedStreamUrl";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,34 +23,71 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+const sortPlaylists = (list: any[]): any[] => {
+  if (!list || list.length <= 1) return list;
+  const firstM3u8 = list.find((p) => p.type === "m3u8");
+  const firstYoutube = list.find((p) => p.type === "youtube");
+  const rest = list.filter((p) => p !== firstM3u8 && p !== firstYoutube);
+  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+};
+
 const AdminMonitor = () => {
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
   const [resetting, setResetting] = useState(false);
+  const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+
+  const { signedUrl, loading: previewLoading, error: previewError, proxyType } = useAdminSignedStreamUrl(
+    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    previewRefreshKey
+  );
+
+  const effectivePreviewType = proxyType || (activePlaylist?.type === "proxy" ? "m3u8" : activePlaylist?.type) || "m3u8";
+
+  const fetchMonitorData = useCallback(async () => {
+    const [streamRes, playlistRes] = await Promise.all([
+      supabase.from("streams").select("*").limit(1).single(),
+      supabase.from("playlists").select("*").order("sort_order"),
+    ]);
+
+    setStream(streamRes.data || null);
+
+    const sorted = sortPlaylists(playlistRes.data || []);
+    setPlaylists(sorted);
+    setActivePlaylist((prev: any) => {
+      if (!sorted.length) return null;
+      if (!prev) return sorted[0];
+      return sorted.find((item: any) => item.id === prev.id) || sorted[0];
+    });
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: streamData } = await supabase.from("streams").select("*").limit(1).single();
-      setStream(streamData);
+    void fetchMonitorData();
 
-      const { data: playlistData } = await supabase.from("playlists").select("*").order("sort_order");
-      const raw = playlistData || [];
-      // Sort: 1st m3u8, 1st youtube, then rest
-      const firstM3u8 = raw.find((p: any) => p.type === "m3u8");
-      const firstYoutube = raw.find((p: any) => p.type === "youtube");
-      const rest = raw.filter((p: any) => p !== firstM3u8 && p !== firstYoutube);
-      const sorted = [firstM3u8, firstYoutube, ...rest].filter(Boolean);
-      setPlaylists(sorted);
-      if (sorted.length > 0) setActivePlaylist(sorted[0]);
+    const ch = supabase.channel("monitor-stream-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, () => {
+        void fetchMonitorData();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "playlists" }, () => {
+        void fetchMonitorData();
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (payload: any) => {
+        if (payload.new?.key === "active_show_id") {
+          setPreviewRefreshKey((value) => value + 1);
+        }
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows" }, () => {
+        if (activePlaylist?.type === "proxy") {
+          setPreviewRefreshKey((value) => value + 1);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ch);
     };
-    fetchData();
-
-    const ch = supabase.channel("monitor-stream-rt").on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
-      if (p.new) setStream(p.new);
-    }).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, []);
+  }, [activePlaylist?.type, fetchMonitorData]);
 
   const handleResetChat = async () => {
     setResetting(true);
@@ -87,7 +127,6 @@ const AdminMonitor = () => {
   };
 
   const handleBanByUsername = async (chatUsername: string) => {
-    // Look up user_id from profiles table
     const { data: profile } = await supabase
       .from("profiles")
       .select("id")
@@ -101,7 +140,6 @@ const AdminMonitor = () => {
 
     const userId = profile.id;
 
-    // Upsert ban
     const { error: banError } = await supabase
       .from("user_bans")
       .upsert(
@@ -114,7 +152,6 @@ const AdminMonitor = () => {
       return;
     }
 
-    // Block all active tokens for this user
     await supabase.from("tokens").update({ status: "blocked" } as any).eq("user_id", userId).eq("status", "active");
 
     toast.success(`User "${chatUsername}" telah diblokir dan semua tokennya dicabut`);
@@ -122,9 +159,19 @@ const AdminMonitor = () => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-foreground">📺 Monitor & Poll</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">📺 Monitor & Poll</h2>
+          <p className="text-sm text-muted-foreground">Preview player admin, chat, dan pantau viewer secara realtime.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <LiveViewerCount isLive={stream?.is_live || false} readOnly />
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${stream?.is_live ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+            {stream?.is_live ? "LIVE" : "OFFLINE"}
+          </span>
+        </div>
+      </div>
 
-      {/* Reset Chat */}
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="destructive" size="sm" disabled={resetting} className="gap-2">
@@ -146,39 +193,57 @@ const AdminMonitor = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Player */}
-        <div className="space-y-2">
-          <div className="rounded-xl border border-border overflow-hidden">
-            {activePlaylist ? (
-              <VideoPlayer key={activePlaylist.id} playlist={{ url: activePlaylist.url, type: activePlaylist.type, label: activePlaylist.title }} autoPlay />
-            ) : (
-              <div className="flex aspect-video items-center justify-center bg-card">
-                <p className="text-sm text-muted-foreground">Tidak ada sumber video</p>
-              </div>
-            )}
-          </div>
-          {playlists.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
-              {playlists.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setActivePlaylist(p)}
-                  className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                    activePlaylist?.id === p.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                  }`}
-                >
-                  {p.title}
-                </button>
-              ))}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
+        <div className="space-y-3">
+          <div className="overflow-hidden rounded-2xl border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-sm font-semibold text-foreground">Preview Player</p>
+              <p className="text-xs text-muted-foreground">Semua tipe player termasuk Proxy Stream akan diputar dari sini.</p>
             </div>
-          )}
+            <div className="p-2">
+              <div className="overflow-hidden rounded-xl border border-border">
+                {activePlaylist ? (
+                  signedUrl ? (
+                    <VideoPlayer
+                      key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
+                      playlist={{ url: signedUrl, type: effectivePreviewType, label: activePlaylist.title }}
+                      autoPlay
+                    />
+                  ) : previewLoading ? (
+                    <div className="flex aspect-video items-center justify-center bg-card">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <p className="text-sm text-muted-foreground">Menyiapkan preview player...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
+                      <p className="text-sm text-destructive">{previewError || "Preview player belum tersedia."}</p>
+                    </div>
+                  )
+                ) : (
+                  <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
+                    <p className="text-sm text-muted-foreground">Belum ada playlist untuk dipreview.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-border px-3 py-3">
+              <PlaylistSwitcher
+                playlists={playlists}
+                activePlaylistId={activePlaylist?.id ?? null}
+                onSelect={(playlist) => {
+                  setActivePlaylist(playlist);
+                  if (playlist.type === "proxy") {
+                    setPreviewRefreshKey((value) => value + 1);
+                  }
+                }}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Chat */}
-        <div className="h-[500px] rounded-xl border border-border overflow-hidden">
+        <div className="h-[500px] overflow-hidden rounded-2xl border border-border">
           <LiveChat
             username="Admin"
             isLive={stream?.is_live || false}
@@ -192,7 +257,6 @@ const AdminMonitor = () => {
         </div>
       </div>
 
-      {/* Live Poll Section */}
       <div className="grid gap-4 lg:grid-cols-2">
         <PollManager />
         <div className="space-y-2">
@@ -204,7 +268,6 @@ const AdminMonitor = () => {
         </div>
       </div>
 
-      {/* Chat Moderator */}
       <ChatModeratorManager />
     </div>
   );
