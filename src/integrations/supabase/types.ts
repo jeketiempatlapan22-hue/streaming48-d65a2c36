@@ -361,6 +361,27 @@ export type Database = {
         }
         Relationships: []
       }
+      member_photos: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          photo_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          photo_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          photo_url?: string | null
+        }
+        Relationships: []
+      }
       moderators: {
         Row: {
           created_at: string
