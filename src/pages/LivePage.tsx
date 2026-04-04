@@ -224,7 +224,7 @@ const LivePage = () => {
           return;
         }
 
-        setTokenData({ id: result.id, code: result.code, show_id: result.show_id });
+        setTokenData({ id: result.id, code: result.code, show_id: result.show_id, expires_at: result.expires_at });
 
         const [streamRes, playlistRes, settingsRes] = await Promise.allSettled([
           withTimeout((async () => await (supabase.rpc as any)("get_stream_status"))(), 8_000, "Stream timeout"),
