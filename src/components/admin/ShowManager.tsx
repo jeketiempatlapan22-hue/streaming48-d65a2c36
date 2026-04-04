@@ -20,6 +20,7 @@ interface Show {
   is_order_closed: boolean; category: string; category_member: string;
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
   qris_price: number;
+  membership_duration_days: number;
 }
 
 const CATEGORY_OPTIONS = [
@@ -101,6 +102,7 @@ const ShowManager = () => {
       coin_price: show.coin_price, replay_coin_price: show.replay_coin_price,
       access_password: show.access_password, is_replay: show.is_replay,
       qris_price: show.qris_price || 0,
+      membership_duration_days: show.membership_duration_days || 30,
     }).eq("id", show.id);
     await fetchShows();
     toast({ title: "Show diperbarui" });
@@ -327,6 +329,11 @@ const ShowManager = () => {
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Maks Subscriber</label>
                   <Input type="number" value={editing.max_subscribers} onChange={(e) => setEditing({ ...editing, max_subscribers: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">⏰ Durasi Membership (hari)</label>
+                  <Input type="number" value={editing.membership_duration_days || 30} onChange={(e) => setEditing({ ...editing, membership_duration_days: parseInt(e.target.value) || 30 })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="30" />
+                  <p className="mt-1 text-[10px] text-muted-foreground">Token membership akan berlaku selama {editing.membership_duration_days || 30} hari sejak pembelian</p>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Benefit Langganan</label>

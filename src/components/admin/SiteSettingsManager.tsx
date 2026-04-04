@@ -104,6 +104,39 @@ const SiteSettingsManager = () => {
         )}
       </div>
 
+      {/* Membership Token Toggle */}
+      <div className="rounded-xl border-2 border-yellow-500/30 bg-yellow-500/5 p-4">
+        <label className="mb-2 block text-sm font-bold text-foreground">🎫 Token Membership Otomatis</label>
+        <p className="mb-3 text-xs text-muted-foreground">Aktifkan agar pembelian membership otomatis menghasilkan token dengan durasi yang ditentukan per-show.</p>
+        <div className="flex gap-2">
+          {[{ value: "true", label: "✅ Aktif" }, { value: "false", label: "❌ Nonaktif" }].map((opt) => (
+            <button key={opt.value}
+              onClick={async () => {
+                setValues((p) => ({ ...p, membership_token_enabled: opt.value }));
+                const { error } = await supabase.from("site_settings").upsert(
+                  { key: "membership_token_enabled", value: opt.value },
+                  { onConflict: "key" }
+                );
+                if (error) {
+                  toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: opt.value === "true" ? "🎫 Token membership AKTIF" : "🎫 Token membership NONAKTIF" });
+                }
+              }}
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
+                (values.membership_token_enabled || "true") === opt.value
+                  ? opt.value === "true"
+                    ? "bg-yellow-500 text-background ring-2 ring-yellow-500/50"
+                    : "bg-secondary text-secondary-foreground ring-2 ring-secondary/50"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}>{opt.label}</button>
+          ))}
+        </div>
+        {values.membership_token_enabled !== "false" && (
+          <p className="mt-2 text-xs text-yellow-600">✓ Pembelian membership akan otomatis mendapat token (durasi diatur per-show)</p>
+        )}
+      </div>
+
       {/* Maintenance Mode Toggle */}
       <div className="rounded-xl border-2 border-destructive/30 bg-destructive/5 p-4">
         <label className="mb-2 block text-sm font-bold text-foreground">🔧 Maintenance Mode</label>

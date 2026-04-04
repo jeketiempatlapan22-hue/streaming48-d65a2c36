@@ -648,6 +648,7 @@ export type Database = {
           is_subscription: boolean
           lineup: string | null
           max_subscribers: number
+          membership_duration_days: number
           price: string
           qris_image_url: string | null
           qris_price: number
@@ -673,6 +674,7 @@ export type Database = {
           is_subscription?: boolean
           lineup?: string | null
           max_subscribers?: number
+          membership_duration_days?: number
           price?: string
           qris_image_url?: string | null
           qris_price?: number
@@ -698,6 +700,7 @@ export type Database = {
           is_subscription?: boolean
           lineup?: string | null
           max_subscribers?: number
+          membership_duration_days?: number
           price?: string
           qris_image_url?: string | null
           qris_price?: number
@@ -1086,6 +1089,7 @@ export type Database = {
       cleanup_rate_limits: { Args: never; Returns: undefined }
       cleanup_stale_viewers: { Args: never; Returns: undefined }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
+      confirm_membership_order: { Args: { _order_id: string }; Returns: Json }
       confirm_regular_order: { Args: { _order_id: string }; Returns: Json }
       create_show_order: {
         Args: {
@@ -1136,6 +1140,7 @@ export type Database = {
           is_subscription: boolean
           lineup: string | null
           max_subscribers: number
+          membership_duration_days: number
           price: string
           qris_image_url: string | null
           qris_price: number
