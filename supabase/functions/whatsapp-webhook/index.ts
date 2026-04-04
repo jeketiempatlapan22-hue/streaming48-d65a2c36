@@ -1474,20 +1474,24 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
 
     const cleanInput = showInput.replace(/^#/, '').trim();
-    const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
-    const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
     let show: any = null;
 
-    if (isHexId) {
-      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password');
-      show = (shows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-      if (!show && hexOnly.length >= 6) {
-        const prefixMatches = (shows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
-        if (prefixMatches.length === 1) show = prefixMatches[0];
+    // Try custom short_id first
+    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
+    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+
+    if (!show) {
+      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+      if (isHexId) {
+        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+        if (!show && hexOnly.length >= 6) {
+          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+          if (prefixMatches.length === 1) show = prefixMatches[0];
+        }
+      } else {
+        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
       }
-    } else {
-      const { data: shows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password').ilike('title', `%${cleanInput}%`).limit(1);
-      show = shows?.[0];
     }
 
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
