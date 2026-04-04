@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock, Timer } from "lucide-react";
 import { toast } from "sonner";
 
 interface BlockedIP {
@@ -26,6 +27,14 @@ interface Violation {
   created_at: string;
 }
 
+const UNBLOCK_OPTIONS = [
+  { value: "6", label: "6 jam" },
+  { value: "12", label: "12 jam" },
+  { value: "24", label: "24 jam" },
+  { value: "48", label: "48 jam" },
+  { value: "72", label: "72 jam" },
+];
+
 const RateLimitMonitor = () => {
   const [blockedIPs, setBlockedIPs] = useState<BlockedIP[]>([]);
   const [violations, setViolations] = useState<Violation[]>([]);
@@ -34,15 +43,19 @@ const RateLimitMonitor = () => {
   const [manualIP, setManualIP] = useState("");
   const [manualReason, setManualReason] = useState("");
   const [tab, setTab] = useState<"blocked" | "violations">("blocked");
+  const [unblockHours, setUnblockHours] = useState("24");
+  const [savingHours, setSavingHours] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [blockedRes, violationsRes] = await Promise.all([
+      const [blockedRes, violationsRes, settingsRes] = await Promise.all([
         supabase.from("blocked_ips").select("*").order("blocked_at", { ascending: false }),
         supabase.from("rate_limit_violations").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("site_settings").select("value").eq("key", "auto_unblock_hours").maybeSingle(),
       ]);
       if (blockedRes.data) setBlockedIPs(blockedRes.data as BlockedIP[]);
       if (violationsRes.data) setViolations(violationsRes.data as Violation[]);
+      if (settingsRes.data?.value) setUnblockHours(settingsRes.data.value);
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
@@ -51,6 +64,14 @@ const RateLimitMonitor = () => {
     const interval = setInterval(fetchData, 30_000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const saveUnblockHours = async (val: string) => {
+    setUnblockHours(val);
+    setSavingHours(true);
+    await supabase.from("site_settings").upsert({ key: "auto_unblock_hours", value: val }, { onConflict: "key" });
+    setSavingHours(false);
+    toast.success(`Durasi auto-unblock diubah ke ${val} jam`);
+  };
 
   const handleBlock = async () => {
     const ip = manualIP.trim();
@@ -151,6 +172,30 @@ const RateLimitMonitor = () => {
           <Button onClick={handleBlock} disabled={!manualIP.trim()} size="sm">
             <Ban className="mr-1 h-3 w-3" /> Blokir
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Auto-unblock duration */}
+      <Card className="border-border bg-card">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Timer className="h-4 w-4" /> Durasi Auto-Unblock
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <p className="text-xs text-muted-foreground flex-1">
+            IP yang diblokir otomatis akan dibebaskan setelah durasi ini. Blokir manual tidak terpengaruh.
+          </p>
+          <Select value={unblockHours} onValueChange={saveUnblockHours} disabled={savingHours}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UNBLOCK_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
