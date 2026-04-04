@@ -516,13 +516,26 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const handlePlayPause = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (playlistType === "youtube") {
-      if (ytMode === "iframe") return;
-      if (!ytReadyRef.current || !ytPlayerRef.current) return;
-      try {
-        const state = ytPlayerRef.current.getPlayerState();
-        if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
-        else ytPlayerRef.current.playVideo();
-      } catch {}
+      if (ytMode === "api") {
+        if (!ytReadyRef.current || !ytPlayerRef.current) return;
+        try {
+          const state = ytPlayerRef.current.getPlayerState();
+          if (state === 1 || state === 3) ytPlayerRef.current.pauseVideo();
+          else ytPlayerRef.current.playVideo();
+        } catch {}
+      } else if (ytMode === "iframe") {
+        // Control iframe via postMessage
+        const iframe = (containerRef.current as any)?.__ytIframe as HTMLIFrameElement | undefined;
+        if (iframe?.contentWindow) {
+          if (isPlaying) {
+            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            setIsPlaying(false);
+          } else {
+            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            setIsPlaying(true);
+          }
+        }
+      }
     } else if (playlistType === "cloudflare") {
       // cloudflare iframe has its own controls
     } else {
@@ -530,7 +543,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       if (!v) return;
       v.paused ? v.play().catch(() => {}) : v.pause();
     }
-  }, [playlistType, ytMode]);
+  }, [playlistType, ytMode, isPlaying]);
 
   const handleQualityChange = useCallback((level: number) => {
     const hls = hlsRef.current;
@@ -621,9 +634,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("keydown", handler, true);
   }, []);
 
-  // Build YouTube iframe URL (for fallback)
+  // Build YouTube iframe URL (for fallback) — controls=0 to hide native YT buttons
   const ytIframeUrl = playlistType === "youtube"
-    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`
+    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}&enablejsapi=1`
     : "";
 
   // ── Render ──
@@ -670,22 +683,40 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
-      {/* YouTube iframe fallback — no blocking overlay so user can use native YouTube controls */}
+      {/* YouTube iframe fallback — full overlay blocks all YouTube UI, custom controls handle play/pause */}
       {playlistType === "youtube" && ytMode === "iframe" && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
           <iframe
+            ref={(el) => {
+              // Store iframe ref for postMessage control
+              if (el) (containerRef.current as any).__ytIframe = el;
+            }}
             src={ytIframeUrl}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
             allowFullScreen
-            className="absolute inset-0 w-full h-full border-0"
+            className="absolute inset-0 w-full h-full border-0 z-[1]"
             // @ts-ignore
             playsInline=""
           />
-          {/* Minimal overlay only for right-click protection — allows click-through for controls */}
+          {/* Full overlay — blocks all YouTube buttons & source URL access */}
           <div
-            className="absolute inset-0 z-[2]"
-            style={{ pointerEvents: "none" }}
+            className="absolute inset-0 z-[2] cursor-pointer"
+            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
             onContextMenu={e => e.preventDefault()}
+            onClick={e => {
+              e.stopPropagation();
+              // Toggle play/pause via postMessage to YouTube iframe
+              const iframe = (containerRef.current as any)?.__ytIframe as HTMLIFrameElement | undefined;
+              if (iframe?.contentWindow) {
+                if (isPlaying) {
+                  iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+                  setIsPlaying(false);
+                } else {
+                  iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+                  setIsPlaying(true);
+                }
+              }
+            }}
           />
         </div>
       )}
