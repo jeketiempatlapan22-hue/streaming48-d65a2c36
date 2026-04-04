@@ -410,6 +410,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/deletetoken <4digit>\` \\- Hapus token\n` +
     `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
     `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n` +
+    `\`/bulktoken <show> <jumlah>\` \\- Buat banyak token sekaligus\n` +
+    `\`/bulktoken <show> <jumlah> <max>\` \\- Bulk token \\+ max device\n` +
     `\`/givetoken <user> <show>\` \\- Beri token ke user\n` +
     `\`/givetoken <user> <show> <max>\` \\- Beri token \\+ max device\n\n` +
     `🔐 *Password Reset:*\n` +
@@ -420,6 +422,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/msgmembers <pesan>\` \\- Kirim WA ke semua member\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
+    `\`/setshortid #ID <nama>\` \\- Set custom ID untuk show\n` +
     `\`/help\` \\- Tampilkan daftar command ini\n\n` +
     `📊 *Statistik & Analitik:*\n` +
     `\`/stats\` \\- Statistik lengkap platform\n` +
@@ -431,7 +434,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/announce <pesan>\` \\- Kirim WA ke semua user\n` +
     `\`/setprice #ID coin <harga>\` \\- Set harga koin show\n` +
     `\`/setprice #ID replay <harga>\` \\- Set harga replay show\n\n` +
-    `💡 _Gunakan \\#ID \\(6 digit hex\\) untuk show, 4 digit belakang untuk token\\._`;
+    `💡 _Gunakan \\#ID \\(6 digit hex\\) atau custom ID untuk show, 4 digit belakang untuk token\\._`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
