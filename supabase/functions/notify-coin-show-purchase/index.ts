@@ -132,11 +132,11 @@ Deno.serve(async (req) => {
       if (token_code) {
         message += `\n🎫 *Token Akses:* ${token_code}\n📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${token_code}\n`;
       }
-      if (replayPassword) {
-        message += `🔑 *Sandi Replay:* ${replayPassword}\n`;
+      if (scheduleDate) {
+        message += `📅 *Jadwal:* ${scheduleDate} ${scheduleTime}\n`;
       }
-      message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
       if (replayPassword) {
+        message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
     }
