@@ -621,9 +621,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("keydown", handler, true);
   }, []);
 
-  // Build YouTube iframe URL (for fallback)
+  // Build YouTube iframe URL (for fallback) — controls=0 to hide native YT buttons
   const ytIframeUrl = playlistType === "youtube"
-    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`
+    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}&enablejsapi=1`
     : "";
 
   // ── Render ──
