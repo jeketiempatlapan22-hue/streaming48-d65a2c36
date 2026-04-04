@@ -123,7 +123,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     // Clean slate
     if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
     video.removeAttribute("src");
-    video.load();
+    // Don't call video.load() after removeAttribute("src") — it triggers spurious error events
     setIsPlaying(false);
     setIsLoading(true);
     setQualities([]);
@@ -131,13 +131,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setIsBehindLive(false);
     setPlayerError(null);
 
+    // Debounce loading state from "waiting" to avoid flicker
+    let waitingTimer: ReturnType<typeof setTimeout> | null = null;
+
     // Sync UI state from native video events
     const onPlay = () => { if (!destroyed) { setIsPlaying(true); setIsLoading(false); } };
     const onPause = () => { if (!destroyed) setIsPlaying(false); };
-    const onPlaying = () => { if (!destroyed) setIsLoading(false); };
-    const onCanPlay = () => { if (!destroyed) setIsLoading(false); };
-    const onWaiting = () => { if (!destroyed) setIsLoading(true); };
-    const onError = () => { if (!destroyed) console.error("[VideoPlayer] video error", video.error); };
+    const onPlaying = () => { if (!destroyed) { setIsLoading(false); if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } } };
+    const onCanPlay = () => { if (!destroyed) { setIsLoading(false); if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } } };
+    const onWaiting = () => {
+      if (!destroyed) {
+        // Debounce: only show loading after 800ms of continuous waiting
+        if (waitingTimer) clearTimeout(waitingTimer);
+        waitingTimer = setTimeout(() => { if (!destroyed) setIsLoading(true); }, 800);
+      }
+    };
+    const onError = () => {
+      if (!destroyed && video.error) {
+        // Only log real errors, not from removeAttribute("src")
+        if (video.src && video.error.code !== MediaError.MEDIA_ERR_ABORTED) {
+          console.error("[VideoPlayer] video error", video.error.code, video.error.message);
+        }
+      }
+    };
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("playing", onPlaying);
@@ -200,7 +216,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
-        networkRetryCount = 0; // Reset on success
+        networkRetryCount = 0;
         // Deduplicate levels by height, keeping highest bitrate per resolution
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
@@ -215,7 +231,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if (autoPlay) {
           video.muted = true;
           video.play().catch(() => {});
-          // Auto-unmute after 1.5s (same pattern as YouTube)
+          // Auto-unmute after 1.5s
           setTimeout(() => {
             if (!destroyed && video) {
               video.muted = false;
@@ -243,7 +259,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               const delay = Math.min(2000 * networkRetryCount, 10000);
               setTimeout(() => {
                 if (destroyed || !hlsRef.current) return;
-                // For manifestLoadError, need full reload
                 if (data.details === "manifestLoadError" || data.details === "manifestLoadTimeOut") {
                   hls.loadSource(playlistUrl);
                 } else {
@@ -269,14 +284,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             setIsLoading(false);
           }
         } else if (data.details === "bufferStalledError") {
-          // Aggressive nudge: jump to latest buffered position
           if (video.buffered.length > 0) {
             const end = video.buffered.end(video.buffered.length - 1);
             if (end - video.currentTime > 0.5) {
               video.currentTime = end - 0.3;
             }
           }
-          // Also try resuming playback if paused due to stall
           if (video.paused) video.play().catch(() => {});
         }
       });
@@ -327,6 +340,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => {
       destroyed = true;
       clearTimeout(loadingTimeout);
+      if (waitingTimer) clearTimeout(waitingTimer);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
       video.removeEventListener("playing", onPlaying);
@@ -348,6 +362,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     if (playlistType !== "youtube" || !playlistUrl) return;
     let destroyed = false;
+    let playerCreated = false; // Guard against double-init
 
     setIsPlaying(false);
     setIsLoading(true);
@@ -364,7 +379,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       return;
     }
 
-    // Fallback to iframe after 5 seconds if API doesn't load
+    // Fallback to iframe after 6 seconds if API doesn't load
     const fallbackTimer = setTimeout(() => {
       if (!destroyed && !ytReadyRef.current) {
         console.warn("[YT] API timeout, falling back to iframe");
@@ -372,10 +387,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         setIsPlaying(true);
         setIsLoading(false);
       }
-    }, 5000);
+    }, 6000);
 
     const createPlayer = () => {
-      if (destroyed) return;
+      if (destroyed || playerCreated) return; // Prevent double-init
+      playerCreated = true;
+
       const container = ytContainerRef.current;
       if (!container) { setYtMode("iframe"); setIsLoading(false); return; }
       container.innerHTML = "";
@@ -392,13 +409,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             autoplay: autoPlay ? 1 : 0,
             mute: 1,
             enablejsapi: 1,
-            controls: 0, // Disable YT native controls — we use custom overlay
+            controls: 0,
             disablekb: 1,
             fs: 0,
             modestbranding: 1,
             rel: 0,
             iv_load_policy: 3,
             playsinline: 1,
+            origin: window.location.origin,
           },
           events: {
             onReady: (e: any) => {
@@ -407,7 +425,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               clearTimeout(fallbackTimer);
               setYtMode("api");
               setIsLoading(false);
-              // Start with AUTO quality for fast initial playback (no buffering)
               try {
                 e.target.setPlaybackQualityRange?.("default", "default");
                 e.target.setPlaybackQuality?.("default");
@@ -426,10 +443,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             },
             onStateChange: (e: any) => {
               if (destroyed) return;
-              // YT states: -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
               setIsPlaying(e.data === 1);
               if (e.data === 3) {
-                // Only show loading after 1s of buffering to avoid flicker
+                // Show loading after 1s of buffering to avoid flicker
                 clearTimeout(ytBufferTimerRef.current);
                 ytBufferTimerRef.current = setTimeout(() => {
                   if (!destroyed) setIsLoading(true);
@@ -445,6 +461,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             onError: (e: any) => {
               if (destroyed) return;
               console.error("[YT] Player error:", e.data);
+              // Error 150 = restricted embedding, try iframe fallback
               setYtMode("iframe");
               setIsLoading(false);
             },
@@ -452,8 +469,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         });
       } catch (err) {
         console.error("[YT] Failed to create player:", err);
-        setYtMode("iframe");
-        setIsLoading(false);
+        if (!destroyed) {
+          setYtMode("iframe");
+          setIsLoading(false);
+        }
       }
     };
 
@@ -470,12 +489,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const prevReady = (window as any).onYouTubeIframeAPIReady;
       (window as any).onYouTubeIframeAPIReady = () => {
         prevReady?.();
-        if (!destroyed) createPlayer();
+        if (!destroyed && !playerCreated) createPlayer();
       };
+      // Polling fallback in case onYouTubeIframeAPIReady already fired
       const pollId = setInterval(() => {
         if (destroyed) { clearInterval(pollId); return; }
-        if ((window as any).YT?.Player) { clearInterval(pollId); createPlayer(); }
-      }, 300);
+        if ((window as any).YT?.Player && !playerCreated) {
+          clearInterval(pollId);
+          createPlayer();
+        }
+      }, 500);
       setTimeout(() => clearInterval(pollId), 10000);
     }
 
@@ -483,6 +506,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       destroyed = true;
       ytReadyRef.current = false;
       clearTimeout(fallbackTimer);
+      clearTimeout(ytBufferTimerRef.current);
       try { ytPlayerRef.current?.destroy?.(); } catch {}
       ytPlayerRef.current = null;
     };
@@ -599,7 +623,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
   // Build YouTube iframe URL (for fallback)
   const ytIframeUrl = playlistType === "youtube"
-    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3`
+    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}`
     : "";
 
   // ── Render ──
@@ -646,21 +670,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
-      {/* YouTube iframe fallback with protective overlay */}
+      {/* YouTube iframe fallback — no blocking overlay so user can use native YouTube controls */}
       {playlistType === "youtube" && ytMode === "iframe" && (
         <div className={`relative w-full h-full ${isFullscreen ? "max-h-screen aspect-video" : "absolute inset-0"}`}>
           <iframe
             src={ytIframeUrl}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; web-share"
             allowFullScreen
-            className="absolute inset-0 w-full h-full border-0 z-[1]"
+            className="absolute inset-0 w-full h-full border-0"
             // @ts-ignore
             playsInline=""
           />
-          {/* Overlay to protect source URL on iframe fallback */}
+          {/* Minimal overlay only for right-click protection — allows click-through for controls */}
           <div
             className="absolute inset-0 z-[2]"
-            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            style={{ pointerEvents: "none" }}
             onContextMenu={e => e.preventDefault()}
           />
         </div>
