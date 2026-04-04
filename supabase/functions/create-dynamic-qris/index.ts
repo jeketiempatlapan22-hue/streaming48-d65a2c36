@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
   }
 
   if (!edgeRL(`qris:${ip}`, 10, 60_000)) {
-    await _sb.rpc("record_rate_limit_violation", { _ip: ip, _endpoint: "create-dynamic-qris", _violation_key: `qris:${ip}` });
+    await supabase.rpc("record_rate_limit_violation", { _ip: ip, _endpoint: "create-dynamic-qris", _violation_key: `qris:${ip}` });
     return new Response(JSON.stringify({ error: "Terlalu banyak permintaan. Tunggu sebentar." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
