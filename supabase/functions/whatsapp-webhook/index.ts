@@ -409,6 +409,7 @@ TOLAK_RESET <id> - Tolak reset password
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
+/setshortid #ID <nama> - Set custom ID untuk show
 /help - Tampilkan daftar command
 
 📊 *Statistik & Analitik:*
