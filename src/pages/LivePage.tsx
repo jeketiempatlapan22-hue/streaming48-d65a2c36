@@ -243,8 +243,6 @@ const LivePage = () => {
           return;
         }
 
-        setTokenData({ id: result.id, code: result.code, show_id: result.show_id, expires_at: result.expires_at, created_at: result.created_at });
-
         const [streamRes, playlistRes, settingsRes] = await Promise.allSettled([
           withTimeout((async () => await (supabase.rpc as any)("get_stream_status"))(), 8_000, "Stream timeout"),
           withTimeout((async () => await (supabase.rpc as any)("get_safe_playlists"))(), 8_000, "Playlist timeout"),
@@ -269,31 +267,61 @@ const LivePage = () => {
           });
         }
 
-        // Fetch external_show_id for proxy player
-        if (activeShowId) {
-          const showRes = await withTimeout(
-            (async () => await supabase.rpc("get_public_shows"))(),
-            8_000,
-            "Shows timeout"
-          ).catch(() => null);
-          const allShows = showRes?.data as any[] | undefined;
-          const activeShow = allShows?.find((s: any) => s.id === activeShowId);
-          if (activeShow?.external_show_id) {
-            setExternalShowId(activeShow.external_show_id);
-          }
+        const showRes = await withTimeout(
+          (async () => await supabase.rpc("get_public_shows"))(),
+          8_000,
+          "Shows timeout"
+        ).catch(() => null);
+        const allShows = showRes?.data as any[] | undefined;
+        const activeShow = allShows?.find((s: any) => s.id === activeShowId);
 
-        // Membership tokens (MBR-) can access ANY live show — skip mismatch check
-        const isMembershipToken = result.code?.startsWith("MBR-");
-        if (result.show_id && result.show_id !== activeShowId && !isMembershipToken) {
-            const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
-            setShowMismatch(true);
-            setMismatchShowTitle(JSON.stringify({
-              tokenShowTitle: tokenShow?.title || "Show Lain",
-              tokenShowDate: tokenShow?.schedule_date || "",
-              tokenShowTime: tokenShow?.schedule_time || "",
-              activeShowTitle: activeShow?.title || "Show Lain",
-            }));
-          }
+        if (activeShow?.external_show_id) {
+          setExternalShowId(activeShow.external_show_id);
+        } else {
+          setExternalShowId(null);
+        }
+
+        const tokenShowFallbackRes =
+          result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
+            ? await withTimeout(
+                (async () =>
+                  await supabase
+                    .from("shows")
+                    .select("id, title, schedule_date, schedule_time, is_subscription")
+                    .eq("id", result.show_id)
+                    .maybeSingle())(),
+                8_000,
+                "Token show timeout"
+              ).catch(() => null)
+            : null;
+
+        const tokenShow = allShows?.find((s: any) => s.id === result.show_id) || tokenShowFallbackRes?.data || null;
+        const normalizedTokenCode = String(result.code || "").toUpperCase();
+        const isMembershipToken =
+          Boolean(tokenShow?.is_subscription) ||
+          normalizedTokenCode.startsWith("MBR-") ||
+          normalizedTokenCode.startsWith("MRD-");
+
+        setTokenData({
+          id: result.id,
+          code: result.code,
+          show_id: result.show_id,
+          expires_at: result.expires_at,
+          created_at: result.created_at,
+          is_membership: isMembershipToken,
+        });
+
+        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken) {
+          setShowMismatch(true);
+          setMismatchShowTitle(JSON.stringify({
+            tokenShowTitle: tokenShow?.title || "Show Lain",
+            tokenShowDate: tokenShow?.schedule_date || "",
+            tokenShowTime: tokenShow?.schedule_time || "",
+            activeShowTitle: activeShow?.title || "Show Lain",
+          }));
+        } else {
+          setShowMismatch(false);
+          setMismatchShowTitle("");
         }
       } catch {
         setError("Server sedang sibuk, coba muat ulang halaman.");
