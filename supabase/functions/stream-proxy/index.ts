@@ -107,6 +107,7 @@ const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 const PROXY_TOKEN_CACHE_TTL_MS = 300000; // 5 min cache for hanabira48 tokens
 
 interface CacheEntry { content: string; cachedAt: number }
+type FetchM3u8Result = { content: string | null; inactive?: boolean; status?: number; errorBody?: string };
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
 const proxyTokenCache = new Map<string, { headers: Record<string, string>; cachedAt: number }>();
@@ -381,28 +382,38 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
   return result.join("\n");
 }
 
-async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, functionUrl: string, ipHash: string): Promise<string | null> {
-  // IP-specific cache key so different IPs get different signed segments
+async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, functionUrl: string, ipHash: string): Promise<FetchM3u8Result> {
   const fullCacheKey = `${cacheKey}:${ipHash}`;
   const cached = getCachedM3u8(fullCacheKey);
-  if (cached) return cached;
+  if (cached) return { content: cached };
 
-  // Try up to 2 attempts with 8s timeout each
+  let lastStatus: number | undefined;
+  let lastErrorBody: string | undefined;
+
   for (let attempt = 0; attempt < 2; attempt++) {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      timeout = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(originUrl, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)" },
         signal: controller.signal,
       });
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
 
       if (!response.ok) {
+        lastStatus = response.status;
+        lastErrorBody = await response.text().catch(() => "");
         console.error(`[stream-proxy] fetch m3u8 failed: ${response.status} attempt ${attempt + 1}`);
+
+        const isInactive = response.status === 412 && lastErrorBody.includes("live_stream_inactive");
+        if (isInactive) {
+          return { content: null, inactive: true, status: response.status, errorBody: lastErrorBody };
+        }
+
         if (attempt === 0) continue;
-        return null;
+        return { content: null, status: lastStatus, errorBody: lastErrorBody };
       }
 
       const content = await response.text();
@@ -410,14 +421,17 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
       const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl, ipHash);
 
       setCachedM3u8(fullCacheKey, rewritten);
-      return rewritten;
+      return { content: rewritten };
     } catch (err: any) {
+      if (timeout) clearTimeout(timeout);
       console.error(`[stream-proxy] fetch m3u8 error attempt ${attempt + 1}:`, err?.message);
+      lastErrorBody = err?.message || "unknown error";
       if (attempt === 0) continue;
-      return null;
+      return { content: null, status: lastStatus, errorBody: lastErrorBody };
     }
   }
-  return null;
+
+  return { content: null, status: lastStatus, errorBody: lastErrorBody };
 }
 
 // --- XOR ENCRYPTION for YouTube IDs ---
@@ -741,13 +755,34 @@ Deno.serve(async (req) => {
       }
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewritten = await fetchAndRewriteM3u8(plData.url, `play:${pid}`, functionUrl, ipH);
+      const rewrittenResult = await fetchAndRewriteM3u8(plData.url, `play:${pid}`, functionUrl, ipH);
 
-      if (!rewritten) {
-        return new Response("Failed to fetch stream", { status: 502, headers: corsHeaders });
+      if (rewrittenResult.inactive) {
+        return new Response(
+          "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n",
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/vnd.apple.mpegurl",
+              "Cache-Control": "no-store, no-cache, must-revalidate",
+              "X-Stream-Status": "inactive",
+            },
+          }
+        );
       }
 
-      return new Response(rewritten, {
+      if (!rewrittenResult.content) {
+        return new Response("Failed to fetch stream", {
+          status: 502,
+          headers: {
+            ...corsHeaders,
+            "X-Upstream-Status": String(rewrittenResult.status || 0),
+          },
+        });
+      }
+
+      return new Response(rewrittenResult.content, {
         status: 200,
         headers: {
           ...corsHeaders,
