@@ -270,23 +270,29 @@ const LivePage = () => {
           });
         }
 
-        if (result.show_id && activeShowId && result.show_id !== activeShowId) {
-          const allShowsRes = await withTimeout(
+        // Fetch external_show_id for proxy player
+        if (activeShowId) {
+          const showRes = await withTimeout(
             (async () => await supabase.rpc("get_public_shows"))(),
             8_000,
             "Shows timeout"
           ).catch(() => null);
-
-          const allShows = allShowsRes?.data as any[] | undefined;
-          const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
+          const allShows = showRes?.data as any[] | undefined;
           const activeShow = allShows?.find((s: any) => s.id === activeShowId);
-          setShowMismatch(true);
-          setMismatchShowTitle(JSON.stringify({
-            tokenShowTitle: tokenShow?.title || "Show Lain",
-            tokenShowDate: tokenShow?.schedule_date || "",
-            tokenShowTime: tokenShow?.schedule_time || "",
-            activeShowTitle: activeShow?.title || "Show Lain",
-          }));
+          if (activeShow?.external_show_id) {
+            setExternalShowId(activeShow.external_show_id);
+          }
+
+          if (result.show_id && result.show_id !== activeShowId) {
+            const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
+            setShowMismatch(true);
+            setMismatchShowTitle(JSON.stringify({
+              tokenShowTitle: tokenShow?.title || "Show Lain",
+              tokenShowDate: tokenShow?.schedule_date || "",
+              tokenShowTime: tokenShow?.schedule_time || "",
+              activeShowTitle: activeShow?.title || "Show Lain",
+            }));
+          }
         }
       } catch {
         setError("Server sedang sibuk, coba muat ulang halaman.");

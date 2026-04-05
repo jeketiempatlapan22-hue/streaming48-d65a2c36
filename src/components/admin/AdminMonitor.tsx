@@ -60,12 +60,22 @@ const AdminMonitor = () => {
   const effectivePreviewType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
   const fetchMonitorData = useCallback(async () => {
-    const [streamRes, playlistRes] = await Promise.all([
+    const [streamRes, playlistRes, settingsRes] = await Promise.all([
       supabase.from("streams").select("*").limit(1).single(),
       supabase.from("playlists").select("*").order("sort_order"),
+      supabase.from("site_settings").select("*").eq("key", "active_show_id").maybeSingle(),
     ]);
 
     setStream(streamRes.data || null);
+
+    // Fetch external_show_id for proxy player
+    const activeShowId = settingsRes.data?.value;
+    if (activeShowId) {
+      const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowId).maybeSingle();
+      if (showData?.external_show_id) {
+        setExternalShowId(showData.external_show_id);
+      }
+    }
 
     const sorted = sortPlaylists(playlistRes.data || []);
     setPlaylists(sorted);
