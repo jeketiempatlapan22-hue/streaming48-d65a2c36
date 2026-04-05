@@ -1047,9 +1047,18 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
 
       const manifestResult = await fetchProxyManifest(proxyHeaders);
       if (manifestResult.offline) {
+        // Return empty ENDLIST manifest so HLS.js treats it as inactive (not error)
         return new Response(
-          JSON.stringify({ error: "Livestream sedang offline" }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n",
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/vnd.apple.mpegurl",
+              "Cache-Control": "no-store, no-cache, must-revalidate",
+              "X-Stream-Status": "inactive",
+            },
+          }
         );
       }
       if (!manifestResult.content) {
