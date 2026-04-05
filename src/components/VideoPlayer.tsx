@@ -33,6 +33,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isBehindLive, setIsBehindLive] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
+  const [qualityChanging, setQualityChanging] = useState<string | null>(null);
+  const qualityChangeTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
