@@ -22,9 +22,11 @@ const SEG_TOKEN_TTL = 1800;          // 30 min — segments (must survive pause/
 const ALLOWED_REFERERS = [
   "lovable.app",
   "lovable.dev",
+  "lovableproject.com",
   "localhost",
   "streaming48.lovable.app",
   "id-preview--4387c5bf",
+  "4387c5bf-8d85-41f4-b11e-91993da6d859",
   "realtime48",
 ];
 
