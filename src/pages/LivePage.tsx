@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
+import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
