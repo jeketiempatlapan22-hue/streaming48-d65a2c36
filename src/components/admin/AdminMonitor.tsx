@@ -39,12 +39,22 @@ const AdminMonitor = () => {
   const [resetting, setResetting] = useState(false);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
 
+  const isProxyPlaylist = activePlaylist?.type === "proxy";
+
   const { signedUrl, loading: previewLoading, error: previewError, proxyType } = useAdminSignedStreamUrl(
-    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist && !isProxyPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     previewRefreshKey
   );
 
-  const effectivePreviewType = proxyType || (activePlaylist?.type === "proxy" ? "m3u8" : activePlaylist?.type) || "m3u8";
+  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
+    isProxyPlaylist,
+    previewRefreshKey
+  );
+
+  const effectivePreviewUrl = isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectivePreviewLoading = isProxyPlaylist ? proxyLoading : previewLoading;
+  const effectivePreviewError = isProxyPlaylist ? proxyError : previewError;
+  const effectivePreviewType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
   const fetchMonitorData = useCallback(async () => {
     const [streamRes, playlistRes] = await Promise.all([
