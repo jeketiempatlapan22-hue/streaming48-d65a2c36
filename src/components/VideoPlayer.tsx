@@ -464,6 +464,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       clearTimeout(loadingTimeout);
       clearTimeout(qualityChangeTimerRef.current);
       if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+      if (inactiveFallbackTimer) clearTimeout(inactiveFallbackTimer);
       if (waitingTimer) clearTimeout(waitingTimer);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
