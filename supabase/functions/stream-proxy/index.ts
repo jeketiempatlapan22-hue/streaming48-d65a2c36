@@ -987,10 +987,17 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         });
       }
 
-      const manifest = await fetchProxyManifest(proxyHeaders);
-      if (!manifest) {
+      const manifestResult = await fetchProxyManifest(proxyHeaders);
+      if (manifestResult.offline) {
+        return new Response(
+          JSON.stringify({ error: "Livestream sedang offline" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!manifestResult.content) {
         return new Response("Failed to fetch proxy stream", { status: 502, headers: corsHeaders });
       }
+      const manifest = manifestResult.content;
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
       const baseUrl = "https://proxy.mediastream48.workers.dev/api/proxy/";
