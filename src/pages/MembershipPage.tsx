@@ -388,10 +388,45 @@ const MembershipPage = () => {
             className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground flex items-center gap-1.5">
-              <Coins className="h-4 w-4" /> {selectedShow.coin_price} Koin · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}
+              {purchaseStep === "qris" || purchaseStep === "upload"
+                ? <>{selectedShow.price} · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
+                : <><Coins className="h-4 w-4" /> {selectedShow.coin_price} Koin · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
+              }
             </p>
 
-            {purchaseStep === "coin_info" && (
+            {/* QRIS Steps */}
+            {purchaseStep === "qris" && (
+              <div className="space-y-4">
+                {selectedShow.qris_image_url && (
+                  <img src={selectedShow.qris_image_url} alt="QRIS" className="mx-auto max-w-[240px] rounded-xl" />
+                )}
+                <p className="text-xs text-muted-foreground text-center">Scan QRIS lalu upload bukti pembayaran</p>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
+                </div>
+                <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${!phone || !email ? "bg-muted text-muted-foreground pointer-events-none" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
+                  {uploadingProof ? "Mengupload..." : "📷 Upload Bukti Pembayaran"}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} disabled={!phone || !email || uploadingProof} />
+                </label>
+              </div>
+            )}
+
+            {purchaseStep === "upload" && (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-[hsl(var(--success))]/10 p-3 text-sm text-[hsl(var(--success))]">
+                  ✅ Bukti pembayaran berhasil diupload
+                </div>
+                <Button onClick={handleSubmitQris} disabled={submitting || !phone || !email} className="w-full">
+                  {submitting ? "Mengirim..." : "Kirim Pesanan"}
+                </Button>
+                <p className="text-[10px] text-center text-muted-foreground">Admin akan mengkonfirmasi pesanan kamu</p>
+              </div>
+            )
               <div className="space-y-4">
                 <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
                   💰 Saldo koin: <strong>{coinBalance}</strong> · Harga: <strong>{selectedShow.coin_price}</strong> koin
