@@ -611,7 +611,7 @@ const LivePage = () => {
                     playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
-                    customHeaders={isProxyPlaylist ? proxyHeaders : null}
+                    customHeaders={null}
                   />
                 </Suspense>
               ) : effectiveStreamLoading ? (
@@ -623,7 +623,7 @@ const LivePage = () => {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
-                  <p className="text-sm text-destructive">{proxyError || "Gagal memuat stream. Coba refresh."}</p>
+                  <p className="text-sm text-destructive">Gagal memuat stream. Coba refresh.</p>
                 </div>
               )}
             </div>
