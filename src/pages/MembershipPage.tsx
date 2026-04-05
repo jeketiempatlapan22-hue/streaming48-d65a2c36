@@ -31,13 +31,15 @@ const MembershipPage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "done">("coin_info");
+  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "qris" | "upload" | "done">("coin_info");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
   const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
+  const [coinOnly, setCoinOnly] = useState(true);
+  const [uploadingProof, setUploadingProof] = useState(false);
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
     expires_at?: string;
@@ -57,10 +59,19 @@ const MembershipPage = () => {
   };
 
   const fetchData = async () => {
-    const { data: allShows } = await supabase.rpc("get_public_shows");
+    const [showsRes, settingsRes] = await Promise.all([
+      supabase.rpc("get_public_shows"),
+      supabase.from("site_settings").select("key, value").in("key", ["membership_coin_only"]),
+    ]);
+    const allShows = showsRes.data;
     const data = (allShows || []).filter((s: any) => s.is_subscription);
     const subShows = (data as Show[]) || [];
     setShows(subShows);
+
+    const settingsMap: Record<string, string> = {};
+    (settingsRes.data || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
+    setCoinOnly(settingsMap["membership_coin_only"] !== "false");
+
     const counts: Record<string, number> = {};
     for (const s of subShows) {
       const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: s.id });
