@@ -316,12 +316,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         console.warn("[HLS] Error:", data.type, data.details, data.fatal);
         if (data.fatal) {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            // Detect manifest load error as potential inactive stream
+            if (data.details === "manifestLoadError" || data.details === "manifestParsingError") {
+              console.warn("[HLS] Manifest error — treating as inactive stream, retrying in 10s");
+              setStreamInactive(true);
+              setIsLoading(false);
+              setPlayerError(null);
+              if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+              inactiveRetryRef.current = setTimeout(() => {
+                if (!destroyed && hlsRef.current) {
+                  console.log("[HLS] Retrying inactive stream...");
+                  setStreamInactive(false);
+                  setIsLoading(true);
+                  hls.loadSource(playlistUrl);
+                }
+              }, 10000);
+              return;
+            }
             networkRetryCount++;
             if (networkRetryCount <= MAX_NETWORK_RETRIES) {
               const delay = Math.min(2000 * networkRetryCount, 10000);
               setTimeout(() => {
                 if (destroyed || !hlsRef.current) return;
-                if (data.details === "manifestLoadError" || data.details === "manifestLoadTimeOut") {
+                if (data.details === "manifestLoadTimeOut") {
                   hls.loadSource(playlistUrl);
                 } else {
                   hls.startLoad();
