@@ -101,6 +101,7 @@ const LivePage = () => {
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
+  const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -120,11 +121,11 @@ const LivePage = () => {
     fp
   );
 
-  // For proxy playlists: fetch headers directly from frontend
-  // Use a stable refreshKey derived from playlist selection to trigger re-fetch
+  // For proxy playlists: fetch token directly from hanabira48 (no edge function)
   const proxyRefreshKey = isProxyPlaylist ? 1 : 0;
   const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
     isProxyPlaylist,
+    externalShowId,
     proxyRefreshKey
   );
 
