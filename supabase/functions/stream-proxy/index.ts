@@ -598,7 +598,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { data: playlist } = await supabase
+      const supabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const { data: playlist } = await supabaseClient
         .from("playlists").select("id, type").eq("id", playlist_id).single();
 
       if (!playlist) {
