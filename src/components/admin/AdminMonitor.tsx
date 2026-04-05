@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import VideoPlayer from "@/components/VideoPlayer";
+const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 import LiveChat from "@/components/viewer/LiveChat";
 import ChatModeratorManager from "@/components/admin/ChatModeratorManager";
 import PollManager from "@/components/admin/PollManager";

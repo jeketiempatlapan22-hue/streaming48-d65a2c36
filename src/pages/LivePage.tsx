@@ -19,10 +19,12 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 
+const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
 const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
 const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
+const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
 
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void }) => {
   const [resetting, setResetting] = useState(false);
