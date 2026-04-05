@@ -571,7 +571,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const label = q?.label || "Auto";
     setQualityChanging(label);
     clearTimeout(qualityChangeTimerRef.current);
-    qualityChangeTimerRef.current = setTimeout(() => setQualityChanging(null), 1800);
+    qualityChangeTimerRef.current = setTimeout(() => setQualityChanging(null), 1600);
 
     if (level === -1) {
       hls.currentLevel = -1;
@@ -771,14 +771,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       {/* Quality change animation overlay */}
       {qualityChanging && (
-        <div className="absolute inset-0 z-[6] flex items-center justify-center pointer-events-none animate-fade-in">
-          <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/70 px-6 py-4 backdrop-blur-md border border-white/10 shadow-2xl animate-scale-in">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2.5" className="animate-spin" style={{ animationDuration: "1.5s" }}>
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        <div
+          key={qualityChanging + Date.now()}
+          className="absolute inset-0 z-[6] flex items-center justify-center pointer-events-none"
+          style={{ animation: "quality-toast 1.6s ease-out forwards" }}
+        >
+          <div className="flex items-center gap-2.5 rounded-full bg-black/75 px-5 py-2.5 shadow-lg border border-white/10">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2.5" className="animate-spin" style={{ animationDuration: "1s" }}>
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
-            <span className="text-white text-sm font-bold tracking-wide">{qualityChanging}</span>
-            <span className="text-white/50 text-[10px]">Mengubah resolusi...</span>
+            <span className="text-white text-xs font-bold">{qualityChanging}</span>
           </div>
         </div>
       )}
