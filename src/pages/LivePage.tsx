@@ -584,13 +584,15 @@ const LivePage = () => {
           {isLive && activePlaylist ? (
             <div className="relative">
               {signedUrl ? (
-                <VideoPlayer
-                  ref={playerRef}
-                  key={activePlaylist.id}
-                  playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
-                  autoPlay
-                  tokenCode={tokenData?.code}
-                />
+                <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                  <VideoPlayer
+                    ref={playerRef}
+                    key={activePlaylist.id}
+                    playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
+                    autoPlay
+                    tokenCode={tokenData?.code}
+                  />
+                </Suspense>
               ) : signedLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">
