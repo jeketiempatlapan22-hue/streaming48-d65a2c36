@@ -42,6 +42,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const ytReadyRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const controlsFrameRef = useRef<number | null>(null);
+  const showControlsRef = useRef(true);
+  const isBehindLiveRef = useRef(false);
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
   const userQualityRef = useRef<number>(-1); // track user's manual quality choice
 
@@ -120,15 +123,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
     const resetTimer = () => {
-      setShowControls(true);
-      clearTimeout(controlsTimeoutRef.current);
-      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+      if (controlsFrameRef.current !== null) cancelAnimationFrame(controlsFrameRef.current);
+      controlsFrameRef.current = requestAnimationFrame(() => {
+        if (!showControlsRef.current) {
+          showControlsRef.current = true;
+          setShowControls(true);
+        }
+        clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => {
+          showControlsRef.current = false;
+          setShowControls(false);
+        }, 2500);
+      });
     };
+
     el.addEventListener("mousemove", resetTimer, { passive: true });
     el.addEventListener("touchstart", resetTimer, { passive: true });
     resetTimer();
+
     return () => {
+      if (controlsFrameRef.current !== null) cancelAnimationFrame(controlsFrameRef.current);
       clearTimeout(controlsTimeoutRef.current);
       el.removeEventListener("mousemove", resetTimer);
       el.removeEventListener("touchstart", resetTimer);
@@ -314,7 +330,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const liveCheckId = setInterval(() => {
         if (destroyed || video.paused || !hls.liveSyncPosition) return;
-        setIsBehindLive(hls.liveSyncPosition - video.currentTime > 8);
+        const behindLive = hls.liveSyncPosition - video.currentTime > 8;
+        if (isBehindLiveRef.current !== behindLive) {
+          isBehindLiveRef.current = behindLive;
+          setIsBehindLive(behindLive);
+        }
       }, 3000);
 
       const onVisible = () => {
@@ -639,6 +659,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         videoRef.current.currentTime = videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - 0.5;
       }
       if (videoRef.current.paused) videoRef.current.play().catch(() => {});
+      isBehindLiveRef.current = false;
       setIsBehindLive(false);
     } else if (playlistType === "youtube") {
       if (ytReadyRef.current && ytPlayerRef.current) {
@@ -772,7 +793,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       {/* Quality change animation overlay */}
       {qualityChanging && (
         <div
-          key={qualityChanging + Date.now()}
           className="absolute inset-0 z-[6] flex items-center justify-center pointer-events-none"
           style={{ animation: "quality-toast 1.6s ease-out forwards" }}
         >
@@ -814,7 +834,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         onContextMenu={e => e.preventDefault()}
       >
         {/* Play/Pause */}
-        <button onClick={handlePlayPause} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/80 text-primary-foreground backdrop-blur-sm transition hover:bg-primary">
+        <button onClick={handlePlayPause} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/80 text-primary-foreground transition hover:bg-primary">
           {isPlaying ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
           ) : (
@@ -824,7 +844,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
         {/* YT Mute toggle — works in both API and iframe mode */}
         {playlistType === "youtube" && (ytMode === "api" || ytMode === "iframe") && (
-          <button onClick={toggleYtMute} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title={ytMuted ? "Unmute" : "Mute"}>
+          <button onClick={toggleYtMute} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30" title={ytMuted ? "Unmute" : "Mute"}>
             {ytMuted ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
             ) : (
@@ -836,7 +856,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         {/* LIVE sync button */}
         <button
           onClick={syncToLive}
-          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium backdrop-blur-sm transition ${isBehindLive ? "bg-red-600 text-white animate-pulse hover:bg-red-700" : "bg-white/20 text-white hover:bg-white/30"}`}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition ${isBehindLive ? "bg-red-600 text-white animate-pulse hover:bg-red-700" : "bg-white/20 text-white hover:bg-white/30"}`}
           title="Sync ke Live"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg>
@@ -850,13 +870,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           <div className="relative">
             <button
               onClick={e => { e.stopPropagation(); setShowQualityMenu(prev => !prev); }}
-              className="flex h-10 items-center gap-1.5 rounded-full bg-primary/90 px-4 py-2 text-sm font-bold text-primary-foreground backdrop-blur-sm transition hover:bg-primary shadow-lg border border-white/20"
+              className="flex h-10 items-center gap-1.5 rounded-full bg-primary/90 px-4 py-2 text-sm font-bold text-primary-foreground transition hover:bg-primary shadow-lg border border-white/20"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               {qualities.find(q => q.value === selectedQuality)?.label || "Auto"}
             </button>
             {showQualityMenu && (
-              <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-black/90 border border-white/20 p-1.5 shadow-2xl backdrop-blur-md min-w-[130px]">
+              <div className="absolute bottom-full right-0 mb-2 rounded-xl bg-black/90 border border-white/20 p-1.5 shadow-2xl min-w-[130px]">
                 {qualities.map(q => (
                   <button
                     key={q.value}
@@ -877,12 +897,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         )}
 
         {/* Rotate */}
-        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title="Rotate">
+        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30" title="Rotate">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
 
         {/* Fullscreen */}
-        <button onClick={toggleFullscreen} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-sm transition hover:bg-white/30" title="Fullscreen">
+        <button onClick={toggleFullscreen} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30" title="Fullscreen">
           {isFullscreen ? (
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
           ) : (
