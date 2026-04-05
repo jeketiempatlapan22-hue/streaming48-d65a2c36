@@ -659,6 +659,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         videoRef.current.currentTime = videoRef.current.buffered.end(videoRef.current.buffered.length - 1) - 0.5;
       }
       if (videoRef.current.paused) videoRef.current.play().catch(() => {});
+      isBehindLiveRef.current = false;
       setIsBehindLive(false);
     } else if (playlistType === "youtube") {
       if (ytReadyRef.current && ytPlayerRef.current) {
