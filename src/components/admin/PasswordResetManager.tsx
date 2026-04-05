@@ -104,8 +104,7 @@ const PasswordResetManager = () => {
   };
 
   const copyResetLink = (request: ResetRequest) => {
-    const siteUrl = "https://realtime48stream.my.id";
-    const link = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
+    const link = `${window.location.origin}/reset-password?token=${request.secure_token || request.short_id}`;
     navigator.clipboard.writeText(link);
     toast.success("Link reset disalin!");
   };
