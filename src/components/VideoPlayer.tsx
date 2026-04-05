@@ -344,7 +344,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
 
       hls.on(Hls.Events.FRAG_LOADED, () => {
-        if (!destroyed) { networkRetryCount = 0; setIsLoading(false); setStreamInactive(false); }
+        if (!destroyed) {
+          fragLoaded = true;
+          if (inactiveFallbackTimer) { clearTimeout(inactiveFallbackTimer); inactiveFallbackTimer = null; }
+          networkRetryCount = 0; setIsLoading(false); setStreamInactive(false);
+        }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
