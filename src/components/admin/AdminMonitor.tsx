@@ -8,6 +8,7 @@ import LivePoll from "@/components/viewer/LivePoll";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useAdminSignedStreamUrl } from "@/hooks/useAdminSignedStreamUrl";
+import { useProxyStream } from "@/hooks/useProxyStream";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
