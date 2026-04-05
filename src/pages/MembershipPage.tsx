@@ -264,7 +264,7 @@ const MembershipPage = () => {
           <h1 className="text-3xl font-extrabold text-foreground md:text-5xl">
             Paket <span className="text-yellow-500">Membership</span>
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-muted-foreground">Tukarkan koin untuk akses eksklusif streaming</p>
+          <p className="mx-auto mt-3 max-w-md text-muted-foreground">{coinOnly ? "Tukarkan koin untuk akses eksklusif streaming" : "Dapatkan akses eksklusif streaming"}</p>
         </motion.div>
       </section>
 
