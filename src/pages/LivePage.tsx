@@ -283,7 +283,9 @@ const LivePage = () => {
             setExternalShowId(activeShow.external_show_id);
           }
 
-          if (result.show_id && result.show_id !== activeShowId) {
+        // Membership tokens (MBR-) can access ANY live show — skip mismatch check
+        const isMembershipToken = result.code?.startsWith("MBR-");
+        if (result.show_id && result.show_id !== activeShowId && !isMembershipToken) {
             const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
             setShowMismatch(true);
             setMismatchShowTitle(JSON.stringify({
@@ -547,7 +549,6 @@ const LivePage = () => {
           <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
           <div className="flex-1 min-w-0"><h1 className="text-sm font-bold text-foreground lg:text-base truncate">{stream?.title || "RealTime48"}</h1></div>
           
-          <PipButton />
           <LiveViewerCount isLive={isLive} />
           {isLive ? <span className="flex items-center gap-1.5 rounded-full bg-destructive/20 px-3 py-1 text-xs font-semibold text-destructive"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />LIVE</span> : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">OFFLINE</span>}
           
@@ -593,27 +594,22 @@ const LivePage = () => {
             </SheetContent>
           </Sheet>
         </header>
-        {/* Membership duration badge with join date */}
-        {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (() => {
-          const expiresAt = new Date(tokenData.expires_at);
-          const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-          const createdAt = tokenData.created_at ? new Date(tokenData.created_at) : null;
-          return (
-            <div className="mx-4 mb-2 mt-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">👑</span>
-                <span className="text-xs font-semibold text-yellow-600">
-                  Membership · {daysLeft} hari tersisa
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-[10px] text-muted-foreground pl-6">
-                {createdAt && <span>Bergabung: {createdAt.toLocaleDateString("id-ID")}</span>}
-                <span>Berakhir: {expiresAt.toLocaleDateString("id-ID")}</span>
-              </div>
-            </div>
-          );
-        })()}
         <div className="player-area relative z-10">
+          {/* Membership badge overlay on player */}
+          {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (() => {
+            const expiresAt = new Date(tokenData.expires_at);
+            const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            return (
+              <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-yellow-500/40 px-2.5 py-1">
+                <span className="text-xs">👑</span>
+                <span className="text-[10px] font-semibold text-yellow-400">{daysLeft}d</span>
+              </div>
+            );
+          })()}
+          {/* PiP button overlay on player */}
+          <div className="absolute top-2 right-2 z-30">
+            <PipButton />
+          </div>
           {isLive && activePlaylist ? (
             <div className="relative">
               {effectiveStreamUrl ? (
