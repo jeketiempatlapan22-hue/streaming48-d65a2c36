@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/sheet";
 
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
-import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
@@ -112,27 +111,18 @@ const LivePage = () => {
 
   const fp = getFingerprint();
 
-  const isProxyPlaylist = activePlaylist?.type === "proxy";
-
-  // For non-proxy playlists: use signed stream URL via edge function
+  // ALL playlist types (m3u8, youtube, proxy) go through stream-proxy edge function
+  // The server-side proxy handles token fetching + custom headers for proxy streams
   const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
-    activePlaylist && !isProxyPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode,
     fp
   );
 
-  // For proxy playlists: fetch token directly from hanabira48 (no edge function)
-  const proxyRefreshKey = isProxyPlaylist ? 1 : 0;
-  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
-    isProxyPlaylist,
-    externalShowId,
-    proxyRefreshKey
-  );
-
   // Unified URL and type for VideoPlayer
-  const effectiveStreamUrl = isProxyPlaylist ? proxyUrl : signedUrl;
-  const effectiveStreamLoading = isProxyPlaylist ? proxyLoading : signedLoading;
-  const effectiveType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+  const effectiveStreamUrl = signedUrl;
+  const effectiveStreamLoading = signedLoading;
+  const effectiveType = proxyType || activePlaylist?.type || "m3u8";
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
@@ -620,7 +610,7 @@ const LivePage = () => {
                     playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
-                    customHeaders={isProxyPlaylist ? proxyHeaders : null}
+                    customHeaders={null}
                   />
                 </Suspense>
               ) : effectiveStreamLoading ? (
@@ -632,7 +622,7 @@ const LivePage = () => {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
-                  <p className="text-sm text-destructive">{proxyError || "Gagal memuat stream. Coba refresh."}</p>
+                  <p className="text-sm text-destructive">Gagal memuat stream. Coba refresh.</p>
                 </div>
               )}
             </div>
