@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   watermarkUrl?: string;
   tokenCode?: string;
+  customHeaders?: Record<string, string> | null;
 }
 
 export interface VideoPlayerHandle {
