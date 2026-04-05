@@ -151,12 +151,17 @@ async function getProxyStreamHeaders(externalShowId: string): Promise<Record<str
       console.error("[proxy] Failed to get stream token from hanabira48:", res.status);
       return null;
     }
-    const data = await res.json();
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      console.error("[proxy] hanabira48 API returned unsuccessful:", json);
+      return null;
+    }
+    const d = json.data;
     const headers: Record<string, string> = {
-      xapi: data.xapi || "",
-      xsec: data.xsec || "",
-      xshowid: data.xshowid || "",
-      xtoken: data.xtoken || "",
+      "x-api-token": d.apiToken || "",
+      "x-sec-key": d.secKey || "",
+      "x-showid": d.showId || "",
+      "x-token-id": d.tokenId || "",
     };
     proxyTokenCache.set(externalShowId, { headers, cachedAt: Date.now() });
     return headers;
