@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface ProxyStreamResult {
   playbackUrl: string | null;
@@ -9,12 +8,13 @@ interface ProxyStreamResult {
 }
 
 /**
- * Hook that fetches proxy stream token via edge function (avoids CORS),
+ * Hook that fetches stream token directly from hanabira48.com (no edge function),
  * then provides the playback URL + custom headers for HLS.js to use directly.
- * Stream segments go directly from browser → proxy server (no edge function proxy).
+ * Browser → hanabira48 (token) → proxy.mediastream48 (playback with headers).
  */
 export function useProxyStream(
   isProxy: boolean,
+  externalShowId: string | null,
   refreshKey = 0
 ): ProxyStreamResult {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
@@ -24,51 +24,70 @@ export function useProxyStream(
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
 
-  const fetchProxyHeaders = useCallback(async () => {
-    console.log("[useProxyStream] fetchProxyHeaders called, isProxy:", isProxy);
-    if (!isProxy) return;
+  const fetchToken = useCallback(async () => {
+    console.log("[useProxyStream] fetchToken called, isProxy:", isProxy, "showId:", externalShowId);
+    if (!isProxy || !externalShowId) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      console.log("[useProxyStream] Fetching token via edge function...");
+      const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
+      console.log("[useProxyStream] Fetching token directly:", tokenUrl);
 
-      // Call lightweight edge function to fetch token (bypasses CORS)
-      const { data, error: fnError } = await supabase.functions.invoke("proxy-token", {
-        method: "POST",
-        body: {},
+      const res = await fetch(tokenUrl, {
+        headers: {
+          "Accept": "application/json",
+        },
       });
 
-      if (fnError) {
-        throw new Error(`Edge function error: ${fnError.message}`);
+      if (!res.ok) {
+        throw new Error(`Token API error: ${res.status}`);
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Gagal mengambil token stream");
-      }
+      const tokenPayload = await res.json();
+      console.log("[useProxyStream] Token response keys:", Object.keys(tokenPayload));
 
       if (!isMounted.current) return;
 
-      const headers = data.headers as Record<string, string>;
-      
-      if (!headers || Object.keys(headers).length === 0) {
-        throw new Error("Token response tidak mengandung header yang valid");
+      // Extract headers from token response (support nested .data or flat)
+      const source = tokenPayload?.data && typeof tokenPayload.data === "object"
+        ? tokenPayload.data
+        : tokenPayload;
+
+      const apiToken = source?.apiToken ?? source?.api_token ?? source?.["x-api-token"] ?? source?.xapi;
+      const secKey = source?.secKey ?? source?.sec_key ?? source?.["x-sec-key"] ?? source?.xsec;
+      const showId = source?.showId ?? source?.show_id ?? source?.["x-showid"] ?? source?.xshowid;
+      const tokenId = source?.tokenId ?? source?.token_id ?? source?.["x-token-id"] ?? source?.xtoken ?? source?.x;
+
+      if (!apiToken || !secKey || !showId || !tokenId) {
+        console.error("[useProxyStream] Missing token fields:", { apiToken: !!apiToken, secKey: !!secKey, showId: !!showId, tokenId: !!tokenId });
+        throw new Error("Token response tidak lengkap");
       }
 
-      console.log("[useProxyStream] Got headers:", Object.keys(headers));
-      console.log("[useProxyStream] Show ID:", data.show_id);
+      const headers: Record<string, string> = {
+        "x-api-token": String(apiToken),
+        "x-sec-key": String(secKey),
+        "x-showid": String(showId),
+        "x-token-id": String(tokenId),
+        xapi: String(apiToken),
+        xsec: String(secKey),
+        xshowid: String(showId),
+        x: String(tokenId),
+      };
+
+      console.log("[useProxyStream] Headers ready:", Object.keys(headers));
 
       setCustomHeaders(headers);
       setPlaybackUrl("https://proxy.mediastream48.workers.dev/api/proxy/playback");
       setLoading(false);
 
-      // Refresh token every 4 minutes (tokens usually valid for ~5 min)
+      // Refresh token every 4 minutes
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) {
           console.log("[useProxyStream] Refreshing token...");
-          fetchProxyHeaders();
+          fetchToken();
         }
       }, 4 * 60 * 1000);
     } catch (err: any) {
@@ -84,17 +103,17 @@ export function useProxyStream(
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) {
           console.log("[useProxyStream] Retrying after error...");
-          fetchProxyHeaders();
+          fetchToken();
         }
       }, 10_000);
     }
-  }, [isProxy, refreshKey]);
+  }, [isProxy, externalShowId, refreshKey]);
 
   useEffect(() => {
     isMounted.current = true;
     setPlaybackUrl(null);
     setCustomHeaders(null);
-    if (isProxy) fetchProxyHeaders();
+    if (isProxy && externalShowId) fetchToken();
 
     return () => {
       isMounted.current = false;
@@ -103,7 +122,7 @@ export function useProxyStream(
         refreshTimerRef.current = null;
       }
     };
-  }, [fetchProxyHeaders]);
+  }, [fetchToken]);
 
   return { playbackUrl, customHeaders, loading, error };
 }
