@@ -518,7 +518,7 @@ const LivePage = () => {
       <ConnectionStatus />
       <ViewerBroadcast />
       <SecurityAlert />
-      {playerAnimation !== "none" && <PlayerAnimations type={playerAnimation} backgroundOnly />}
+      {playerAnimation !== "none" && <Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense>}
       {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
