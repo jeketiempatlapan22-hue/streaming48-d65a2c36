@@ -171,7 +171,7 @@ async function getProxyStreamHeaders(externalShowId: string): Promise<Record<str
   }
 }
 
-async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise<string | null> {
+async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise<{ content: string | null; offline?: boolean }> {
   try {
     const res = await fetch("https://proxy.mediastream48.workers.dev/api/proxy/playback", {
       headers: {
@@ -179,14 +179,21 @@ async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise
         "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)",
       },
     });
+    if (res.status === 404) {
+      const body = await res.text();
+      console.log("[proxy] Stream offline:", body);
+      return { content: null, offline: true };
+    }
     if (!res.ok) {
       console.error("[proxy] Failed to fetch manifest from mediastream48:", res.status);
-      return null;
+      const body = await res.text();
+      console.error("[proxy] Response body:", body);
+      return { content: null };
     }
-    return await res.text();
+    return { content: await res.text() };
   } catch (err) {
     console.error("[proxy] Error fetching proxy manifest:", err);
-    return null;
+    return { content: null };
   }
 }
 
@@ -980,10 +987,17 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         });
       }
 
-      const manifest = await fetchProxyManifest(proxyHeaders);
-      if (!manifest) {
+      const manifestResult = await fetchProxyManifest(proxyHeaders);
+      if (manifestResult.offline) {
+        return new Response(
+          JSON.stringify({ error: "Livestream sedang offline" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (!manifestResult.content) {
         return new Response("Failed to fetch proxy stream", { status: 502, headers: corsHeaders });
       }
+      const manifest = manifestResult.content;
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
       const baseUrl = "https://proxy.mediastream48.workers.dev/api/proxy/";
