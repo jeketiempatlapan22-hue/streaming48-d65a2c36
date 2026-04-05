@@ -201,7 +201,30 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("error", onError);
 
-    const loadingTimeout = setTimeout(() => { if (!destroyed) setIsLoading(false); }, 15000);
+    const loadingTimeout = setTimeout(() => {
+      if (!destroyed) {
+        setIsLoading(false);
+        // If still no video playing after 15s, mark as inactive stream
+        if (videoRef.current && videoRef.current.paused && !videoRef.current.currentTime) {
+          console.warn("[HLS] No playback after 15s — stream inactive");
+          setStreamInactive(true);
+          setPlayerError(null);
+          // Auto-retry every 10s
+          if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed) {
+              setStreamInactive(false);
+              setIsLoading(true);
+              if (hlsRef.current) {
+                hlsRef.current.loadSource(playlistUrl);
+              } else {
+                window.location.reload();
+              }
+            }
+          }, 10000);
+        }
+      }
+    }, 12000);
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
