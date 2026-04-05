@@ -250,7 +250,7 @@ async function sendBuyerWhatsApp(phone: string | null, message: string) {
 
   let cleanPhone = phone.replace(/[^0-9]/g, "");
   if (cleanPhone.startsWith("0")) cleanPhone = "62" + cleanPhone.slice(1);
-  if (!cleanPhone.startsWith("62") && !cleanPhone.startsWith("+")) cleanPhone = "62" + cleanPhone;
+  if (!cleanPhone.startsWith("62")) cleanPhone = "62" + cleanPhone;
 
   try {
     const res = await fetch("https://api.fonnte.com/send", {
