@@ -619,7 +619,7 @@ const LivePage = () => {
                     playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
-                    customHeaders={null}
+                    customHeaders={effectiveHeaders}
                   />
                 </Suspense>
               ) : effectiveStreamLoading ? (
