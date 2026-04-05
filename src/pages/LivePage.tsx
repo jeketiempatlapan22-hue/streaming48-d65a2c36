@@ -120,9 +120,11 @@ const LivePage = () => {
   );
 
   // For proxy playlists: fetch headers directly from frontend
+  // Use a stable refreshKey derived from playlist selection to trigger re-fetch
+  const proxyRefreshKey = isProxyPlaylist ? 1 : 0;
   const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
     isProxyPlaylist,
-    activePlaylist?.id ? 0 : 0
+    proxyRefreshKey
   );
 
   // Unified URL and type for VideoPlayer
