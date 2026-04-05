@@ -35,7 +35,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [isBehindLive, setIsBehindLive] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [qualityChanging, setQualityChanging] = useState<string | null>(null);
+  const [streamInactive, setStreamInactive] = useState(false);
   const qualityChangeTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const inactiveRetryRef = useRef<ReturnType<typeof setTimeout>>();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
@@ -162,6 +164,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     let destroyed = false;
 
     if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
+    if (inactiveRetryRef.current) { clearTimeout(inactiveRetryRef.current); inactiveRetryRef.current = undefined; }
     video.removeAttribute("src");
     setIsPlaying(false);
     setIsLoading(true);
@@ -169,6 +172,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setSelectedQuality(-1);
     setIsBehindLive(false);
     setPlayerError(null);
+    setStreamInactive(false);
     userQualityRef.current = -1;
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -259,6 +263,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
+        // Check if manifest has no usable levels (inactive stream returns empty ENDLIST)
+        if (!data.levels || data.levels.length === 0) {
+          console.warn("[HLS] Manifest parsed but no levels — stream inactive");
+          setStreamInactive(true);
+          setIsLoading(false);
+          // Auto-retry every 10s
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed && hlsRef.current) {
+              console.log("[HLS] Retrying inactive stream...");
+              setStreamInactive(false);
+              setIsLoading(true);
+              hls.loadSource(playlistUrl);
+            }
+          }, 10000);
+          return;
+        }
+        setStreamInactive(false);
         networkRetryCount = 0;
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
@@ -295,12 +316,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         console.warn("[HLS] Error:", data.type, data.details, data.fatal);
         if (data.fatal) {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            // Detect manifest load error as potential inactive stream
+            if (data.details === "manifestLoadError" || data.details === "manifestParsingError") {
+              console.warn("[HLS] Manifest error — treating as inactive stream, retrying in 10s");
+              setStreamInactive(true);
+              setIsLoading(false);
+              setPlayerError(null);
+              if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+              inactiveRetryRef.current = setTimeout(() => {
+                if (!destroyed && hlsRef.current) {
+                  console.log("[HLS] Retrying inactive stream...");
+                  setStreamInactive(false);
+                  setIsLoading(true);
+                  hls.loadSource(playlistUrl);
+                }
+              }, 10000);
+              return;
+            }
             networkRetryCount++;
             if (networkRetryCount <= MAX_NETWORK_RETRIES) {
               const delay = Math.min(2000 * networkRetryCount, 10000);
               setTimeout(() => {
                 if (destroyed || !hlsRef.current) return;
-                if (data.details === "manifestLoadError" || data.details === "manifestLoadTimeOut") {
+                if (data.details === "manifestLoadTimeOut") {
                   hls.loadSource(playlistUrl);
                 } else {
                   hls.startLoad();
@@ -376,6 +414,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       destroyed = true;
       clearTimeout(loadingTimeout);
       clearTimeout(qualityChangeTimerRef.current);
+      if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
       if (waitingTimer) clearTimeout(waitingTimer);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
@@ -789,8 +828,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
+      {/* Stream inactive overlay */}
+      {streamInactive && (
+        <div className="absolute inset-0 z-[15] flex items-center justify-center bg-black/90">
+          <div className="text-center p-6">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/20">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+              </svg>
+            </div>
+            <p className="text-white/80 text-sm font-semibold mb-1">Stream Belum Aktif</p>
+            <p className="text-white/50 text-xs mb-3">Menunggu siaran dimulai...</p>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0s" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.15s" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.3s" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading spinner */}
-      {isLoading && !playerError && (
+      {isLoading && !playerError && !streamInactive && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-[3px] border-white/20 border-t-primary animate-spin" />
