@@ -498,7 +498,7 @@ Deno.serve(async (req) => {
     // ===== MODE: generate (POST) =====
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
-      const { token_code, playlist_id, fingerprint } = body;
+      const { token_code, playlist_id, fingerprint, admin_preview } = body;
 
       // Strict rate limit: 20 generate requests per minute per IP
       // Each viewer refreshes every ~12 min, so 20/min supports ~240 viewers per IP
@@ -506,64 +506,100 @@ Deno.serve(async (req) => {
         return getRateLimitResponse();
       }
 
-      if (!token_code || !playlist_id) {
-        return new Response(
-          JSON.stringify({ error: "Missing token_code or playlist_id" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Validate token_code format (prevent SQL injection via RPC)
-      if (typeof token_code !== "string" || token_code.length > 100) {
-        trackAbuse(clientIp);
-        return new Response(
-          JSON.stringify({ error: "Invalid token format" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Validate playlist_id is UUID format
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playlist_id)) {
-        trackAbuse(clientIp);
-        return new Response(
-          JSON.stringify({ error: "Invalid playlist ID" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-
-      if (fingerprint) {
-        const { data: sessResult, error: sessErr } = await supabase.rpc("create_token_session", {
-          _token_code: token_code,
-          _fingerprint: fingerprint,
-          _user_agent: "stream-proxy",
-        });
-        const sr = sessResult as any;
-        if (sessErr || !sr?.success) {
-          // Only track abuse for clearly invalid tokens, not device_limit or expired
-          const errMsg = sr?.error || "Token tidak valid";
-          const isLegitFailure = errMsg === "device_limit" || errMsg.includes("kedaluwarsa") || errMsg.includes("expired");
-          if (!isLegitFailure) trackAbuse(clientIp);
+      // --- ADMIN PREVIEW MODE ---
+      if (admin_preview) {
+        if (!playlist_id) {
           return new Response(
-            JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
+            JSON.stringify({ error: "Missing playlist_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // Validate admin via JWT
+        const authHeader = req.headers.get("authorization") || "";
+        const jwt = authHeader.replace(/^Bearer\s+/i, "");
+        if (!jwt) {
+          return new Response(
+            JSON.stringify({ error: "Unauthorized" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const supabaseAuth = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+        const { data: { user }, error: userErr } = await supabaseAuth.auth.getUser(jwt);
+        if (userErr || !user) {
+          return new Response(
+            JSON.stringify({ error: "Invalid session" }),
+            { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: isAdmin } = await supabaseAuth.rpc("has_role", { _user_id: user.id, _role: "admin" });
+        if (!isAdmin) {
+          return new Response(
+            JSON.stringify({ error: "Admin access required" }),
             { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+        // Admin is verified — skip token validation, proceed to playlist lookup below
       } else {
-        const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
-        if (valErr || !(validation as any)?.valid) {
-          const errMsg = (validation as any)?.error || "";
-          const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay");
-          if (!isLegitFailure) trackAbuse(clientIp);
+        // --- NORMAL VIEWER MODE ---
+        if (!token_code || !playlist_id) {
           return new Response(
-            JSON.stringify({ error: errMsg || "Token tidak valid atau expired" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            JSON.stringify({ error: "Missing token_code or playlist_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
+        }
+
+        // Validate token_code format (prevent SQL injection via RPC)
+        if (typeof token_code !== "string" || token_code.length > 100) {
+          trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: "Invalid token format" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Validate playlist_id is UUID format
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playlist_id)) {
+          trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: "Invalid playlist ID" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+        if (fingerprint) {
+          const { data: sessResult, error: sessErr } = await supabase.rpc("create_token_session", {
+            _token_code: token_code,
+            _fingerprint: fingerprint,
+            _user_agent: "stream-proxy",
+          });
+          const sr = sessResult as any;
+          if (sessErr || !sr?.success) {
+            const errMsg = sr?.error || "Token tidak valid";
+            const isLegitFailure = errMsg === "device_limit" || errMsg.includes("kedaluwarsa") || errMsg.includes("expired");
+            if (!isLegitFailure) trackAbuse(clientIp);
+            return new Response(
+              JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        } else {
+          const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
+          if (valErr || !(validation as any)?.valid) {
+            const errMsg = (validation as any)?.error || "";
+            const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay");
+            if (!isLegitFailure) trackAbuse(clientIp);
+            return new Response(
+              JSON.stringify({ error: errMsg || "Token tidak valid atau expired" }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
         }
       }
 
-      const { data: playlist } = await supabase
+      const supabaseClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const { data: playlist } = await supabaseClient
         .from("playlists").select("id, type").eq("id", playlist_id).single();
 
       if (!playlist) {
@@ -603,14 +639,14 @@ Deno.serve(async (req) => {
 
       if (playlist.type === "proxy") {
         // Get active show's external_show_id
-        const { data: activeShowSetting } = await supabase.from("site_settings").select("value").eq("key", "active_show_id").single();
+        const { data: activeShowSetting } = await supabaseClient.from("site_settings").select("value").eq("key", "active_show_id").single();
         if (!activeShowSetting?.value) {
           return new Response(
             JSON.stringify({ error: "Tidak ada show aktif yang dipilih" }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
+        const { data: showData } = await supabaseClient.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
         if (!showData?.external_show_id) {
           return new Response(
             JSON.stringify({ error: "External Show ID belum diatur untuk show aktif" }),
