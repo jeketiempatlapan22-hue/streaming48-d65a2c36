@@ -595,17 +595,18 @@ const LivePage = () => {
         <div className="player-area relative z-10">
           {isLive && activePlaylist ? (
             <div className="relative">
-              {signedUrl ? (
+              {effectiveStreamUrl ? (
                 <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
                   <VideoPlayer
                     ref={playerRef}
                     key={activePlaylist.id}
-                    playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
+                    playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
+                    customHeaders={isProxyPlaylist ? proxyHeaders : null}
                   />
                 </Suspense>
-              ) : signedLoading ? (
+              ) : effectiveStreamLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
@@ -614,7 +615,7 @@ const LivePage = () => {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
-                  <p className="text-sm text-destructive">Gagal memuat stream. Coba refresh.</p>
+                  <p className="text-sm text-destructive">{proxyError || "Gagal memuat stream. Coba refresh."}</p>
                 </div>
               )}
             </div>
