@@ -119,39 +119,77 @@ const MembershipPage = () => {
     };
   }, []);
 
-  const handleBuy = async (show: Show) => {
-    // Must be logged in
+  const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
       toast({ title: "Silakan login terlebih dahulu", variant: "destructive" });
       return;
     }
 
-    // Re-check realtime quota
     const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: show.id });
     const confirmed = (count as number) || 0;
     const isFull = (show.max_subscribers > 0 && confirmed >= show.max_subscribers) || show.is_order_closed;
-
-    if (isFull) {
-      setClosedPopup(show);
-      return;
-    }
-
-    if (show.coin_price <= 0) {
-      toast({ title: "Membership ini belum bisa dibeli dengan koin", variant: "destructive" });
-      return;
-    }
+    if (isFull) { setClosedPopup(show); return; }
 
     setSelectedShow(show);
     setPhone("");
     setEmail("");
     setMembershipResult(null);
-    await fetchBalance();
-    
-    const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle();
-    const currentBalance = bal?.balance || 0;
-    setCoinBalance(currentBalance);
-    setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
+
+    if (mode === "qris") {
+      setPurchaseStep("qris");
+    } else {
+      if (show.coin_price <= 0) {
+        toast({ title: "Membership ini belum bisa dibeli dengan koin", variant: "destructive" });
+        return;
+      }
+      await fetchBalance();
+      const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle();
+      const currentBalance = bal?.balance || 0;
+      setCoinBalance(currentBalance);
+      setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
+    }
+  };
+
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !selectedShow) return;
+    setUploadingProof(true);
+    const file = e.target.files[0];
+    const ext = file.name.split(".").pop();
+    const path = `membership/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
+    if (error) { toast({ title: "Gagal upload", variant: "destructive" }); setUploadingProof(false); return; }
+    setPurchaseStep("upload");
+    setUploadingProof(false);
+    // Store the path for submission
+    (window as any).__membershipProofPath = path;
+  };
+
+  const handleSubmitQris = async () => {
+    if (!selectedShow || !phone || !email) return;
+    setSubmitting(true);
+    const proofPath = (window as any).__membershipProofPath;
+    let proofUrl = null;
+    if (proofPath) {
+      const { data: signedData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofPath, 31536000);
+      proofUrl = signedData?.signedUrl || null;
+    }
+
+    const { data, error } = await supabase.rpc("create_show_order" as any, {
+      _show_id: selectedShow.id, _phone: phone, _email: email, _payment_proof_url: proofUrl, _payment_method: "qris",
+    });
+    setSubmitting(false);
+    const result = data as any;
+    if (error || !result?.success) {
+      toast({ title: "Gagal membuat pesanan", variant: "destructive" }); return;
+    }
+    setPurchaseStep("done");
+    fetchMyOrders();
+    fetchData();
+
+    supabase.functions.invoke("notify-subscription-order", {
+      body: { order_id: result.order_id, show_title: selectedShow.title, phone },
+    }).catch(() => {});
   };
 
   const handleCoinPurchase = async () => {
