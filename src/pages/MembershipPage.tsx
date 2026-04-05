@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Crown, Sparkles, CheckCircle, Star, Upload, Users, Calendar, Coins, AlertTriangle, MessageCircle, Phone, Clock, Copy, ExternalLink } from "lucide-react";
+import { Crown, Sparkles, CheckCircle, Star, Users, Calendar, Coins, AlertTriangle, Clock, Copy, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -23,6 +23,7 @@ interface Show {
   group_link?: string;
   is_order_closed: boolean;
   coin_price: number;
+  membership_duration_days?: number;
 }
 
 const MembershipPage = () => {
@@ -30,22 +31,13 @@ const MembershipPage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
-  const [purchaseMethod, setPurchaseMethod] = useState<"qris" | "coin" | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"choose" | "qris" | "upload" | "info" | "coin_info" | "coin_insufficient" | "done">("choose");
-  const [uploadingProof, setUploadingProof] = useState(false);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [proofFilePath, setProofFilePath] = useState("");
+  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "done">("coin_info");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [resultGroupLink, setResultGroupLink] = useState("");
-  const [orderShortId, setOrderShortId] = useState("");
-  const [coinOnly, setCoinOnly] = useState(false);
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
   const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
-  const [whatsappNumber, setWhatsappNumber] = useState("");
-  // Membership token result state
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
     expires_at?: string;
@@ -89,16 +81,11 @@ const MembershipPage = () => {
     fetchData();
     fetchBalance();
     fetchMyOrders();
-    supabase.from("site_settings").select("value").eq("key", "membership_coin_only").maybeSingle()
-      .then(({ data }) => { if (data?.value === "true") setCoinOnly(true); });
-    supabase.from("site_settings").select("value").eq("key", "whatsapp_number").maybeSingle()
-      .then(({ data }) => { if (data?.value) setWhatsappNumber(data.value); });
 
     const showChannel = supabase.channel("membership-shows")
       .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
       .subscribe();
 
-    // Realtime quota tracking - refresh counts when new orders come in
     const orderChannel = supabase.channel("membership-orders-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "subscription_orders" }, () => {
         fetchData();
@@ -110,10 +97,25 @@ const MembershipPage = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(showChannel); supabase.removeChannel(orderChannel); };
+    const balanceChannel = supabase.channel("membership-balance-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "coin_balances" }, () => fetchBalance())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(showChannel);
+      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(balanceChannel);
+    };
   }, []);
 
   const handleBuy = async (show: Show) => {
+    // Must be logged in
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      toast({ title: "Silakan login terlebih dahulu", variant: "destructive" });
+      return;
+    }
+
     // Re-check realtime quota
     const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: show.id });
     const confirmed = (count as number) || 0;
@@ -124,85 +126,21 @@ const MembershipPage = () => {
       return;
     }
 
-    setSelectedShow(show);
-    setPurchaseMethod(null);
-    setProofFilePath("");
-    setPhone("");
-    setEmail("");
-    setResultGroupLink("");
-    setMembershipResult(null);
-    await fetchBalance();
-    if (coinOnly && show.coin_price > 0) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { toast({ title: "Silakan login terlebih dahulu", variant: "destructive" }); return; }
-      const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle();
-      const currentBalance = bal?.balance || 0;
-      setCoinBalance(currentBalance);
-      setPurchaseMethod("coin");
-      setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
+    if (show.coin_price <= 0) {
+      toast({ title: "Membership ini belum bisa dibeli dengan koin", variant: "destructive" });
       return;
     }
-    setPurchaseStep("choose");
-  };
 
-  const handleChooseQris = () => { setPurchaseMethod("qris"); setPurchaseStep("qris"); };
-
-  const handleChooseCoin = () => {
-    if (coinBalance < (selectedShow?.coin_price || 0)) { setPurchaseMethod("coin"); setPurchaseStep("coin_insufficient"); return; }
-    setPurchaseMethod("coin"); setPurchaseStep("coin_info");
-  };
-
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedShow) return;
-    if (file.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
-    setUploadingProof(true);
-    const filePath = `membership/${selectedShow.id}/${Date.now()}_${file.name}`;
-    const { error } = await supabase.storage.from("coin-proofs").upload(filePath, file);
-    if (error) { toast({ title: "Upload gagal", variant: "destructive" }); setUploadingProof(false); return; }
-    setProofFilePath(filePath);
-    setPurchaseStep("info");
-    setUploadingProof(false);
-  };
-
-  const openWhatsAppOrderDetail = (show: Show, orderPhone: string, orderEmail: string) => {
-    if (!whatsappNumber) return;
-    const msg = `📋 *Pendaftaran Membership Baru*\n\n🎭 Paket: ${show.title}\n💰 Harga: ${show.price}\n📱 HP: ${orderPhone}\n📧 Email: ${orderEmail}\n\nSaya sudah melakukan pembayaran dan mengirim bukti transfer. Mohon dikonfirmasi 🙏`;
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
-  const handleSubmitSubscription = async () => {
-    if (!selectedShow || !proofFilePath) return;
-    setSubmitting(true);
-    const { data: urlData } = await supabase.storage.from("coin-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
-    let orderId: string | null = null;
-    let shortId: string | null = null;
-    try {
-      const { data, error } = await supabase.rpc("create_show_order", {
-        _show_id: selectedShow.id, _phone: phone, _email: email || null, _payment_proof_url: signedUrl || null,
-      });
-      const result = data as any;
-      if (error || !result?.success) {
-        toast({ title: "Gagal menyimpan pesanan: " + (error?.message || "Coba lagi"), variant: "destructive" });
-      } else {
-        orderId = result.order_id;
-        shortId = result.short_id;
-        setOrderShortId(shortId || "");
-      }
-    } catch (e: any) {
-      toast({ title: "Gagal menyimpan pesanan", variant: "destructive" });
-    }
-    setResultGroupLink(selectedShow.group_link || "");
-    setPurchaseStep("done");
-    setSubmitting(false);
-    fetchMyOrders();
-    if (orderId) {
-      supabase.functions.invoke("notify-subscription-order", {
-        body: { order_id: orderId, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "coin-proofs", order_type: "membership" },
-      }).catch(() => {});
-    }
-    openWhatsAppOrderDetail(selectedShow, phone, email);
+    setSelectedShow(show);
+    setPhone("");
+    setEmail("");
+    setMembershipResult(null);
+    await fetchBalance();
+    
+    const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle();
+    const currentBalance = bal?.balance || 0;
+    setCoinBalance(currentBalance);
+    setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
   };
 
   const handleCoinPurchase = async () => {
@@ -216,6 +154,7 @@ const MembershipPage = () => {
       toast({ title: "Kuota membership sudah penuh", variant: "destructive" });
       setSubmitting(false);
       setSelectedShow(null);
+      fetchData();
       return;
     }
 
@@ -227,10 +166,8 @@ const MembershipPage = () => {
     if (error || !result?.success) {
       toast({ title: result?.error || "Gagal menukar koin", variant: "destructive" }); return;
     }
-    setResultGroupLink(result.group_link || selectedShow.group_link || "");
     setCoinBalance(result.remaining_balance || 0);
 
-    // Set membership token result if available
     if (result.token_code) {
       setMembershipResult({
         token_code: result.token_code,
@@ -243,26 +180,30 @@ const MembershipPage = () => {
 
     setPurchaseStep("done");
     fetchMyOrders();
+    fetchData();
 
-    // Send WhatsApp notification for coin purchase
-    if (result.token_code) {
-      supabase.functions.invoke("notify-subscription-order", {
-        body: {
-          show_title: selectedShow.title,
-          phone,
-          email,
-          order_type: "membership_coin",
-          token_code: result.token_code,
-          duration_days: result.duration_days,
-          access_password: result.access_password,
-        },
-      }).catch(() => {});
-    }
+    // Send WhatsApp notification
+    supabase.functions.invoke("notify-coin-show-purchase", {
+      body: {
+        user_id: (await supabase.auth.getSession()).data.session?.user.id,
+        show_id: selectedShow.id,
+        token_code: result.token_code,
+        access_password: result.access_password,
+        show_title: selectedShow.title,
+        purchase_type: "membership",
+      },
+    }).catch(() => {});
   };
 
   const copyToken = (code: string) => {
     navigator.clipboard.writeText(code);
     toast({ title: "Token disalin!" });
+  };
+
+  const formatDuration = (days: number) => {
+    if (days >= 365) return `${Math.floor(days / 365)} tahun`;
+    if (days >= 30) return `${Math.floor(days / 30)} bulan`;
+    return `${days} hari`;
   };
 
   return (
@@ -274,7 +215,7 @@ const MembershipPage = () => {
           <h1 className="text-3xl font-extrabold text-foreground md:text-5xl">
             Paket <span className="text-yellow-500">Membership</span>
           </h1>
-          <p className="mx-auto mt-3 max-w-md text-muted-foreground">Bergabung dengan membership untuk akses eksklusif streaming</p>
+          <p className="mx-auto mt-3 max-w-md text-muted-foreground">Tukarkan koin untuk akses eksklusif streaming</p>
         </motion.div>
       </section>
 
@@ -285,6 +226,7 @@ const MembershipPage = () => {
             const spotsLeft = show.max_subscribers > 0 ? show.max_subscribers - confirmed : null;
             const isFull = (spotsLeft !== null && spotsLeft <= 0) || show.is_order_closed;
             const alreadyOrdered = myOrderedShows.has(show.id);
+            const duration = show.membership_duration_days || 30;
             return (
               <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15 }}
                 className={`group relative overflow-hidden rounded-2xl border-2 transition-all ${alreadyOrdered ? "border-[hsl(var(--success))]/50 bg-gradient-to-b from-[hsl(var(--success))]/5 to-card" : isFull ? "border-muted bg-muted/30 opacity-75" : "border-yellow-500/50 bg-gradient-to-b from-yellow-500/5 to-card hover:border-yellow-500 hover:shadow-2xl hover:shadow-yellow-500/10"}`}>
@@ -307,25 +249,22 @@ const MembershipPage = () => {
                       <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[hsl(var(--success))]/15">
                         <CheckCircle className="h-8 w-8 text-[hsl(var(--success))]" />
                       </div>
-                      <h4 className="text-base font-bold text-foreground">Kamu Telah Berhasil Membeli Membership! 🎉</h4>
+                      <h4 className="text-base font-bold text-foreground">Membership Aktif! 🎉</h4>
                       <p className="text-sm text-muted-foreground leading-relaxed">
-                        Tunggu konfirmasi admin untuk link grup dan informasi lebih lanjutnya.
+                        Cek token dan info akses di halaman profil atau WhatsApp kamu.
                       </p>
-                      <div className="rounded-xl border border-[hsl(var(--success))]/20 bg-[hsl(var(--success))]/5 px-4 py-3">
-                        <p className="text-xs font-medium text-[hsl(var(--success))]">⏳ Menunggu konfirmasi admin...</p>
-                      </div>
                     </div>
                   ) : (
                     <>
                       <div className="flex items-center justify-between">
-                        <span className="rounded-full bg-yellow-500/15 px-3 py-1 text-sm font-bold text-yellow-500">{show.price}</span>
+                        <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-sm font-bold text-primary">
+                          <Coins className="h-3.5 w-3.5" /> {show.coin_price} Koin
+                        </span>
                         {spotsLeft !== null && <span className="text-xs text-muted-foreground">{confirmed}/{show.max_subscribers} terdaftar</span>}
                       </div>
-                      {show.coin_price > 0 && (
-                        <div className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
-                          <Coins className="h-3.5 w-3.5" /> {coinOnly ? `${show.coin_price} Koin` : `atau ${show.coin_price} Koin`}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5 rounded-lg bg-yellow-500/10 px-3 py-1.5 text-xs font-semibold text-yellow-600">
+                        <Clock className="h-3.5 w-3.5" /> Durasi: {formatDuration(duration)}
+                      </div>
                       {show.max_subscribers > 0 && (
                         <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
                           <div className={`h-full rounded-full transition-all duration-500 ${isFull ? "bg-destructive" : "bg-yellow-500"}`} style={{ width: `${Math.min((confirmed / show.max_subscribers) * 100, 100)}%` }} />
@@ -344,8 +283,8 @@ const MembershipPage = () => {
                       {show.lineup && <div className="flex items-start gap-2 text-sm text-muted-foreground"><Users className="mt-0.5 h-4 w-4 text-yellow-500" /><span className="line-clamp-2">{show.lineup}</span></div>}
                       <button onClick={() => handleBuy(show)} disabled={isFull}
                         className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-background hover:shadow-lg hover:shadow-yellow-500/25"}`}>
-                        <Star className="h-4 w-4" />
-                        {show.is_order_closed ? "🔒 Pendaftaran Ditutup" : isFull ? "🔒 Membership Penuh" : "Berlangganan"}
+                        <Coins className="h-4 w-4" />
+                        {show.is_order_closed ? "🔒 Pendaftaran Ditutup" : isFull ? "🔒 Membership Penuh" : `Tukar ${show.coin_price} Koin`}
                       </button>
                     </>
                   )}
@@ -389,77 +328,47 @@ const MembershipPage = () => {
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
-            <p className="mb-4 text-sm text-muted-foreground">{selectedShow.price}</p>
-
-            {purchaseStep === "choose" && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-foreground">Pilih metode pembayaran:</p>
-                {!coinOnly && (
-                  <button onClick={handleChooseQris} className="flex w-full items-center gap-3 rounded-xl border-2 border-border bg-background p-4 text-left transition hover:border-yellow-500 hover:bg-yellow-500/5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/15"><Upload className="h-5 w-5 text-yellow-500" /></div>
-                    <div><p className="text-sm font-bold text-foreground">Bayar via QRIS</p><p className="text-xs text-muted-foreground">Scan QRIS & upload bukti pembayaran</p></div>
-                  </button>
-                )}
-                {selectedShow.coin_price > 0 && (
-                  <button onClick={handleChooseCoin} className="flex w-full items-center gap-3 rounded-xl border-2 border-border bg-background p-4 text-left transition hover:border-primary hover:bg-primary/5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/15"><Coins className="h-5 w-5 text-primary" /></div>
-                    <div><p className="text-sm font-bold text-foreground">Bayar dengan Koin</p><p className="text-xs text-muted-foreground">{selectedShow.coin_price} koin · Saldo: {coinBalance} koin</p></div>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {purchaseStep === "qris" && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">Scan QRIS untuk pembayaran:</p>
-                {selectedShow.qris_image_url ? (
-                  <img src={selectedShow.qris_image_url} alt="QRIS" className="mx-auto w-full max-w-sm rounded-lg" />
-                ) : (
-                  <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia</div>
-                )}
-                <p className="text-xs text-muted-foreground">Setelah transfer, upload bukti pembayaran</p>
-                <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} disabled={uploadingProof} />
-                <button type="button" className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 py-4 text-sm font-medium text-primary transition hover:bg-primary/5 ${uploadingProof ? "opacity-50" : ""}`} onClick={() => galleryInputRef.current?.click()} disabled={uploadingProof}>
-                  <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                </button>
-              </div>
-            )}
-
-            {purchaseStep === "info" && (
-              <div className="space-y-4">
-                <div className="rounded-lg bg-[hsl(var(--success))]/10 p-3 text-sm text-[hsl(var(--success))]">✅ Bukti pembayaran berhasil diupload</div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
-                <Button onClick={handleSubmitSubscription} disabled={submitting || !phone || !email} className="w-full">{submitting ? "Mengirim..." : "Kirim Pendaftaran"}</Button>
-              </div>
-            )}
+            <p className="mb-4 text-sm text-muted-foreground flex items-center gap-1.5">
+              <Coins className="h-4 w-4" /> {selectedShow.coin_price} Koin · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}
+            </p>
 
             {purchaseStep === "coin_info" && (
               <div className="space-y-4">
-                <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">💰 Saldo koin: {coinBalance} · Harga: {selectedShow.coin_price} koin</div>
-                <p className="text-xs text-muted-foreground">Isi data di bawah agar admin dapat menghubungi Anda:</p>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" /></div>
-                <Button onClick={handleCoinPurchase} disabled={submitting || !phone || !email} className="w-full">{submitting ? "Memproses..." : `Bayar ${selectedShow.coin_price} Koin`}</Button>
-                <p className="text-[10px] text-center text-muted-foreground">* Tidak perlu upload bukti transaksi, koin akan langsung dipotong</p>
+                <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
+                  💰 Saldo koin: <strong>{coinBalance}</strong> · Harga: <strong>{selectedShow.coin_price}</strong> koin
+                </div>
+                <p className="text-xs text-muted-foreground">Isi data di bawah untuk menerima notifikasi:</p>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label>
+                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
+                </div>
+                <Button onClick={handleCoinPurchase} disabled={submitting || !phone || !email} className="w-full">
+                  {submitting ? "Memproses..." : `Tukar ${selectedShow.coin_price} Koin`}
+                </Button>
+                <p className="text-[10px] text-center text-muted-foreground">* Koin akan langsung dipotong setelah konfirmasi</p>
               </div>
             )}
 
             {purchaseStep === "coin_insufficient" && (
               <div className="space-y-4 text-center">
-                <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">❌ Koin tidak cukup. Saldo: {coinBalance}, Butuh: {selectedShow.coin_price}</div>
-                <a href="/coins" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90"><Coins className="h-4 w-4" /> Beli Koin</a>
+                <div className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
+                  ❌ Koin tidak cukup. Saldo: {coinBalance}, Butuh: {selectedShow.coin_price}
+                </div>
+                <a href="/coins" className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">
+                  <Coins className="h-4 w-4" /> Beli Koin
+                </a>
               </div>
             )}
 
             {purchaseStep === "done" && (
               <div className="space-y-4 text-center">
                 <div className="text-4xl">🎉</div>
-                <h4 className="text-lg font-bold text-foreground">
-                  {membershipResult?.token_code ? "Membership Berhasil Dibeli!" : "Pendaftaran Berhasil!"}
-                </h4>
+                <h4 className="text-lg font-bold text-foreground">Membership Berhasil Dibeli!</h4>
 
-                {/* Membership token info */}
                 {membershipResult?.token_code && (
                   <div className="space-y-3 text-left">
                     <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
@@ -473,7 +382,13 @@ const MembershipPage = () => {
                     </div>
                     {membershipResult.duration_days && (
                       <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-600">
-                        <Clock className="h-4 w-4" /> Durasi: <strong>{membershipResult.duration_days} hari</strong>
+                        <Clock className="h-4 w-4" /> Durasi: <strong>{formatDuration(membershipResult.duration_days)}</strong>
+                      </div>
+                    )}
+                    {membershipResult.expires_at && (
+                      <div className="flex items-center gap-2 rounded-lg bg-secondary p-3 text-xs text-muted-foreground">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Bergabung: {new Date().toLocaleDateString("id-ID")} · Berakhir: {new Date(membershipResult.expires_at).toLocaleDateString("id-ID")}
                       </div>
                     )}
                     <a href={`/live?t=${membershipResult.token_code}`}
@@ -490,30 +405,13 @@ const MembershipPage = () => {
                   </div>
                 )}
 
-                {orderShortId && !membershipResult?.token_code && (
-                  <div className="rounded-xl border border-primary/30 bg-primary/5 p-3">
-                    <p className="text-[10px] font-medium text-muted-foreground mb-1">🆔 ID Pesanan</p>
-                    <p className="font-mono text-lg font-bold text-primary">{orderShortId}</p>
-                  </div>
-                )}
-
-                {!membershipResult?.token_code && (
-                  <p className="text-sm text-muted-foreground">{purchaseMethod === "coin" ? "Koin berhasil ditukar. Admin akan menghubungi Anda." : "Admin akan memverifikasi pembayaran Anda"}</p>
-                )}
-
-                {(resultGroupLink || membershipResult?.group_link) && (
-                  <a href={resultGroupLink || membershipResult?.group_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
+                {(membershipResult?.group_link) && (
+                  <a href={membershipResult.group_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:opacity-90">
                     📱 Gabung Grup
                   </a>
                 )}
-                {whatsappNumber && selectedShow && purchaseMethod !== "coin" && (
-                  <Button
-                    onClick={() => openWhatsAppOrderDetail(selectedShow, phone, email)}
-                    className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground"
-                  >
-                    <MessageCircle className="h-4 w-4" /> Kirim Ulang ke WhatsApp Admin
-                  </Button>
-                )}
+
+                <p className="text-xs text-muted-foreground">Info lengkap juga dikirim ke WhatsApp kamu 📱</p>
               </div>
             )}
 

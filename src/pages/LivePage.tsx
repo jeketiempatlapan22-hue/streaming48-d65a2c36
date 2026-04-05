@@ -242,7 +242,7 @@ const LivePage = () => {
           return;
         }
 
-        setTokenData({ id: result.id, code: result.code, show_id: result.show_id, expires_at: result.expires_at });
+        setTokenData({ id: result.id, code: result.code, show_id: result.show_id, expires_at: result.expires_at, created_at: result.created_at });
 
         const [streamRes, playlistRes, settingsRes] = await Promise.allSettled([
           withTimeout((async () => await (supabase.rpc as any)("get_stream_status"))(), 8_000, "Stream timeout"),
@@ -585,15 +585,26 @@ const LivePage = () => {
             </SheetContent>
           </Sheet>
         </header>
-        {/* Membership duration badge */}
-        {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (
-          <div className="mx-4 mb-2 mt-2 flex items-center gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2">
-            <span className="text-sm">👑</span>
-            <span className="text-xs font-semibold text-yellow-600">
-              Membership: {Math.max(0, Math.ceil((new Date(tokenData.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} hari tersisa
-            </span>
-          </div>
-        )}
+        {/* Membership duration badge with join date */}
+        {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (() => {
+          const expiresAt = new Date(tokenData.expires_at);
+          const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          const createdAt = tokenData.created_at ? new Date(tokenData.created_at) : null;
+          return (
+            <div className="mx-4 mb-2 mt-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-3 py-2 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">👑</span>
+                <span className="text-xs font-semibold text-yellow-600">
+                  Membership · {daysLeft} hari tersisa
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground pl-6">
+                {createdAt && <span>Bergabung: {createdAt.toLocaleDateString("id-ID")}</span>}
+                <span>Berakhir: {expiresAt.toLocaleDateString("id-ID")}</span>
+              </div>
+            </div>
+          );
+        })()}
         <div className="player-area relative z-10">
           {isLive && activePlaylist ? (
             <div className="relative">

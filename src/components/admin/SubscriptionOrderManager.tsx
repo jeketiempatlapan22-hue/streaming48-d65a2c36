@@ -37,7 +37,7 @@ interface SubscriptionOrderManagerProps {
 const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderManagerProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [shows, setShows] = useState<Record<string, ShowInfo>>({});
-  const [orderTokens, setOrderTokens] = useState<Record<string, { code: string; expires_at: string | null }>>({});
+  const [orderTokens, setOrderTokens] = useState<Record<string, { code: string; expires_at: string | null; created_at: string | null }>>({});
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("pending");
   const [showFilter, setShowFilter] = useState<string>("all");
   const [waMessages, setWaMessages] = useState<Record<string, string>>({});
@@ -71,19 +71,19 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     // Fetch tokens for confirmed orders to enable quick-send buttons
     const confirmedOrders = (ordersData as Order[] || []).filter(o => o.status === "confirmed");
     if (confirmedOrders.length > 0) {
-      const tokenMap: Record<string, { code: string; expires_at: string | null }> = {};
+      const tokenMap: Record<string, { code: string; expires_at: string | null; created_at: string | null }> = {};
 
       // Fetch tokens for orders with user_id
       const withUser = confirmedOrders.filter(o => o.user_id);
       if (withUser.length > 0) {
         const userIds = [...new Set(withUser.map(o => o.user_id!))];
         const showIds = [...new Set(withUser.map(o => o.show_id))];
-        const { data: tokensData } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("user_id", userIds).in("show_id", showIds);
+        const { data: tokensData } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, created_at, status").in("user_id", userIds).in("show_id", showIds);
         if (tokensData) {
           for (const order of withUser) {
             const token = tokensData.find((t: any) => t.user_id === order.user_id && t.show_id === order.show_id && t.status === "active");
             if (token) {
-              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at, created_at: token.created_at };
             }
           }
         }
@@ -93,12 +93,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       const guestOrders = confirmedOrders.filter(o => !o.user_id);
       if (guestOrders.length > 0) {
         const guestShowIds = [...new Set(guestOrders.map(o => o.show_id))];
-        const { data: guestTokens } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, status").in("show_id", guestShowIds).is("user_id", null);
+        const { data: guestTokens } = await supabase.from("tokens").select("code, show_id, user_id, expires_at, created_at, status").in("show_id", guestShowIds).is("user_id", null);
         if (guestTokens) {
           for (const order of guestOrders) {
             const token = guestTokens.find((t: any) => t.show_id === order.show_id && t.status === "active");
             if (token && !tokenMap[order.id]) {
-              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at };
+              tokenMap[order.id] = { code: token.code, expires_at: token.expires_at, created_at: token.created_at };
             }
           }
         }
@@ -129,7 +129,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       // Save token to state immediately so it shows in the panel
       if (result.token_code) {
-        setOrderTokens(prev => ({ ...prev, [id]: { code: result.token_code, expires_at: result.expires_at || null } }));
+        setOrderTokens(prev => ({ ...prev, [id]: { code: result.token_code, expires_at: result.expires_at || null, created_at: new Date().toISOString() } }));
       }
 
       if (result.token_code && order?.phone && showInfo) {
@@ -264,7 +264,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       const { error: tokenErr } = await supabase.from("tokens").insert(insertData);
       if (!tokenErr) {
-        token = { code: newCode, expires_at: expiresAt };
+        token = { code: newCode, expires_at: expiresAt, created_at: new Date().toISOString() };
         setOrderTokens(prev => ({ ...prev, [order.id]: token! }));
       } else {
         toast({ title: "Gagal membuat token: " + tokenErr.message, variant: "destructive" });
@@ -705,6 +705,25 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
+                {/* Membership join date & duration for confirmed orders */}
+                {order.status === "confirmed" && orderTokens[order.id] && shows[order.show_id]?.is_subscription && (() => {
+                  const tk = orderTokens[order.id];
+                  const joinDate = tk.created_at ? new Date(tk.created_at) : new Date(order.created_at);
+                  const expiryDate = tk.expires_at ? new Date(tk.expires_at) : null;
+                  const daysLeft = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+                  return (
+                    <div className="mt-1 rounded-md bg-yellow-500/10 border border-yellow-500/20 px-2 py-1.5 space-y-0.5">
+                      <p className="text-[10px] font-semibold text-yellow-600">👑 Info Membership</p>
+                      <p className="text-[10px] text-muted-foreground">Bergabung: {joinDate.toLocaleDateString("id-ID")}</p>
+                      {expiryDate && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Berakhir: {expiryDate.toLocaleDateString("id-ID")} ({daysLeft} hari tersisa)
+                        </p>
+                      )}
+                      {tk.code && <p className="text-[10px] font-mono text-primary">{tk.code}</p>}
+                    </div>
+                  );
+                })()}
               </div>
               </div>
               <div className="flex flex-col items-end gap-2">
