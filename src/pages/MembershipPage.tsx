@@ -307,7 +307,7 @@ const MembershipPage = () => {
                     <>
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-sm font-bold text-primary">
-                          <Coins className="h-3.5 w-3.5" /> {show.coin_price} Koin
+                          <Coins className="h-3.5 w-3.5" /> {show.coin_price > 0 ? `${show.coin_price} Koin` : show.price}
                         </span>
                         {spotsLeft !== null && <span className="text-xs text-muted-foreground">{confirmed}/{show.max_subscribers} terdaftar</span>}
                       </div>
@@ -330,11 +330,21 @@ const MembershipPage = () => {
                       )}
                       {show.schedule_date && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Calendar className="h-4 w-4 text-yellow-500" />{show.schedule_date}</div>}
                       {show.lineup && <div className="flex items-start gap-2 text-sm text-muted-foreground"><Users className="mt-0.5 h-4 w-4 text-yellow-500" /><span className="line-clamp-2">{show.lineup}</span></div>}
-                      <button onClick={() => handleBuy(show)} disabled={isFull}
-                        className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-background hover:shadow-lg hover:shadow-yellow-500/25"}`}>
-                        <Coins className="h-4 w-4" />
-                        {show.is_order_closed ? "🔒 Pendaftaran Ditutup" : isFull ? "🔒 Membership Penuh" : `Tukar ${show.coin_price} Koin`}
-                      </button>
+                      <div className="mt-2 flex flex-col gap-2">
+                        {show.coin_price > 0 && (
+                          <button onClick={() => handleBuy(show, "coin")} disabled={isFull}
+                            className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-gradient-to-r from-yellow-500 to-yellow-600 text-background hover:shadow-lg hover:shadow-yellow-500/25"}`}>
+                            <Coins className="h-4 w-4" />
+                            {show.is_order_closed ? "🔒 Ditutup" : isFull ? "🔒 Penuh" : `Tukar ${show.coin_price} Koin`}
+                          </button>
+                        )}
+                        {!coinOnly && show.qris_image_url && (
+                          <button onClick={() => handleBuy(show, "qris")} disabled={isFull}
+                            className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all border ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "border-primary bg-primary/10 text-primary hover:bg-primary/20"}`}>
+                            💳 Beli via QRIS
+                          </button>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
