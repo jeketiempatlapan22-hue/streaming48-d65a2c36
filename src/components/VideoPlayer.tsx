@@ -260,6 +260,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       let networkRetryCount = 0;
       const MAX_NETWORK_RETRIES = 5;
       let mediaRecoveryAttempted = false;
+      let fragLoaded = false;
+      let inactiveFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
