@@ -1,4 +1,5 @@
-import { Play, type LucideIcon } from "lucide-react";
+import { Play } from "lucide-react";
+import { useRef } from "react";
 
 interface PlaylistItem {
   id: string;
@@ -14,10 +15,16 @@ interface PlaylistSwitcherProps {
 }
 
 const PlaylistSwitcher = ({ playlists, activePlaylistId, onSelect, className = "" }: PlaylistSwitcherProps) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   if (!playlists.length) return null;
 
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div
+      ref={scrollRef}
+      className={`flex gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory ${className}`}
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
       {playlists.map((playlist) => {
         const active = playlist.id === activePlaylistId;
 
@@ -27,22 +34,14 @@ const PlaylistSwitcher = ({ playlists, activePlaylistId, onSelect, className = "
             type="button"
             onClick={() => onSelect(playlist)}
             aria-pressed={active}
-            className={`group flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+            className={`snap-start shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ${
               active
-                ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
                 : "border border-border bg-card/80 text-muted-foreground hover:border-primary/40 hover:text-foreground"
             }`}
           >
-            <span
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors ${
-                active
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-secondary text-muted-foreground group-hover:text-foreground"
-              }`}
-            >
-              <Play className="h-3 w-3" />
-            </span>
-            <span className="truncate max-w-[120px]">{playlist.title}</span>
+            <Play className="h-3 w-3 shrink-0" />
+            <span className="truncate max-w-[100px]">{playlist.title}</span>
           </button>
         );
       })}
