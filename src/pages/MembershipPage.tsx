@@ -74,7 +74,7 @@ const MembershipPage = () => {
 
     const counts: Record<string, number> = {};
     for (const s of subShows) {
-      const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: s.id });
+      const { data: count } = await supabase.rpc("get_confirmed_order_count" as any, { _show_id: s.id });
       counts[s.id] = (count as number) || 0;
     }
     setSubscriberCounts(counts);
@@ -126,8 +126,10 @@ const MembershipPage = () => {
       return;
     }
 
-    const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: show.id });
+    const { data: count } = await supabase.rpc("get_confirmed_order_count" as any, { _show_id: show.id });
     const confirmed = (count as number) || 0;
+    // Update the subscriber count in real-time
+    setSubscriberCounts(prev => ({ ...prev, [show.id]: confirmed }));
     const isFull = (show.max_subscribers > 0 && confirmed >= show.max_subscribers) || show.is_order_closed;
     if (isFull) { setClosedPopup(show); return; }
 
@@ -193,11 +195,22 @@ const MembershipPage = () => {
   };
 
   const handleCoinPurchase = async () => {
-    if (!selectedShow || !phone || !email) return;
+    if (!selectedShow || !phone.trim() || !email.trim()) {
+      toast({ title: "Harap isi nomor WhatsApp dan email", variant: "destructive" });
+      return;
+    }
+    if (!/^(08|\+62|62)\d{7,13}$/.test(phone.replace(/[\s-]/g, ""))) {
+      toast({ title: "Format nomor WhatsApp tidak valid", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({ title: "Format email tidak valid", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
 
     // Re-check quota before purchasing
-    const { data: count } = await supabase.rpc("get_order_count" as any, { _show_id: selectedShow.id });
+    const { data: count } = await supabase.rpc("get_confirmed_order_count" as any, { _show_id: selectedShow.id });
     const confirmed = (count as number) || 0;
     if (selectedShow.max_subscribers > 0 && confirmed >= selectedShow.max_subscribers) {
       toast({ title: "Kuota membership sudah penuh", variant: "destructive" });
