@@ -75,13 +75,13 @@ const PasswordResetManager = () => {
       if (error) throw error;
 
       if (action === "approve" && request.phone) {
-        const siteUrl = "https://realtime48stream.my.id";
+        const siteUrl = window.location.origin;
         const resetLink = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
         
         try {
           await supabase.functions.invoke("send-whatsapp", {
             body: {
-              phone: request.phone,
+              target: request.phone,
               message: `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 2 jam.`,
             },
           });
@@ -104,8 +104,7 @@ const PasswordResetManager = () => {
   };
 
   const copyResetLink = (request: ResetRequest) => {
-    const siteUrl = "https://realtime48stream.my.id";
-    const link = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
+    const link = `${window.location.origin}/reset-password?token=${request.secure_token || request.short_id}`;
     navigator.clipboard.writeText(link);
     toast.success("Link reset disalin!");
   };
