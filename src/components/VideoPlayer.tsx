@@ -828,8 +828,29 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         </div>
       )}
 
+      {/* Stream inactive overlay */}
+      {streamInactive && (
+        <div className="absolute inset-0 z-[15] flex items-center justify-center bg-black/90">
+          <div className="text-center p-6">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted/20">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+              </svg>
+            </div>
+            <p className="text-white/80 text-sm font-semibold mb-1">Stream Belum Aktif</p>
+            <p className="text-white/50 text-xs mb-3">Menunggu siaran dimulai...</p>
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0s" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.15s" }} />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0.3s" }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading spinner */}
-      {isLoading && !playerError && (
+      {isLoading && !playerError && !streamInactive && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-[3px] border-white/20 border-t-primary animate-spin" />
