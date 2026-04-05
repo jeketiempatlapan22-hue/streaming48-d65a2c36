@@ -90,15 +90,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Helper: check if current time is within ±2 minutes of target
+    const timeToMinutes = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const currentMinutes = timeToMinutes(currentTime);
+    const isNear = (target: string) => {
+      if (!target) return false;
+      const targetMin = timeToMinutes(target);
+      const diff = Math.abs(currentMinutes - targetMin);
+      // Handle midnight wrap (e.g. 23:59 vs 00:01)
+      return diff <= 2 || diff >= 1438; // 1440-2
+    };
+
     let action: string | null = null;
 
-    // Check if current time matches ON time and stream is off
-    if (onTime && currentTime === onTime && !streamData.is_live) {
+    // Check if current time is near ON time and stream is off
+    if (onTime && isNear(onTime) && !streamData.is_live) {
       await supabase.from("streams").update({ is_live: true }).eq("id", streamData.id);
       action = "turned_on";
     }
-    // Check if current time matches OFF time and stream is on
-    else if (offTime && currentTime === offTime && streamData.is_live) {
+    // Check if current time is near OFF time and stream is on
+    else if (offTime && isNear(offTime) && streamData.is_live) {
       await supabase.from("streams").update({ is_live: false }).eq("id", streamData.id);
       action = "turned_off";
     }
