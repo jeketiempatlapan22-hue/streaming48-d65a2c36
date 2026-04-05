@@ -242,7 +242,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         levelLoadingTimeOut: 10000,
         testBandwidth: true,
         abrEwmaDefaultEstimate: 500000,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.withCredentials = false; },
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          xhr.withCredentials = false;
+          // Inject custom headers for proxy stream (Player 3)
+          if (customHeaders) {
+            Object.entries(customHeaders).forEach(([key, value]) => {
+              xhr.setRequestHeader(key, value);
+            });
+          }
+        },
       });
       hlsRef.current = hls;
       let networkRetryCount = 0;
