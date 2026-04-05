@@ -164,6 +164,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     let destroyed = false;
 
     if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
+    if (inactiveRetryRef.current) { clearTimeout(inactiveRetryRef.current); inactiveRetryRef.current = undefined; }
     video.removeAttribute("src");
     setIsPlaying(false);
     setIsLoading(true);
@@ -171,6 +172,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     setSelectedQuality(-1);
     setIsBehindLive(false);
     setPlayerError(null);
+    setStreamInactive(false);
     userQualityRef.current = -1;
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
