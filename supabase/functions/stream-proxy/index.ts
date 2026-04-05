@@ -387,17 +387,37 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
   const cached = getCachedM3u8(fullCacheKey);
   if (cached) return cached;
 
-  const response = await fetch(originUrl, {
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)" },
-  });
-  if (!response.ok) return null;
+  // Try up to 2 attempts with 8s timeout each
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
-  const content = await response.text();
-  const baseUrl = getBaseUrl(originUrl);
-  const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl, ipHash);
+      const response = await fetch(originUrl, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; StreamProxy/1.0)" },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
 
-  setCachedM3u8(fullCacheKey, rewritten);
-  return rewritten;
+      if (!response.ok) {
+        console.error(`[stream-proxy] fetch m3u8 failed: ${response.status} attempt ${attempt + 1}`);
+        if (attempt === 0) continue;
+        return null;
+      }
+
+      const content = await response.text();
+      const baseUrl = getBaseUrl(originUrl);
+      const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl, ipHash);
+
+      setCachedM3u8(fullCacheKey, rewritten);
+      return rewritten;
+    } catch (err: any) {
+      console.error(`[stream-proxy] fetch m3u8 error attempt ${attempt + 1}:`, err?.message);
+      if (attempt === 0) continue;
+      return null;
+    }
+  }
+  return null;
 }
 
 // --- XOR ENCRYPTION for YouTube IDs ---
