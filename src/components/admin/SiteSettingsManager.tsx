@@ -104,6 +104,36 @@ const SiteSettingsManager = () => {
         )}
       </div>
 
+      {/* Membership Coin-Only Toggle */}
+      <div className="rounded-xl border-2 border-yellow-500/30 bg-yellow-500/5 p-4">
+        <label className="mb-2 block text-sm font-bold text-foreground">🪙 Membership Hanya Koin</label>
+        <p className="mb-3 text-xs text-muted-foreground">Aktifkan agar membership hanya bisa dibeli dengan koin. Nonaktifkan agar QRIS juga bisa digunakan.</p>
+        <div className="flex gap-2">
+          {[{ value: "true", label: "🪙 Koin Saja" }, { value: "false", label: "💳 Koin + QRIS" }].map((opt) => (
+            <button key={opt.value}
+              onClick={async () => {
+                setValues((p) => ({ ...p, membership_coin_only: opt.value }));
+                const { error } = await supabase.from("site_settings").upsert(
+                  { key: "membership_coin_only", value: opt.value },
+                  { onConflict: "key" }
+                );
+                if (error) {
+                  toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: opt.value === "true" ? "🪙 Membership hanya bisa dibeli dengan Koin" : "💳 Membership bisa dibeli dengan Koin + QRIS" });
+                }
+              }}
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
+                (values.membership_coin_only || "true") === opt.value
+                  ? opt.value === "true"
+                    ? "bg-yellow-500 text-background ring-2 ring-yellow-500/50"
+                    : "bg-primary text-primary-foreground ring-2 ring-primary/50"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+
       {/* Membership Token Toggle */}
       <div className="rounded-xl border-2 border-yellow-500/30 bg-yellow-500/5 p-4">
         <label className="mb-2 block text-sm font-bold text-foreground">🎫 Token Membership Otomatis</label>
