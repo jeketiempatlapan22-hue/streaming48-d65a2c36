@@ -39,6 +39,7 @@ const AdminMonitor = () => {
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
   const [resetting, setResetting] = useState(false);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
+  const [externalShowId, setExternalShowId] = useState<string | null>(null);
 
   const isProxyPlaylist = activePlaylist?.type === "proxy";
 
@@ -49,6 +50,7 @@ const AdminMonitor = () => {
 
   const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
     isProxyPlaylist,
+    externalShowId,
     previewRefreshKey
   );
 
