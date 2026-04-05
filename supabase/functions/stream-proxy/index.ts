@@ -158,10 +158,10 @@ async function getProxyStreamHeaders(externalShowId: string): Promise<Record<str
     }
     const d = json.data;
     const headers: Record<string, string> = {
-      xapi: d.apiToken || "",
-      xsec: d.secKey || "",
-      xshowid: d.showId || "",
-      xtoken: d.tokenId || "",
+      "x-api-token": d.apiToken || "",
+      "x-sec-key": d.secKey || "",
+      "x-showid": d.showId || "",
+      "x-token-id": d.tokenId || "",
     };
     proxyTokenCache.set(externalShowId, { headers, cachedAt: Date.now() });
     return headers;
