@@ -705,6 +705,25 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   </div>
                 )}
                 <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
+                {/* Membership join date & duration for confirmed orders */}
+                {order.status === "confirmed" && orderTokens[order.id] && shows[order.show_id]?.is_subscription && (() => {
+                  const tk = orderTokens[order.id];
+                  const joinDate = tk.created_at ? new Date(tk.created_at) : new Date(order.created_at);
+                  const expiryDate = tk.expires_at ? new Date(tk.expires_at) : null;
+                  const daysLeft = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+                  return (
+                    <div className="mt-1 rounded-md bg-yellow-500/10 border border-yellow-500/20 px-2 py-1.5 space-y-0.5">
+                      <p className="text-[10px] font-semibold text-yellow-600">👑 Info Membership</p>
+                      <p className="text-[10px] text-muted-foreground">Bergabung: {joinDate.toLocaleDateString("id-ID")}</p>
+                      {expiryDate && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Berakhir: {expiryDate.toLocaleDateString("id-ID")} ({daysLeft} hari tersisa)
+                        </p>
+                      )}
+                      {tk.code && <p className="text-[10px] font-mono text-primary">{tk.code}</p>}
+                    </div>
+                  );
+                })()}
               </div>
               </div>
               <div className="flex flex-col items-end gap-2">
