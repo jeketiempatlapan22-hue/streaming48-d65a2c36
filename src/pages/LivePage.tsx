@@ -2,13 +2,13 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react"
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import VideoPlayer, { VideoPlayerHandle } from "@/components/VideoPlayer";
+import type { VideoPlayerHandle } from "@/components/VideoPlayer";
 import logo from "@/assets/logo.png";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import PipButton from "@/components/viewer/PipButton";
 import SecurityAlert from "@/components/viewer/SecurityAlert";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
-import PlayerAnimations, { AnimationType } from "@/components/viewer/PlayerAnimations";
+import type { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
 import { Menu, X, MessageCircle, Home, Phone } from "lucide-react";
 import {
@@ -18,10 +18,12 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 
+const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
 const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
 const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
+const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
 
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void }) => {
   const [resetting, setResetting] = useState(false);
@@ -516,7 +518,7 @@ const LivePage = () => {
       <ConnectionStatus />
       <ViewerBroadcast />
       <SecurityAlert />
-      {playerAnimation !== "none" && <PlayerAnimations type={playerAnimation} backgroundOnly />}
+      {playerAnimation !== "none" && <Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense>}
       {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
@@ -582,13 +584,15 @@ const LivePage = () => {
           {isLive && activePlaylist ? (
             <div className="relative">
               {signedUrl ? (
-                <VideoPlayer
-                  ref={playerRef}
-                  key={activePlaylist.id}
-                  playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
-                  autoPlay
-                  tokenCode={tokenData?.code}
-                />
+                <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                  <VideoPlayer
+                    ref={playerRef}
+                    key={activePlaylist.id}
+                    playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
+                    autoPlay
+                    tokenCode={tokenData?.code}
+                  />
+                </Suspense>
               ) : signedLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">

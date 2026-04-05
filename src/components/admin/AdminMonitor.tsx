@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import VideoPlayer from "@/components/VideoPlayer";
+const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 import LiveChat from "@/components/viewer/LiveChat";
 import ChatModeratorManager from "@/components/admin/ChatModeratorManager";
 import PollManager from "@/components/admin/PollManager";
@@ -204,11 +204,13 @@ const AdminMonitor = () => {
               <div className="overflow-hidden rounded-xl border border-border">
                 {activePlaylist ? (
                   signedUrl ? (
-                    <VideoPlayer
-                      key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
-                      playlist={{ url: signedUrl, type: effectivePreviewType, label: activePlaylist.title }}
-                      autoPlay
-                    />
+                    <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                      <VideoPlayer
+                        key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
+                        playlist={{ url: signedUrl, type: effectivePreviewType, label: activePlaylist.title }}
+                        autoPlay
+                      />
+                    </Suspense>
                   ) : previewLoading ? (
                     <div className="flex aspect-video items-center justify-center bg-card">
                       <div className="flex flex-col items-center gap-2">
