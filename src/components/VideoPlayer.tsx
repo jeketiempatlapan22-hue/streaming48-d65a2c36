@@ -263,6 +263,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
+        // Check if manifest has no usable levels (inactive stream returns empty ENDLIST)
+        if (!data.levels || data.levels.length === 0) {
+          console.warn("[HLS] Manifest parsed but no levels — stream inactive");
+          setStreamInactive(true);
+          setIsLoading(false);
+          // Auto-retry every 10s
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed && hlsRef.current) {
+              console.log("[HLS] Retrying inactive stream...");
+              setStreamInactive(false);
+              setIsLoading(true);
+              hls.loadSource(playlistUrl);
+            }
+          }, 10000);
+          return;
+        }
+        setStreamInactive(false);
         networkRetryCount = 0;
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
