@@ -68,15 +68,16 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
     </div>
   );
 };
-// Sort playlists: 1st m3u8 first, 1st youtube second, then remaining in order
+// Sort playlists: 1st m3u8, 2nd youtube, 3rd proxy, then remaining
 const sortPlaylists = (list: any[]): any[] => {
   if (!list || list.length <= 1) return list;
   const firstM3u8 = list.find((p) => p.type === "m3u8");
   const firstYoutube = list.find((p) => p.type === "youtube");
+  const firstProxy = list.find((p) => p.type === "proxy");
   const rest = list.filter(
-    (p) => p !== firstM3u8 && p !== firstYoutube
+    (p) => p !== firstM3u8 && p !== firstYoutube && p !== firstProxy
   );
-  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+  return [firstM3u8, firstYoutube, firstProxy, ...rest].filter(Boolean);
 };
 
 const LivePage = () => {

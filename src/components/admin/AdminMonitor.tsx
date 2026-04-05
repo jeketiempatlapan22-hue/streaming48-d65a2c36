@@ -28,8 +28,9 @@ const sortPlaylists = (list: any[]): any[] => {
   if (!list || list.length <= 1) return list;
   const firstM3u8 = list.find((p) => p.type === "m3u8");
   const firstYoutube = list.find((p) => p.type === "youtube");
-  const rest = list.filter((p) => p !== firstM3u8 && p !== firstYoutube);
-  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+  const firstProxy = list.find((p) => p.type === "proxy");
+  const rest = list.filter((p) => p !== firstM3u8 && p !== firstYoutube && p !== firstProxy);
+  return [firstM3u8, firstYoutube, firstProxy, ...rest].filter(Boolean);
 };
 
 const AdminMonitor = () => {
