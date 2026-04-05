@@ -217,20 +217,32 @@ const ViewerProfile = () => {
           {tab === "tokens" && (
             tokens.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada token</p> : (
               <div className="space-y-2">
-                {tokens.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg bg-background/50 p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-mono font-medium text-foreground">{t.code}</p>
-                        <button onClick={() => copyText(t.code)} className="text-muted-foreground hover:text-primary active:scale-[0.95]"><Copy className="h-3 w-3" /></button>
+                {tokens.map((t) => {
+                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  return (
+                    <div key={t.id} className="rounded-lg bg-background/50 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-mono font-medium text-foreground truncate">{t.code}</p>
+                            <button onClick={() => copyText(t.code)} className="text-muted-foreground hover:text-primary active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {t.expires_at ? `Exp: ${new Date(t.expires_at).toLocaleString("id-ID")}` : "Tanpa batas"}
+                          </p>
+                        </div>
+                        {statusBadge(t.status)}
                       </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        {t.expires_at ? `Exp: ${new Date(t.expires_at).toLocaleString("id-ID")}` : "Tanpa batas"}
-                      </p>
+                      {t.status === "active" && (
+                        <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2.5 py-1.5">
+                          <Key className="h-3 w-3 text-primary shrink-0" />
+                          <p className="text-[10px] text-primary font-medium truncate flex-1">{liveLink}</p>
+                          <button onClick={() => copyText(liveLink)} className="text-primary hover:text-primary/80 active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
+                        </div>
+                      )}
                     </div>
-                    {statusBadge(t.status)}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )
           )}
