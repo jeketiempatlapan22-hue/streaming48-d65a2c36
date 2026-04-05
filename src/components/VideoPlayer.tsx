@@ -38,6 +38,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [streamInactive, setStreamInactive] = useState(false);
   const qualityChangeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const inactiveRetryRef = useRef<ReturnType<typeof setTimeout>>();
+  const fragLoadedRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
@@ -201,7 +202,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("error", onError);
 
-    const loadingTimeout = setTimeout(() => { if (!destroyed) setIsLoading(false); }, 15000);
+    const loadingTimeout = setTimeout(() => {
+      if (!destroyed && !fragLoadedRef.current) {
+        console.warn("[HLS] No playback after 12s — stream inactive");
+        setIsLoading(false);
+        setStreamInactive(true);
+        setPlayerError(null);
+        if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+        inactiveRetryRef.current = setTimeout(() => {
+          if (!destroyed) {
+            setStreamInactive(false);
+            setIsLoading(true);
+            fragLoadedRef.current = false;
+            if (hlsRef.current) hlsRef.current.loadSource(playlistUrl);
+          }
+        }, 10000);
+      }
+    }, 12000);
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
@@ -260,6 +277,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       let networkRetryCount = 0;
       const MAX_NETWORK_RETRIES = 5;
       let mediaRecoveryAttempted = false;
+      let fragLoaded = false;
+      let inactiveFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_: any, data: any) => {
         if (destroyed) return;
@@ -281,6 +300,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
         setStreamInactive(false);
         networkRetryCount = 0;
+        // Fallback: if no fragment loads within 6s, treat as inactive
+        if (inactiveFallbackTimer) clearTimeout(inactiveFallbackTimer);
+        inactiveFallbackTimer = setTimeout(() => {
+          if (destroyed || fragLoaded) return;
+          console.warn("[HLS] No fragments loaded after 6s — stream inactive");
+          setStreamInactive(true);
+          setIsLoading(false);
+          if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed && hlsRef.current) {
+              setStreamInactive(false);
+              setIsLoading(true);
+              fragLoaded = false;
+              hls.loadSource(playlistUrl);
+            }
+          }, 10000);
+        }, 6000);
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
           const label = l.height ? `${l.height}p` : `Level ${i}`;
@@ -298,8 +334,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
+      // Detect inactive stream via LEVEL_LOADED (empty fragments in ENDLIST manifest)
+      hls.on(Hls.Events.LEVEL_LOADED, (_: any, levelData: any) => {
+        if (destroyed) return;
+        const details = levelData.details;
+        if (details && details.fragments && details.fragments.length === 0 && details.live === false) {
+          console.warn("[HLS] Level loaded but 0 fragments + ENDLIST — stream inactive");
+          setStreamInactive(true);
+          setIsLoading(false);
+          setPlayerError(null);
+          if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed && hlsRef.current) {
+              console.log("[HLS] Retrying inactive stream from LEVEL_LOADED...");
+              setStreamInactive(false);
+              setIsLoading(true);
+              hls.loadSource(playlistUrl);
+            }
+          }, 10000);
+          return;
+        }
+        // If we got fragments, stream is active
+        if (details && details.fragments && details.fragments.length > 0) {
+          setStreamInactive(false);
+        }
+      });
+
       hls.on(Hls.Events.FRAG_LOADED, () => {
-        if (!destroyed) { networkRetryCount = 0; setIsLoading(false); }
+        if (!destroyed) {
+          fragLoaded = true;
+          if (inactiveFallbackTimer) { clearTimeout(inactiveFallbackTimer); inactiveFallbackTimer = null; }
+          networkRetryCount = 0; setIsLoading(false); setStreamInactive(false);
+        }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
@@ -415,6 +481,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       clearTimeout(loadingTimeout);
       clearTimeout(qualityChangeTimerRef.current);
       if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+      
       if (waitingTimer) clearTimeout(waitingTimer);
       video.removeEventListener("play", onPlay);
       video.removeEventListener("pause", onPause);
