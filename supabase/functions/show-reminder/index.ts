@@ -86,8 +86,15 @@ Deno.serve(async (req) => {
 
       const phoneSet = new Set<string>();
 
+      const normalizePhone = (raw: string): string => {
+        let p = (raw || '').replace(/[^0-9]/g, '');
+        if (p.startsWith('0')) p = '62' + p.slice(1);
+        if (!p.startsWith('62')) p = '62' + p;
+        return p;
+      };
+
       (subs || []).forEach((s: any) => {
-        const p = (s.phone || '').replace(/[^0-9]/g, '');
+        const p = normalizePhone(s.phone);
         if (p.length >= 10) phoneSet.add(p);
       });
 
@@ -100,7 +107,7 @@ Deno.serve(async (req) => {
           .in('user_id', userIds)
           .eq('status', 'confirmed');
         (coinOrders || []).forEach((o: any) => {
-          const p = (o.phone || '').replace(/[^0-9]/g, '');
+          const p = normalizePhone(o.phone);
           if (p.length >= 10) phoneSet.add(p);
         });
       }

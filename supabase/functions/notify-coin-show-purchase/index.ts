@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     // Clean phone number
     let cleanPhone = phone.replace(/[^0-9]/g, '');
     if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
-    if (!cleanPhone.startsWith('62') && !cleanPhone.startsWith('+')) cleanPhone = '62' + cleanPhone;
+    if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
 
     try {
       await fetch('https://api.fonnte.com/send', {

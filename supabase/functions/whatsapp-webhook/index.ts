@@ -938,7 +938,9 @@ async function uploadQrToStorage(supabase: any, qrData: string, filename: string
 }
 
 async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
-  const cleanPhone = target.replace(/^0/, '62').replace(/[^0-9]/g, '');
+  let cleanPhone = target.replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+  if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
   if (!cleanPhone) return;
   try {
     if (imageUrl) {

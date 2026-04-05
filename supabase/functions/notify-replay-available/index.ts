@@ -73,7 +73,9 @@ Deno.serve(async (req) => {
     const message = `━━━━━━━━━━━━━━━━━━\n🎬 *Replay Tersedia!*\n━━━━━━━━━━━━━━━━━━\n\nShow *${show_title}* sekarang tersedia untuk ditonton ulang!\n\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app/replay\n\n_Kunjungi link di atas untuk menonton._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
 
     for (const phone of phones) {
-      const cleanPhone = phone.replace(/^0/, '62').replace(/[^0-9]/g, '');
+      let cleanPhone = phone.replace(/[^0-9]/g, '');
+      if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+      if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
       try {
         await fetch('https://api.fonnte.com/send', {
           method: 'POST',
