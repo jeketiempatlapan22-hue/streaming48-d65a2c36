@@ -38,6 +38,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [streamInactive, setStreamInactive] = useState(false);
   const qualityChangeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const inactiveRetryRef = useRef<ReturnType<typeof setTimeout>>();
+  const fragLoadedRef = useRef(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
