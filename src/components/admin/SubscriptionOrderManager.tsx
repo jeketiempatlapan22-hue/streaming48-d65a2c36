@@ -264,7 +264,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       const { error: tokenErr } = await supabase.from("tokens").insert(insertData);
       if (!tokenErr) {
-        token = { code: newCode, expires_at: expiresAt };
+        token = { code: newCode, expires_at: expiresAt, created_at: new Date().toISOString() };
         setOrderTokens(prev => ({ ...prev, [order.id]: token! }));
       } else {
         toast({ title: "Gagal membuat token: " + tokenErr.message, variant: "destructive" });
