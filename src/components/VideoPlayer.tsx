@@ -330,7 +330,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const liveCheckId = setInterval(() => {
         if (destroyed || video.paused || !hls.liveSyncPosition) return;
-        setIsBehindLive(hls.liveSyncPosition - video.currentTime > 8);
+        const behindLive = hls.liveSyncPosition - video.currentTime > 8;
+        if (isBehindLiveRef.current !== behindLive) {
+          isBehindLiveRef.current = behindLive;
+          setIsBehindLive(behindLive);
+        }
       }, 3000);
 
       const onVisible = () => {
