@@ -168,7 +168,18 @@ const MembershipPage = () => {
   };
 
   const handleSubmitQris = async () => {
-    if (!selectedShow || !phone || !email) return;
+    if (!selectedShow || !phone.trim() || !email.trim()) {
+      toast({ title: "Harap isi nomor WhatsApp dan email", variant: "destructive" });
+      return;
+    }
+    if (!/^(08|\+62|62)\d{7,13}$/.test(phone.replace(/[\s-]/g, ""))) {
+      toast({ title: "Format nomor WhatsApp tidak valid", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({ title: "Format email tidak valid", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     const proofPath = (window as any).__membershipProofPath;
     let proofUrl = null;
