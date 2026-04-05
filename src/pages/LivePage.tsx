@@ -623,7 +623,7 @@ const LivePage = () => {
         </header>
         <div className="player-area relative z-10">
           {/* Membership badge overlay on player */}
-          {tokenData?.code?.startsWith("MBR-") && tokenData?.expires_at && (() => {
+          {tokenData?.is_membership && tokenData?.expires_at && (() => {
             const expiresAt = new Date(tokenData.expires_at);
             const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
             return (
