@@ -363,6 +363,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.on(Hls.Events.FRAG_LOADED, () => {
         if (!destroyed) {
           fragLoaded = true;
+          fragLoadedRef.current = true;
           if (inactiveFallbackTimer) { clearTimeout(inactiveFallbackTimer); inactiveFallbackTimer = null; }
           networkRetryCount = 0; setIsLoading(false); setStreamInactive(false);
         }
