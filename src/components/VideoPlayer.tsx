@@ -564,6 +564,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const hls = hlsRef.current;
     if (!hls) return;
     userQualityRef.current = level;
+
+    // Find label for animation
+    const q = qualities.find(q => q.value === level);
+    const label = q?.label || "Auto";
+    setQualityChanging(label);
+    clearTimeout(qualityChangeTimerRef.current);
+    qualityChangeTimerRef.current = setTimeout(() => setQualityChanging(null), 1800);
+
     if (level === -1) {
       hls.currentLevel = -1;
       hls.nextLevel = -1;
@@ -573,12 +581,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       try { hls.autoLevelEnabled = false; } catch {}
       hls.currentLevel = level;
       hls.nextLevel = level;
-      // Lock to this level so ABR doesn't switch away
       hls.autoLevelCapping = level;
     }
     setSelectedQuality(level);
     setShowQualityMenu(false);
-  }, []);
+  }, [qualities]);
 
   const toggleFullscreen = useCallback(async () => {
     const el = containerRef.current;
