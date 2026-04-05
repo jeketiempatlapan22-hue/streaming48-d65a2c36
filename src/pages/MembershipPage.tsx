@@ -426,7 +426,9 @@ const MembershipPage = () => {
                 </Button>
                 <p className="text-[10px] text-center text-muted-foreground">Admin akan mengkonfirmasi pesanan kamu</p>
               </div>
-            )
+            )}
+
+            {purchaseStep === "coin_info" && (
               <div className="space-y-4">
                 <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
                   💰 Saldo koin: <strong>{coinBalance}</strong> · Harga: <strong>{selectedShow.coin_price}</strong> koin
