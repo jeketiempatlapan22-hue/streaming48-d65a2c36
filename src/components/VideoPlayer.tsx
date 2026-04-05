@@ -23,7 +23,7 @@ export interface VideoPlayerHandle {
 
 const YT_ORIGIN = "https://www.youtube.com";
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode, customHeaders }, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [qualities, setQualities] = useState<{ label: string; value: number }[]>([]);
