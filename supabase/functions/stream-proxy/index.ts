@@ -24,6 +24,7 @@ const ALLOWED_REFERERS = [
   "lovable.dev",
   "localhost",
   "streaming48.lovable.app",
+  "id-preview--4387c5bf",
   "realtime48",
 ];
 
