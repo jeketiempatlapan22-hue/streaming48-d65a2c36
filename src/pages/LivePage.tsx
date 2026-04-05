@@ -112,18 +112,26 @@ const LivePage = () => {
 
   const fp = getFingerprint();
 
-  // ALL playlist types (m3u8, youtube, proxy) go through stream-proxy edge function
-  // The server-side proxy handles token fetching + custom headers for proxy streams
+  const isProxyPlaylist = activePlaylist?.type === "proxy";
+
+  // For m3u8/youtube: use signed stream URL via edge function
   const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
-    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    !isProxyPlaylist && activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode,
     fp
   );
 
-  // Unified URL and type for VideoPlayer
-  const effectiveStreamUrl = signedUrl;
-  const effectiveStreamLoading = signedLoading;
-  const effectiveType = proxyType || activePlaylist?.type || "m3u8";
+  // For proxy: call hanabira48 API directly (domain whitelisted, no CORS)
+  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading } = useProxyStream(
+    isProxyPlaylist,
+    externalShowId
+  );
+
+  // Unified URL, loading, and type for VideoPlayer
+  const effectiveStreamUrl = isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectiveStreamLoading = isProxyPlaylist ? proxyLoading : signedLoading;
+  const effectiveType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+  const effectiveHeaders = isProxyPlaylist ? proxyHeaders : null;
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
