@@ -67,10 +67,15 @@ Deno.serve(async (req) => {
     const { target, message } = await req.json();
     if (!target || !message) throw new Error('Missing target or message');
 
+    // Normalize phone number: handle 08, +62, 62, and bare 8xxx formats
+    let cleanTarget = target.replace(/[^0-9]/g, '');
+    if (cleanTarget.startsWith('0')) cleanTarget = '62' + cleanTarget.slice(1);
+    if (!cleanTarget.startsWith('62')) cleanTarget = '62' + cleanTarget;
+
     const response = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { 'Authorization': FONNTE_TOKEN },
-      body: new URLSearchParams({ target, message }),
+      body: new URLSearchParams({ target: cleanTarget, message }),
     });
 
     const data = await response.json();
