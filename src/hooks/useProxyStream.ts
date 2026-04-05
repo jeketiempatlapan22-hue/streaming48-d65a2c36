@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProxyStreamResult {
   playbackUrl: string | null;
@@ -8,9 +9,9 @@ interface ProxyStreamResult {
 }
 
 /**
- * Hook that fetches stream token directly from hanabira48.com (no edge function),
+ * Hook that fetches stream token via proxy-token edge function (avoids CORS),
  * then provides the playback URL + custom headers for HLS.js to use directly.
- * Browser → hanabira48 (token) → proxy.mediastream48 (playback with headers).
+ * Browser → Edge Function (proxy-token) → hanabira48 (token) → proxy.mediastream48 (playback with headers).
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -32,50 +33,25 @@ export function useProxyStream(
       setLoading(true);
       setError(null);
 
-      const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
-      console.log("[useProxyStream] Fetching token directly:", tokenUrl);
+      console.log("[useProxyStream] Calling proxy-token edge function for showId:", externalShowId);
 
-      const res = await fetch(tokenUrl, {
-        headers: {
-          "Accept": "application/json",
-        },
+      const { data, error: fnError } = await supabase.functions.invoke("proxy-token", {
+        body: { show_id: externalShowId },
       });
 
-      if (!res.ok) {
-        throw new Error(`Token API error: ${res.status}`);
+      if (fnError) {
+        throw new Error(`Edge function error: ${fnError.message}`);
       }
-
-      const tokenPayload = await res.json();
-      console.log("[useProxyStream] Token response keys:", Object.keys(tokenPayload));
 
       if (!isMounted.current) return;
 
-      // Extract headers from token response (support nested .data or flat)
-      const source = tokenPayload?.data && typeof tokenPayload.data === "object"
-        ? tokenPayload.data
-        : tokenPayload;
+      console.log("[useProxyStream] proxy-token response:", data);
 
-      const apiToken = source?.apiToken ?? source?.api_token ?? source?.["x-api-token"] ?? source?.xapi;
-      const secKey = source?.secKey ?? source?.sec_key ?? source?.["x-sec-key"] ?? source?.xsec;
-      const showId = source?.showId ?? source?.show_id ?? source?.["x-showid"] ?? source?.xshowid;
-      const tokenId = source?.tokenId ?? source?.token_id ?? source?.["x-token-id"] ?? source?.xtoken ?? source?.x;
-
-      if (!apiToken || !secKey || !showId || !tokenId) {
-        console.error("[useProxyStream] Missing token fields:", { apiToken: !!apiToken, secKey: !!secKey, showId: !!showId, tokenId: !!tokenId });
-        throw new Error("Token response tidak lengkap");
+      if (!data?.success || !data?.headers) {
+        throw new Error(data?.error || "Token response tidak valid");
       }
 
-      const headers: Record<string, string> = {
-        "x-api-token": String(apiToken),
-        "x-sec-key": String(secKey),
-        "x-showid": String(showId),
-        "x-token-id": String(tokenId),
-        xapi: String(apiToken),
-        xsec: String(secKey),
-        xshowid: String(showId),
-        x: String(tokenId),
-      };
-
+      const headers = data.headers as Record<string, string>;
       console.log("[useProxyStream] Headers ready:", Object.keys(headers));
 
       setCustomHeaders(headers);
