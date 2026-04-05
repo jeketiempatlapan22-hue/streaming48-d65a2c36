@@ -9,9 +9,9 @@ interface ProxyStreamResult {
 }
 
 /**
- * Hook that fetches proxy stream token from hanabira48.com directly from frontend,
- * then provides the playback URL + custom headers for HLS.js to use.
- * This avoids routing all segments through the edge function.
+ * Hook that fetches proxy stream token via edge function (avoids CORS),
+ * then provides the playback URL + custom headers for HLS.js to use directly.
+ * Stream segments go directly from browser → proxy server (no edge function proxy).
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -31,57 +31,32 @@ export function useProxyStream(
       setLoading(true);
       setError(null);
 
-      // 1. Get active_show_id from site_settings
-      const { data: settings } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "active_show_id")
-        .single();
+      console.log("[useProxyStream] Fetching token via edge function...");
 
-      if (!settings?.value) {
-        throw new Error("Tidak ada show aktif");
+      // Call lightweight edge function to fetch token (bypasses CORS)
+      const { data, error: fnError } = await supabase.functions.invoke("proxy-token", {
+        method: "POST",
+        body: {},
+      });
+
+      if (fnError) {
+        throw new Error(`Edge function error: ${fnError.message}`);
       }
 
-      // 2. Get external_show_id from shows table
-      const { data: show } = await supabase
-        .from("shows")
-        .select("external_show_id")
-        .eq("id", settings.value)
-        .single();
-
-      if (!show?.external_show_id) {
-        throw new Error("Show tidak memiliki External Show ID");
+      if (!data?.success) {
+        throw new Error(data?.error || "Gagal mengambil token stream");
       }
-
-      // 3. Fetch token from hanabira48 API
-      const tokenRes = await fetch(
-        `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(show.external_show_id)}`
-      );
-
-      if (!tokenRes.ok) {
-        throw new Error(`Gagal mengambil token stream (${tokenRes.status})`);
-      }
-
-      const tokenData = await tokenRes.json();
 
       if (!isMounted.current) return;
 
-      // 4. Build headers from response
-      const headers: Record<string, string> = {};
-      if (tokenData["x-api-token"]) headers["x-api-token"] = tokenData["x-api-token"];
-      if (tokenData["x-sec-key"]) headers["x-sec-key"] = tokenData["x-sec-key"];
-      if (tokenData["x-showid"]) headers["x-showid"] = tokenData["x-showid"];
-      if (tokenData["x-token-id"]) headers["x-token-id"] = tokenData["x-token-id"];
-
-      // Also handle alternative key names (xapi, xsec, etc.)
-      if (!headers["x-api-token"] && tokenData.xapi) headers["x-api-token"] = tokenData.xapi;
-      if (!headers["x-sec-key"] && tokenData.xsec) headers["x-sec-key"] = tokenData.xsec;
-      if (!headers["x-showid"] && tokenData.xshowid) headers["x-showid"] = tokenData.xshowid;
-      if (!headers["x-token-id"] && tokenData.xtoken) headers["x-token-id"] = tokenData.xtoken;
-
-      if (Object.keys(headers).length === 0) {
+      const headers = data.headers as Record<string, string>;
+      
+      if (!headers || Object.keys(headers).length === 0) {
         throw new Error("Token response tidak mengandung header yang valid");
       }
+
+      console.log("[useProxyStream] Got headers:", Object.keys(headers));
+      console.log("[useProxyStream] Show ID:", data.show_id);
 
       setCustomHeaders(headers);
       setPlaybackUrl("https://proxy.mediastream48.workers.dev/api/proxy/playback");
@@ -90,7 +65,10 @@ export function useProxyStream(
       // Refresh token every 4 minutes (tokens usually valid for ~5 min)
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
-        if (isMounted.current) fetchProxyHeaders();
+        if (isMounted.current) {
+          console.log("[useProxyStream] Refreshing token...");
+          fetchProxyHeaders();
+        }
       }, 4 * 60 * 1000);
     } catch (err: any) {
       if (!isMounted.current) return;
@@ -99,6 +77,15 @@ export function useProxyStream(
       setLoading(false);
       setPlaybackUrl(null);
       setCustomHeaders(null);
+
+      // Retry after 10 seconds on error
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        if (isMounted.current) {
+          console.log("[useProxyStream] Retrying after error...");
+          fetchProxyHeaders();
+        }
+      }, 10_000);
     }
   }, [isProxy, refreshKey]);
 
