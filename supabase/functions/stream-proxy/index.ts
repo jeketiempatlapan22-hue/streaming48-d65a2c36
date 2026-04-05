@@ -639,14 +639,14 @@ Deno.serve(async (req) => {
 
       if (playlist.type === "proxy") {
         // Get active show's external_show_id
-        const { data: activeShowSetting } = await supabase.from("site_settings").select("value").eq("key", "active_show_id").single();
+        const { data: activeShowSetting } = await supabaseClient.from("site_settings").select("value").eq("key", "active_show_id").single();
         if (!activeShowSetting?.value) {
           return new Response(
             JSON.stringify({ error: "Tidak ada show aktif yang dipilih" }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
+        const { data: showData } = await supabaseClient.from("shows").select("external_show_id").eq("id", activeShowSetting.value).single();
         if (!showData?.external_show_id) {
           return new Response(
             JSON.stringify({ error: "External Show ID belum diatur untuk show aktif" }),
