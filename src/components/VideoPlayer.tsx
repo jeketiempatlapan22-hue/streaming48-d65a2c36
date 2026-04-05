@@ -11,6 +11,7 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   watermarkUrl?: string;
   tokenCode?: string;
+  customHeaders?: Record<string, string> | null;
 }
 
 export interface VideoPlayerHandle {
@@ -22,7 +23,7 @@ export interface VideoPlayerHandle {
 
 const YT_ORIGIN = "https://www.youtube.com";
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode, customHeaders }, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [qualities, setQualities] = useState<{ label: string; value: number }[]>([]);
@@ -241,7 +242,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         levelLoadingTimeOut: 10000,
         testBandwidth: true,
         abrEwmaDefaultEstimate: 500000,
-        xhrSetup: (xhr: XMLHttpRequest) => { xhr.withCredentials = false; },
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          xhr.withCredentials = false;
+          // Inject custom headers for proxy stream (Player 3)
+          if (customHeaders) {
+            Object.entries(customHeaders).forEach(([key, value]) => {
+              xhr.setRequestHeader(key, value);
+            });
+          }
+        },
       });
       hlsRef.current = hls;
       let networkRetryCount = 0;

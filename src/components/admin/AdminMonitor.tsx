@@ -8,6 +8,7 @@ import LivePoll from "@/components/viewer/LivePoll";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useAdminSignedStreamUrl } from "@/hooks/useAdminSignedStreamUrl";
+import { useProxyStream } from "@/hooks/useProxyStream";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,12 +39,22 @@ const AdminMonitor = () => {
   const [resetting, setResetting] = useState(false);
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
 
+  const isProxyPlaylist = activePlaylist?.type === "proxy";
+
   const { signedUrl, loading: previewLoading, error: previewError, proxyType } = useAdminSignedStreamUrl(
-    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist && !isProxyPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     previewRefreshKey
   );
 
-  const effectivePreviewType = proxyType || (activePlaylist?.type === "proxy" ? "m3u8" : activePlaylist?.type) || "m3u8";
+  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
+    isProxyPlaylist,
+    previewRefreshKey
+  );
+
+  const effectivePreviewUrl = isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectivePreviewLoading = isProxyPlaylist ? proxyLoading : previewLoading;
+  const effectivePreviewError = isProxyPlaylist ? proxyError : previewError;
+  const effectivePreviewType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
   const fetchMonitorData = useCallback(async () => {
     const [streamRes, playlistRes] = await Promise.all([
@@ -203,15 +214,16 @@ const AdminMonitor = () => {
             <div className="p-2">
               <div className="overflow-hidden rounded-xl border border-border">
                 {activePlaylist ? (
-                  signedUrl ? (
+                  effectivePreviewUrl ? (
                     <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
                       <VideoPlayer
                         key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
-                        playlist={{ url: signedUrl, type: effectivePreviewType, label: activePlaylist.title }}
+                        playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
                         autoPlay
+                        customHeaders={isProxyPlaylist ? proxyHeaders : null}
                       />
                     </Suspense>
-                  ) : previewLoading ? (
+                  ) : effectivePreviewLoading ? (
                     <div className="flex aspect-video items-center justify-center bg-card">
                       <div className="flex flex-col items-center gap-2">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -220,7 +232,7 @@ const AdminMonitor = () => {
                     </div>
                   ) : (
                     <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
-                      <p className="text-sm text-destructive">{previewError || "Preview player belum tersedia."}</p>
+                      <p className="text-sm text-destructive">{effectivePreviewError || "Preview player belum tersedia."}</p>
                     </div>
                   )
                 ) : (

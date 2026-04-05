@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
+import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
@@ -109,14 +110,25 @@ const LivePage = () => {
 
   const fp = getFingerprint();
 
-  // IMPORTANT: All hooks must be called before any conditional returns
+  const isProxyPlaylist = activePlaylist?.type === "proxy";
+
+  // For non-proxy playlists: use signed stream URL via edge function
   const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
-    activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist && !isProxyPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode,
     fp
   );
 
-  const effectiveType = proxyType || (activePlaylist?.type === "proxy" ? "m3u8" : activePlaylist?.type) || "m3u8";
+  // For proxy playlists: fetch headers directly from frontend
+  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
+    isProxyPlaylist,
+    activePlaylist?.id ? 0 : 0
+  );
+
+  // Unified URL and type for VideoPlayer
+  const effectiveStreamUrl = isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectiveStreamLoading = isProxyPlaylist ? proxyLoading : signedLoading;
+  const effectiveType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
@@ -583,17 +595,18 @@ const LivePage = () => {
         <div className="player-area relative z-10">
           {isLive && activePlaylist ? (
             <div className="relative">
-              {signedUrl ? (
+              {effectiveStreamUrl ? (
                 <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
                   <VideoPlayer
                     ref={playerRef}
                     key={activePlaylist.id}
-                    playlist={{ url: signedUrl, type: effectiveType, label: activePlaylist.title }}
+                    playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
+                    customHeaders={isProxyPlaylist ? proxyHeaders : null}
                   />
                 </Suspense>
-              ) : signedLoading ? (
+              ) : effectiveStreamLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">
                     <div className="h-8 w-8 animate-spin rounded-full border-3 border-primary border-t-transparent" />
@@ -602,7 +615,7 @@ const LivePage = () => {
                 </div>
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
-                  <p className="text-sm text-destructive">Gagal memuat stream. Coba refresh.</p>
+                  <p className="text-sm text-destructive">{proxyError || "Gagal memuat stream. Coba refresh."}</p>
                 </div>
               )}
             </div>
