@@ -293,6 +293,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               console.log("[HLS] Retrying inactive stream...");
               setStreamInactive(false);
               setIsLoading(true);
+              fragLoaded = false;
+              fragLoadedRef.current = false;
               hls.loadSource(playlistUrl);
             }
           }, 10000);
@@ -349,6 +351,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               console.log("[HLS] Retrying inactive stream from LEVEL_LOADED...");
               setStreamInactive(false);
               setIsLoading(true);
+              fragLoaded = false;
+              fragLoadedRef.current = false;
               hls.loadSource(playlistUrl);
             }
           }, 10000);
@@ -395,6 +399,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                   console.log("[HLS] Retrying inactive stream...");
                   setStreamInactive(false);
                   setIsLoading(true);
+                  fragLoaded = false;
+                  fragLoadedRef.current = false;
                   hls.loadSource(playlistUrl);
                 }
               }, 10000);
