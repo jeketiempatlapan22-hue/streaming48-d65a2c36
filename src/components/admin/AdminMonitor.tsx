@@ -214,15 +214,16 @@ const AdminMonitor = () => {
             <div className="p-2">
               <div className="overflow-hidden rounded-xl border border-border">
                 {activePlaylist ? (
-                  signedUrl ? (
+                  effectivePreviewUrl ? (
                     <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
                       <VideoPlayer
                         key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
-                        playlist={{ url: signedUrl, type: effectivePreviewType, label: activePlaylist.title }}
+                        playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
                         autoPlay
+                        customHeaders={isProxyPlaylist ? proxyHeaders : null}
                       />
                     </Suspense>
-                  ) : previewLoading ? (
+                  ) : effectivePreviewLoading ? (
                     <div className="flex aspect-video items-center justify-center bg-card">
                       <div className="flex flex-col items-center gap-2">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -231,7 +232,7 @@ const AdminMonitor = () => {
                     </div>
                   ) : (
                     <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
-                      <p className="text-sm text-destructive">{previewError || "Preview player belum tersedia."}</p>
+                      <p className="text-sm text-destructive">{effectivePreviewError || "Preview player belum tersedia."}</p>
                     </div>
                   )
                 ) : (
