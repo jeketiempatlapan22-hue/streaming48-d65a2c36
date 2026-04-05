@@ -571,7 +571,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const label = q?.label || "Auto";
     setQualityChanging(label);
     clearTimeout(qualityChangeTimerRef.current);
-    qualityChangeTimerRef.current = setTimeout(() => setQualityChanging(null), 1800);
+    qualityChangeTimerRef.current = setTimeout(() => setQualityChanging(null), 1600);
 
     if (level === -1) {
       hls.currentLevel = -1;
