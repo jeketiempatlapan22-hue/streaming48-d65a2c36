@@ -42,6 +42,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const ytReadyRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const controlsFrameRef = useRef<number | null>(null);
+  const showControlsRef = useRef(true);
+  const isBehindLiveRef = useRef(false);
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
   const userQualityRef = useRef<number>(-1); // track user's manual quality choice
 
