@@ -68,15 +68,16 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
     </div>
   );
 };
-// Sort playlists: 1st m3u8 first, 1st youtube second, then remaining in order
+// Sort playlists: 1st m3u8, 2nd youtube, 3rd proxy, then remaining
 const sortPlaylists = (list: any[]): any[] => {
   if (!list || list.length <= 1) return list;
   const firstM3u8 = list.find((p) => p.type === "m3u8");
   const firstYoutube = list.find((p) => p.type === "youtube");
+  const firstProxy = list.find((p) => p.type === "proxy");
   const rest = list.filter(
-    (p) => p !== firstM3u8 && p !== firstYoutube
+    (p) => p !== firstM3u8 && p !== firstYoutube && p !== firstProxy
   );
-  return [firstM3u8, firstYoutube, ...rest].filter(Boolean);
+  return [firstM3u8, firstYoutube, firstProxy, ...rest].filter(Boolean);
 };
 
 const LivePage = () => {
@@ -100,6 +101,7 @@ const LivePage = () => {
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
+  const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -119,11 +121,11 @@ const LivePage = () => {
     fp
   );
 
-  // For proxy playlists: fetch headers directly from frontend
-  // Use a stable refreshKey derived from playlist selection to trigger re-fetch
+  // For proxy playlists: fetch token directly from hanabira48 (no edge function)
   const proxyRefreshKey = isProxyPlaylist ? 1 : 0;
   const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
     isProxyPlaylist,
+    externalShowId,
     proxyRefreshKey
   );
 
@@ -268,23 +270,29 @@ const LivePage = () => {
           });
         }
 
-        if (result.show_id && activeShowId && result.show_id !== activeShowId) {
-          const allShowsRes = await withTimeout(
+        // Fetch external_show_id for proxy player
+        if (activeShowId) {
+          const showRes = await withTimeout(
             (async () => await supabase.rpc("get_public_shows"))(),
             8_000,
             "Shows timeout"
           ).catch(() => null);
-
-          const allShows = allShowsRes?.data as any[] | undefined;
-          const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
+          const allShows = showRes?.data as any[] | undefined;
           const activeShow = allShows?.find((s: any) => s.id === activeShowId);
-          setShowMismatch(true);
-          setMismatchShowTitle(JSON.stringify({
-            tokenShowTitle: tokenShow?.title || "Show Lain",
-            tokenShowDate: tokenShow?.schedule_date || "",
-            tokenShowTime: tokenShow?.schedule_time || "",
-            activeShowTitle: activeShow?.title || "Show Lain",
-          }));
+          if (activeShow?.external_show_id) {
+            setExternalShowId(activeShow.external_show_id);
+          }
+
+          if (result.show_id && result.show_id !== activeShowId) {
+            const tokenShow = allShows?.find((s: any) => s.id === result.show_id);
+            setShowMismatch(true);
+            setMismatchShowTitle(JSON.stringify({
+              tokenShowTitle: tokenShow?.title || "Show Lain",
+              tokenShowDate: tokenShow?.schedule_date || "",
+              tokenShowTime: tokenShow?.schedule_time || "",
+              activeShowTitle: activeShow?.title || "Show Lain",
+            }));
+          }
         }
       } catch {
         setError("Server sedang sibuk, coba muat ulang halaman.");
