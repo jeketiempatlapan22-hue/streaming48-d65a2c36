@@ -123,15 +123,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
     const resetTimer = () => {
-      setShowControls(true);
-      clearTimeout(controlsTimeoutRef.current);
-      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
+      if (controlsFrameRef.current !== null) cancelAnimationFrame(controlsFrameRef.current);
+      controlsFrameRef.current = requestAnimationFrame(() => {
+        if (!showControlsRef.current) {
+          showControlsRef.current = true;
+          setShowControls(true);
+        }
+        clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => {
+          showControlsRef.current = false;
+          setShowControls(false);
+        }, 2500);
+      });
     };
+
     el.addEventListener("mousemove", resetTimer, { passive: true });
     el.addEventListener("touchstart", resetTimer, { passive: true });
     resetTimer();
+
     return () => {
+      if (controlsFrameRef.current !== null) cancelAnimationFrame(controlsFrameRef.current);
       clearTimeout(controlsTimeoutRef.current);
       el.removeEventListener("mousemove", resetTimer);
       el.removeEventListener("touchstart", resetTimer);
