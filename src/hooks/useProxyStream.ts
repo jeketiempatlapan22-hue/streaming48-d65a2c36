@@ -25,6 +25,7 @@ export function useProxyStream(
   const isMounted = useRef(true);
 
   const fetchProxyHeaders = useCallback(async () => {
+    console.log("[useProxyStream] fetchProxyHeaders called, isProxy:", isProxy);
     if (!isProxy) return;
 
     try {
