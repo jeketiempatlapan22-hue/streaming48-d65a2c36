@@ -298,8 +298,34 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
       });
 
+      // Detect inactive stream via LEVEL_LOADED (empty fragments in ENDLIST manifest)
+      hls.on(Hls.Events.LEVEL_LOADED, (_: any, levelData: any) => {
+        if (destroyed) return;
+        const details = levelData.details;
+        if (details && details.fragments && details.fragments.length === 0 && details.live === false) {
+          console.warn("[HLS] Level loaded but 0 fragments + ENDLIST — stream inactive");
+          setStreamInactive(true);
+          setIsLoading(false);
+          setPlayerError(null);
+          if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
+          inactiveRetryRef.current = setTimeout(() => {
+            if (!destroyed && hlsRef.current) {
+              console.log("[HLS] Retrying inactive stream from LEVEL_LOADED...");
+              setStreamInactive(false);
+              setIsLoading(true);
+              hls.loadSource(playlistUrl);
+            }
+          }, 10000);
+          return;
+        }
+        // If we got fragments, stream is active
+        if (details && details.fragments && details.fragments.length > 0) {
+          setStreamInactive(false);
+        }
+      });
+
       hls.on(Hls.Events.FRAG_LOADED, () => {
-        if (!destroyed) { networkRetryCount = 0; setIsLoading(false); }
+        if (!destroyed) { networkRetryCount = 0; setIsLoading(false); setStreamInactive(false); }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_: any, d: any) => {
