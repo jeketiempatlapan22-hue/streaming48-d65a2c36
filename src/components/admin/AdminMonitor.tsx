@@ -48,7 +48,7 @@ const AdminMonitor = () => {
     previewRefreshKey
   );
 
-  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading, error: proxyError } = useProxyStream(
+  const { playbackUrl: proxyUrl, customHeadersRef: proxyHeadersRef, loading: proxyLoading, error: proxyError } = useProxyStream(
     isProxyPlaylist,
     externalShowId,
     previewRefreshKey
@@ -233,7 +233,7 @@ const AdminMonitor = () => {
                         key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
                         playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
                         autoPlay
-                        customHeaders={isProxyPlaylist ? proxyHeaders : null}
+                        customHeadersRef={isProxyPlaylist ? proxyHeadersRef : undefined}
                       />
                     </Suspense>
                   ) : effectivePreviewLoading ? (

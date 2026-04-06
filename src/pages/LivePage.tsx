@@ -122,7 +122,7 @@ const LivePage = () => {
   );
 
   // For proxy: call hanabira48 API directly (domain whitelisted, no CORS)
-  const { playbackUrl: proxyUrl, customHeaders: proxyHeaders, loading: proxyLoading } = useProxyStream(
+  const { playbackUrl: proxyUrl, customHeadersRef: proxyHeadersRef, loading: proxyLoading } = useProxyStream(
     isProxyPlaylist,
     externalShowId
   );
@@ -131,7 +131,7 @@ const LivePage = () => {
   const effectiveStreamUrl = isProxyPlaylist ? proxyUrl : signedUrl;
   const effectiveStreamLoading = isProxyPlaylist ? proxyLoading : signedLoading;
   const effectiveType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
-  const effectiveHeaders = isProxyPlaylist ? proxyHeaders : null;
+  const effectiveHeadersRef = isProxyPlaylist ? proxyHeadersRef : undefined;
 
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
@@ -647,7 +647,7 @@ const LivePage = () => {
                     playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
                     autoPlay
                     tokenCode={tokenData?.code}
-                    customHeaders={effectiveHeaders}
+                    customHeadersRef={effectiveHeadersRef}
                   />
                 </Suspense>
               ) : effectiveStreamLoading ? (
