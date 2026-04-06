@@ -1,4 +1,3 @@
-// @ts-ignore: Deno.serve is the modern API
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -41,15 +40,15 @@ Deno.serve(async (req) => {
     const anonClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims?.sub) {
+    // Use getUser instead of getClaims (which doesn't exist in supabase-js v2)
+    const { data: { user }, error: userErr } = await anonClient.auth.getUser(token);
+    if (userErr || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const userId = claimsData.claims.sub as string;
+    const userId = user.id;
 
     // Check admin role
     const adminClient = createClient(
@@ -85,6 +84,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('send-whatsapp error:', msg);
     return new Response(JSON.stringify({ success: false, error: msg }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

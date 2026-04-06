@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, CheckCircle2, XCircle, Search, Clock, Key, Copy } from "lucide-react";
+import { APP_URL } from "@/lib/appConfig";
 
 interface ResetRequest {
   id: string;
@@ -75,8 +76,7 @@ const PasswordResetManager = () => {
       if (error) throw error;
 
       if (action === "approve" && request.phone) {
-        const siteUrl = window.location.origin;
-        const resetLink = `${siteUrl}/reset-password?token=${request.secure_token || request.short_id}`;
+        const resetLink = `${APP_URL}/reset-password?token=${request.secure_token || request.short_id}`;
         
         try {
           await supabase.functions.invoke("send-whatsapp", {
@@ -104,7 +104,7 @@ const PasswordResetManager = () => {
   };
 
   const copyResetLink = (request: ResetRequest) => {
-    const link = `${window.location.origin}/reset-password?token=${request.secure_token || request.short_id}`;
+    const link = `${APP_URL}/reset-password?token=${request.secure_token || request.short_id}`;
     navigator.clipboard.writeText(link);
     toast.success("Link reset disalin!");
   };
