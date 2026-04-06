@@ -148,8 +148,8 @@ const LiveControl = () => {
   const cancelEdit = () => setEditingId(null);
 
   const saveEdit = async () => {
-    if (!editingId || !editLabel || !editUrl) return;
-    const urlToSave = editType === "youtube" ? encryptEmbedId(editUrl) : editUrl;
+    if (!editingId || !editLabel || (editType !== "proxy" && !editUrl)) return;
+    const urlToSave = editType === "youtube" ? encryptEmbedId(editUrl) : (editType === "proxy" ? "proxy" : editUrl);
     await supabase.from("playlists").update({ title: editLabel, type: editType, url: urlToSave }).eq("id", editingId);
     toast({ title: "Playlist diperbarui!" });
     setEditingId(null);
