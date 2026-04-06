@@ -358,7 +358,7 @@ const LiveControl = () => {
         </div>
 
         <div className="space-y-2">
-          {playlists.map((p) => (
+          {playlists.map((p, index) => (
             <div key={p.id} className="rounded-lg border border-border bg-card p-4">
               {editingId === p.id ? (
                 <div className="space-y-3">
@@ -383,7 +383,14 @@ const LiveControl = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === 0} onClick={() => movePlaylist(index, -1)}>
+                      <ArrowUp className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === playlists.length - 1} onClick={() => movePlaylist(index, 1)}>
+                      <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{p.title}</p>
                     <p className="text-xs text-muted-foreground truncate">
