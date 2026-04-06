@@ -233,7 +233,7 @@ const AdminMonitor = () => {
                         key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
                         playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
                         autoPlay
-                        customHeaders={isProxyPlaylist ? proxyHeaders : null}
+                        customHeadersRef={isProxyPlaylist ? proxyHeadersRef : undefined}
                       />
                     </Suspense>
                   ) : effectivePreviewLoading ? (
