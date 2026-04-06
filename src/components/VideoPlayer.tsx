@@ -11,7 +11,8 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   watermarkUrl?: string;
   tokenCode?: string;
-  customHeaders?: Record<string, string> | null;
+  /** Mutable ref so xhrSetup always reads latest headers without re-mounting HLS */
+  customHeadersRef?: React.MutableRefObject<Record<string, string> | null>;
 }
 
 export interface VideoPlayerHandle {
@@ -23,7 +24,7 @@ export interface VideoPlayerHandle {
 
 const YT_ORIGIN = "https://www.youtube.com";
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode, customHeaders }, ref) => {
+const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist, autoPlay = true, watermarkUrl, tokenCode, customHeadersRef }, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [qualities, setQualities] = useState<{ label: string; value: number }[]>([]);

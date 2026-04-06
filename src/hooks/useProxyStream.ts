@@ -2,15 +2,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 interface ProxyStreamResult {
   playbackUrl: string | null;
-  customHeaders: Record<string, string> | null;
+  /** Always-current headers ref — read inside xhrSetup without re-mounting HLS */
+  customHeadersRef: React.MutableRefObject<Record<string, string> | null>;
   loading: boolean;
   error: string | null;
 }
 
+const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
+
 /**
  * Hook that fetches stream token directly from hanabira48.com API (no CORS issues — domain whitelisted),
- * then provides the playback URL + custom headers for HLS.js to use directly.
- * Browser → hanabira48.com (token) → proxy.mediastream48.workers.dev (playback with headers).
+ * then provides the playback URL + a **ref** to custom headers so HLS.js xhrSetup always uses
+ * the latest token without destroying / re-creating the player.
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -18,7 +21,7 @@ export function useProxyStream(
   refreshKey = 0
 ): ProxyStreamResult {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [customHeaders, setCustomHeaders] = useState<Record<string, string> | null>(null);
+  const customHeadersRef = useRef<Record<string, string> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,61 +31,56 @@ export function useProxyStream(
     console.log("[useProxyStream] fetchToken called, isProxy:", isProxy, "showId:", externalShowId);
     if (!isProxy || !externalShowId) return;
 
+    const isInitial = customHeadersRef.current === null;
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       setError(null);
-
-      console.log("[useProxyStream] Fetching token directly from hanabira48 for showId:", externalShowId);
 
       const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
       const res = await fetch(tokenUrl);
 
-      if (!res.ok) {
-        throw new Error(`Token API error: ${res.status} ${res.statusText}`);
-      }
+      if (!res.ok) throw new Error(`Token API error: ${res.status} ${res.statusText}`);
 
       const tokenData = await res.json();
-
       if (!isMounted.current) return;
 
-      console.log("[useProxyStream] hanabira48 token response:", tokenData);
+      console.log("[useProxyStream] token response:", tokenData);
 
-      // Extract headers from various response shapes
       const headers = buildHeaders(tokenData);
-
-      if (!headers) {
-        throw new Error("Token response tidak valid — headers tidak ditemukan");
-      }
+      if (!headers) throw new Error("Token response tidak valid — headers tidak ditemukan");
 
       console.log("[useProxyStream] Headers ready:", Object.keys(headers));
 
-      setCustomHeaders(headers);
-      setPlaybackUrl("https://proxy.mediastream48.workers.dev/api/proxy/playback");
-      setLoading(false);
+      // Update ref silently — no state change, no HLS re-init
+      customHeadersRef.current = headers;
 
-      // Refresh token every 4 minutes
+      if (isInitial) {
+        setPlaybackUrl("https://proxy.mediastream48.workers.dev/api/proxy/playback");
+        setLoading(false);
+      }
+
+      // Schedule silent refresh every 1 h 55 min
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) {
-          console.log("[useProxyStream] Refreshing token...");
+          console.log("[useProxyStream] Silent token refresh…");
           fetchToken();
         }
-      }, 4 * 60 * 1000);
+      }, TOKEN_REFRESH_MS);
     } catch (err: any) {
       if (!isMounted.current) return;
       console.error("[useProxyStream] Error:", err);
       setError(err.message || "Gagal memuat proxy stream");
-      setLoading(false);
-      setPlaybackUrl(null);
-      setCustomHeaders(null);
+      if (isInitial) {
+        setLoading(false);
+        setPlaybackUrl(null);
+        customHeadersRef.current = null;
+      }
 
-      // Retry after 10 seconds on error
+      // Retry after 10 s
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
-        if (isMounted.current) {
-          console.log("[useProxyStream] Retrying after error...");
-          fetchToken();
-        }
+        if (isMounted.current) fetchToken();
       }, 10_000);
     }
   }, [isProxy, externalShowId, refreshKey]);
@@ -90,7 +88,7 @@ export function useProxyStream(
   useEffect(() => {
     isMounted.current = true;
     setPlaybackUrl(null);
-    setCustomHeaders(null);
+    customHeadersRef.current = null;
     if (isProxy && externalShowId) fetchToken();
 
     return () => {
@@ -102,7 +100,7 @@ export function useProxyStream(
     };
   }, [fetchToken]);
 
-  return { playbackUrl, customHeaders, loading, error };
+  return { playbackUrl, customHeadersRef, loading, error };
 }
 
 /**
