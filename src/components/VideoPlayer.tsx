@@ -265,11 +265,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         levelLoadingTimeOut: 10000,
         testBandwidth: true,
         abrEwmaDefaultEstimate: 500000,
-        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+        xhrSetup: (xhr: XMLHttpRequest, _url: string) => {
           xhr.withCredentials = false;
-          // Inject custom headers for proxy stream (Player 3)
-          if (customHeaders) {
-            Object.entries(customHeaders).forEach(([key, value]) => {
+          // Inject custom headers for proxy stream (Player 3) — read from ref for always-latest token
+          const hdrs = customHeadersRef?.current;
+          if (hdrs) {
+            Object.entries(hdrs).forEach(([key, value]) => {
               xhr.setRequestHeader(key, value);
             });
           }
