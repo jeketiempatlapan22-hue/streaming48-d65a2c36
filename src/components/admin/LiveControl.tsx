@@ -375,9 +375,9 @@ const LiveControl = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="bg-background font-mono text-xs" />
+                  {editType !== "proxy" && <Input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder="URL" className="bg-background font-mono text-xs" />}
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={saveEdit} disabled={!editLabel || !editUrl} className="gap-1"><Check className="h-3.5 w-3.5" /> Simpan</Button>
+                    <Button size="sm" onClick={saveEdit} disabled={!editLabel || (editType !== "proxy" && !editUrl)} className="gap-1"><Check className="h-3.5 w-3.5" /> Simpan</Button>
                     <Button size="sm" variant="ghost" onClick={cancelEdit} className="gap-1"><X className="h-3.5 w-3.5" /> Batal</Button>
                   </div>
                 </div>
