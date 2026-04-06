@@ -418,11 +418,14 @@ const LivePage = () => {
         if (p.new) {
           const wasLive = stream?.is_live;
           setStream(p.new);
-          // When admin turns live ON, refresh playlists to ensure we have them
           if (!wasLive && p.new.is_live) {
             refreshPlaylists();
           }
         }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "playlists" }, () => {
+        // Realtime: admin added/removed/reordered/toggled a player
+        refreshPlaylists();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
