@@ -55,6 +55,15 @@ const AdminMonitor = () => {
   const effectivePreviewError = isDirectPlaylist ? null : (isProxyPlaylist ? proxyError : previewError);
   const effectivePreviewType = (isDirectPlaylist || isProxyPlaylist) ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
+  const syncPlaylists = useCallback((nextPlaylists: any[]) => {
+    setPlaylists(nextPlaylists);
+    setActivePlaylist((prev: any) => {
+      if (!nextPlaylists.length) return null;
+      if (!prev) return nextPlaylists[0];
+      return nextPlaylists.find((item: any) => item.id === prev.id) || nextPlaylists[0];
+    });
+  }, []);
+
   const fetchMonitorData = useCallback(async () => {
     const [streamRes, playlistRes, settingsRes] = await Promise.all([
       supabase.from("streams").select("*").limit(1).single(),
@@ -74,13 +83,8 @@ const AdminMonitor = () => {
     }
 
     const pls = playlistRes.data || [];
-    setPlaylists(pls);
-    setActivePlaylist((prev: any) => {
-      if (!pls.length) return null;
-      if (!prev) return pls[0];
-      return pls.find((item: any) => item.id === prev.id) || pls[0];
-    });
-  }, []);
+    syncPlaylists(pls);
+  }, [syncPlaylists]);
 
   useEffect(() => {
     void fetchMonitorData();

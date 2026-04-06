@@ -52,6 +52,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const isBehindLiveRef = useRef(false);
   const ytIframeRef = useRef<HTMLIFrameElement | null>(null);
   const userQualityRef = useRef<number>(-1); // track user's manual quality choice
+  const activeHlsUrlRef = useRef<string | null>(null);
 
   const playlistUrl = playlist.url;
   const playlistType = playlist.type;
@@ -160,10 +161,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   //  HLS / M3U8 — CORRECT INIT ORDER
   // ══════════════════════════════════════════
   useEffect(() => {
-    if (playlistType !== "m3u8") return;
+    if (playlistType !== "m3u8") {
+      activeHlsUrlRef.current = null;
+      return;
+    }
     const video = videoRef.current;
     if (!video || !playlistUrl) return;
     let destroyed = false;
+    activeHlsUrlRef.current = playlistUrl;
+    const getSourceUrl = () => activeHlsUrlRef.current || playlistUrl;
 
     if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
     if (inactiveRetryRef.current) { clearTimeout(inactiveRetryRef.current); inactiveRetryRef.current = undefined; }
@@ -216,7 +222,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             setStreamInactive(false);
             setIsLoading(true);
             fragLoadedRef.current = false;
-            if (hlsRef.current) hlsRef.current.loadSource(playlistUrl);
+            if (hlsRef.current) hlsRef.current.loadSource(getSourceUrl());
           }
         }, 10000);
       }
@@ -229,7 +235,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       if (!Hls.isSupported()) {
         if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          video.src = playlistUrl;
+          video.src = getSourceUrl();
           video.addEventListener("loadedmetadata", () => {
             if (!destroyed && autoPlay) video.play().catch(() => {});
           }, { once: true });
@@ -244,16 +250,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const hls = new Hls({
         enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 15,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 20,
-        maxBufferHole: 0.5,
-        nudgeOffset: 0.1,
+        lowLatencyMode: usesNativeHeaderInjection,
+        backBufferLength: 30,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferHole: 1,
+        nudgeOffset: 0.2,
         nudgeMaxRetry: 5,
-        liveSyncDurationCount: 2,
-        liveMaxLatencyDurationCount: 4,
-        liveBackBufferLength: 10,
+        liveSyncDurationCount: usesNativeHeaderInjection ? 2 : 4,
+        liveMaxLatencyDurationCount: usesNativeHeaderInjection ? 4 : 8,
+        liveBackBufferLength: 30,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
@@ -266,7 +272,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         fragLoadingTimeOut: 15000,
         levelLoadingTimeOut: 10000,
         testBandwidth: true,
-        abrEwmaDefaultEstimate: 500000,
+        abrEwmaDefaultEstimate: 2500000,
         xhrSetup: (xhr: XMLHttpRequest, url: string) => {
           if (!usesNativeHeaderInjection) return;
 
@@ -306,7 +312,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setIsLoading(true);
               fragLoaded = false;
               fragLoadedRef.current = false;
-              hls.loadSource(playlistUrl);
+              hls.loadSource(getSourceUrl());
             }
           }, 10000);
           return;
@@ -326,7 +332,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setStreamInactive(false);
               setIsLoading(true);
               fragLoaded = false;
-              hls.loadSource(playlistUrl);
+              hls.loadSource(getSourceUrl());
             }
           }, 10000);
         }, 6000);
@@ -364,7 +370,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setIsLoading(true);
               fragLoaded = false;
               fragLoadedRef.current = false;
-              hls.loadSource(playlistUrl);
+              hls.loadSource(getSourceUrl());
             }
           }, 10000);
           return;
@@ -412,7 +418,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
                   setIsLoading(true);
                   fragLoaded = false;
                   fragLoadedRef.current = false;
-                  hls.loadSource(playlistUrl);
+                  hls.loadSource(getSourceUrl());
                 }
               }, 10000);
               return;
@@ -423,7 +429,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setTimeout(() => {
                 if (destroyed || !hlsRef.current) return;
                 if (data.details === "manifestLoadTimeOut") {
-                  hls.loadSource(playlistUrl);
+                  hls.loadSource(getSourceUrl());
                 } else {
                   hls.startLoad();
                 }
@@ -456,7 +462,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       hls.attachMedia(video);
       hls.on(Hls.Events.MEDIA_ATTACHED, () => {
         if (destroyed) return;
-        hls.loadSource(playlistUrl);
+        hls.loadSource(getSourceUrl());
       });
 
       const liveCheckId = setInterval(() => {
@@ -507,8 +513,41 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       video.removeEventListener("canplay", onCanPlay);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("error", onError);
+      activeHlsUrlRef.current = null;
       if (hlsRef.current) { try { hlsRef.current.destroy(); } catch {} hlsRef.current = null; }
     };
+  }, [playlistType, autoPlay, customHeadersRef]);
+
+  useEffect(() => {
+    if (playlistType !== "m3u8" || !playlistUrl) return;
+    if (activeHlsUrlRef.current === playlistUrl) return;
+
+    activeHlsUrlRef.current = playlistUrl;
+    const video = videoRef.current;
+    const hls = hlsRef.current;
+
+    setPlayerError(null);
+    setStreamInactive(false);
+    setIsLoading(true);
+
+    if (hls) {
+      const shouldResume = Boolean(autoPlay || (video && !video.paused));
+      try { hls.stopLoad?.(); } catch {}
+      hls.loadSource(playlistUrl);
+      hls.startLoad(-1);
+      if (shouldResume && video) {
+        window.setTimeout(() => {
+          video.play().catch(() => {});
+        }, 120);
+      }
+      return;
+    }
+
+    if (video?.canPlayType("application/vnd.apple.mpegurl")) {
+      const shouldResume = Boolean(autoPlay || !video.paused);
+      video.src = playlistUrl;
+      if (shouldResume) video.play().catch(() => {});
+    }
   }, [playlistType, playlistUrl, autoPlay]);
 
   // ══════════════════════════════════════════
