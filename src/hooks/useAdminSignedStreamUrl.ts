@@ -46,9 +46,7 @@ export function useAdminSignedStreamUrl(
       setProxyType(data.type || null);
       setLoading(false);
 
-      const halfTtl = (data.expires_in / 2) * 1000;
-      const beforeExpiry = Math.max((data.expires_in - 120) * 1000, 30000);
-      const refreshIn = Math.min(halfTtl, beforeExpiry);
+      const refreshIn = Math.max((data.expires_in - 90) * 1000, 30000);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) generateSignedUrl();
