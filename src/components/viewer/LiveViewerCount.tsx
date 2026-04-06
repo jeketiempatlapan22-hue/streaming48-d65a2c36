@@ -87,16 +87,19 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
     return () => window.removeEventListener("beforeunload", handleUnload);
   }, [isLive, readOnly]);
 
-  if (!isLive || count === 0) return null;
+  // In readOnly (admin) mode always show; in viewer mode hide when offline or 0
+  if (!readOnly && (!isLive || count === 0)) return null;
 
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
-      </span>
-      <Users className="h-3 w-3 text-destructive" />
-      <span className="text-xs font-bold text-destructive">{count}</span>
+    <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 ${isLive ? "bg-destructive/15" : "bg-muted"}`}>
+      {isLive && (
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+        </span>
+      )}
+      <Users className={`h-3 w-3 ${isLive ? "text-destructive" : "text-muted-foreground"}`} />
+      <span className={`text-xs font-bold ${isLive ? "text-destructive" : "text-muted-foreground"}`}>{count}</span>
     </div>
   );
 };
