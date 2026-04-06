@@ -240,6 +240,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         return;
       }
 
+      const usesNativeHeaderInjection = Boolean(customHeadersRef);
+
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: true,
@@ -255,7 +257,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
-        progressive: true,
+        progressive: !usesNativeHeaderInjection,
         fragLoadingMaxRetry: 8,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
@@ -265,15 +267,21 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         levelLoadingTimeOut: 10000,
         testBandwidth: true,
         abrEwmaDefaultEstimate: 500000,
-        xhrSetup: (xhr: XMLHttpRequest, _url: string) => {
-          xhr.withCredentials = false;
-          // Inject custom headers for proxy stream (Player 3) — read from ref for always-latest token
-          const hdrs = customHeadersRef?.current;
-          if (hdrs) {
-            Object.entries(hdrs).forEach(([key, value]) => {
-              xhr.setRequestHeader(key, value);
-            });
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          if (!usesNativeHeaderInjection) return;
+
+          if (xhr.readyState === 0) {
+            xhr.open("GET", url, true);
           }
+
+          xhr.withCredentials = false;
+
+          const hdrs = customHeadersRef?.current;
+          if (!hdrs) return;
+
+          Object.entries(hdrs).forEach(([key, value]) => {
+            xhr.setRequestHeader(key, value);
+          });
         },
       });
       hlsRef.current = hls;
