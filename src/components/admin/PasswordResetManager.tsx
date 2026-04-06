@@ -64,47 +64,43 @@ const PasswordResetManager = () => {
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-  const handleAction = async (request: ResetRequest, action: "approve" | "reject") => {
+  const handleAction = async (request: ResetRequest, action: "approve" | "reject" | "resend") => {
     setProcessing(request.id);
     try {
-      const newStatus = action === "approve" ? "approved" : "rejected";
-      const { error } = await supabase
-        .from("password_reset_requests")
-        .update({ status: newStatus, processed_at: new Date().toISOString() })
-        .eq("id", request.id);
+      const { data, error } = await supabase.functions.invoke("process-password-reset-request", {
+        body: {
+          request_id: request.id,
+          action,
+        },
+      });
 
-      if (error) throw error;
-
-      if (action === "approve" && request.phone) {
-        const resetLink = `${APP_URL}/reset-password?token=${request.secure_token || request.short_id}`;
-        
-        try {
-          await supabase.functions.invoke("send-whatsapp", {
-            body: {
-              target: request.phone,
-              message: `🔑 *Reset Password Disetujui*\n\nKlik link berikut untuk membuat password baru:\n${resetLink}\n\n⏰ Link berlaku 2 jam.`,
-            },
-          });
-        } catch {
-          toast.warning("Reset disetujui tapi gagal mengirim WhatsApp. Salin link manual.");
-        }
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || "Gagal memproses permintaan");
       }
 
-      toast.success(
-        action === "approve"
-          ? `Reset ${request.short_id} disetujui! Link dikirim ke user.`
-          : `Reset ${request.short_id} ditolak.`
-      );
+      if (action === "approve") {
+        toast.success(`Reset ${request.short_id} disetujui dan link terkirim ke ${data.target}.`);
+      } else if (action === "resend") {
+        toast.success(`Link reset ${request.short_id} berhasil dikirim ulang ke ${data.target}.`);
+      } else {
+        toast.success(`Reset ${request.short_id} ditolak.`);
+      }
+
       fetchRequests();
-    } catch {
-      toast.error("Gagal memproses permintaan");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memproses permintaan");
     } finally {
       setProcessing(null);
     }
   };
 
   const copyResetLink = (request: ResetRequest) => {
-    const link = `${APP_URL}/reset-password?token=${request.secure_token || request.short_id}`;
+    if (!request.secure_token) {
+      toast.error("Token reset tidak tersedia untuk permintaan ini.");
+      return;
+    }
+
+    const link = `${APP_URL}/reset-password?token=${request.secure_token}`;
     navigator.clipboard.writeText(link);
     toast.success("Link reset disalin!");
   };
@@ -244,15 +240,27 @@ const PasswordResetManager = () => {
                           </>
                         )}
                         {r.status === "approved" && r.secure_token && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => copyResetLink(r)}
-                            className="h-7 text-xs"
-                          >
-                            <Copy className="h-3 w-3 mr-1" />
-                            Salin Link
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => handleAction(r, "resend")}
+                              disabled={processing === r.id}
+                              className="h-7 text-xs"
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Kirim Ulang
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyResetLink(r)}
+                              className="h-7 text-xs"
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Salin Link
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
