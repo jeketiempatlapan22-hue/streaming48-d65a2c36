@@ -142,6 +142,15 @@ const LivePage = () => {
     );
   };
 
+  const syncPlaylists = useCallback((nextPlaylists: any[]) => {
+    setPlaylists(nextPlaylists);
+    setActivePlaylist((prev: any) => {
+      if (!nextPlaylists.length) return null;
+      if (!prev) return nextPlaylists[0];
+      return nextPlaylists.find((item: any) => item.id === prev.id) || nextPlaylists[0];
+    });
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -244,9 +253,8 @@ const LivePage = () => {
         ]);
 
         if (streamRes.status === "fulfilled" && streamRes.value.data?.length) setStream(streamRes.value.data[0]);
-        if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
-          setPlaylists(playlistRes.value.data);
-          setActivePlaylist(playlistRes.value.data[0]);
+        if (playlistRes.status === "fulfilled") {
+          syncPlaylists(playlistRes.value.data || []);
         }
 
         let activeShowId = "";
@@ -323,7 +331,7 @@ const LivePage = () => {
       }
     };
     validate();
-  }, [tokenCode, getFingerprint]);
+  }, [tokenCode, getFingerprint, syncPlaylists]);
 
   useEffect(() => {
     if (!tokenCode) return;
@@ -401,15 +409,9 @@ const LivePage = () => {
   const refreshPlaylists = useCallback(async () => {
     try {
       const { data } = await (supabase.rpc as any)("get_safe_playlists");
-      if (data?.length) {
-        setPlaylists(data);
-        setActivePlaylist((prev: any) => {
-          if (!prev || !data.find((p: any) => p.id === prev.id)) return data[0];
-          return prev;
-        });
-      }
+      syncPlaylists(data || []);
     } catch {}
-  }, []);
+  }, [syncPlaylists]);
 
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
