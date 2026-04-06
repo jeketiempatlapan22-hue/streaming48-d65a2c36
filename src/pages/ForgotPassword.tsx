@@ -13,6 +13,7 @@ const ForgotPassword = () => {
   const [method, setMethod] = useState<Method>("phone");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const ForgotPassword = () => {
 
   const isValid = () => {
     if (method === "phone") return normalizePhone(phone).length >= 10;
-    return email.trim().includes("@");
+    return email.trim().includes("@") && normalizePhone(whatsappNumber).length >= 10;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,7 +41,7 @@ const ForgotPassword = () => {
 
     setLoading(true);
     const identifier = method === "phone" ? deriveEmail(phone) : email.trim();
-    const phoneNum = method === "phone" ? normalizePhone(phone) : "";
+    const phoneNum = method === "phone" ? normalizePhone(phone) : normalizePhone(whatsappNumber);
 
     try {
       // Look up the user via edge function to avoid exposing auth.users
@@ -74,7 +75,7 @@ const ForgotPassword = () => {
               <span className="font-semibold text-sm">Cek WhatsApp Kamu</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Setelah admin menyetujui, link reset password akan dikirim ke WhatsApp kamu.
+              Setelah admin menyetujui, link reset password akan dikirim ke nomor WhatsApp yang kamu masukkan.
               Biasanya dalam beberapa menit.
             </p>
             <p className="text-xs text-muted-foreground">
@@ -134,18 +135,35 @@ const ForgotPassword = () => {
               </div>
             </div>
           ) : (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@contoh.com"
-                  required
-                  className="bg-background pl-10"
-                />
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@contoh.com"
+                    required
+                    className="bg-background pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Nomor WhatsApp Tujuan</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="tel"
+                    value={whatsappNumber}
+                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                    placeholder="08xxxxxxxxxx"
+                    required
+                    className="bg-background pl-10"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -153,7 +171,7 @@ const ForgotPassword = () => {
           <div className="rounded-lg bg-secondary/50 border border-border p-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
               <MessageSquare className="inline h-3.5 w-3.5 mr-1 text-primary" />
-              Link reset password akan dikirim via <span className="font-semibold text-foreground">WhatsApp</span> setelah admin menyetujui permintaan kamu.
+              Link reset password akan dikirim via <span className="font-semibold text-foreground">WhatsApp</span> setelah admin menyetujui permintaan kamu. Jika mencari akun dengan email, tetap isi nomor WhatsApp tujuan pengiriman link.
             </p>
           </div>
 

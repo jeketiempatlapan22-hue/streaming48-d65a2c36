@@ -23,6 +23,15 @@ function ok(body: Record<string, unknown>) {
   });
 }
 
+function normalizePhone(raw: string | null | undefined) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
+  else if (digits.startsWith('8')) digits = `62${digits}`;
+  else if (!digits.startsWith('62')) digits = `62${digits}`;
+  return digits;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -46,6 +55,13 @@ Deno.serve(async (req) => {
 
     if (!identifier || typeof identifier !== 'string') {
       return ok({ success: false, error: 'Data tidak valid' });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+    const whatsappPhone = normalizedPhone || (identifier.endsWith('@rt48.user') ? normalizePhone(identifier.replace('@rt48.user', '')) : '');
+
+    if (!whatsappPhone) {
+      return ok({ success: false, error: 'Masukkan nomor WhatsApp aktif untuk menerima link reset.' });
     }
 
     // DB rate limit already checked above
@@ -112,8 +128,6 @@ Deno.serve(async (req) => {
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
     const secureToken = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-
-    const whatsappPhone = phone || (identifier.endsWith('@rt48.user') ? identifier.replace('@rt48.user', '') : '');
 
     const { error: insertErr } = await supabase
       .from('password_reset_requests')
