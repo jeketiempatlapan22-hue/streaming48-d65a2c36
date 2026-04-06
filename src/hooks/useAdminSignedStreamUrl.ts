@@ -61,7 +61,7 @@ export function useAdminSignedStreamUrl(
       setSignedUrl(null);
       setProxyType(null);
     }
-  }, [playlist?.id, playlist?.type, refreshKey]);
+  }, [playlist?.id, playlist?.type, playlist?.url, refreshKey]);
 
   useEffect(() => {
     isMounted.current = true;

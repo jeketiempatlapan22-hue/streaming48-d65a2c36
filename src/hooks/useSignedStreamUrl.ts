@@ -69,7 +69,7 @@ export function useSignedStreamUrl(
       setSignedUrl(null);
       setProxyType(null);
     }
-  }, [playlist?.id, playlist?.type, tokenCode, fingerprint, refreshKey]);
+  }, [playlist?.id, playlist?.type, playlist?.url, tokenCode, fingerprint, refreshKey]);
 
   useEffect(() => {
     isMounted.current = true;
