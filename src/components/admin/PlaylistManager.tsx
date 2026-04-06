@@ -139,8 +139,23 @@ const PlaylistManager = () => {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground">{p.title}</p>
                   <p className="text-xs text-muted-foreground truncate">
-                    <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase ${p.type === "proxy" ? "bg-primary/20 text-primary" : "bg-secondary"}`}>{p.type}</span> {p.type === "proxy" ? "Hanabira48 API" : p.url}
+                    <span className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] uppercase ${p.type === "proxy" ? "bg-primary/20 text-primary" : p.type === "direct" ? "bg-[hsl(var(--success))]/20 text-[hsl(var(--success))]" : "bg-secondary"}`}>{p.type}</span> {p.type === "proxy" ? "Hanabira48 API" : p.url}
                   </p>
+                  {/* Proxy toggle for m3u8/direct types */}
+                  {(p.type === "m3u8" || p.type === "direct") && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Switch
+                        checked={p.type === "m3u8"}
+                        onCheckedChange={async (checked) => {
+                          const newType = checked ? "m3u8" : "direct";
+                          await supabase.from("playlists").update({ type: newType }).eq("id", p.id);
+                          await fetchPlaylists();
+                          toast({ title: checked ? `🔒 Proxy ON (Signed)` : `🔗 Proxy OFF (Direct)` });
+                        }}
+                      />
+                      <span className="text-[10px] text-muted-foreground">{p.type === "m3u8" ? "Proxy ON" : "Proxy OFF"}</span>
+                    </div>
+                  )}
                 </div>
                 <Switch
                   checked={p.is_active}
