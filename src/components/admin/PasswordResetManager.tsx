@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { RefreshCw, CheckCircle2, XCircle, Search, Clock, Key, Copy } from "lucide-react";
+import { APP_URL } from "@/lib/appConfig";
 
 interface ResetRequest {
   id: string;
