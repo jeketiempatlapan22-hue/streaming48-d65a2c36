@@ -112,43 +112,55 @@ function buildHeaders(data: any): Record<string, string> | null {
 
   // Shape 1: { apiToken, secKey, showId, tokenId }
   if (data.apiToken && data.secKey) {
-    return {
-      "x-api-token": data.apiToken,
-      "x-sec-key": data.secKey,
-      "x-showid": String(data.showId || ""),
-      "x-token-id": String(data.tokenId || ""),
-    };
+    return createCompatHeaders(data.apiToken, data.secKey, data.showId, data.tokenId);
   }
 
   // Shape 2: { token: { apiToken, secKey, ... } }
   if (data.token?.apiToken && data.token?.secKey) {
-    return {
-      "x-api-token": data.token.apiToken,
-      "x-sec-key": data.token.secKey,
-      "x-showid": String(data.token.showId || ""),
-      "x-token-id": String(data.token.tokenId || ""),
-    };
+    return createCompatHeaders(data.token.apiToken, data.token.secKey, data.token.showId, data.token.tokenId);
   }
 
   // Shape 3: { data: { apiToken, secKey, ... } }
   if (data.data?.apiToken && data.data?.secKey) {
-    return {
-      "x-api-token": data.data.apiToken,
-      "x-sec-key": data.data.secKey,
-      "x-showid": String(data.data.showId || ""),
-      "x-token-id": String(data.data.tokenId || ""),
-    };
+    return createCompatHeaders(data.data.apiToken, data.data.secKey, data.data.showId, data.data.tokenId);
   }
 
-  // Shape 4: headers already in x-api-token format
-  if (data["x-api-token"] && data["x-sec-key"]) {
-    return {
-      "x-api-token": data["x-api-token"],
-      "x-sec-key": data["x-sec-key"],
-      "x-showid": data["x-showid"] || "",
-      "x-token-id": data["x-token-id"] || "",
-    };
+  // Shape 4: headers already in x-api-token format / compact alias format
+  const apiToken = data["x-api-token"] ?? data.xapi;
+  const secKey = data["x-sec-key"] ?? data.xsec;
+  if (apiToken && secKey) {
+    return createCompatHeaders(
+      apiToken,
+      secKey,
+      data["x-showid"] ?? data.xshowid,
+      data["x-token-id"] ?? data.xtoken ?? data.x
+    );
   }
 
   return null;
+}
+
+function createCompatHeaders(
+  apiToken: unknown,
+  secKey: unknown,
+  showId: unknown,
+  tokenId: unknown
+): Record<string, string> {
+  const normalized = {
+    apiToken: String(apiToken ?? ""),
+    secKey: String(secKey ?? ""),
+    showId: String(showId ?? ""),
+    tokenId: String(tokenId ?? ""),
+  };
+
+  return {
+    "x-api-token": normalized.apiToken,
+    "x-sec-key": normalized.secKey,
+    "x-showid": normalized.showId,
+    "x-token-id": normalized.tokenId,
+    xapi: normalized.apiToken,
+    xsec: normalized.secKey,
+    xshowid: normalized.showId,
+    x: normalized.tokenId,
+  };
 }
