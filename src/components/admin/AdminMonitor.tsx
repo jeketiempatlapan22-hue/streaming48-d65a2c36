@@ -217,15 +217,15 @@ const AdminMonitor = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,0.75fr)]">
-        <div className="space-y-3">
-          <div className="overflow-hidden rounded-2xl border border-border bg-card">
-            <div className="border-b border-border px-4 py-3">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
+        <div className="min-w-0 space-y-3">
+          <div className="rounded-2xl border border-border bg-card">
+            <div className="border-b border-border px-3 py-2 sm:px-4 sm:py-3">
               <p className="text-sm font-semibold text-foreground">Preview Player</p>
               <p className="text-xs text-muted-foreground">Semua tipe player termasuk Proxy Stream akan diputar dari sini.</p>
             </div>
-            <div className="p-2">
-              <div className="overflow-hidden rounded-xl border border-border">
+            <div className="p-1.5 sm:p-2">
+              <div className="rounded-xl border border-border overflow-hidden">
                 {activePlaylist ? (
                   effectivePreviewUrl ? (
                     <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
@@ -255,7 +255,7 @@ const AdminMonitor = () => {
                 )}
               </div>
             </div>
-            <div className="border-t border-border px-3 py-3">
+            <div className="border-t border-border px-2 py-2 sm:px-3 sm:py-3">
               <PlaylistSwitcher
                 playlists={playlists}
                 activePlaylistId={activePlaylist?.id ?? null}

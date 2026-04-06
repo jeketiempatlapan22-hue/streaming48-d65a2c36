@@ -88,6 +88,10 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
   }, [isLive, readOnly]);
 
   if (!isLive || count === 0) return null;
+  // NOTE: above condition replaced below
+
+  return (
+    <div className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5">
 
   return (
     <div className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-3 py-1.5">
