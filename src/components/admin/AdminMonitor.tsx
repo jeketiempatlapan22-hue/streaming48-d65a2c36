@@ -24,14 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-const sortPlaylists = (list: any[]): any[] => {
-  if (!list || list.length <= 1) return list;
-  const firstM3u8 = list.find((p) => p.type === "m3u8");
-  const firstYoutube = list.find((p) => p.type === "youtube");
-  const firstProxy = list.find((p) => p.type === "proxy");
-  const rest = list.filter((p) => p !== firstM3u8 && p !== firstYoutube && p !== firstProxy);
-  return [firstM3u8, firstYoutube, firstProxy, ...rest].filter(Boolean);
-};
+// Playlists are sorted by admin-defined sort_order from DB
 
 const AdminMonitor = () => {
   const [stream, setStream] = useState<any>(null);
@@ -42,9 +35,10 @@ const AdminMonitor = () => {
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
 
   const isProxyPlaylist = activePlaylist?.type === "proxy";
+  const isDirectPlaylist = activePlaylist?.type === "direct";
 
   const { signedUrl, loading: previewLoading, error: previewError, proxyType } = useAdminSignedStreamUrl(
-    activePlaylist && !isProxyPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist && !isProxyPlaylist && !isDirectPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     previewRefreshKey
   );
 
@@ -54,10 +48,12 @@ const AdminMonitor = () => {
     previewRefreshKey
   );
 
-  const effectivePreviewUrl = isProxyPlaylist ? proxyUrl : signedUrl;
-  const effectivePreviewLoading = isProxyPlaylist ? proxyLoading : previewLoading;
-  const effectivePreviewError = isProxyPlaylist ? proxyError : previewError;
-  const effectivePreviewType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+  const effectivePreviewUrl = isDirectPlaylist
+    ? activePlaylist?.url
+    : isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectivePreviewLoading = isDirectPlaylist ? false : (isProxyPlaylist ? proxyLoading : previewLoading);
+  const effectivePreviewError = isDirectPlaylist ? null : (isProxyPlaylist ? proxyError : previewError);
+  const effectivePreviewType = (isDirectPlaylist || isProxyPlaylist) ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
   const fetchMonitorData = useCallback(async () => {
     const [streamRes, playlistRes, settingsRes] = await Promise.all([
@@ -77,12 +73,12 @@ const AdminMonitor = () => {
       }
     }
 
-    const sorted = sortPlaylists(playlistRes.data || []);
-    setPlaylists(sorted);
+    const pls = playlistRes.data || [];
+    setPlaylists(pls);
     setActivePlaylist((prev: any) => {
-      if (!sorted.length) return null;
-      if (!prev) return sorted[0];
-      return sorted.find((item: any) => item.id === prev.id) || sorted[0];
+      if (!pls.length) return null;
+      if (!prev) return pls[0];
+      return pls.find((item: any) => item.id === prev.id) || pls[0];
     });
   }, []);
 

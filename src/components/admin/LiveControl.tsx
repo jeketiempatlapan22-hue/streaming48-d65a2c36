@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown } from "lucide-react";
 import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
 import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
 
@@ -125,6 +125,18 @@ const LiveControl = () => {
     await fetchPlaylists();
     toast({ title: "Playlist ditambahkan!" });
     setPlLoading(false);
+  };
+
+  const movePlaylist = async (index: number, direction: -1 | 1) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= playlists.length) return;
+    const current = playlists[index];
+    const target = playlists[targetIndex];
+    await Promise.all([
+      supabase.from("playlists").update({ sort_order: target.sort_order }).eq("id", current.id),
+      supabase.from("playlists").update({ sort_order: current.sort_order }).eq("id", target.id),
+    ]);
+    await fetchPlaylists();
   };
 
   const startEdit = (p: any) => {
@@ -330,7 +342,8 @@ const LiveControl = () => {
               <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="youtube">YouTube</SelectItem>
-                <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
+                <SelectItem value="m3u8">M3U8 (Signed)</SelectItem>
+                <SelectItem value="direct">Direct M3U8</SelectItem>
                 <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
                 <SelectItem value="proxy">Proxy Stream</SelectItem>
               </SelectContent>
@@ -338,13 +351,14 @@ const LiveControl = () => {
           </div>
           {newType !== "proxy" && <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />}
           {newType === "proxy" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">⚡ Proxy Stream otomatis mengambil dari hanabira48 berdasarkan External Show ID di show aktif</p>}
+          {newType === "direct" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">🔗 Direct M3U8 memutar link HLS langsung tanpa proxy atau signed URL</p>}
           <Button onClick={addPlaylist} disabled={plLoading || !newLabel || (newType !== "proxy" && !newUrl)}>
             <Plus className="mr-1 h-4 w-4" /> Tambah
           </Button>
         </div>
 
         <div className="space-y-2">
-          {playlists.map((p) => (
+          {playlists.map((p, index) => (
             <div key={p.id} className="rounded-lg border border-border bg-card p-4">
               {editingId === p.id ? (
                 <div className="space-y-3">
@@ -354,7 +368,8 @@ const LiveControl = () => {
                       <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="youtube">YouTube</SelectItem>
-                        <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
+                        <SelectItem value="m3u8">M3U8 (Signed)</SelectItem>
+                        <SelectItem value="direct">Direct M3U8</SelectItem>
                         <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
                         <SelectItem value="proxy">Proxy Stream</SelectItem>
                       </SelectContent>
@@ -368,7 +383,14 @@ const LiveControl = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex flex-col gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === 0} onClick={() => movePlaylist(index, -1)}>
+                      <ArrowUp className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" disabled={index === playlists.length - 1} onClick={() => movePlaylist(index, 1)}>
+                      <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">{p.title}</p>
                     <p className="text-xs text-muted-foreground truncate">
