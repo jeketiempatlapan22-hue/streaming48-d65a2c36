@@ -75,9 +75,10 @@ const PlaylistManager = () => {
           <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Label (e.g. Server 1)" className="bg-background" />
           <Select value={newType} onValueChange={setNewType}>
             <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-            <SelectContent>
+             <SelectContent>
               <SelectItem value="youtube">YouTube</SelectItem>
-              <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
+              <SelectItem value="m3u8">M3U8 (Signed)</SelectItem>
+              <SelectItem value="direct">Direct M3U8</SelectItem>
               <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
               <SelectItem value="proxy">Proxy Stream</SelectItem>
             </SelectContent>
@@ -85,6 +86,7 @@ const PlaylistManager = () => {
         </div>
         {newType !== "proxy" && <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="URL atau ID video" className="bg-background" />}
         {newType === "proxy" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">⚡ Proxy Stream otomatis mengambil dari hanabira48 berdasarkan External Show ID</p>}
+        {newType === "direct" && <p className="text-xs text-muted-foreground rounded-lg bg-secondary/50 p-2">🔗 Direct M3U8 memutar link HLS langsung tanpa proxy atau signed URL</p>}
         <Button onClick={addPlaylist} disabled={loading || !newTitle || (newType !== "proxy" && !newUrl)}><Plus className="mr-1 h-4 w-4" /> Tambah</Button>
       </div>
 
@@ -99,7 +101,8 @@ const PlaylistManager = () => {
                     <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="youtube">YouTube</SelectItem>
-                      <SelectItem value="m3u8">M3U8 / HLS</SelectItem>
+                      <SelectItem value="m3u8">M3U8 (Signed)</SelectItem>
+                      <SelectItem value="direct">Direct M3U8</SelectItem>
                       <SelectItem value="cloudflare">Cloudflare Stream</SelectItem>
                       <SelectItem value="proxy">Proxy Stream</SelectItem>
                     </SelectContent>

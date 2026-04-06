@@ -68,17 +68,8 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
     </div>
   );
 };
-// Sort playlists: 1st m3u8, 2nd youtube, 3rd proxy, then remaining
-const sortPlaylists = (list: any[]): any[] => {
-  if (!list || list.length <= 1) return list;
-  const firstM3u8 = list.find((p) => p.type === "m3u8");
-  const firstYoutube = list.find((p) => p.type === "youtube");
-  const firstProxy = list.find((p) => p.type === "proxy");
-  const rest = list.filter(
-    (p) => p !== firstM3u8 && p !== firstYoutube && p !== firstProxy
-  );
-  return [firstM3u8, firstYoutube, firstProxy, ...rest].filter(Boolean);
-};
+// Playlists are now sorted by admin-defined sort_order from DB
+// No client-side reordering needed
 
 const LivePage = () => {
   const [searchParams] = useSearchParams();
@@ -113,10 +104,11 @@ const LivePage = () => {
   const fp = getFingerprint();
 
   const isProxyPlaylist = activePlaylist?.type === "proxy";
+  const isDirectPlaylist = activePlaylist?.type === "direct";
 
-  // For m3u8/youtube: use signed stream URL via edge function
+  // For m3u8/youtube: use signed stream URL via edge function (skip for direct & proxy)
   const { signedUrl, loading: signedLoading, proxyType } = useSignedStreamUrl(
-    !isProxyPlaylist && activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    !isProxyPlaylist && !isDirectPlaylist && activePlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
     tokenCode,
     fp
   );
@@ -128,9 +120,11 @@ const LivePage = () => {
   );
 
   // Unified URL, loading, and type for VideoPlayer
-  const effectiveStreamUrl = isProxyPlaylist ? proxyUrl : signedUrl;
-  const effectiveStreamLoading = isProxyPlaylist ? proxyLoading : signedLoading;
-  const effectiveType = isProxyPlaylist ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+  const effectiveStreamUrl = isDirectPlaylist
+    ? activePlaylist?.url
+    : isProxyPlaylist ? proxyUrl : signedUrl;
+  const effectiveStreamLoading = isDirectPlaylist ? false : (isProxyPlaylist ? proxyLoading : signedLoading);
+  const effectiveType = (isDirectPlaylist || isProxyPlaylist) ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
   const effectiveHeadersRef = isProxyPlaylist ? proxyHeadersRef : undefined;
 
   const runWithTimeoutRetry = async <T,>(
@@ -251,9 +245,8 @@ const LivePage = () => {
 
         if (streamRes.status === "fulfilled" && streamRes.value.data?.length) setStream(streamRes.value.data[0]);
         if (playlistRes.status === "fulfilled" && playlistRes.value.data?.length) {
-          const sorted = sortPlaylists(playlistRes.value.data);
-          setPlaylists(sorted);
-          setActivePlaylist(sorted[0]);
+          setPlaylists(playlistRes.value.data);
+          setActivePlaylist(playlistRes.value.data[0]);
         }
 
         let activeShowId = "";
@@ -409,10 +402,9 @@ const LivePage = () => {
     try {
       const { data } = await (supabase.rpc as any)("get_safe_playlists");
       if (data?.length) {
-        const sorted = sortPlaylists(data);
-        setPlaylists(sorted);
+        setPlaylists(data);
         setActivePlaylist((prev: any) => {
-          if (!prev || !sorted.find((p: any) => p.id === prev.id)) return sorted[0];
+          if (!prev || !data.find((p: any) => p.id === prev.id)) return data[0];
           return prev;
         });
       }
