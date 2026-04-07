@@ -12,8 +12,8 @@ const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
 
 /**
  * Hook that fetches stream token directly from hanabira48.com API (no CORS issues — domain whitelisted),
- * then provides the playback URL + a **ref** to custom headers so HLS.js xhrSetup always uses
- * the latest token without destroying / re-creating the player.
+ * then provides the playback URL from hanabira's own response (NO external proxy).
+ * Headers are injected via xhrSetup ref so HLS.js always uses the latest token.
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -37,6 +37,7 @@ export function useProxyStream(
       setError(null);
 
       const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
+      console.log("[useProxyStream] Fetching token from:", tokenUrl);
       const res = await fetch(tokenUrl);
 
       if (!res.ok) throw new Error(`Token API error: ${res.status} ${res.statusText}`);
@@ -44,18 +45,19 @@ export function useProxyStream(
       const tokenData = await res.json();
       if (!isMounted.current) return;
 
-      console.log("[useProxyStream] token response:", tokenData);
+      console.log("[useProxyStream] Full token response:", JSON.stringify(tokenData));
 
-      const headers = buildHeaders(tokenData);
-      if (!headers) throw new Error("Token response tidak valid — headers tidak ditemukan");
+      const parsed = parseTokenResponse(tokenData);
+      if (!parsed) throw new Error("Token response tidak valid — data tidak ditemukan");
 
-      console.log("[useProxyStream] Headers ready:", Object.keys(headers));
+      console.log("[useProxyStream] Parsed playbackUrl:", parsed.playbackUrl);
+      console.log("[useProxyStream] Headers ready:", Object.keys(parsed.headers));
 
-      // Update ref silently — no state change, no HLS re-init
-      customHeadersRef.current = headers;
+      // Update ref silently — no state change, no HLS re-init on refresh
+      customHeadersRef.current = parsed.headers;
 
       if (isInitial) {
-        setPlaybackUrl("https://proxy.mediastream48.workers.dev/api/proxy/playback");
+        setPlaybackUrl(parsed.playbackUrl);
         setLoading(false);
       }
 
@@ -103,64 +105,88 @@ export function useProxyStream(
   return { playbackUrl, customHeadersRef, loading, error };
 }
 
-/**
- * Extract auth headers from hanabira48 token response.
- * Supports multiple payload shapes.
- */
-function buildHeaders(data: any): Record<string, string> | null {
-  if (!data) return null;
-
-  // Shape 1: { apiToken, secKey, showId, tokenId }
-  if (data.apiToken && data.secKey) {
-    return createCompatHeaders(data.apiToken, data.secKey, data.showId, data.tokenId);
-  }
-
-  // Shape 2: { token: { apiToken, secKey, ... } }
-  if (data.token?.apiToken && data.token?.secKey) {
-    return createCompatHeaders(data.token.apiToken, data.token.secKey, data.token.showId, data.token.tokenId);
-  }
-
-  // Shape 3: { data: { apiToken, secKey, ... } }
-  if (data.data?.apiToken && data.data?.secKey) {
-    return createCompatHeaders(data.data.apiToken, data.data.secKey, data.data.showId, data.data.tokenId);
-  }
-
-  // Shape 4: headers already in x-api-token format / compact alias format
-  const apiToken = data["x-api-token"] ?? data.xapi;
-  const secKey = data["x-sec-key"] ?? data.xsec;
-  if (apiToken && secKey) {
-    return createCompatHeaders(
-      apiToken,
-      secKey,
-      data["x-showid"] ?? data.xshowid,
-      data["x-token-id"] ?? data.xtoken ?? data.x
-    );
-  }
-
-  return null;
+interface ParsedToken {
+  playbackUrl: string;
+  headers: Record<string, string>;
 }
 
-function createCompatHeaders(
-  apiToken: unknown,
-  secKey: unknown,
-  showId: unknown,
-  tokenId: unknown
-): Record<string, string> {
-  const normalized = {
-    apiToken: String(apiToken ?? ""),
-    secKey: String(secKey ?? ""),
-    showId: String(showId ?? ""),
-    tokenId: String(tokenId ?? ""),
+/**
+ * Parse hanabira48 token response.
+ * Extracts playback URL from the response (hanabira provides its own proxy URL).
+ * Falls back to hanabira's known playback endpoint if URL not in response.
+ */
+function parseTokenResponse(data: any): ParsedToken | null {
+  if (!data) return null;
+
+  // Try to find the playback URL from the response
+  const extractUrl = (src: any): string | null => {
+    if (!src) return null;
+    return src.playbackUrl || src.playback_url || src.url || src.streamUrl || src.stream_url || null;
   };
 
-  return {
-    "x-api-token": normalized.apiToken,
-    "x-sec-key": normalized.secKey,
-    "x-showid": normalized.showId,
-    "x-token-id": normalized.tokenId,
-    xapi: normalized.apiToken,
-    xsec: normalized.secKey,
-    xshowid: normalized.showId,
-    x: normalized.tokenId,
+  // Try multiple payload shapes to extract auth credentials
+  let apiToken: string | null = null;
+  let secKey: string | null = null;
+  let showId: string | null = null;
+  let tokenId: string | null = null;
+  let playbackUrl: string | null = null;
+
+  // Shape 1: flat { apiToken, secKey, showId, tokenId, playbackUrl? }
+  if (data.apiToken && data.secKey) {
+    apiToken = String(data.apiToken);
+    secKey = String(data.secKey);
+    showId = String(data.showId ?? "");
+    tokenId = String(data.tokenId ?? "");
+    playbackUrl = extractUrl(data);
+  }
+  // Shape 2: { token: { ... } }
+  else if (data.token?.apiToken && data.token?.secKey) {
+    apiToken = String(data.token.apiToken);
+    secKey = String(data.token.secKey);
+    showId = String(data.token.showId ?? "");
+    tokenId = String(data.token.tokenId ?? "");
+    playbackUrl = extractUrl(data.token) || extractUrl(data);
+  }
+  // Shape 3: { data: { ... } }
+  else if (data.data?.apiToken && data.data?.secKey) {
+    apiToken = String(data.data.apiToken);
+    secKey = String(data.data.secKey);
+    showId = String(data.data.showId ?? "");
+    tokenId = String(data.data.tokenId ?? "");
+    playbackUrl = extractUrl(data.data) || extractUrl(data);
+  }
+  // Shape 4: already x-header format
+  else {
+    const at = data["x-api-token"] ?? data.xapi;
+    const sk = data["x-sec-key"] ?? data.xsec;
+    if (at && sk) {
+      apiToken = String(at);
+      secKey = String(sk);
+      showId = String(data["x-showid"] ?? data.xshowid ?? "");
+      tokenId = String(data["x-token-id"] ?? data.xtoken ?? data.x ?? "");
+      playbackUrl = extractUrl(data);
+    }
+  }
+
+  if (!apiToken || !secKey) return null;
+
+  // Use hanabira's own playback endpoint — NO external workers.dev proxy
+  if (!playbackUrl) {
+    playbackUrl = "https://hanabira48.com/api/proxy/playback";
+  }
+
+  console.log("[useProxyStream] Using hanabira playback URL:", playbackUrl);
+
+  const headers: Record<string, string> = {
+    "x-api-token": apiToken,
+    "x-sec-key": secKey,
+    "x-showid": showId,
+    "x-token-id": tokenId,
+    xapi: apiToken,
+    xsec: secKey,
+    xshowid: showId,
+    x: tokenId,
   };
+
+  return { playbackUrl, headers };
 }
