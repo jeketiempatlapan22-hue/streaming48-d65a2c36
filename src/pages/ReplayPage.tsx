@@ -76,6 +76,8 @@ const ReplayPage = () => {
       if (settingsRes.data) {
         const waRow = settingsRes.data.find((r: any) => r.key === "whatsapp_number");
         if (waRow) setWhatsappNumber(waRow.value);
+        const dqRow = settingsRes.data.find((r: any) => r.key === "use_dynamic_qris");
+        if (dqRow) setUseDynamicQris(dqRow.value === "true");
       }
       if (showsRes.data) {
         const streamLive = (streamRes.data as any)?.is_live ?? true;
