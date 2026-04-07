@@ -170,7 +170,7 @@ const ReplayPage = () => {
         purchase_type: "replay",
         phone: coinRedeemPhone.replace(/[\s-]/g, ""),
       },
-    }).catch(() => {});
+    }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,7 +219,7 @@ const ReplayPage = () => {
     if (orderId) {
       supabase.functions.invoke("notify-subscription-order", {
         body: { order_id: orderId, show_title: purchaseShow.title, phone: qrisPhone, email: qrisEmail || null, proof_file_path: proofFilePath || null, proof_bucket: "payment-proofs", order_type: "replay", schedule_date: purchaseShow.schedule_date || null, schedule_time: purchaseShow.schedule_time || null },
-      }).catch(() => {});
+      }).then(res => { if (res.error) console.warn("Notify sub error:", res.error); }).catch(e => console.warn("Notify sub failed:", e));
     }
     // Also open WhatsApp
     if (whatsappNumber) {

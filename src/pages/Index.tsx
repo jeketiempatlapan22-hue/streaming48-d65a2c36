@@ -388,7 +388,7 @@ const Index = () => {
     if (orderId) {
       supabase.functions.invoke("notify-subscription-order", {
         body: { order_id: orderId, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
-      }).catch(() => {});
+      }).then(res => { if (res.error) console.warn("Notify sub error:", res.error); }).catch(e => console.warn("Notify sub failed:", e));
     }
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
