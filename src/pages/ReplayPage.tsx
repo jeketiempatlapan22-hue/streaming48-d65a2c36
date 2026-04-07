@@ -62,6 +62,9 @@ const ReplayPage = () => {
   const [qrisPhone, setQrisPhone] = useState("");
   const [qrisEmail, setQrisEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
+  const [useDynamicQris, setUseDynamicQris] = useState(false);
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
