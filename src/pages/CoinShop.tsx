@@ -456,6 +456,19 @@ const CoinShop = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Phone input before redeem */}
+      <Dialog open={!!redeemPhoneDialog} onOpenChange={() => setRedeemPhoneDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>📱 Nomor WhatsApp</DialogTitle><DialogDescription>Masukkan nomor HP untuk menerima token & info show</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <Input type="tel" placeholder="08xxxxxxxxxx" value={redeemPhone} onChange={(e) => setRedeemPhone(e.target.value)} />
+            <Button className="w-full" disabled={!redeemPhone.trim() || redeemPhone.replace(/[\s-]/g, "").length < 10} onClick={() => handleRedeem(redeemPhoneDialog!)}>
+              Lanjut Tukar Koin
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Redeem Result */}
       <Dialog open={!!redeemResult} onOpenChange={() => setRedeemResult(null)}>
         <DialogContent className="max-w-sm">
