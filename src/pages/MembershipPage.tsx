@@ -266,7 +266,7 @@ const MembershipPage = () => {
         purchase_type: "membership",
         phone: phone.replace(/[\s-]/g, ""),
       },
-    }).catch(() => {});
+    }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
   const copyToken = (code: string) => {

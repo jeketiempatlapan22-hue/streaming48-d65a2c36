@@ -275,7 +275,7 @@ const CoinShop = () => {
           purchase_type: targetShow?.is_replay ? "replay" : "regular",
           phone: redeemPhone.replace(/[\s-]/g, ""),
         },
-      }).catch(() => {});
+      }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
     }
   };
 

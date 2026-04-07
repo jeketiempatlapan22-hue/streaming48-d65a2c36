@@ -181,7 +181,7 @@ const SchedulePage = () => {
         purchase_type: coinBuyTarget.is_replay ? "replay" : "regular",
         phone: coinBuyPhone.replace(/[\s-]/g, ""),
       },
-    }).catch(() => {});
+    }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
   const openWhatsAppOrderDetail = (show: Show, orderPhone: string, orderEmail: string) => {
