@@ -120,6 +120,27 @@ const ReplayPage = () => {
     setQrisPhone("");
     setQrisEmail("");
     setOrderShortId("");
+    setDynamicQrString("");
+  };
+
+  const handleDynamicQris = async (show: Show, phone: string) => {
+    const replayPrice = (show as any).replay_qris_price || 0;
+    if (replayPrice <= 0) return;
+    setDynamicLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: { show_id: show.id, amount: replayPrice, phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""), order_type: "replay" },
+      });
+      if (error || !data?.success) {
+        toast({ title: "Gagal membuat QRIS", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        setDynamicQrString(data.qr_string || "");
+        if (data.order_id) setOrderShortId(data.short_id || "");
+      }
+    } catch {
+      toast({ title: "Gagal membuat QRIS dinamis", variant: "destructive" });
+    }
+    setDynamicLoading(false);
   };
 
   const handleCoinRedeem = async () => {
