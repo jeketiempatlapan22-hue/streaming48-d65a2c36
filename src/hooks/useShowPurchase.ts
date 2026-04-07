@@ -24,6 +24,7 @@ export function useShowPurchase() {
   } | null>(null);
   const [redeemedTokens, setRedeemedTokens] = useState<Record<string, string>>({});
   const [accessPasswords, setAccessPasswords] = useState<Record<string, string>>({});
+  const [coinPhone, setCoinPhone] = useState("");
 
   useEffect(() => {
     let balChannel: any;
@@ -83,10 +84,15 @@ export function useShowPurchase() {
     }
     setCoinShowTarget(show);
     setCoinResult(null);
+    setCoinPhone("");
   };
 
   const handleCoinRedeem = async () => {
     if (!coinShowTarget) return;
+    if (!coinPhone.trim() || coinPhone.replace(/[\s-]/g, "").length < 10) {
+      toast.error("Masukkan nomor WhatsApp yang valid");
+      return;
+    }
     setCoinRedeeming(true);
     const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: coinShowTarget.id });
     setCoinRedeeming(false);
@@ -124,6 +130,7 @@ export function useShowPurchase() {
           access_password: result.access_password,
           show_title: coinShowTarget.title,
           purchase_type: coinShowTarget.is_replay ? "replay" : "regular",
+          phone: coinPhone.replace(/[\s-]/g, ""),
         },
       }).catch(() => {});
     }
@@ -200,6 +207,6 @@ export function useShowPurchase() {
     handleBuy, handleUploadProof, handleSubmitSubscription,
     coinUser, coinBalance, coinUsername, coinShowTarget, setCoinShowTarget,
     coinRedeeming, coinResult, setCoinResult, handleCoinBuy, handleCoinRedeem,
-    redeemedTokens, accessPasswords,
+    redeemedTokens, accessPasswords, coinPhone, setCoinPhone,
   };
 }
