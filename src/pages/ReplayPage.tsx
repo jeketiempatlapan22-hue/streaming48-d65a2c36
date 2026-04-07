@@ -336,9 +336,11 @@ const ReplayPage = () => {
                     )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-sm text-primary"><Coins className="h-4 w-4" /><span className="font-semibold">{show.replay_coin_price} Koin</span></div>
-                      {show.price && show.price !== "Gratis" && (
+                      {(show as any).replay_qris_price > 0 ? (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="font-medium">Rp {((show as any).replay_qris_price as number).toLocaleString("id-ID")}</span></div>
+                      ) : show.price && show.price !== "Gratis" ? (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="font-medium">{show.price}</span></div>
-                      )}
+                      ) : null}
                     </div>
 
                     {hasRealPassword ? (
