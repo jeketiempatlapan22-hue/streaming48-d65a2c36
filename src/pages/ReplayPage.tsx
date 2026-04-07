@@ -405,12 +405,20 @@ const ReplayPage = () => {
                   <span className="text-muted-foreground">Harga Koin</span>
                   <span className="font-bold text-primary">{purchaseShow?.replay_coin_price} Koin</span>
                 </div>
-                {purchaseShow?.price && purchaseShow.price !== "Gratis" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Harga QRIS</span>
-                    <span className="font-bold text-foreground">{purchaseShow.price}</span>
-                  </div>
-                )}
+                {(() => {
+                  const rqp = (purchaseShow as any)?.replay_qris_price || 0;
+                  return rqp > 0 ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Harga QRIS Replay</span>
+                      <span className="font-bold text-foreground">Rp {rqp.toLocaleString("id-ID")}</span>
+                    </div>
+                  ) : purchaseShow?.price && purchaseShow.price !== "Gratis" ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Harga QRIS</span>
+                      <span className="font-bold text-foreground">{purchaseShow.price}</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <p className="text-center text-sm font-medium text-foreground">Pilih metode pembayaran:</p>
               <div className="grid grid-cols-2 gap-3">
