@@ -132,7 +132,9 @@ export function useShowPurchase() {
           purchase_type: coinShowTarget.is_replay ? "replay" : "regular",
           phone: coinPhone.replace(/[\s-]/g, ""),
         },
-      }).catch(() => {});
+      }).then(res => {
+        if (res.error) console.warn("Notify WA error:", res.error);
+      }).catch(e => console.warn("Notify WA failed:", e));
     }
   };
 
@@ -197,7 +199,9 @@ export function useShowPurchase() {
     if (orderId || true) {
       supabase.functions.invoke("notify-subscription-order", {
         body: { order_id: orderId || `manual_${Date.now()}`, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "membership", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
-      }).catch(() => {});
+      }).then(res => {
+        if (res.error) console.warn("Notify sub error:", res.error);
+      }).catch(e => console.warn("Notify sub failed:", e));
     }
   };
 
