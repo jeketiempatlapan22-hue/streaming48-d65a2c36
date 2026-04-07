@@ -20,6 +20,7 @@ interface Show {
   is_order_closed: boolean; category: string; category_member: string;
   coin_price: number; replay_coin_price: number; access_password: string; is_replay: boolean;
   qris_price: number;
+  replay_qris_price: number;
   membership_duration_days: number;
   short_id: string | null;
   external_show_id: string | null;
@@ -110,6 +111,7 @@ const ShowManager = () => {
   };
 
   const updateShow = async (show: Show) => {
+    const cleanShortId = show.short_id?.trim() || null;
     const { error } = await supabase.from("shows").update({
       title: show.title, price: show.price, lineup: show.lineup,
       schedule_date: show.schedule_date, schedule_time: show.schedule_time,
@@ -121,8 +123,9 @@ const ShowManager = () => {
       coin_price: show.coin_price, replay_coin_price: show.replay_coin_price,
       access_password: show.access_password, is_replay: show.is_replay,
       qris_price: show.qris_price || 0,
+      replay_qris_price: show.replay_qris_price || 0,
       membership_duration_days: show.membership_duration_days || 30,
-      short_id: show.short_id || null,
+      short_id: cleanShortId,
       external_show_id: show.external_show_id || null,
     }).eq("id", show.id);
     if (error) {
@@ -356,6 +359,13 @@ const ShowManager = () => {
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">🎬 Harga Koin Replay (0 = tidak ada replay)</label>
               <Input type="number" value={editing.replay_coin_price} onChange={(e) => setEditing({ ...editing, replay_coin_price: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">💳 Harga QRIS Replay (dikirim ke Pak Kasir saat beli replay, 0 = tidak tersedia)</label>
+              <Input type="number" value={editing.replay_qris_price || 0} onChange={(e) => setEditing({ ...editing, replay_qris_price: parseInt(e.target.value) || 0 })} onBlur={() => updateShow(editing)} className="bg-background" placeholder="Contoh: 25000" />
+              {editing.replay_qris_price > 0 && (
+                <p className="mt-1 text-[10px] text-muted-foreground">QRIS Replay: Rp {editing.replay_qris_price.toLocaleString("id-ID")}</p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">🔐 Sandi Replay</label>
