@@ -422,6 +422,13 @@ const ReplayPage = () => {
                   </span>
                 </div>
               </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  📱 Nomor WhatsApp <span className="text-destructive">*</span>
+                </label>
+                <Input value={coinRedeemPhone} onChange={(e) => setCoinRedeemPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi sandi replay</p>
+              </div>
               {coinBalance < (purchaseShow?.replay_coin_price || 0) ? (
                 <div className="space-y-3">
                   <p className="text-center text-sm text-destructive">Koin tidak cukup.</p>
@@ -430,7 +437,7 @@ const ReplayPage = () => {
                   </Button>
                 </div>
               ) : (
-                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={redeeming}>
+                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={redeeming || !coinRedeemPhone.trim() || coinRedeemPhone.replace(/[\s-]/g, "").length < 10}>
                   <Coins className="h-4 w-4" />
                   {redeeming ? "Memproses..." : `Bayar ${purchaseShow?.replay_coin_price} Koin`}
                 </Button>
