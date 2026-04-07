@@ -181,7 +181,7 @@ const SchedulePage = () => {
         purchase_type: coinBuyTarget.is_replay ? "replay" : "regular",
         phone: coinBuyPhone.replace(/[\s-]/g, ""),
       },
-    }).catch(() => {});
+    }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
   const openWhatsAppOrderDetail = (show: Show, orderPhone: string, orderEmail: string) => {
@@ -274,7 +274,7 @@ const SchedulePage = () => {
     if (orderId) {
       supabase.functions.invoke("notify-subscription-order", {
         body: { order_id: orderId, show_title: selectedShow.title, phone, email, proof_file_path: proofFilePath, proof_bucket: "payment-proofs", order_type: "subscription", schedule_date: selectedShow.schedule_date || null, schedule_time: selectedShow.schedule_time || null },
-      }).catch(() => {});
+      }).then(res => { if (res.error) console.warn("Notify sub error:", res.error); }).catch(e => console.warn("Notify sub failed:", e));
     }
     openWhatsAppOrderDetail(selectedShow, phone, email);
   };
