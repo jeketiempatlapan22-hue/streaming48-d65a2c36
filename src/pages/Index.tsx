@@ -82,6 +82,7 @@ const Index = () => {
   const [coinShowTarget, setCoinShowTarget] = useState<Show | null>(null);
   const [coinRedeeming, setCoinRedeeming] = useState(false);
   const [coinResult, setCoinResult] = useState<{ token_code: string; remaining_balance: number; replay_password?: string; access_password?: string } | null>(null);
+  const [coinPhone, setCoinPhone] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loginPopup, setLoginPopup] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -252,10 +253,15 @@ const Index = () => {
     }
     setCoinShowTarget(show);
     setCoinResult(null);
+    setCoinPhone("");
   };
 
   const handleCoinRedeem = async () => {
     if (!coinShowTarget) return;
+    if (!coinPhone.trim() || coinPhone.replace(/[\s-]/g, "").length < 10) {
+      toast.error("Masukkan nomor WhatsApp yang valid");
+      return;
+    }
     setCoinRedeeming(true);
     const isReplay = coinShowTarget.is_replay;
     const { data, error } = isReplay
@@ -284,6 +290,7 @@ const Index = () => {
           access_password: result.access_password || result.replay_password,
           show_title: coinShowTarget.title,
           purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
+          phone: coinPhone.replace(/[\s-]/g, ""),
         },
       }).catch(() => {});
     }
