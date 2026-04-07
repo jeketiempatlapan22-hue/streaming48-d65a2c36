@@ -1182,6 +1182,13 @@ const Index = () => {
                   </span>
                 </div>
               </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  📱 Nomor WhatsApp <span className="text-destructive">*</span>
+                </label>
+                <Input value={coinPhone} onChange={(e) => setCoinPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+              </div>
               {coinBalance < (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? (
                 <div className="space-y-3">
                   <p className="text-center text-sm text-destructive">Koin tidak cukup.</p>
@@ -1190,7 +1197,7 @@ const Index = () => {
                   </Button>
                 </div>
               ) : (
-                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming}>
+                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming || !coinPhone.trim() || coinPhone.replace(/[\s-]/g, "").length < 10}>
                   <Coins className="h-4 w-4" />
                   {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.is_replay ? coinShowTarget?.replay_coin_price : coinShowTarget?.coin_price} Koin`}
                 </Button>
