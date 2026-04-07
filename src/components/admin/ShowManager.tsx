@@ -81,14 +81,31 @@ const ShowManager = () => {
 
   const fetchShows = async () => {
     const { data } = await supabase.from("shows").select("*").order("created_at", { ascending: false });
-    setShows((data as unknown as Show[]) || []);
+    const safe = ((data as unknown as Show[]) || []).map(s => ({
+      ...s,
+      lineup: s.lineup ?? "", schedule_date: s.schedule_date ?? "", schedule_time: s.schedule_time ?? "",
+      subscription_benefits: s.subscription_benefits ?? "", group_link: s.group_link ?? "",
+      category: s.category ?? "regular", category_member: s.category_member ?? "",
+      access_password: s.access_password ?? "", price: s.price ?? "Gratis",
+    }));
+    setShows(safe);
   };
 
   useEffect(() => { fetchShows(); }, []);
 
   const createShow = async () => {
-    await supabase.from("shows").insert({ title: "Show Baru", price: "Rp 0" });
+    const { data, error } = await supabase.from("shows").insert({
+      title: "Show Baru", price: "Rp 0", lineup: "", schedule_date: "", schedule_time: "",
+      subscription_benefits: "", group_link: "", category: "regular", category_member: "",
+      access_password: "", coin_price: 0, replay_coin_price: 0, qris_price: 0,
+      membership_duration_days: 30,
+    }).select().single();
+    if (error) {
+      toast({ title: "Gagal menambah show", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
+    if (data) setEditing(data as unknown as Show);
     toast({ title: "Show ditambahkan" });
   };
 
