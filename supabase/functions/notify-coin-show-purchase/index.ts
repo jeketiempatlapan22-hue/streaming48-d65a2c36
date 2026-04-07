@@ -39,7 +39,9 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { user_id, show_id, token_code, access_password, show_title, purchase_type, phone: provided_phone } = await req.json();
+    const body = await req.json();
+    console.log('Received body keys:', Object.keys(body), 'phone:', body.phone, 'provided_phone type:', typeof body.phone);
+    const { user_id, show_id, token_code, access_password, show_title, purchase_type, phone: provided_phone } = body;
     if (!user_id || !show_id) {
       return new Response(JSON.stringify({ error: 'Missing user_id or show_id' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -48,6 +50,7 @@ Deno.serve(async (req) => {
 
     // Use provided phone first, then look up from order history
     let phone: string | null = provided_phone || null;
+    console.log('Phone resolved:', phone, 'from provided:', provided_phone);
 
     if (!phone) {
       // 1. Check subscription_orders for this user
