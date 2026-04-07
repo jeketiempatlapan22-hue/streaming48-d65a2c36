@@ -555,6 +555,34 @@ const SchedulePage = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Coin Buy Phone Dialog */}
+      <Dialog open={!!coinBuyTarget} onOpenChange={() => setCoinBuyTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>🪙 Beli dengan Koin</DialogTitle>
+            <DialogDescription>{coinBuyTarget?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Harga</span>
+                <span className="font-bold text-primary">{coinBuyTarget?.coin_price} Koin</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                📱 Nomor WhatsApp <span className="text-destructive">*</span>
+              </label>
+              <Input type="tel" value={coinBuyPhone} onChange={(e) => setCoinBuyPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+            </div>
+            <Button className="w-full gap-2" disabled={!coinBuyPhone.trim() || coinBuyPhone.replace(/[\s-]/g, "").length < 10} onClick={handleCoinConfirm}>
+              <Coins className="h-4 w-4" /> Bayar {coinBuyTarget?.coin_price} Koin
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

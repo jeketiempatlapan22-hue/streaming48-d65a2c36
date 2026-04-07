@@ -49,6 +49,7 @@ const ReplayPage = () => {
   const [paymentMethod, setPaymentMethod] = useState<"choose" | "coin" | "qris">("choose");
   const [redeeming, setRedeeming] = useState(false);
   const [replayResult, setReplayResult] = useState<{ replay_password: string; remaining_balance: number } | null>(null);
+  const [coinRedeemPhone, setCoinRedeemPhone] = useState("");
 
   // QRIS flow state
   const [qrisStep, setQrisStep] = useState<"scan" | "upload" | "info" | "done">("scan");
@@ -118,6 +119,9 @@ const ReplayPage = () => {
 
   const handleCoinRedeem = async () => {
     if (!purchaseShow || !coinUser) return;
+    if (!coinRedeemPhone.trim() || coinRedeemPhone.replace(/[\s-]/g, "").length < 10) {
+      toast({ title: "Masukkan nomor WhatsApp yang valid", variant: "destructive" }); return;
+    }
     setRedeeming(true);
     const { data, error } = await supabase.rpc("redeem_coins_for_replay" as any, { _show_id: purchaseShow.id });
     setRedeeming(false);
@@ -138,6 +142,7 @@ const ReplayPage = () => {
         access_password: result.replay_password,
         show_title: purchaseShow.title,
         purchase_type: "replay",
+        phone: coinRedeemPhone.replace(/[\s-]/g, ""),
       },
     }).catch(() => {});
   };
