@@ -110,7 +110,7 @@ const ShowManager = () => {
   };
 
   const updateShow = async (show: Show) => {
-    await supabase.from("shows").update({
+    const { error } = await supabase.from("shows").update({
       title: show.title, price: show.price, lineup: show.lineup,
       schedule_date: show.schedule_date, schedule_time: show.schedule_time,
       background_image_url: show.background_image_url, qris_image_url: show.qris_image_url,
@@ -125,13 +125,20 @@ const ShowManager = () => {
       short_id: show.short_id || null,
       external_show_id: show.external_show_id || null,
     }).eq("id", show.id);
+    if (error) {
+      toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
-    toast({ title: "Show diperbarui" });
   };
 
   const deleteShow = async (id: string) => {
     if (!confirm("Yakin hapus show ini?")) return;
-    await supabase.from("shows").delete().eq("id", id);
+    const { error } = await supabase.from("shows").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Gagal menghapus", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
     setEditing(null);
     toast({ title: "Show dihapus" });
