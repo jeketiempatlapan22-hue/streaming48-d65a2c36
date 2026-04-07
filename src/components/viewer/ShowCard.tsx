@@ -83,10 +83,10 @@ const CountdownDigit = forwardRef<HTMLDivElement, { value: number; label: string
 });
 CountdownDigit.displayName = "CountdownDigit";
 
-const ShowCard = ({
+const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true,
-}: ShowCardProps) => {
+}, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
@@ -112,7 +112,7 @@ const ShowCard = ({
   };
 
   return (
-    <motion.div
+    <motion.div ref={ref}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
@@ -331,6 +331,7 @@ const ShowCard = ({
       </div>
     </motion.div>
   );
-};
+});
+ShowCard.displayName = "ShowCard";
 
 export default ShowCard;
