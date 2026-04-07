@@ -71,7 +71,7 @@ const ReplayPage = () => {
       const [showsRes, streamRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
         (supabase.rpc as any)("get_stream_status"),
-        supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
       ]);
       if (settingsRes.data) {
         const waRow = settingsRes.data.find((r: any) => r.key === "whatsapp_number");
