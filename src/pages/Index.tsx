@@ -82,6 +82,7 @@ const Index = () => {
   const [coinShowTarget, setCoinShowTarget] = useState<Show | null>(null);
   const [coinRedeeming, setCoinRedeeming] = useState(false);
   const [coinResult, setCoinResult] = useState<{ token_code: string; remaining_balance: number; replay_password?: string; access_password?: string } | null>(null);
+  const [coinPhone, setCoinPhone] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loginPopup, setLoginPopup] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -252,10 +253,15 @@ const Index = () => {
     }
     setCoinShowTarget(show);
     setCoinResult(null);
+    setCoinPhone("");
   };
 
   const handleCoinRedeem = async () => {
     if (!coinShowTarget) return;
+    if (!coinPhone.trim() || coinPhone.replace(/[\s-]/g, "").length < 10) {
+      toast.error("Masukkan nomor WhatsApp yang valid");
+      return;
+    }
     setCoinRedeeming(true);
     const isReplay = coinShowTarget.is_replay;
     const { data, error } = isReplay
@@ -284,6 +290,7 @@ const Index = () => {
           access_password: result.access_password || result.replay_password,
           show_title: coinShowTarget.title,
           purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
+          phone: coinPhone.replace(/[\s-]/g, ""),
         },
       }).catch(() => {});
     }
@@ -1175,6 +1182,13 @@ const Index = () => {
                   </span>
                 </div>
               </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  📱 Nomor WhatsApp <span className="text-destructive">*</span>
+                </label>
+                <Input value={coinPhone} onChange={(e) => setCoinPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+              </div>
               {coinBalance < (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? (
                 <div className="space-y-3">
                   <p className="text-center text-sm text-destructive">Koin tidak cukup.</p>
@@ -1183,7 +1197,7 @@ const Index = () => {
                   </Button>
                 </div>
               ) : (
-                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming}>
+                <Button className="w-full gap-2" onClick={handleCoinRedeem} disabled={coinRedeeming || !coinPhone.trim() || coinPhone.replace(/[\s-]/g, "").length < 10}>
                   <Coins className="h-4 w-4" />
                   {coinRedeeming ? "Memproses..." : `Bayar ${coinShowTarget?.is_replay ? coinShowTarget?.replay_coin_price : coinShowTarget?.coin_price} Koin`}
                 </Button>

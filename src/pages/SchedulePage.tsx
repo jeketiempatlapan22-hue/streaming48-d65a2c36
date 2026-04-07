@@ -4,9 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
-import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2 } from "lucide-react";
+import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2, Coins } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import { toast } from "sonner";
@@ -32,6 +33,8 @@ const SchedulePage = () => {
   const [email, setEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [coinBuyTarget, setCoinBuyTarget] = useState<Show | null>(null);
+  const [coinBuyPhone, setCoinBuyPhone] = useState("");
   // Dynamic QRIS state
   const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "done">("phone");
   const [dynamicQrString, setDynamicQrString] = useState("");
@@ -150,22 +153,33 @@ const SchedulePage = () => {
 
   const handleCoinBuy = async (show: Show) => {
     if (!coinUser) { toast.error("Login terlebih dahulu"); return; }
-    const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: show.id });
+    setCoinBuyTarget(show);
+    setCoinBuyPhone("");
+  };
+
+  const handleCoinConfirm = async () => {
+    if (!coinBuyTarget || !coinUser) return;
+    if (!coinBuyPhone.trim() || coinBuyPhone.replace(/[\s-]/g, "").length < 10) {
+      toast.error("Masukkan nomor WhatsApp yang valid"); return;
+    }
+    const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: coinBuyTarget.id });
     const result = data as any;
     if (error || !result?.success) { toast.error(result?.error || "Gagal"); return; }
     toast.success(`Token: ${result.token_code}`);
-    addRedeemedToken(show.id, result.token_code);
-    if (result.access_password) addAccessPassword(show.id, result.access_password);
+    addRedeemedToken(coinBuyTarget.id, result.token_code);
+    if (result.access_password) addAccessPassword(coinBuyTarget.id, result.access_password);
+    setCoinBuyTarget(null);
 
     // Send WhatsApp notification with token + replay info
     supabase.functions.invoke("notify-coin-show-purchase", {
       body: {
         user_id: coinUser.id,
-        show_id: show.id,
+        show_id: coinBuyTarget.id,
         token_code: result.token_code,
         access_password: result.access_password,
-        show_title: show.title,
-        purchase_type: show.is_replay ? "replay" : "regular",
+        show_title: coinBuyTarget.title,
+        purchase_type: coinBuyTarget.is_replay ? "replay" : "regular",
+        phone: coinBuyPhone.replace(/[\s-]/g, ""),
       },
     }).catch(() => {});
   };
@@ -542,6 +556,34 @@ const SchedulePage = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Coin Buy Phone Dialog */}
+      <Dialog open={!!coinBuyTarget} onOpenChange={() => setCoinBuyTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>🪙 Beli dengan Koin</DialogTitle>
+            <DialogDescription>{coinBuyTarget?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Harga</span>
+                <span className="font-bold text-primary">{coinBuyTarget?.coin_price} Koin</span>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                📱 Nomor WhatsApp <span className="text-destructive">*</span>
+              </label>
+              <Input type="tel" value={coinBuyPhone} onChange={(e) => setCoinBuyPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+              <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+            </div>
+            <Button className="w-full gap-2" disabled={!coinBuyPhone.trim() || coinBuyPhone.replace(/[\s-]/g, "").length < 10} onClick={handleCoinConfirm}>
+              <Coins className="h-4 w-4" /> Bayar {coinBuyTarget?.coin_price} Koin
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

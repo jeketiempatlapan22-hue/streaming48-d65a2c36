@@ -32,6 +32,8 @@ const CoinShop = () => {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [redeemingShow, setRedeemingShow] = useState<string | null>(null);
   const [redeemResult, setRedeemResult] = useState<{ token_code: string; remaining_balance: number; access_password?: string } | null>(null);
+  const [redeemPhoneDialog, setRedeemPhoneDialog] = useState<string | null>(null);
+  const [redeemPhone, setRedeemPhone] = useState("");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [useDynamicQris, setUseDynamicQris] = useState(false);
   const [dynamicQrString, setDynamicQrString] = useState("");
@@ -236,7 +238,16 @@ const CoinShop = () => {
     setUploading(false);
   };
 
+  const startRedeem = (showId: string) => {
+    setRedeemPhoneDialog(showId);
+    setRedeemPhone("");
+  };
+
   const handleRedeem = async (showId: string) => {
+    if (!redeemPhone.trim() || redeemPhone.replace(/[\s-]/g, "").length < 10) {
+      toast({ title: "Masukkan nomor WhatsApp yang valid", variant: "destructive" }); return;
+    }
+    setRedeemPhoneDialog(null);
     setRedeemingShow(showId);
     const { data, error } = await supabase.rpc("redeem_coins_for_token", { _show_id: showId });
     const result = data as any;
@@ -262,6 +273,7 @@ const CoinShop = () => {
           access_password: result.access_password,
           show_title: targetShow?.title || "",
           purchase_type: targetShow?.is_replay ? "replay" : "regular",
+          phone: redeemPhone.replace(/[\s-]/g, ""),
         },
       }).catch(() => {});
     }
@@ -319,7 +331,7 @@ const CoinShop = () => {
                   <p className="text-xs text-muted-foreground">{show.schedule_date} · {show.schedule_time}</p>
                   <div className="mt-1 flex items-center gap-1 text-sm font-bold text-[hsl(var(--warning))]"><Coins className="h-3.5 w-3.5" /> {show.coin_price} Koin</div>
                 </div>
-                <Button size="sm" disabled={balance < show.coin_price || redeemingShow === show.id} onClick={() => handleRedeem(show.id)}>
+                <Button size="sm" disabled={balance < show.coin_price || redeemingShow === show.id} onClick={() => startRedeem(show.id)}>
                   {redeemingShow === show.id ? "..." : balance < show.coin_price ? "Kurang" : "Tukar"}
                 </Button>
               </div>
@@ -440,6 +452,19 @@ const CoinShop = () => {
                 : "Koin akan ditambahkan setelah admin konfirmasi."}
             </p>
             <Button className="w-full" onClick={() => { setSelectedPkg(null); setPurchaseStep("phone"); setDynamicPaid(false); }}>Tutup</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phone input before redeem */}
+      <Dialog open={!!redeemPhoneDialog} onOpenChange={() => setRedeemPhoneDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>📱 Nomor WhatsApp</DialogTitle><DialogDescription>Masukkan nomor HP untuk menerima token & info show</DialogDescription></DialogHeader>
+          <div className="space-y-3">
+            <Input type="tel" placeholder="08xxxxxxxxxx" value={redeemPhone} onChange={(e) => setRedeemPhone(e.target.value)} />
+            <Button className="w-full" disabled={!redeemPhone.trim() || redeemPhone.replace(/[\s-]/g, "").length < 10} onClick={() => handleRedeem(redeemPhoneDialog!)}>
+              Lanjut Tukar Koin
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

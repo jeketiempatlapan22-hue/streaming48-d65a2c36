@@ -264,6 +264,7 @@ const MembershipPage = () => {
         access_password: result.access_password,
         show_title: selectedShow.title,
         purchase_type: "membership",
+        phone: phone.replace(/[\s-]/g, ""),
       },
     }).catch(() => {});
   };

@@ -39,26 +39,28 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    const { user_id, show_id, token_code, access_password, show_title, purchase_type } = await req.json();
+    const { user_id, show_id, token_code, access_password, show_title, purchase_type, phone: provided_phone } = await req.json();
     if (!user_id || !show_id) {
       return new Response(JSON.stringify({ error: 'Missing user_id or show_id' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Look up user's phone from multiple sources
-    let phone: string | null = null;
+    // Use provided phone first, then look up from order history
+    let phone: string | null = provided_phone || null;
 
-    // 1. Check subscription_orders for this user
-    const { data: subOrders } = await supabase
-      .from('subscription_orders')
-      .select('phone')
-      .eq('user_id', user_id)
-      .neq('phone', '')
-      .not('phone', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (subOrders?.[0]?.phone) phone = subOrders[0].phone;
+    if (!phone) {
+      // 1. Check subscription_orders for this user
+      const { data: subOrders } = await supabase
+        .from('subscription_orders')
+        .select('phone')
+        .eq('user_id', user_id)
+        .neq('phone', '')
+        .not('phone', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (subOrders?.[0]?.phone) phone = subOrders[0].phone;
+    }
 
     // 2. Check coin_orders
     if (!phone) {
