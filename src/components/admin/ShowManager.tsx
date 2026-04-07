@@ -81,19 +81,36 @@ const ShowManager = () => {
 
   const fetchShows = async () => {
     const { data } = await supabase.from("shows").select("*").order("created_at", { ascending: false });
-    setShows((data as unknown as Show[]) || []);
+    const safe = ((data as unknown as Show[]) || []).map(s => ({
+      ...s,
+      lineup: s.lineup ?? "", schedule_date: s.schedule_date ?? "", schedule_time: s.schedule_time ?? "",
+      subscription_benefits: s.subscription_benefits ?? "", group_link: s.group_link ?? "",
+      category: s.category ?? "regular", category_member: s.category_member ?? "",
+      access_password: s.access_password ?? "", price: s.price ?? "Gratis",
+    }));
+    setShows(safe);
   };
 
   useEffect(() => { fetchShows(); }, []);
 
   const createShow = async () => {
-    await supabase.from("shows").insert({ title: "Show Baru", price: "Rp 0" });
+    const { data, error } = await supabase.from("shows").insert({
+      title: "Show Baru", price: "Rp 0", lineup: "", schedule_date: "", schedule_time: "",
+      subscription_benefits: "", group_link: "", category: "regular", category_member: "",
+      access_password: "", coin_price: 0, replay_coin_price: 0, qris_price: 0,
+      membership_duration_days: 30,
+    }).select().single();
+    if (error) {
+      toast({ title: "Gagal menambah show", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
+    if (data) setEditing(data as unknown as Show);
     toast({ title: "Show ditambahkan" });
   };
 
   const updateShow = async (show: Show) => {
-    await supabase.from("shows").update({
+    const { error } = await supabase.from("shows").update({
       title: show.title, price: show.price, lineup: show.lineup,
       schedule_date: show.schedule_date, schedule_time: show.schedule_time,
       background_image_url: show.background_image_url, qris_image_url: show.qris_image_url,
@@ -108,13 +125,20 @@ const ShowManager = () => {
       short_id: show.short_id || null,
       external_show_id: show.external_show_id || null,
     }).eq("id", show.id);
+    if (error) {
+      toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
-    toast({ title: "Show diperbarui" });
   };
 
   const deleteShow = async (id: string) => {
     if (!confirm("Yakin hapus show ini?")) return;
-    await supabase.from("shows").delete().eq("id", id);
+    const { error } = await supabase.from("shows").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Gagal menghapus", description: error.message, variant: "destructive" });
+      return;
+    }
     await fetchShows();
     setEditing(null);
     toast({ title: "Show dihapus" });
