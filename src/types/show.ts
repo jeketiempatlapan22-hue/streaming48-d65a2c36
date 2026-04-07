@@ -18,6 +18,7 @@ export interface Show {
   replay_coin_price: number;
   is_replay: boolean;
   access_password?: string;
+  replay_qris_price?: number;
 }
 
 export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {

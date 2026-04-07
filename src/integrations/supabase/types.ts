@@ -675,6 +675,7 @@ export type Database = {
           qris_image_url: string | null
           qris_price: number
           replay_coin_price: number
+          replay_qris_price: number
           schedule_date: string | null
           schedule_time: string | null
           short_id: string | null
@@ -703,6 +704,7 @@ export type Database = {
           qris_image_url?: string | null
           qris_price?: number
           replay_coin_price?: number
+          replay_qris_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
           short_id?: string | null
@@ -731,6 +733,7 @@ export type Database = {
           qris_image_url?: string | null
           qris_price?: number
           replay_coin_price?: number
+          replay_qris_price?: number
           schedule_date?: string | null
           schedule_time?: string | null
           short_id?: string | null
@@ -1174,6 +1177,7 @@ export type Database = {
           qris_image_url: string | null
           qris_price: number
           replay_coin_price: number
+          replay_qris_price: number
           schedule_date: string | null
           schedule_time: string | null
           short_id: string | null

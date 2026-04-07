@@ -62,17 +62,22 @@ const ReplayPage = () => {
   const [qrisPhone, setQrisPhone] = useState("");
   const [qrisEmail, setQrisEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
+  const [useDynamicQris, setUseDynamicQris] = useState(false);
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       const [showsRes, streamRes, settingsRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
         (supabase.rpc as any)("get_stream_status"),
-        supabase.from("site_settings").select("*").in("key", ["whatsapp_number"]),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
       ]);
       if (settingsRes.data) {
         const waRow = settingsRes.data.find((r: any) => r.key === "whatsapp_number");
         if (waRow) setWhatsappNumber(waRow.value);
+        const dqRow = settingsRes.data.find((r: any) => r.key === "use_dynamic_qris");
+        if (dqRow) setUseDynamicQris(dqRow.value === "true");
       }
       if (showsRes.data) {
         const streamLive = (streamRes.data as any)?.is_live ?? true;
@@ -115,6 +120,27 @@ const ReplayPage = () => {
     setQrisPhone("");
     setQrisEmail("");
     setOrderShortId("");
+    setDynamicQrString("");
+  };
+
+  const handleDynamicQris = async (show: Show, phone: string) => {
+    const replayPrice = (show as any).replay_qris_price || 0;
+    if (replayPrice <= 0) return;
+    setDynamicLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: { show_id: show.id, amount: replayPrice, phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""), order_type: "replay" },
+      });
+      if (error || !data?.success) {
+        toast({ title: "Gagal membuat QRIS", description: data?.error || error?.message, variant: "destructive" });
+      } else {
+        setDynamicQrString(data.qr_string || "");
+        if (data.order_id) setOrderShortId(data.short_id || "");
+      }
+    } catch {
+      toast({ title: "Gagal membuat QRIS dinamis", variant: "destructive" });
+    }
+    setDynamicLoading(false);
   };
 
   const handleCoinRedeem = async () => {
@@ -310,9 +336,11 @@ const ReplayPage = () => {
                     )}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-sm text-primary"><Coins className="h-4 w-4" /><span className="font-semibold">{show.replay_coin_price} Koin</span></div>
-                      {show.price && show.price !== "Gratis" && (
+                      {(show as any).replay_qris_price > 0 ? (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="font-medium">Rp {((show as any).replay_qris_price as number).toLocaleString("id-ID")}</span></div>
+                      ) : show.price && show.price !== "Gratis" ? (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground"><CreditCard className="h-3.5 w-3.5" /><span className="font-medium">{show.price}</span></div>
-                      )}
+                      ) : null}
                     </div>
 
                     {hasRealPassword ? (
@@ -377,12 +405,20 @@ const ReplayPage = () => {
                   <span className="text-muted-foreground">Harga Koin</span>
                   <span className="font-bold text-primary">{purchaseShow?.replay_coin_price} Koin</span>
                 </div>
-                {purchaseShow?.price && purchaseShow.price !== "Gratis" && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Harga QRIS</span>
-                    <span className="font-bold text-foreground">{purchaseShow.price}</span>
-                  </div>
-                )}
+                {(() => {
+                  const rqp = (purchaseShow as any)?.replay_qris_price || 0;
+                  return rqp > 0 ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Harga QRIS Replay</span>
+                      <span className="font-bold text-foreground">Rp {rqp.toLocaleString("id-ID")}</span>
+                    </div>
+                  ) : purchaseShow?.price && purchaseShow.price !== "Gratis" ? (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Harga QRIS</span>
+                      <span className="font-bold text-foreground">{purchaseShow.price}</span>
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <p className="text-center text-sm font-medium text-foreground">Pilih metode pembayaran:</p>
               <div className="grid grid-cols-2 gap-3">
@@ -452,20 +488,49 @@ const ReplayPage = () => {
 
               {qrisStep === "scan" && (
                 <>
-                  <p className="text-sm text-muted-foreground">Silakan scan QRIS di bawah untuk melakukan pembayaran:</p>
-                  {purchaseShow?.qris_image_url ? (
-                    <img src={purchaseShow.qris_image_url} alt="QRIS" className="mx-auto w-full max-w-sm rounded-lg object-contain" />
-                  ) : (
-                    <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia untuk show ini</div>
+                  {/* Dynamic QRIS: ask phone first */}
+                  {useDynamicQris && (purchaseShow as any)?.replay_qris_price > 0 && !dynamicQrString && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">Masukkan nomor HP untuk membuat QRIS pembayaran:</p>
+                      <Input value={qrisPhone} onChange={(e) => setQrisPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
+                      <Button className="w-full" disabled={dynamicLoading || !qrisPhone.trim() || qrisPhone.replace(/[\s-]/g, "").length < 10} onClick={() => handleDynamicQris(purchaseShow!, qrisPhone)}>
+                        {dynamicLoading ? "Membuat QRIS..." : "Buat QRIS Pembayaran"}
+                      </Button>
+                    </div>
                   )}
-                  <div className="rounded-xl border border-border bg-secondary/50 p-3 text-center">
-                    <p className="text-xs text-muted-foreground">Harga</p>
-                    <p className="text-lg font-bold text-foreground">{purchaseShow?.price}</p>
-                  </div>
-                  <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e as any); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
-                  <button type="button" className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10" onClick={() => galleryInputRef.current?.click()} disabled={uploadingProof}>
-                    <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                  </button>
+
+                  {/* Dynamic QRIS generated */}
+                  {useDynamicQris && dynamicQrString && (
+                    <>
+                      <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk melakukan pembayaran replay:</p>
+                      <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(dynamicQrString)}`} alt="QRIS" className="mx-auto w-full max-w-sm rounded-lg" />
+                      <div className="rounded-xl border border-border bg-secondary/50 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Harga Replay</p>
+                        <p className="text-lg font-bold text-foreground">Rp {((purchaseShow as any)?.replay_qris_price || 0).toLocaleString("id-ID")}</p>
+                      </div>
+                      <p className="text-[10px] text-center text-muted-foreground">Pembayaran akan diproses otomatis setelah transfer berhasil</p>
+                    </>
+                  )}
+
+                  {/* Static QRIS fallback */}
+                  {(!useDynamicQris || (purchaseShow as any)?.replay_qris_price <= 0) && (
+                    <>
+                      <p className="text-sm text-muted-foreground">Silakan scan QRIS di bawah untuk melakukan pembayaran:</p>
+                      {purchaseShow?.qris_image_url ? (
+                        <img src={purchaseShow.qris_image_url} alt="QRIS" className="mx-auto w-full max-w-sm rounded-lg object-contain" />
+                      ) : (
+                        <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia untuk show ini</div>
+                      )}
+                      <div className="rounded-xl border border-border bg-secondary/50 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Harga Replay</p>
+                        <p className="text-lg font-bold text-foreground">{(purchaseShow as any)?.replay_qris_price > 0 ? `Rp ${((purchaseShow as any).replay_qris_price as number).toLocaleString("id-ID")}` : purchaseShow?.price}</p>
+                      </div>
+                      <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e as any); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
+                      <button type="button" className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10" onClick={() => galleryInputRef.current?.click()} disabled={uploadingProof}>
+                        <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
+                      </button>
+                    </>
+                  )}
                 </>
               )}
 
