@@ -292,7 +292,7 @@ const Index = () => {
           purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
           phone: coinPhone.replace(/[\s-]/g, ""),
         },
-      }).catch(() => {});
+      }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
     }
   };
 
