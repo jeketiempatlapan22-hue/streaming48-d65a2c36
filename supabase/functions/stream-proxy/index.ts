@@ -756,7 +756,7 @@ Deno.serve(async (req) => {
 
       // Verify IP binding
       if (h !== ipH) {
-        trackAbuse(clientIp);
+        console.warn(`[stream-proxy] play IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch - URL tidak bisa digunakan dari perangkat lain", { status: 403, headers: corsHeaders });
       }
 
