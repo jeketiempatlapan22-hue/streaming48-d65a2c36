@@ -781,7 +781,7 @@ Deno.serve(async (req) => {
       }
 
       // Verify IP binding
-      if (h !== ipH) {
+      if (!ipHashMatches(h, clientIp, ipH)) {
         console.warn(`[stream-proxy] play IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch - URL tidak bisa digunakan dari perangkat lain", { status: 403, headers: corsHeaders });
       }
@@ -857,7 +857,7 @@ Deno.serve(async (req) => {
       }
 
       // Verify IP binding
-      if (h !== ipH) {
+      if (!ipHashMatches(h, clientIp, ipH)) {
         console.warn(`[stream-proxy] seg IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch", { status: 403, headers: corsHeaders });
       }
@@ -1009,7 +1009,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       }
 
       // Verify IP binding
-      if (h !== ipH) {
+      if (!ipHashMatches(h, clientIp, ipH)) {
         console.warn(`[stream-proxy] sub IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch", { status: 403, headers: corsHeaders });
       }
@@ -1058,7 +1058,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      if (h !== ipH) {
+      if (!ipHashMatches(h, clientIp, ipH)) {
         console.warn(`[stream-proxy] proxyplay IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch", { status: 403, headers: corsHeaders });
       }
@@ -1143,7 +1143,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      if (h !== ipH) {
+      if (!ipHashMatches(h, clientIp, ipH)) {
         console.warn(`[stream-proxy] proxyseg IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
         return new Response("IP mismatch", { status: 403, headers: corsHeaders });
       }
