@@ -422,7 +422,8 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`TOLAK\\_RESET <id>\` \\- Tolak reset password\n\n` +
     `📨 *Messaging:*\n` +
     `\`/msgshow <nama/ID> | <pesan>\` \\- Kirim WA ke pemesan show\n` +
-    `\`/msgmembers <pesan>\` \\- Kirim WA ke semua member\n\n` +
+    `\`/msgmembers <pesan>\` \\- Kirim WA ke semua member\n` +
+    `\`/resend <order\\_id>\` \\- Kirim ulang token \\& info replay ke pembeli\n\n` +
     `📢 *Lainnya:*\n` +
     `\`/broadcast <pesan>\` \\- Kirim notifikasi ke semua user\n` +
     `\`/setshortid #ID <nama>\` \\- Set custom ID untuk show\n` +
