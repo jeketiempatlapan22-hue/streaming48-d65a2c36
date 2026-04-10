@@ -172,7 +172,7 @@ function parseTokenResponse(data: any): ParsedToken | null {
 
   // Use hanabira's own playback endpoint — NO external workers.dev proxy
   if (!playbackUrl) {
-    playbackUrl = "https://hanabira48.com/api/proxy/playback";
+    playbackUrl = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
   }
 
   console.log("[useProxyStream] Using hanabira playback URL:", playbackUrl);
