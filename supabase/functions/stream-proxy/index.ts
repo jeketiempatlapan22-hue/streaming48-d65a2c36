@@ -201,12 +201,12 @@ async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise
   }
 }
 
-async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, _ipHash: string, externalShowId: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
   const eid = base64UrlEncode(externalShowId);
-  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${ipHash}:${eid}`);
-  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&eid=${eid}`;
 }
 
 async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
@@ -240,11 +240,11 @@ async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: s
   return result.join("\n");
 }
 
-async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, _ipHash: string, externalShowId: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
   const eid = base64UrlEncode(externalShowId);
-  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${ipHash}:${eid}`);
-  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&eid=${eid}`;
 }
 
 // --- CRYPTO HELPERS ---
