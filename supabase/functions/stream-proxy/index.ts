@@ -341,24 +341,24 @@ function ipHashMatches(expectedHash: string, clientIp: string, currentHash: stri
   return expectedHash === hashIpLegacy(clientIp);
 }
 
-async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string): Promise<string> {
+async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, _ipHash?: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
-  const sig = await hmacSign(`playlist:${playlistId}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+  const sig = await hmacSign(`playlist:${playlistId}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}`;
 }
 
-async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
+async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string, _ipHash?: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SUB_PLAYLIST_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`sub:${encoded}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+  const sig = await hmacSign(`sub:${encoded}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
-async function generateSegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
+async function generateSegSignedUrl(rawUrl: string, functionUrl: string, _ipHash?: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`seg:${encoded}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+  const sig = await hmacSign(`seg:${encoded}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
 async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
