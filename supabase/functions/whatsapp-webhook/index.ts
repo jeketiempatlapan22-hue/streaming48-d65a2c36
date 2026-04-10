@@ -958,7 +958,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
       }
 
       if (!subOrder.phone) {
-        return `⚠️ Order ${shortId} tidak memiliki nomor telepon.`;
+        return `⚠️ Order ${cleanId} tidak memiliki nomor telepon.`;
       }
 
       let waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
@@ -988,7 +988,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
       await sendFonnteMessage(FONNTE_TOKEN, subOrder.phone, waMsg);
 
-      return `✅ *Info berhasil dikirim ulang!*\n\n🆔 Order: ${subOrder.short_id || shortId}\n🎬 Show: ${show?.title || '-'}\n📱 Phone: ${subOrder.phone}\n${token?.code ? `🎫 Token: ${token.code}` : '⚠️ Token tidak ditemukan'}`;
+      return `✅ *Info berhasil dikirim ulang!*\n\n🆔 Order: ${subOrder.short_id || cleanId}\n🎬 Show: ${show?.title || '-'}\n📱 Phone: ${subOrder.phone}\n${token?.code ? `🎫 Token: ${token.code}` : '⚠️ Token tidak ditemukan'}`;
     }
 
     // Try coin_orders
@@ -1000,10 +1000,10 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
     if (coinOrder) {
       if (coinOrder.status !== 'confirmed') {
-        return `⚠️ Order koin ${shortId} belum dikonfirmasi (status: ${coinOrder.status}).`;
+        return `⚠️ Order koin ${cleanId} belum dikonfirmasi (status: ${coinOrder.status}).`;
       }
       if (!coinOrder.phone) {
-        return `⚠️ Order koin ${shortId} tidak memiliki nomor telepon.`;
+        return `⚠️ Order koin ${cleanId} tidak memiliki nomor telepon.`;
       }
 
       const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', coinOrder.user_id).maybeSingle();
@@ -1013,10 +1013,10 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
       await sendFonnteMessage(FONNTE_TOKEN, coinOrder.phone, waMsg);
 
-      return `✅ *Info koin dikirim ulang!*\n\n🆔 Order: ${coinOrder.short_id || shortId}\n📱 Phone: ${coinOrder.phone}\n🪙 ${coinOrder.coin_amount} koin`;
+      return `✅ *Info koin dikirim ulang!*\n\n🆔 Order: ${coinOrder.short_id || cleanId}\n📱 Phone: ${coinOrder.phone}\n🪙 ${coinOrder.coin_amount} koin`;
     }
 
-    return `⚠️ Order "${shortId}" tidak ditemukan.`;
+    return `⚠️ Order "${cleanId}" tidak ditemukan.`;
   } catch (e) {
     return `⚠️ Error resend: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
