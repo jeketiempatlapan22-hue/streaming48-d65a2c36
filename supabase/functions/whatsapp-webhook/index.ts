@@ -43,9 +43,9 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  // Persistent DB-level rate limit: 120 webhook calls per hour per IP
+  // Persistent DB-level rate limit: 1000 webhook calls per hour per IP
   const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
-    _key: "wa_webhook_ip:" + ip, _max_requests: 120, _window_seconds: 3600,
+    _key: "wa_webhook_ip:" + ip, _max_requests: 1000, _window_seconds: 3600,
   });
   if (dbAllowed === false) {
     return new Response(JSON.stringify({ error: 'Rate limited' }), {
