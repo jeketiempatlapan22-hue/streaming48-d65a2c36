@@ -324,6 +324,23 @@ function hashIp(ip: string): string {
   return Math.abs(h).toString(36);
 }
 
+// Legacy full-IP hash for backward compatibility with existing signed URLs
+function hashIpLegacy(ip: string): string {
+  let h = 0;
+  const cleaned = ip.replace(/^::ffff:/i, "");
+  for (let i = 0; i < cleaned.length; i++) {
+    h = ((h << 5) - h + cleaned.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
+}
+
+// Check if IP hash matches (new subnet-based OR legacy full-IP)
+function ipHashMatches(expectedHash: string, clientIp: string, currentHash: string): boolean {
+  if (expectedHash === currentHash) return true;
+  // Accept legacy full-IP hash for existing signed URLs
+  return expectedHash === hashIpLegacy(clientIp);
+}
+
 async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
   const sig = await hmacSign(`playlist:${playlistId}:${exp}:${ipHash}`);
