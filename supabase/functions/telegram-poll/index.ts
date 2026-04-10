@@ -1050,13 +1050,17 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
 async function sendFonnteWhatsApp(phone: string, message: string) {
   const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
   if (!FONNTE_TOKEN) return;
-  const cleanPhone = phone.replace(/^0/, '62').replace(/[^0-9]/g, '');
-  if (!cleanPhone) return;
+  let cleanPhone = phone.replace(/[^0-9]/g, '');
+  if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
+  if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
+  if (!cleanPhone || cleanPhone.length < 10) return;
   try {
-    await fetch('https://api.fonnte.com/send', {
+    const res = await fetch('https://api.fonnte.com/send', {
       method: 'POST', headers: { Authorization: FONNTE_TOKEN },
       body: new URLSearchParams({ target: cleanPhone, message }),
     });
+    const resText = await res.text();
+    console.log('Fonnte WA send result:', resText);
   } catch (e) { console.error('sendFonnteWhatsApp error:', e); }
 }
 
