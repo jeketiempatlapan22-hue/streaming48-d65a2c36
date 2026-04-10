@@ -43,9 +43,9 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  // Persistent DB-level rate limit: 120 webhook calls per hour per IP
+  // Persistent DB-level rate limit: 1000 webhook calls per hour per IP
   const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
-    _key: "wa_webhook_ip:" + ip, _max_requests: 120, _window_seconds: 3600,
+    _key: "wa_webhook_ip:" + ip, _max_requests: 1000, _window_seconds: 3600,
   });
   if (dbAllowed === false) {
     return new Response(JSON.stringify({ error: 'Rate limited' }), {
@@ -902,7 +902,8 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
 
 async function handleResendWa(supabase: any, shortId: string): Promise<string> {
   try {
-    const normalizedId = shortId.trim().toLowerCase();
+    const cleanId = shortId.trim().replace(/^#/, '');
+    const normalizedId = cleanId.toLowerCase();
     const siteUrl = 'https://realtime48stream.my.id';
     const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
     if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN tidak dikonfigurasi.';
@@ -910,13 +911,13 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
     // Try subscription_orders
     const { data: subOrder } = await supabase
       .from('subscription_orders')
-      .select('id, show_id, phone, email, status, short_id, user_id')
+      .select('id, show_id, phone, email, status, short_id, user_id, created_at')
       .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
       .maybeSingle();
 
     if (subOrder) {
       if (subOrder.status !== 'confirmed') {
-        return `⚠️ Order ${shortId} belum dikonfirmasi (status: ${subOrder.status}).`;
+        return `⚠️ Order ${cleanId} belum dikonfirmasi (status: ${subOrder.status}).`;
       }
 
       const { data: show } = await supabase
@@ -925,18 +926,39 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         .eq('id', subOrder.show_id)
         .maybeSingle();
 
-      const { data: token } = await supabase
-        .from('tokens')
-        .select('code, status, expires_at')
-        .eq('show_id', subOrder.show_id)
-        .eq('user_id', subOrder.user_id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Find token: try by user_id first, then by show_id + creation time (for guests)
+      let token = null;
+      if (subOrder.user_id) {
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('user_id', subOrder.user_id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
+      if (!token) {
+        const orderTime = new Date(subOrder.created_at);
+        const minTime = new Date(orderTime.getTime() - 5 * 60_000).toISOString();
+        const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('status', 'active')
+          .gte('created_at', minTime)
+          .lte('created_at', maxTime)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
 
       if (!subOrder.phone) {
-        return `⚠️ Order ${shortId} tidak memiliki nomor telepon.`;
+        return `⚠️ Order ${cleanId} tidak memiliki nomor telepon.`;
       }
 
       let waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
@@ -966,7 +988,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
       await sendFonnteMessage(FONNTE_TOKEN, subOrder.phone, waMsg);
 
-      return `✅ *Info berhasil dikirim ulang!*\n\n🆔 Order: ${subOrder.short_id || shortId}\n🎬 Show: ${show?.title || '-'}\n📱 Phone: ${subOrder.phone}\n${token?.code ? `🎫 Token: ${token.code}` : '⚠️ Token tidak ditemukan'}`;
+      return `✅ *Info berhasil dikirim ulang!*\n\n🆔 Order: ${subOrder.short_id || cleanId}\n🎬 Show: ${show?.title || '-'}\n📱 Phone: ${subOrder.phone}\n${token?.code ? `🎫 Token: ${token.code}` : '⚠️ Token tidak ditemukan'}`;
     }
 
     // Try coin_orders
@@ -978,10 +1000,10 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
     if (coinOrder) {
       if (coinOrder.status !== 'confirmed') {
-        return `⚠️ Order koin ${shortId} belum dikonfirmasi (status: ${coinOrder.status}).`;
+        return `⚠️ Order koin ${cleanId} belum dikonfirmasi (status: ${coinOrder.status}).`;
       }
       if (!coinOrder.phone) {
-        return `⚠️ Order koin ${shortId} tidak memiliki nomor telepon.`;
+        return `⚠️ Order koin ${cleanId} tidak memiliki nomor telepon.`;
       }
 
       const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', coinOrder.user_id).maybeSingle();
@@ -991,10 +1013,10 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
 
       await sendFonnteMessage(FONNTE_TOKEN, coinOrder.phone, waMsg);
 
-      return `✅ *Info koin dikirim ulang!*\n\n🆔 Order: ${coinOrder.short_id || shortId}\n📱 Phone: ${coinOrder.phone}\n🪙 ${coinOrder.coin_amount} koin`;
+      return `✅ *Info koin dikirim ulang!*\n\n🆔 Order: ${coinOrder.short_id || cleanId}\n📱 Phone: ${coinOrder.phone}\n🪙 ${coinOrder.coin_amount} koin`;
     }
 
-    return `⚠️ Order "${shortId}" tidak ditemukan.`;
+    return `⚠️ Order "${cleanId}" tidak ditemukan.`;
   } catch (e) {
     return `⚠️ Error resend: ${e instanceof Error ? e.message : 'Unknown'}`;
   }

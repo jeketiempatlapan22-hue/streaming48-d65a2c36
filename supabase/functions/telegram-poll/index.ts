@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'cron';
-  if (!edgeRL(`tg_poll:${ip}`, 5, 60_000)) {
+  if (!edgeRL(`tg_poll:${ip}`, 120, 60_000)) {
     return new Response(JSON.stringify({ error: 'Rate limited' }), {
       status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -69,9 +69,9 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-  // Persistent DB-level rate limit: 10 polls per hour per IP
+  // Persistent DB-level rate limit: 600 polls per hour (cron fires every minute)
   const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
-    _key: "tg_poll_ip:" + ip, _max_requests: 10, _window_seconds: 3600,
+    _key: "tg_poll_ip:" + ip, _max_requests: 600, _window_seconds: 3600,
   });
   if (dbAllowed === false) {
     return new Response(JSON.stringify({ error: 'Rate limited' }), {
@@ -634,8 +634,9 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
     const showTitle = show?.title || 'Unknown Show';
 
     if (action === 'approve') {
-      // Use confirm_regular_order RPC which handles both membership and regular shows
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_regular_order', { _order_id: order.id });
+      // Use correct RPC based on show type
+      const confirmFn = show?.is_subscription ? 'confirm_membership_order' : 'confirm_regular_order';
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(confirmFn, { _order_id: order.id });
       const result = typeof rpcResult === 'string' ? (() => { try { return JSON.parse(rpcResult); } catch { return null; } })() : rpcResult;
 
       if (rpcError || !result?.success) {
@@ -2061,19 +2062,21 @@ async function handleSetShortIdCommand(supabase: any, botToken: string, chatId: 
 
 async function handleResendCommand(supabase: any, botToken: string, chatId: string, shortId: string) {
   try {
-    const normalizedId = shortId.trim().toLowerCase();
+    // Strip leading # if present
+    const cleanId = shortId.trim().replace(/^#/, '');
+    const normalizedId = cleanId.toLowerCase();
     const siteUrl = 'https://realtime48stream.my.id';
 
     // Try subscription_orders first
     const { data: subOrder } = await supabase
       .from('subscription_orders')
-      .select('id, show_id, phone, email, status, short_id, user_id')
+      .select('id, show_id, phone, email, status, short_id, user_id, created_at')
       .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
       .maybeSingle();
 
     if (subOrder) {
       if (subOrder.status !== 'confirmed') {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(subOrder.status)}\\)\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(cleanId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(subOrder.status)}\\)\\.`);
         return;
       }
 
@@ -2083,19 +2086,40 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         .eq('id', subOrder.show_id)
         .maybeSingle();
 
-      // Find token for this order
-      const { data: token } = await supabase
-        .from('tokens')
-        .select('code, status, expires_at')
-        .eq('show_id', subOrder.show_id)
-        .eq('user_id', subOrder.user_id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Find token: try by user_id first, then by show_id + creation time (for guests)
+      let token = null;
+      if (subOrder.user_id) {
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('user_id', subOrder.user_id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
+      if (!token) {
+        // Fallback: find token by show_id created around the same time (within 5 min)
+        const orderTime = new Date(subOrder.created_at);
+        const minTime = new Date(orderTime.getTime() - 5 * 60_000).toISOString();
+        const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('status', 'active')
+          .gte('created_at', minTime)
+          .lte('created_at', maxTime)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
 
       if (!subOrder.phone) {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\. Tidak bisa mengirim ulang\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(cleanId)}\` tidak memiliki nomor telepon\\. Tidak bisa mengirim ulang\\.`);
         return;
       }
 
@@ -2128,7 +2152,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
       await sendTelegramMessage(botToken, chatId,
         `✅ *Info berhasil dikirim ulang\\!*\n\n` +
-        `🆔 Order: \`${escapeMarkdown(subOrder.short_id || shortId)}\`\n` +
+        `🆔 Order: \`${escapeMarkdown(subOrder.short_id || cleanId)}\`\n` +
         `🎬 Show: ${escapeMarkdown(show?.title || '-')}\n` +
         `📱 Phone: ${escapeMarkdown(subOrder.phone)}\n` +
         `${token?.code ? `🎫 Token: \`${escapeMarkdown(token.code)}\`` : '⚠️ Token tidak ditemukan'}`
@@ -2145,12 +2169,12 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
     if (coinOrder) {
       if (coinOrder.status !== 'confirmed') {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(coinOrder.status)}\\)\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(cleanId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(coinOrder.status)}\\)\\.`);
         return;
       }
 
       if (!coinOrder.phone) {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(cleanId)}\` tidak memiliki nomor telepon\\.`);
         return;
       }
 
@@ -2163,14 +2187,14 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
       await sendTelegramMessage(botToken, chatId,
         `✅ *Info koin dikirim ulang\\!*\n\n` +
-        `🆔 Order: \`${escapeMarkdown(coinOrder.short_id || shortId)}\`\n` +
+        `🆔 Order: \`${escapeMarkdown(coinOrder.short_id || cleanId)}\`\n` +
         `📱 Phone: ${escapeMarkdown(coinOrder.phone)}\n` +
         `🪙 ${coinOrder.coin_amount} koin`
       );
       return;
     }
 
-    await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak ditemukan\\.`);
+    await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(cleanId)}\` tidak ditemukan\\.`);
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error resend: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
