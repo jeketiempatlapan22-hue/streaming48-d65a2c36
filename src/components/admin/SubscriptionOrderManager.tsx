@@ -116,7 +116,10 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const updateStatus = async (id: string, status: string) => {
     if (status === "confirmed") {
       setConfirmingId(id);
-      const { data, error } = await supabase.rpc("confirm_regular_order" as any, { _order_id: id });
+      const order = orders.find((o) => o.id === id);
+      const showInfo = order ? shows[order.show_id] : null;
+      const confirmFn = (mode === "membership" || showInfo?.is_subscription) ? "confirm_membership_order" : "confirm_regular_order";
+      const { data, error } = await supabase.rpc(confirmFn as any, { _order_id: id });
       setConfirmingId(null);
       const result = data as any;
       if (error || !result?.success) {
