@@ -62,10 +62,12 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
   }, []);
 
   const handleInstallClick = async () => {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
+    const prompt = installPrompt || getInstallPrompt();
+    if (prompt) {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setIsStandalone(true);
+      clearInstallPrompt();
       setInstallPrompt(null);
     } else {
       window.location.href = "/install";
