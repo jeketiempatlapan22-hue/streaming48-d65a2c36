@@ -10,11 +10,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
 
 interface SharedNavbarProps {
   showCoinBadge?: boolean;
@@ -25,7 +21,7 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
   const [coinUser, setCoinUser] = useState<any>(null);
   const [coinBalance, setCoinBalance] = useState(0);
   const [coinUsername, setCoinUsername] = useState("");
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt());
   const [isStandalone, setIsStandalone] = useState(false);
   const [loginPopup, setLoginPopup] = useState(false);
 
@@ -35,12 +31,10 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
       (navigator as any).standalone === true
     );
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => setIsStandalone(true));
+    const unsub = onInstallPromptChange((p) => {
+      setInstallPrompt(p);
+      if (!p) setIsStandalone(true);
+    });
 
     // Delay auth check — use cached session to avoid extra DB hit
     const timer = setTimeout(async () => {
@@ -51,7 +45,6 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
         ]);
         if (session?.user) {
           setCoinUser(session.user);
-          // Batch both queries
           const [balRes, profileRes] = await Promise.allSettled([
             supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle(),
             supabase.from("profiles").select("username").eq("id", session.user.id).maybeSingle(),
@@ -63,16 +56,18 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
     }, 500);
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
+      unsub();
       clearTimeout(timer);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
+    const prompt = installPrompt || getInstallPrompt();
+    if (prompt) {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setIsStandalone(true);
+      clearInstallPrompt();
       setInstallPrompt(null);
     } else {
       window.location.href = "/install";
