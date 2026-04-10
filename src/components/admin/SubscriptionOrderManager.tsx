@@ -198,6 +198,44 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     toast({ title: "Order dihapus" });
   };
 
+  const toggleDeleteSelect = (id: string) => {
+    setDeleteSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleDeleteSelectAll = (orderList: Order[]) => {
+    if (orderList.every(o => deleteSelectedIds.has(o.id))) {
+      setDeleteSelectedIds(new Set());
+    } else {
+      setDeleteSelectedIds(new Set(orderList.map(o => o.id)));
+    }
+  };
+
+  const bulkDeleteOrders = async () => {
+    if (deleteSelectedIds.size === 0) return;
+    const count = deleteSelectedIds.size;
+    if (!window.confirm(`Yakin hapus ${count} order yang dipilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(deleteSelectedIds);
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        await (supabase as any).from("subscription_orders").delete().in("id", batch);
+      }
+      setDeleteSelectedIds(new Set());
+      setBulkDeleteMode(false);
+      await fetchOrders();
+      toast({ title: `${count} order berhasil dihapus` });
+    } catch {
+      toast({ title: "Gagal menghapus", variant: "destructive" });
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const sendWhatsApp = async (phone: string, message: string) => {
     let cleanPhone = phone.replace(/[^0-9+]/g, "");
     if (cleanPhone.startsWith("+")) {
