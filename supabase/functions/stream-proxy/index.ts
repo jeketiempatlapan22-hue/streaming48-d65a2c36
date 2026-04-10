@@ -772,7 +772,7 @@ Deno.serve(async (req) => {
         return getRateLimitResponse(true);
       }
 
-      if (!pid || !exp || !sig || !h) {
+      if (!pid || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -780,13 +780,7 @@ Deno.serve(async (req) => {
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (!ipHashMatches(h, clientIp, ipH)) {
-        console.warn(`[stream-proxy] play IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
-        return new Response("IP mismatch - URL tidak bisa digunakan dari perangkat lain", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`playlist:${pid}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`playlist:${pid}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
