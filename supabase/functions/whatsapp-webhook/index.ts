@@ -409,6 +409,7 @@ TOLAK_RESET <id> - Tolak reset password
 📨 *Messaging:*
 /msgshow <nama show> | <pesan> - Kirim WA ke semua pemesan show
 /msgmembers <pesan> - Kirim WA ke semua member
+/resend <order_id> - Kirim ulang token & info replay ke pembeli
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
