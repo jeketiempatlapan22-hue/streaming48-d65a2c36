@@ -58,6 +58,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [sendingWaAction, setSendingWaAction] = useState<string | null>(null);
+  const [deleteSelectedIds, setDeleteSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
@@ -193,6 +196,44 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     await (supabase as any).from("subscription_orders").delete().eq("id", id);
     await fetchOrders();
     toast({ title: "Order dihapus" });
+  };
+
+  const toggleDeleteSelect = (id: string) => {
+    setDeleteSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleDeleteSelectAll = (orderList: Order[]) => {
+    if (orderList.every(o => deleteSelectedIds.has(o.id))) {
+      setDeleteSelectedIds(new Set());
+    } else {
+      setDeleteSelectedIds(new Set(orderList.map(o => o.id)));
+    }
+  };
+
+  const bulkDeleteOrders = async () => {
+    if (deleteSelectedIds.size === 0) return;
+    const count = deleteSelectedIds.size;
+    if (!window.confirm(`Yakin hapus ${count} order yang dipilih? Tindakan ini tidak bisa dibatalkan.`)) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(deleteSelectedIds);
+      for (let i = 0; i < ids.length; i += 50) {
+        const batch = ids.slice(i, i + 50);
+        await (supabase as any).from("subscription_orders").delete().in("id", batch);
+      }
+      setDeleteSelectedIds(new Set());
+      setBulkDeleteMode(false);
+      await fetchOrders();
+      toast({ title: `${count} order berhasil dihapus` });
+    } catch {
+      toast({ title: "Gagal menghapus", variant: "destructive" });
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const sendWhatsApp = async (phone: string, message: string) => {
@@ -498,8 +539,39 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               <SendHorizonal className="h-3.5 w-3.5" /> Kirim Massal ({confirmedCount})
             </Button>
           )}
+          <Button
+            size="sm"
+            variant={bulkDeleteMode ? "destructive" : "outline"}
+            onClick={() => { setBulkDeleteMode(!bulkDeleteMode); setDeleteSelectedIds(new Set()); }}
+            className="gap-1.5"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> {bulkDeleteMode ? "Batal Hapus" : "Hapus Massal"}
+          </Button>
         </div>
       </div>
+
+      {/* Bulk delete bar */}
+      {bulkDeleteMode && filteredOrders.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex-wrap">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={filteredOrders.length > 0 && filteredOrders.every(o => deleteSelectedIds.has(o.id))}
+              onChange={() => toggleDeleteSelectAll(filteredOrders)}
+              className="rounded border-input"
+            />
+            Pilih Semua ({filteredOrders.length})
+          </label>
+          {deleteSelectedIds.size > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-muted-foreground">{deleteSelectedIds.size} dipilih</span>
+              <Button size="sm" variant="destructive" onClick={bulkDeleteOrders} disabled={bulkDeleting} className="h-7 text-xs gap-1">
+                <Trash2 className="h-3 w-3" /> {bulkDeleting ? "Menghapus..." : `Hapus (${deleteSelectedIds.size})`}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Show filter for regular shows */}
       {mode === "regular" && modeShows.length > 1 && (
@@ -587,17 +659,24 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       <div className="space-y-3">
         {filteredOrders.map((order) => (
-          <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : "border-border"}`}>
+          <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : deleteSelectedIds.has(order.id) ? "border-destructive bg-destructive/5" : "border-border"}`}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3 flex-1">
-                {order.status === "pending" && (
+                {bulkDeleteMode ? (
+                  <input
+                    type="checkbox"
+                    checked={deleteSelectedIds.has(order.id)}
+                    onChange={() => toggleDeleteSelect(order.id)}
+                    className="mt-1 rounded border-input cursor-pointer"
+                  />
+                ) : order.status === "pending" ? (
                   <input
                     type="checkbox"
                     checked={selectedIds.has(order.id)}
                     onChange={() => toggleSelect(order.id)}
                     className="mt-1 rounded border-input cursor-pointer"
                   />
-                )}
+                ) : null}
                 <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   {order.short_id && (
