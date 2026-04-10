@@ -539,39 +539,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               <SendHorizonal className="h-3.5 w-3.5" /> Kirim Massal ({confirmedCount})
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={bulkDeleteMode ? "destructive" : "outline"}
-            onClick={() => { setBulkDeleteMode(!bulkDeleteMode); setDeleteSelectedIds(new Set()); }}
-            className="gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> {bulkDeleteMode ? "Batal Hapus" : "Hapus Massal"}
-          </Button>
         </div>
       </div>
-
-      {/* Bulk delete bar */}
-      {bulkDeleteMode && filteredOrders.length > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex-wrap">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
-            <input
-              type="checkbox"
-              checked={filteredOrders.length > 0 && filteredOrders.every(o => deleteSelectedIds.has(o.id))}
-              onChange={() => toggleDeleteSelectAll(filteredOrders)}
-              className="rounded border-input"
-            />
-            Pilih Semua ({filteredOrders.length})
-          </label>
-          {deleteSelectedIds.size > 0 && (
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-muted-foreground">{deleteSelectedIds.size} dipilih</span>
-              <Button size="sm" variant="destructive" onClick={bulkDeleteOrders} disabled={bulkDeleting} className="h-7 text-xs gap-1">
-                <Trash2 className="h-3 w-3" /> {bulkDeleting ? "Menghapus..." : `Hapus (${deleteSelectedIds.size})`}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Show filter for regular shows */}
       {mode === "regular" && modeShows.length > 1 && (
@@ -610,7 +579,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       <div className="flex flex-wrap gap-2">
         {(["pending", "confirmed", "rejected", "all"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
+          <button key={f} onClick={() => { setFilter(f); setDeleteSelectedIds(new Set()); }}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>
             {f === "pending" ? "Menunggu" : f === "confirmed" ? "Dikonfirmasi" : f === "rejected" ? "Ditolak" : "Semua"}
             {f !== "all" && ` (${showFiltered.filter((o) => o.status === f).length})`}
@@ -618,26 +587,40 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         ))}
       </div>
 
-      {/* Bulk action bar */}
-      {pendingInView.length > 0 && (
+      {/* Bulk action bar - always visible when there are orders */}
+      {filteredOrders.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 flex-wrap">
           <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
             <input
               type="checkbox"
-              checked={pendingInView.length > 0 && pendingInView.every((o) => selectedIds.has(o.id))}
-              onChange={toggleSelectAll}
+              checked={filteredOrders.length > 0 && filteredOrders.every(o => deleteSelectedIds.has(o.id))}
+              onChange={() => toggleDeleteSelectAll(filteredOrders)}
               className="rounded border-input"
             />
-            Pilih Semua Pending ({pendingInView.length})
+            Pilih Semua ({filteredOrders.length})
           </label>
-          {selectedPendingCount > 0 && (
+          {deleteSelectedIds.size > 0 && (
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-muted-foreground">{selectedPendingCount} dipilih</span>
-              <Button size="sm" onClick={() => bulkUpdateStatus("confirmed")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
-                <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi Semua"}
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => bulkUpdateStatus("rejected")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
-                <XCircle className="h-3 w-3" /> Tolak Semua
+              <span className="text-xs text-muted-foreground">{deleteSelectedIds.size} dipilih</span>
+              {/* Bulk confirm/reject for pending */}
+              {filter === "pending" && (
+                <>
+                  <Button size="sm" onClick={() => {
+                    setSelectedIds(new Set(deleteSelectedIds));
+                    bulkUpdateStatus("confirmed");
+                  }} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                    <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    setSelectedIds(new Set(deleteSelectedIds));
+                    bulkUpdateStatus("rejected");
+                  }} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                    <XCircle className="h-3 w-3" /> Tolak
+                  </Button>
+                </>
+              )}
+              <Button size="sm" variant="destructive" onClick={bulkDeleteOrders} disabled={bulkDeleting} className="h-7 text-xs gap-1">
+                <Trash2 className="h-3 w-3" /> {bulkDeleting ? "Menghapus..." : `Hapus (${deleteSelectedIds.size})`}
               </Button>
             </div>
           )}
@@ -662,21 +645,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : deleteSelectedIds.has(order.id) ? "border-destructive bg-destructive/5" : "border-border"}`}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3 flex-1">
-                {bulkDeleteMode ? (
-                  <input
-                    type="checkbox"
-                    checked={deleteSelectedIds.has(order.id)}
-                    onChange={() => toggleDeleteSelect(order.id)}
-                    className="mt-1 rounded border-input cursor-pointer"
-                  />
-                ) : order.status === "pending" ? (
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(order.id)}
-                    onChange={() => toggleSelect(order.id)}
-                    className="mt-1 rounded border-input cursor-pointer"
-                  />
-                ) : null}
+                <input
+                  type="checkbox"
+                  checked={deleteSelectedIds.has(order.id)}
+                  onChange={() => toggleDeleteSelect(order.id)}
+                  className="mt-1 rounded border-input cursor-pointer"
+                />
                 <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   {order.short_id && (
