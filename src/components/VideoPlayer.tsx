@@ -454,10 +454,13 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             setPlayerError("Stream error. Coba refresh halaman.");
             setIsLoading(false);
           }
-        } else if (data.details === "bufferStalledError") {
-          if (video.buffered.length > 0) {
+        } else if (data.details === "bufferStalledError" || data.details === "bufferNudgeOnStall") {
+          // Aggressive recovery: jump to near live edge or buffer end
+          if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 3) {
+            video.currentTime = hls.liveSyncPosition - 1;
+          } else if (video.buffered.length > 0) {
             const end = video.buffered.end(video.buffered.length - 1);
-            if (end - video.currentTime > 0.5) video.currentTime = end - 0.3;
+            if (end - video.currentTime > 0.3) video.currentTime = end - 0.2;
           }
           if (video.paused) video.play().catch(() => {});
         }
@@ -471,12 +474,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const liveCheckId = setInterval(() => {
         if (destroyed || video.paused || !hls.liveSyncPosition) return;
-        const behindLive = hls.liveSyncPosition - video.currentTime > 8;
+        const lag = hls.liveSyncPosition - video.currentTime;
+        const behindLive = lag > 6;
         if (isBehindLiveRef.current !== behindLive) {
           isBehindLiveRef.current = behindLive;
           setIsBehindLive(behindLive);
         }
-      }, 3000);
+        // Auto-recover: if drifted too far behind, jump to near live edge
+        if (lag > 15 && !video.paused) {
+          video.currentTime = hls.liveSyncPosition - 1;
+        }
+      }, 2000);
 
       const onVisible = () => {
         if (destroyed || document.hidden || !hlsRef.current) return;
@@ -490,8 +498,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const healthId = setInterval(() => {
         if (destroyed || document.hidden || video.paused || !hlsRef.current) return;
-        if (video.readyState < 3) hlsRef.current.startLoad();
-      }, 20000);
+        // If video stalled (readyState < HAVE_FUTURE_DATA), restart loading
+        if (video.readyState < 3) {
+          hlsRef.current.startLoad();
+          // If really stuck and live, jump to live edge
+          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
+            video.currentTime = hlsRef.current.liveSyncPosition - 1;
+          }
+        }
+      }, 10000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
