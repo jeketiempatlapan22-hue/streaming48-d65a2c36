@@ -298,12 +298,26 @@ function isM3u8Url(url: string, contentType?: string): boolean {
 }
 
 // --- IP-BOUND SIGNED URLS ---
-// Include IP hash in signature so URLs can't be shared across different IPs
+// Use subnet-level hash (/24 for IPv4, /48 for IPv6) so minor IP changes
+// from CDN routing, mobile networks, or load balancers don't break playback
+function normalizeIpToSubnet(ip: string): string {
+  if (!ip || ip === "unknown") return "unknown";
+  // IPv4: keep first 3 octets (e.g., 192.168.1.x → 192.168.1)
+  const v4Match = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+  if (v4Match) return v4Match[1];
+  // IPv6: keep first 3 groups
+  if (ip.includes(":")) {
+    const parts = ip.split(":");
+    return parts.slice(0, 3).join(":");
+  }
+  return ip;
+}
+
 function hashIp(ip: string): string {
-  // Simple fast hash for IP binding (not crypto, just uniqueness)
+  const subnet = normalizeIpToSubnet(ip);
   let h = 0;
-  for (let i = 0; i < ip.length; i++) {
-    h = ((h << 5) - h + ip.charCodeAt(i)) | 0;
+  for (let i = 0; i < subnet.length; i++) {
+    h = ((h << 5) - h + subnet.charCodeAt(i)) | 0;
   }
   return Math.abs(h).toString(36);
 }
