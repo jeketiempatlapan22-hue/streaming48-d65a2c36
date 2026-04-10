@@ -58,6 +58,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [sendingWaAction, setSendingWaAction] = useState<string | null>(null);
+  const [deleteSelectedIds, setDeleteSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const { toast } = useToast();
 
   const fetchOrders = async () => {
