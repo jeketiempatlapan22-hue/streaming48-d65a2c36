@@ -26,6 +26,20 @@ async function resetLegacyServiceWorkerCache() {
 
 void resetLegacyServiceWorkerCache();
 
+// PWA iframe/preview guard: unregister SW in preview/iframe to avoid stale content
+const isInIframe = (() => {
+  try { return window.self !== window.top; } catch { return true; }
+})();
+const isPreviewHost =
+  window.location.hostname.includes("id-preview--") ||
+  window.location.hostname.includes("lovableproject.com");
+
+if (isPreviewHost || isInIframe) {
+  navigator.serviceWorker?.getRegistrations().then((regs) => {
+    regs.forEach((r) => r.unregister());
+  });
+}
+
 // Start show reminder checker for PWA notifications
 import("./lib/notifications").then(({ startReminderChecker }) => {
   startReminderChecker();
