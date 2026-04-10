@@ -462,7 +462,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
   // Get available shows for this mode
   const modeShows = Object.entries(shows).filter(([, s]) =>
-    mode === "membership" ? s.is_subscription : !s.is_subscription
+    (mode === "membership" ? s.is_subscription : !s.is_subscription) && !s.is_replay
   );
 
   // Apply show filter
