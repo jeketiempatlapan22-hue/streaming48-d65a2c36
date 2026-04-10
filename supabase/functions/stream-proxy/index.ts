@@ -997,18 +997,41 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const actualUrl = base64UrlDecode(encoded);
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewritten = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl, ipH);
+      const rewrittenResult = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl, ipH);
 
-      if (!rewritten) {
-        return new Response("Failed to fetch sub-playlist", { status: 502, headers: corsHeaders });
+      if (rewrittenResult.inactive) {
+        return new Response(
+          "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-ENDLIST\n",
+          {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/vnd.apple.mpegurl",
+              "Cache-Control": "no-store, no-cache, must-revalidate",
+              "X-Stream-Status": "inactive",
+            },
+          }
+        );
       }
 
-      return new Response(rewritten, {
+      if (!rewrittenResult.content) {
+        return new Response("Failed to fetch sub-playlist", {
+          status: 502,
+          headers: {
+            ...corsHeaders,
+            "X-Upstream-Status": String(rewrittenResult.status || 0),
+          },
+        });
+      }
+
+      return new Response(rewrittenResult.content, {
         status: 200,
         headers: {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl",
           "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Access-Control-Expose-Headers": "Content-Type",
+          "X-Content-Type-Options": "nosniff",
         },
       });
     }
