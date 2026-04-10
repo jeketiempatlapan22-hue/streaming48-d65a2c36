@@ -539,39 +539,8 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               <SendHorizonal className="h-3.5 w-3.5" /> Kirim Massal ({confirmedCount})
             </Button>
           )}
-          <Button
-            size="sm"
-            variant={bulkDeleteMode ? "destructive" : "outline"}
-            onClick={() => { setBulkDeleteMode(!bulkDeleteMode); setDeleteSelectedIds(new Set()); }}
-            className="gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> {bulkDeleteMode ? "Batal Hapus" : "Hapus Massal"}
-          </Button>
         </div>
       </div>
-
-      {/* Bulk delete bar */}
-      {bulkDeleteMode && filteredOrders.length > 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex-wrap">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
-            <input
-              type="checkbox"
-              checked={filteredOrders.length > 0 && filteredOrders.every(o => deleteSelectedIds.has(o.id))}
-              onChange={() => toggleDeleteSelectAll(filteredOrders)}
-              className="rounded border-input"
-            />
-            Pilih Semua ({filteredOrders.length})
-          </label>
-          {deleteSelectedIds.size > 0 && (
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-muted-foreground">{deleteSelectedIds.size} dipilih</span>
-              <Button size="sm" variant="destructive" onClick={bulkDeleteOrders} disabled={bulkDeleting} className="h-7 text-xs gap-1">
-                <Trash2 className="h-3 w-3" /> {bulkDeleting ? "Menghapus..." : `Hapus (${deleteSelectedIds.size})`}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Show filter for regular shows */}
       {mode === "regular" && modeShows.length > 1 && (
