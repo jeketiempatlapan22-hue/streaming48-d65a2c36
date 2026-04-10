@@ -201,12 +201,12 @@ async function fetchProxyManifest(proxyHeaders: Record<string, string>): Promise
   }
 }
 
-async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+async function generateProxySegSignedUrl(rawUrl: string, functionUrl: string, _ipHash: string, externalShowId: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
   const eid = base64UrlEncode(externalShowId);
-  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${ipHash}:${eid}`);
-  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+  const sig = await hmacSign(`proxyseg:${encoded}:${exp}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyseg&u=${encoded}&exp=${exp}&sig=${sig}&eid=${eid}`;
 }
 
 async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
@@ -240,11 +240,11 @@ async function rewriteProxyM3u8(content: string, baseUrl: string, functionUrl: s
   return result.join("\n");
 }
 
-async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string, externalShowId: string): Promise<string> {
+async function generateProxyPlaylistSignedUrl(playlistId: string, functionUrl: string, _ipHash: string, externalShowId: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
   const eid = base64UrlEncode(externalShowId);
-  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${ipHash}:${eid}`);
-  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}&eid=${eid}`;
+  const sig = await hmacSign(`proxyplay:${playlistId}:${exp}:${eid}`);
+  return `${functionUrl}/stream-proxy?mode=proxyplay&pid=${playlistId}&exp=${exp}&sig=${sig}&eid=${eid}`;
 }
 
 // --- CRYPTO HELPERS ---
@@ -302,15 +302,17 @@ function isM3u8Url(url: string, contentType?: string): boolean {
 // from CDN routing, mobile networks, or load balancers don't break playback
 function normalizeIpToSubnet(ip: string): string {
   if (!ip || ip === "unknown") return "unknown";
+  // Strip IPv6-mapped IPv4 prefix (::ffff:1.2.3.4 → 1.2.3.4)
+  let cleaned = ip.replace(/^::ffff:/i, "");
   // IPv4: keep first 3 octets (e.g., 192.168.1.x → 192.168.1)
-  const v4Match = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+  const v4Match = cleaned.match(/^(\d+\.\d+\.\d+)\.\d+$/);
   if (v4Match) return v4Match[1];
   // IPv6: keep first 3 groups
-  if (ip.includes(":")) {
-    const parts = ip.split(":");
+  if (cleaned.includes(":")) {
+    const parts = cleaned.split(":");
     return parts.slice(0, 3).join(":");
   }
-  return ip;
+  return cleaned;
 }
 
 function hashIp(ip: string): string {
@@ -322,24 +324,41 @@ function hashIp(ip: string): string {
   return Math.abs(h).toString(36);
 }
 
-async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, ipHash: string): Promise<string> {
-  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
-  const sig = await hmacSign(`playlist:${playlistId}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+// Legacy full-IP hash for backward compatibility with existing signed URLs
+function hashIpLegacy(ip: string): string {
+  let h = 0;
+  const cleaned = ip.replace(/^::ffff:/i, "");
+  for (let i = 0; i < cleaned.length; i++) {
+    h = ((h << 5) - h + cleaned.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h).toString(36);
 }
 
-async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
+// Check if IP hash matches (new subnet-based OR legacy full-IP)
+function ipHashMatches(expectedHash: string, clientIp: string, currentHash: string): boolean {
+  if (expectedHash === currentHash) return true;
+  // Accept legacy full-IP hash for existing signed URLs
+  return expectedHash === hashIpLegacy(clientIp);
+}
+
+async function generatePlaylistSignedUrl(playlistId: string, functionUrl: string, _ipHash?: string): Promise<string> {
+  const exp = Math.floor(Date.now() / 1000) + PLAYLIST_TOKEN_TTL;
+  const sig = await hmacSign(`playlist:${playlistId}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=play&pid=${playlistId}&exp=${exp}&sig=${sig}`;
+}
+
+async function generateSubPlaylistSignedUrl(rawUrl: string, functionUrl: string, _ipHash?: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SUB_PLAYLIST_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`sub:${encoded}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+  const sig = await hmacSign(`sub:${encoded}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=sub&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
-async function generateSegSignedUrl(rawUrl: string, functionUrl: string, ipHash: string): Promise<string> {
+async function generateSegSignedUrl(rawUrl: string, functionUrl: string, _ipHash?: string): Promise<string> {
   const exp = Math.floor(Date.now() / 1000) + SEG_TOKEN_TTL;
   const encoded = base64UrlEncode(rawUrl);
-  const sig = await hmacSign(`seg:${encoded}:${exp}:${ipHash}`);
-  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}&h=${ipHash}`;
+  const sig = await hmacSign(`seg:${encoded}:${exp}`);
+  return `${functionUrl}/stream-proxy?mode=seg&u=${encoded}&exp=${exp}&sig=${sig}`;
 }
 
 async function generateYouTubeSignedUrl(playlistId: string, functionUrl: string): Promise<string> {
@@ -529,8 +548,10 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rawXff = req.headers.get("x-forwarded-for") || "";
+  const clientIp = rawXff.split(",")[0]?.trim()?.replace(/^::ffff:/i, "") || "unknown";
   const ipH = hashIp(clientIp);
+
 
   // Block known abusive IPs immediately
   if (isAbusiveIp(clientIp)) {
@@ -744,7 +765,7 @@ Deno.serve(async (req) => {
         return getRateLimitResponse(true);
       }
 
-      if (!pid || !exp || !sig || !h) {
+      if (!pid || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -752,13 +773,7 @@ Deno.serve(async (req) => {
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (h !== ipH) {
-        trackAbuse(clientIp);
-        return new Response("IP mismatch - URL tidak bisa digunakan dari perangkat lain", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`playlist:${pid}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`playlist:${pid}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -820,7 +835,7 @@ Deno.serve(async (req) => {
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h) {
+      if (!encoded || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -828,13 +843,7 @@ Deno.serve(async (req) => {
         return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (h !== ipH) {
-        trackAbuse(clientIp);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`seg:${encoded}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`seg:${encoded}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -972,7 +981,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h) {
+      if (!encoded || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -980,13 +989,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (h !== ipH) {
-        trackAbuse(clientIp);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`sub:${encoded}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`sub:${encoded}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -1022,7 +1025,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!pid || !exp || !sig || !h || !eid) {
+      if (!pid || !exp || !sig || !eid) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -1030,12 +1033,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      if (h !== ipH) {
-        trackAbuse(clientIp);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${h}:${eid}`, sig))) {
+      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${eid}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -1107,7 +1105,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h || !eid) {
+      if (!encoded || !exp || !sig || !eid) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -1115,12 +1113,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      if (h !== ipH) {
-        trackAbuse(clientIp);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${h}:${eid}`, sig))) {
+      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${eid}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
