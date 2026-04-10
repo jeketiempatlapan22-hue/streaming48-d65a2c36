@@ -390,7 +390,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
       return;
     }
     // Confirm via RPC to auto-create unique token
-    const { data: confirmData, error: confirmErr } = await supabase.rpc("confirm_regular_order" as any, { _order_id: insertData.id });
+    const manualShowInfo = shows[newOrder.show_id];
+    const manualConfirmFn = (mode === "membership" || manualShowInfo?.is_subscription) ? "confirm_membership_order" : "confirm_regular_order";
+    const { data: confirmData, error: confirmErr } = await supabase.rpc(manualConfirmFn as any, { _order_id: insertData.id });
     const result = confirmData as any;
     if (confirmErr || !result?.success) {
       toast({ title: "Order dibuat tapi gagal membuat token: " + (result?.error || confirmErr?.message), variant: "destructive" });
@@ -455,7 +457,10 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     for (const id of ids) {
       try {
         if (status === "confirmed") {
-          const { data, error } = await supabase.rpc("confirm_regular_order" as any, { _order_id: id });
+          const bulkOrder = orders.find((o) => o.id === id);
+          const bulkShowInfo = bulkOrder ? shows[bulkOrder.show_id] : null;
+          const bulkConfirmFn = (mode === "membership" || bulkShowInfo?.is_subscription) ? "confirm_membership_order" : "confirm_regular_order";
+          const { data, error } = await supabase.rpc(bulkConfirmFn as any, { _order_id: id });
           const result = data as any;
           if (error || !result?.success) { failCount++; continue; }
 
