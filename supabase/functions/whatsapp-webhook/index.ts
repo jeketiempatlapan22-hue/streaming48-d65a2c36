@@ -902,7 +902,8 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
 
 async function handleResendWa(supabase: any, shortId: string): Promise<string> {
   try {
-    const normalizedId = shortId.trim().toLowerCase();
+    const cleanId = shortId.trim().replace(/^#/, '');
+    const normalizedId = cleanId.toLowerCase();
     const siteUrl = 'https://realtime48stream.my.id';
     const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
     if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN tidak dikonfigurasi.';
@@ -910,13 +911,13 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
     // Try subscription_orders
     const { data: subOrder } = await supabase
       .from('subscription_orders')
-      .select('id, show_id, phone, email, status, short_id, user_id')
+      .select('id, show_id, phone, email, status, short_id, user_id, created_at')
       .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
       .maybeSingle();
 
     if (subOrder) {
       if (subOrder.status !== 'confirmed') {
-        return `⚠️ Order ${shortId} belum dikonfirmasi (status: ${subOrder.status}).`;
+        return `⚠️ Order ${cleanId} belum dikonfirmasi (status: ${subOrder.status}).`;
       }
 
       const { data: show } = await supabase
@@ -925,15 +926,36 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         .eq('id', subOrder.show_id)
         .maybeSingle();
 
-      const { data: token } = await supabase
-        .from('tokens')
-        .select('code, status, expires_at')
-        .eq('show_id', subOrder.show_id)
-        .eq('user_id', subOrder.user_id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Find token: try by user_id first, then by show_id + creation time (for guests)
+      let token = null;
+      if (subOrder.user_id) {
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('user_id', subOrder.user_id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
+      if (!token) {
+        const orderTime = new Date(subOrder.created_at);
+        const minTime = new Date(orderTime.getTime() - 5 * 60_000).toISOString();
+        const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
+        const { data: t } = await supabase
+          .from('tokens')
+          .select('code, status, expires_at')
+          .eq('show_id', subOrder.show_id)
+          .eq('status', 'active')
+          .gte('created_at', minTime)
+          .lte('created_at', maxTime)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        token = t;
+      }
 
       if (!subOrder.phone) {
         return `⚠️ Order ${shortId} tidak memiliki nomor telepon.`;
