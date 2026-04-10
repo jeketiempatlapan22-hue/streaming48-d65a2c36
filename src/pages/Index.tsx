@@ -26,6 +26,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
+import InstallBanner from "@/components/viewer/InstallBanner";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
 
@@ -1268,6 +1269,7 @@ const Index = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <InstallBanner />
     </div>
   );
 };
