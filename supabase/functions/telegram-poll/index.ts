@@ -2119,7 +2119,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
       }
 
       if (!subOrder.phone) {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\. Tidak bisa mengirim ulang\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(cleanId)}\` tidak memiliki nomor telepon\\. Tidak bisa mengirim ulang\\.`);
         return;
       }
 
@@ -2152,7 +2152,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
       await sendTelegramMessage(botToken, chatId,
         `✅ *Info berhasil dikirim ulang\\!*\n\n` +
-        `🆔 Order: \`${escapeMarkdown(subOrder.short_id || shortId)}\`\n` +
+        `🆔 Order: \`${escapeMarkdown(subOrder.short_id || cleanId)}\`\n` +
         `🎬 Show: ${escapeMarkdown(show?.title || '-')}\n` +
         `📱 Phone: ${escapeMarkdown(subOrder.phone)}\n` +
         `${token?.code ? `🎫 Token: \`${escapeMarkdown(token.code)}\`` : '⚠️ Token tidak ditemukan'}`
@@ -2169,12 +2169,12 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
     if (coinOrder) {
       if (coinOrder.status !== 'confirmed') {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(coinOrder.status)}\\)\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(cleanId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(coinOrder.status)}\\)\\.`);
         return;
       }
 
       if (!coinOrder.phone) {
-        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\.`);
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(cleanId)}\` tidak memiliki nomor telepon\\.`);
         return;
       }
 
@@ -2187,14 +2187,14 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
       await sendTelegramMessage(botToken, chatId,
         `✅ *Info koin dikirim ulang\\!*\n\n` +
-        `🆔 Order: \`${escapeMarkdown(coinOrder.short_id || shortId)}\`\n` +
+        `🆔 Order: \`${escapeMarkdown(coinOrder.short_id || cleanId)}\`\n` +
         `📱 Phone: ${escapeMarkdown(coinOrder.phone)}\n` +
         `🪙 ${coinOrder.coin_amount} koin`
       );
       return;
     }
 
-    await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak ditemukan\\.`);
+    await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(cleanId)}\` tidak ditemukan\\.`);
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error resend: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
