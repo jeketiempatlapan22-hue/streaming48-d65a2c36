@@ -312,6 +312,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
+  const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -345,6 +346,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (givetokenMatch) return await handleGiveTokenWa(supabase, givetokenMatch[1], givetokenMatch[2].trim(), givetokenMatch[3] ? parseInt(givetokenMatch[3], 10) : 1);
   if (bulktokenMatch) return await handleBulkTokenWa(supabase, bulktokenMatch[1].trim(), parseInt(bulktokenMatch[2], 10), bulktokenMatch[3] ? parseInt(bulktokenMatch[3], 10) : 1);
   if (setshortidMatch) return await handleSetShortIdWa(supabase, setshortidMatch[1], setshortidMatch[2]);
+  if (resendMatch) return await handleResendWa(supabase, resendMatch[1]);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -407,6 +409,7 @@ TOLAK_RESET <id> - Tolak reset password
 📨 *Messaging:*
 /msgshow <nama show> | <pesan> - Kirim WA ke semua pemesan show
 /msgmembers <pesan> - Kirim WA ke semua member
+/resend <order_id> - Kirim ulang token & info replay ke pembeli
 
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
@@ -895,6 +898,106 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
   }
 
   return [...phones].filter(Boolean);
+}
+
+async function handleResendWa(supabase: any, shortId: string): Promise<string> {
+  try {
+    const normalizedId = shortId.trim().toLowerCase();
+    const siteUrl = 'https://realtime48stream.my.id';
+    const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+    if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN tidak dikonfigurasi.';
+
+    // Try subscription_orders
+    const { data: subOrder } = await supabase
+      .from('subscription_orders')
+      .select('id, show_id, phone, email, status, short_id, user_id')
+      .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
+      .maybeSingle();
+
+    if (subOrder) {
+      if (subOrder.status !== 'confirmed') {
+        return `⚠️ Order ${shortId} belum dikonfirmasi (status: ${subOrder.status}).`;
+      }
+
+      const { data: show } = await supabase
+        .from('shows')
+        .select('title, access_password, is_subscription, is_replay, group_link, schedule_date, schedule_time')
+        .eq('id', subOrder.show_id)
+        .maybeSingle();
+
+      const { data: token } = await supabase
+        .from('tokens')
+        .select('code, status, expires_at')
+        .eq('show_id', subOrder.show_id)
+        .eq('user_id', subOrder.user_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!subOrder.phone) {
+        return `⚠️ Order ${shortId} tidak memiliki nomor telepon.`;
+      }
+
+      let waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
+
+      if (token?.code) {
+        waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
+      }
+
+      if (show?.access_password) {
+        waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
+      }
+
+      if (show?.schedule_date) {
+        waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
+      }
+
+      if (show?.group_link) {
+        waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+      }
+
+      waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+      if (show?.access_password) {
+        waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+      }
+
+      waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+
+      await sendFonnteMessage(FONNTE_TOKEN, subOrder.phone, waMsg);
+
+      return `✅ *Info berhasil dikirim ulang!*\n\n🆔 Order: ${subOrder.short_id || shortId}\n🎬 Show: ${show?.title || '-'}\n📱 Phone: ${subOrder.phone}\n${token?.code ? `🎫 Token: ${token.code}` : '⚠️ Token tidak ditemukan'}`;
+    }
+
+    // Try coin_orders
+    const { data: coinOrder } = await supabase
+      .from('coin_orders')
+      .select('id, user_id, coin_amount, phone, status, short_id')
+      .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
+      .maybeSingle();
+
+    if (coinOrder) {
+      if (coinOrder.status !== 'confirmed') {
+        return `⚠️ Order koin ${shortId} belum dikonfirmasi (status: ${coinOrder.status}).`;
+      }
+      if (!coinOrder.phone) {
+        return `⚠️ Order koin ${shortId} tidak memiliki nomor telepon.`;
+      }
+
+      const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', coinOrder.user_id).maybeSingle();
+      const balance = balData?.balance ?? 0;
+
+      const waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pembelian Koin*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${balance} koin*\n\n🛒 Koin dapat digunakan untuk membeli akses show.\n🌐 realtime48stream.my.id\n\n_Terima kasih!_ 🙏\n━━━━━━━━━━━━━━━━━━`;
+
+      await sendFonnteMessage(FONNTE_TOKEN, coinOrder.phone, waMsg);
+
+      return `✅ *Info koin dikirim ulang!*\n\n🆔 Order: ${coinOrder.short_id || shortId}\n📱 Phone: ${coinOrder.phone}\n🪙 ${coinOrder.coin_amount} koin`;
+    }
+
+    return `⚠️ Order "${shortId}" tidak ditemukan.`;
+  } catch (e) {
+    return `⚠️ Error resend: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
 }
 
 async function uploadQrToStorage(supabase: any, qrData: string, filename: string): Promise<string | null> {
