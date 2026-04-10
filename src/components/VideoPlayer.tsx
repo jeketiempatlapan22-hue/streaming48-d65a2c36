@@ -248,7 +248,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const usesNativeHeaderInjection = Boolean(customHeadersRef);
 
-      const hls = new Hls({
+      const hlsConfig: any = {
         enableWorker: true,
         lowLatencyMode: usesNativeHeaderInjection,
         backBufferLength: 15,
@@ -263,7 +263,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
-        progressive: false,
+        progressive: usesNativeHeaderInjection ? false : true,
         fragLoadingMaxRetry: 8,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
@@ -277,23 +277,24 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         maxStarvationDelay: 4,
         maxLoadingDelay: 4,
         highBufferWatchdogPeriod: 2,
-        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-          if (!usesNativeHeaderInjection) return;
+      };
 
+      // Only inject custom headers via XHR when proxy stream needs them
+      if (usesNativeHeaderInjection) {
+        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, url: string) => {
           if (xhr.readyState === 0) {
             xhr.open("GET", url, true);
           }
-
           xhr.withCredentials = false;
-
           const hdrs = customHeadersRef?.current;
           if (!hdrs) return;
-
           Object.entries(hdrs).forEach(([key, value]) => {
             xhr.setRequestHeader(key, value);
           });
-        },
-      });
+        };
+      }
+
+      const hls = new Hls(hlsConfig);
       hlsRef.current = hls;
       let networkRetryCount = 0;
       const MAX_NETWORK_RETRIES = 5;
