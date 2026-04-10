@@ -1,49 +1,40 @@
 import { useState, useEffect } from "react";
 import { Download, CheckCircle, Share, MoreVertical, Smartphone } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
-// Store globally so the prompt survives across navigations
-let globalDeferredPrompt: BeforeInstallPromptEvent | null = null;
+import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
 
 const InstallPage = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(globalDeferredPrompt);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt());
   const [installed, setInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
-    setIsStandalone(window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
+    setIsStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as any).standalone === true
+    );
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      globalDeferredPrompt = e as BeforeInstallPromptEvent;
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
+    const unsub = onInstallPromptChange((p) => {
+      setDeferredPrompt(p);
+      if (!p && installed === false) {
+        // appinstalled fired
+      }
+    });
+
     window.addEventListener("appinstalled", () => setInstalled(true));
-
-    // Re-fire the event in case it was captured before this component mounted
-    if (globalDeferredPrompt) {
-      setDeferredPrompt(globalDeferredPrompt);
-    }
-
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return unsub;
   }, []);
 
   const handleInstall = async () => {
-    const prompt = deferredPrompt || globalDeferredPrompt;
+    const prompt = deferredPrompt || getInstallPrompt();
     if (!prompt) return;
     await prompt.prompt();
     const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") setInstalled(true);
+    clearInstallPrompt();
     setDeferredPrompt(null);
-    globalDeferredPrompt = null;
   };
 
   if (isStandalone) {
@@ -71,21 +62,20 @@ const InstallPage = () => {
           <p className="mt-2 text-sm text-muted-foreground">Dapatkan pengalaman terbaik dengan menginstall aplikasi ke HP kamu</p>
         </div>
 
-        {/* Always show the install button prominently at the top */}
         {installed ? (
           <div className="flex flex-col items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-6 text-center mb-6">
             <CheckCircle className="h-10 w-10 text-primary" />
             <p className="font-semibold text-foreground">Berhasil Di-install!</p>
             <p className="text-sm text-muted-foreground">Buka RealTime48 dari home screen kamu</p>
           </div>
-        ) : (
+        ) : deferredPrompt ? (
           <button
             onClick={handleInstall}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.98] mb-6 animate-pulse hover:animate-none"
           >
             <Download className="h-5 w-5" /> Install Sekarang
           </button>
-        )}
+        ) : null}
 
         <div className="space-y-3 mb-8">
           {[
@@ -101,14 +91,15 @@ const InstallPage = () => {
           ))}
         </div>
 
-        {/* Manual instructions if native prompt is not available */}
-        {!installed && !deferredPrompt && (
+        {/* Manual instructions — always show when no native prompt and not yet installed */}
+        {!installed && (
           isIOS ? (
             <div className="rounded-xl border border-border bg-card p-6">
-              <p className="mb-4 text-center text-sm font-semibold text-foreground">Jika tombol di atas tidak muncul:</p>
+              <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di iPhone / iPad:</p>
               <div className="space-y-3">
                 {[
-                  <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span> <span>di Safari</span></>,
+                  <><span>Buka halaman ini di</span> <span className="font-medium text-foreground">Safari</span></>,
+                  <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span></>,
                   <>Pilih <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
                   <>Ketuk <span className="font-medium text-foreground">"Add"</span></>,
                 ].map((content, i) => (
@@ -121,10 +112,12 @@ const InstallPage = () => {
             </div>
           ) : (
             <div className="rounded-xl border border-border bg-card p-6">
-              <p className="mb-4 text-center text-sm font-semibold text-foreground">Jika tombol di atas tidak berfungsi:</p>
+              <p className="mb-4 text-center text-sm font-semibold text-foreground">
+                {deferredPrompt ? "Atau install secara manual:" : "Cara Install di Chrome / Browser:"}
+              </p>
               <div className="space-y-3">
                 {[
-                  <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span></>,
+                  <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span> <span>(⋮ di pojok kanan atas)</span></>,
                   <>Pilih <span className="font-medium text-foreground">"Install app"</span> atau <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
                   <>Ketuk <span className="font-medium text-foreground">"Install"</span></>,
                 ].map((content, i) => (

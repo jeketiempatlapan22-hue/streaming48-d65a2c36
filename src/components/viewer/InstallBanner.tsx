@@ -1,48 +1,38 @@
 import { useState, useEffect, forwardRef } from "react";
 import { X, Download, Share, Smartphone } from "lucide-react";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
 
 const PWA_BANNER_KEY = "pwa-banner-dismissed";
 
 const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
   const [show, setShow] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt());
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    // Don't show if already installed as standalone
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as any).standalone === true;
     if (isStandalone) return;
 
-    // Don't show if dismissed within last 3 days
     const dismissed = localStorage.getItem(PWA_BANNER_KEY);
     if (dismissed && Date.now() - parseInt(dismissed, 10) < 3 * 24 * 60 * 60 * 1000) return;
 
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    setIsIOS(ios);
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
 
-    // Listen for the native install prompt (Chrome/Edge/Samsung)
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShow(true);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
+    const unsub = onInstallPromptChange((p) => {
+      setDeferredPrompt(p);
+      if (p) setShow(true);
+    });
 
-    // Always show banner after 2 seconds for all platforms
-    // This ensures iOS users and browsers without beforeinstallprompt still see it
-    const timer = setTimeout(() => {
-      setShow(true);
-    }, 2000);
+    // Show banner after 2s regardless
+    const timer = setTimeout(() => setShow(true), 2000);
+
+    // If prompt already captured, show immediately
+    if (getInstallPrompt()) setShow(true);
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
+      unsub();
       clearTimeout(timer);
     };
   }, []);
@@ -53,10 +43,12 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
   };
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const prompt = deferredPrompt || getInstallPrompt();
+    if (!prompt) return;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") dismiss();
+    clearInstallPrompt();
     setDeferredPrompt(null);
   };
 
