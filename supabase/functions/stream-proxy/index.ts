@@ -842,7 +842,7 @@ Deno.serve(async (req) => {
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h) {
+      if (!encoded || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -850,13 +850,7 @@ Deno.serve(async (req) => {
         return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (!ipHashMatches(h, clientIp, ipH)) {
-        console.warn(`[stream-proxy] seg IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`seg:${encoded}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`seg:${encoded}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -994,7 +988,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h) {
+      if (!encoded || !exp || !sig) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -1002,13 +996,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      // Verify IP binding
-      if (!ipHashMatches(h, clientIp, ipH)) {
-        console.warn(`[stream-proxy] sub IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`sub:${encoded}:${exp}:${h}`, sig))) {
+      if (!(await hmacVerify(`sub:${encoded}:${exp}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -1044,7 +1032,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!pid || !exp || !sig || !h || !eid) {
+      if (!pid || !exp || !sig || !eid) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -1052,12 +1040,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Token expired", { status: 403, headers: corsHeaders });
       }
 
-      if (!ipHashMatches(h, clientIp, ipH)) {
-        console.warn(`[stream-proxy] proxyplay IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${h}:${eid}`, sig))) {
+      if (!(await hmacVerify(`proxyplay:${pid}:${exp}:${eid}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
@@ -1129,7 +1112,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return getRateLimitResponse(true);
       }
 
-      if (!encoded || !exp || !sig || !h || !eid) {
+      if (!encoded || !exp || !sig || !eid) {
         return new Response("Missing parameters", { status: 400, headers: corsHeaders });
       }
 
@@ -1137,12 +1120,7 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
         return new Response("Segment expired", { status: 403, headers: corsHeaders });
       }
 
-      if (!ipHashMatches(h, clientIp, ipH)) {
-        console.warn(`[stream-proxy] proxyseg IP mismatch: expected=${h} got=${ipH} ip=${clientIp}`);
-        return new Response("IP mismatch", { status: 403, headers: corsHeaders });
-      }
-
-      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${h}:${eid}`, sig))) {
+      if (!(await hmacVerify(`proxyseg:${encoded}:${exp}:${eid}`, sig))) {
         trackAbuse(clientIp);
         return new Response("Invalid signature", { status: 403, headers: corsHeaders });
       }
