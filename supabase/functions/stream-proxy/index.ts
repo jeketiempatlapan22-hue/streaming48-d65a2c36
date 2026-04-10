@@ -302,15 +302,17 @@ function isM3u8Url(url: string, contentType?: string): boolean {
 // from CDN routing, mobile networks, or load balancers don't break playback
 function normalizeIpToSubnet(ip: string): string {
   if (!ip || ip === "unknown") return "unknown";
+  // Strip IPv6-mapped IPv4 prefix (::ffff:1.2.3.4 → 1.2.3.4)
+  let cleaned = ip.replace(/^::ffff:/i, "");
   // IPv4: keep first 3 octets (e.g., 192.168.1.x → 192.168.1)
-  const v4Match = ip.match(/^(\d+\.\d+\.\d+)\.\d+$/);
+  const v4Match = cleaned.match(/^(\d+\.\d+\.\d+)\.\d+$/);
   if (v4Match) return v4Match[1];
   // IPv6: keep first 3 groups
-  if (ip.includes(":")) {
-    const parts = ip.split(":");
+  if (cleaned.includes(":")) {
+    const parts = cleaned.split(":");
     return parts.slice(0, 3).join(":");
   }
-  return ip;
+  return cleaned;
 }
 
 function hashIp(ip: string): string {
