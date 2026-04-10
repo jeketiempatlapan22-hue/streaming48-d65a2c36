@@ -245,6 +245,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
+  const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -326,6 +327,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleBulkTokenCommand(supabase, botToken, chatId, bulktokenMatch[1].trim(), parseInt(bulktokenMatch[2], 10), bulktokenMatch[3] ? parseInt(bulktokenMatch[3], 10) : 1);
   } else if (setshortidMatch) {
     await handleSetShortIdCommand(supabase, botToken, chatId, setshortidMatch[1], setshortidMatch[2]);
+  } else if (resendMatch) {
+    await handleResendCommand(supabase, botToken, chatId, resendMatch[1]);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
