@@ -2058,6 +2058,123 @@ async function handleSetShortIdCommand(supabase: any, botToken: string, chatId: 
   }
 }
 
+async function handleResendCommand(supabase: any, botToken: string, chatId: string, shortId: string) {
+  try {
+    const normalizedId = shortId.trim().toLowerCase();
+    const siteUrl = 'https://realtime48stream.my.id';
+
+    // Try subscription_orders first
+    const { data: subOrder } = await supabase
+      .from('subscription_orders')
+      .select('id, show_id, phone, email, status, short_id, user_id')
+      .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
+      .maybeSingle();
+
+    if (subOrder) {
+      if (subOrder.status !== 'confirmed') {
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(subOrder.status)}\\)\\.`);
+        return;
+      }
+
+      const { data: show } = await supabase
+        .from('shows')
+        .select('title, access_password, is_subscription, is_replay, group_link, schedule_date, schedule_time')
+        .eq('id', subOrder.show_id)
+        .maybeSingle();
+
+      // Find token for this order
+      const { data: token } = await supabase
+        .from('tokens')
+        .select('code, status, expires_at')
+        .eq('show_id', subOrder.show_id)
+        .eq('user_id', subOrder.user_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!subOrder.phone) {
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\. Tidak bisa mengirim ulang\\.`);
+        return;
+      }
+
+      let waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
+
+      if (token?.code) {
+        waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
+      }
+
+      if (show?.access_password) {
+        waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
+      }
+
+      if (show?.schedule_date) {
+        waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
+      }
+
+      if (show?.group_link) {
+        waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+      }
+
+      waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+      if (show?.access_password) {
+        waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+      }
+
+      waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+
+      await sendFonnteWhatsApp(subOrder.phone, waMsg);
+
+      await sendTelegramMessage(botToken, chatId,
+        `✅ *Info berhasil dikirim ulang\\!*\n\n` +
+        `🆔 Order: \`${escapeMarkdown(subOrder.short_id || shortId)}\`\n` +
+        `🎬 Show: ${escapeMarkdown(show?.title || '-')}\n` +
+        `📱 Phone: ${escapeMarkdown(subOrder.phone)}\n` +
+        `${token?.code ? `🎫 Token: \`${escapeMarkdown(token.code)}\`` : '⚠️ Token tidak ditemukan'}`
+      );
+      return;
+    }
+
+    // Try coin_orders
+    const { data: coinOrder } = await supabase
+      .from('coin_orders')
+      .select('id, user_id, coin_amount, phone, status, short_id')
+      .or(`short_id.ilike.${normalizedId},id.eq.${normalizedId}`)
+      .maybeSingle();
+
+    if (coinOrder) {
+      if (coinOrder.status !== 'confirmed') {
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` belum dikonfirmasi \\(status: ${escapeMarkdown(coinOrder.status)}\\)\\.`);
+        return;
+      }
+
+      if (!coinOrder.phone) {
+        await sendTelegramMessage(botToken, chatId, `⚠️ Order koin \`${escapeMarkdown(shortId)}\` tidak memiliki nomor telepon\\.`);
+        return;
+      }
+
+      const { data: balData } = await supabase.from('coin_balances').select('balance').eq('user_id', coinOrder.user_id).maybeSingle();
+      const balance = balData?.balance ?? 0;
+
+      const waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pembelian Koin*\n━━━━━━━━━━━━━━━━━━\n\n🪙 Jumlah: *${coinOrder.coin_amount} koin*\n💎 Saldo saat ini: *${balance} koin*\n\n🛒 Koin dapat digunakan untuk membeli akses show.\n🌐 realtime48stream.my.id\n\n_Terima kasih!_ 🙏\n━━━━━━━━━━━━━━━━━━`;
+
+      await sendFonnteWhatsApp(coinOrder.phone, waMsg);
+
+      await sendTelegramMessage(botToken, chatId,
+        `✅ *Info koin dikirim ulang\\!*\n\n` +
+        `🆔 Order: \`${escapeMarkdown(coinOrder.short_id || shortId)}\`\n` +
+        `📱 Phone: ${escapeMarkdown(coinOrder.phone)}\n` +
+        `🪙 ${coinOrder.coin_amount} koin`
+      );
+      return;
+    }
+
+    await sendTelegramMessage(botToken, chatId, `⚠️ Order \`${escapeMarkdown(shortId)}\` tidak ditemukan\\.`);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error resend: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function errorResponse(msg: string) {
   console.error('telegram-poll error:', msg);
   return jsonResponse({ error: msg }, 500);
