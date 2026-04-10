@@ -260,7 +260,7 @@ const LiveControl = () => {
         <Select value={activeShowId} onValueChange={saveActiveShow}>
           <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
           <SelectContent>
-            {shows.filter(s => s.is_active).map((show) => (
+            {shows.filter(s => s.is_active && !s.is_replay).map((show) => (
               <SelectItem key={show.id} value={show.id}>
                 {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
               </SelectItem>
