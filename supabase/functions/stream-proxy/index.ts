@@ -531,8 +531,17 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const mode = url.searchParams.get("mode");
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const rawXff = req.headers.get("x-forwarded-for") || "";
+  const clientIp = rawXff.split(",")[0]?.trim()?.replace(/^::ffff:/i, "") || "unknown";
   const ipH = hashIp(clientIp);
+
+  // Debug log for IP tracking (temporary)
+  if (mode === "play" || mode === "sub" || mode === "seg") {
+    const h = url.searchParams.get("h");
+    if (h && h !== ipH) {
+      console.warn(`[stream-proxy] IP debug: mode=${mode} xff="${rawXff}" clientIp="${clientIp}" expected_h=${h} actual_h=${ipH}`);
+    }
+  }
 
   // Block known abusive IPs immediately
   if (isAbusiveIp(clientIp)) {
