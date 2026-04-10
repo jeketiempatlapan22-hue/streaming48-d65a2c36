@@ -676,21 +676,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : deleteSelectedIds.has(order.id) ? "border-destructive bg-destructive/5" : "border-border"}`}>
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3 flex-1">
-                {bulkDeleteMode ? (
-                  <input
-                    type="checkbox"
-                    checked={deleteSelectedIds.has(order.id)}
-                    onChange={() => toggleDeleteSelect(order.id)}
-                    className="mt-1 rounded border-input cursor-pointer"
-                  />
-                ) : order.status === "pending" ? (
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(order.id)}
-                    onChange={() => toggleSelect(order.id)}
-                    className="mt-1 rounded border-input cursor-pointer"
-                  />
-                ) : null}
+                <input
+                  type="checkbox"
+                  checked={deleteSelectedIds.has(order.id)}
+                  onChange={() => toggleDeleteSelect(order.id)}
+                  className="mt-1 rounded border-input cursor-pointer"
+                />
                 <div className="flex-1 space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   {order.short_id && (
