@@ -618,26 +618,40 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         ))}
       </div>
 
-      {/* Bulk action bar */}
-      {pendingInView.length > 0 && (
+      {/* Bulk action bar - always visible when there are orders */}
+      {filteredOrders.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 flex-wrap">
           <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-foreground">
             <input
               type="checkbox"
-              checked={pendingInView.length > 0 && pendingInView.every((o) => selectedIds.has(o.id))}
-              onChange={toggleSelectAll}
+              checked={filteredOrders.length > 0 && filteredOrders.every(o => deleteSelectedIds.has(o.id))}
+              onChange={() => toggleDeleteSelectAll(filteredOrders)}
               className="rounded border-input"
             />
-            Pilih Semua Pending ({pendingInView.length})
+            Pilih Semua ({filteredOrders.length})
           </label>
-          {selectedPendingCount > 0 && (
+          {deleteSelectedIds.size > 0 && (
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-muted-foreground">{selectedPendingCount} dipilih</span>
-              <Button size="sm" onClick={() => bulkUpdateStatus("confirmed")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
-                <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi Semua"}
-              </Button>
-              <Button size="sm" variant="destructive" onClick={() => bulkUpdateStatus("rejected")} disabled={bulkProcessing} className="h-7 text-xs gap-1">
-                <XCircle className="h-3 w-3" /> Tolak Semua
+              <span className="text-xs text-muted-foreground">{deleteSelectedIds.size} dipilih</span>
+              {/* Bulk confirm/reject for pending */}
+              {filter === "pending" && (
+                <>
+                  <Button size="sm" onClick={() => {
+                    setSelectedIds(new Set(deleteSelectedIds));
+                    bulkUpdateStatus("confirmed");
+                  }} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                    <CheckCircle className="h-3 w-3" /> {bulkProcessing ? "Proses..." : "Konfirmasi"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    setSelectedIds(new Set(deleteSelectedIds));
+                    bulkUpdateStatus("rejected");
+                  }} disabled={bulkProcessing} className="h-7 text-xs gap-1">
+                    <XCircle className="h-3 w-3" /> Tolak
+                  </Button>
+                </>
+              )}
+              <Button size="sm" variant="destructive" onClick={bulkDeleteOrders} disabled={bulkDeleting} className="h-7 text-xs gap-1">
+                <Trash2 className="h-3 w-3" /> {bulkDeleting ? "Menghapus..." : `Hapus (${deleteSelectedIds.size})`}
               </Button>
             </div>
           )}
