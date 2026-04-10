@@ -552,13 +552,6 @@ Deno.serve(async (req) => {
   const clientIp = rawXff.split(",")[0]?.trim()?.replace(/^::ffff:/i, "") || "unknown";
   const ipH = hashIp(clientIp);
 
-  // Debug log for IP tracking
-  if (mode === "play" || mode === "sub" || mode === "seg") {
-    const h = url.searchParams.get("h");
-    if (h && !ipHashMatches(h, clientIp, ipH)) {
-      console.warn(`[stream-proxy] IP debug: mode=${mode} xff="${rawXff}" clientIp="${clientIp}" expected_h=${h} actual_h=${ipH} legacy_h=${hashIpLegacy(clientIp)}`);
-    }
-  }
 
   // Block known abusive IPs immediately
   if (isAbusiveIp(clientIp)) {
