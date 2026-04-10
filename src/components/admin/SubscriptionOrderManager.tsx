@@ -127,9 +127,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         return;
       }
 
-      // Find the order to get phone and show info
-      const order = orders.find((o) => o.id === id);
-      const showInfo = order ? shows[order.show_id] : null;
+      // Use already-fetched order and showInfo from above
       const siteUrl = "https://realtime48stream.my.id";
       const replayUrl = "https://replaytime.lovable.app/replay";
 
