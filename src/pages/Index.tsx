@@ -86,7 +86,7 @@ const Index = () => {
   const [coinPhone, setCoinPhone] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [loginPopup, setLoginPopup] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(getInstallPrompt());
   const [isStandalone, setIsStandalone] = useState(false);
 
   const fetchData = async () => {
@@ -160,13 +160,10 @@ const Index = () => {
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as any).standalone === true
     );
-    const installHandler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener("beforeinstallprompt", installHandler);
-    window.addEventListener("appinstalled", () => setIsStandalone(true));
-    // Coin user state is now managed by usePurchasedShows hook
+    const unsub = onInstallPromptChange((p) => {
+      setInstallPrompt(p);
+      if (!p) setIsStandalone(true);
+    });
 
     // Single combined realtime channel instead of 4 separate ones — reduces DB connections
     const realtimeCh = supabase.channel("idx-combined")
@@ -187,15 +184,17 @@ const Index = () => {
     return () => {
       supabase.removeChannel(realtimeCh);
       clearInterval(settingsPoll);
-      window.removeEventListener("beforeinstallprompt", installHandler);
+      unsub();
     };
   }, []);
 
   const handleInstallClick = async () => {
-    if (installPrompt) {
-      await installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
+    const prompt = installPrompt || getInstallPrompt();
+    if (prompt) {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setIsStandalone(true);
+      clearInstallPrompt();
       setInstallPrompt(null);
     } else {
       window.location.href = "/install";
