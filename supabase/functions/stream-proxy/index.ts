@@ -77,15 +77,15 @@ function trackAbuse(ip: string): boolean {
     return false;
   }
   entry.count++;
-  // Block after 30 failed attempts in 10 minutes (generous for shared networks)
-  return entry.count > 30;
+  // Block after 50 failed attempts in 10 minutes (generous for shared networks/NAT)
+  return entry.count > 50;
 }
 
 function isAbusiveIp(ip: string): boolean {
   const entry = abuseTracker.get(ip);
   if (!entry) return false;
   if (Date.now() > entry.resetAt) { abuseTracker.delete(ip); return false; }
-  return entry.count > 30;
+  return entry.count > 50;
 }
 
 function getRateLimitResponse(isStreamRequest = false): Response {
@@ -584,9 +584,9 @@ Deno.serve(async (req) => {
       const body = await req.json();
       const { token_code, playlist_id, fingerprint, admin_preview } = body;
 
-      // Strict rate limit: 20 generate requests per minute per IP
-      // Each viewer refreshes every ~12 min, so 20/min supports ~240 viewers per IP
-      if (!edgeRateLimit(`gen:${clientIp}`, 20, 60000)) {
+      // Strict rate limit: 30 generate requests per minute per IP
+      // Each viewer refreshes every ~12 min, so 30/min supports ~360 viewers per IP
+      if (!edgeRateLimit(`gen:${clientIp}`, 30, 60000)) {
         return getRateLimitResponse();
       }
 
