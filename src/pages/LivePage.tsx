@@ -425,13 +425,13 @@ const LivePage = () => {
           }
         }
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "playlists" }, () => {
-        // Realtime: admin added/removed/reordered/toggled a player
-        refreshPlaylists();
-      })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
           setPlayerAnimation((p.new.value || "none") as AnimationType);
+        }
+        // Also refresh playlists when any setting changes (admin may have toggled playlist)
+        if (p.new?.key === "playlist_version") {
+          refreshPlaylists();
         }
       });
 
@@ -450,6 +450,15 @@ const LivePage = () => {
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tokenData?.show_id, tokenData?.id, refreshPlaylists]);
+
+  // Periodic playlist polling (realtime on playlists table blocked by RLS for non-admin viewers)
+  useEffect(() => {
+    if (!tokenData?.id) return;
+    const interval = setInterval(() => {
+      refreshPlaylists();
+    }, 15_000); // every 15s
+    return () => clearInterval(interval);
+  }, [tokenData?.id, refreshPlaylists]);
 
   // Blocked status is handled via realtime subscription on tokens table (line ~393)
   // No polling needed — saves ~60,000 req/hr at 1000 users
