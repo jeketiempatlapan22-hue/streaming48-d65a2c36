@@ -249,13 +249,35 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     if (now - lastSentRef.current < 3000) return; // 3s cooldown
     lastSentRef.current = now;
     const trimmed = newMessage.trim().slice(0, 200); // 200 char limit
-    lastSentRef.current = now;
     setSending(true);
+    setNewMessage("");
+
+    // Optimistic update - show message immediately
+    const optimisticId = `opt-${now}`;
+    const optimisticMsg: ChatMessage = {
+      id: optimisticId,
+      username,
+      message: trimmed,
+      is_pinned: false,
+      is_admin: isAdmin,
+      is_deleted: false,
+      token_id: tokenId || null,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => {
+      const next = [...prev, optimisticMsg];
+      return next.length > 20 ? next.slice(-20) : next;
+    });
+
     const insertData: any = { username, message: trimmed, token_id: tokenId || null };
     if (currentUserId) insertData.user_id = currentUserId;
     if (isAdmin) insertData.is_admin = true;
-    await supabase.from("chat_messages").insert(insertData);
-    setNewMessage("");
+    const { error } = await supabase.from("chat_messages").insert(insertData);
+    if (error) {
+      console.error("[LiveChat] send error:", error);
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+    }
     setSending(false);
     inputRef.current?.focus();
   }, [newMessage, username, tokenId, isAdmin, currentUserId]);
