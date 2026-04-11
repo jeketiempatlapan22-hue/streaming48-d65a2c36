@@ -405,11 +405,25 @@ const LivePage = () => {
     return () => window.clearInterval(interval);
   }, [tokenCode, tokenData?.id, getFingerprint, blocked]);
 
-  // Refresh playlists (used on initial load and when admin goes live)
+  // Refresh playlists + externalShowId (used on polling and when admin goes live)
   const refreshPlaylists = useCallback(async () => {
     try {
-      const { data } = await (supabase.rpc as any)("get_safe_playlists");
-      syncPlaylists(data || []);
+      const [playlistRes, settingsRes] = await Promise.allSettled([
+        (supabase.rpc as any)("get_safe_playlists"),
+        supabase.from("site_settings").select("value").eq("key", "active_show_id").maybeSingle(),
+      ]);
+      if (playlistRes.status === "fulfilled") {
+        syncPlaylists(playlistRes.value.data || []);
+      }
+      // Also refresh externalShowId so proxy player can reconnect
+      if (settingsRes.status === "fulfilled" && settingsRes.value.data?.value) {
+        const showId = settingsRes.value.data.value;
+        const { data: showData } = await supabase.rpc("get_public_shows");
+        const activeShow = (showData as any[])?.find((s: any) => s.id === showId);
+        if (activeShow?.external_show_id) {
+          setExternalShowId(activeShow.external_show_id);
+        }
+      }
     } catch {}
   }, [syncPlaylists]);
 

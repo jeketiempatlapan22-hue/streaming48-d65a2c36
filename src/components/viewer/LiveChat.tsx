@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useTransition, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useTransition, memo, useReducer } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -127,15 +127,21 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const [, startTransition] = useTransition();
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const lastSentRef = useRef(0);
+  const [reconnectKey, forceReconnect] = useReducer((x: number) => x + 1, 0);
 
   const isChatMod = chatModUsernames.has(username);
 
-  // Get current user id + initial data
+  // Get current user id
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id || null);
     });
-    // Fetch chat_enabled + moderators + messages in parallel
+  }, []);
+
+  // Load initial data + realtime subscription (reconnects on error)
+  useEffect(() => {
+    let isMounted = true;
+
     const init = async () => {
       try {
         const [settingsRes, modsRes, msgsRes] = await Promise.allSettled([
@@ -143,6 +149,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           supabase.from("chat_moderators").select("username"),
           supabase.from("chat_messages").select("*").eq("is_deleted", false).order("created_at", { ascending: false }).limit(20),
         ]);
+        if (!isMounted) return;
         if (settingsRes.status === "fulfilled" && settingsRes.value.data) {
           setChatEnabled(settingsRes.value.data.value !== "false");
         }
@@ -162,10 +169,12 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     };
     init();
 
-    // Single consolidated realtime channel
+    // Realtime channel with auto-reconnect on error
+    const channelName = `chat-rt-${reconnectKey}`;
     const channel = supabase
-      .channel("chat-all-rt")
+      .channel(channelName)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+        if (!isMounted) return;
         startTransition(() => {
           const newMsg = payload.new as ChatMessage;
           if (newMsg.is_deleted) return;
@@ -177,12 +186,14 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
         });
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, (payload) => {
+        if (!isMounted) return;
         startTransition(() => {
           setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
           setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
         });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, (payload) => {
+        if (!isMounted) return;
         startTransition(() => {
           const updated = payload.new as ChatMessage;
           if (updated.is_deleted) {
@@ -202,25 +213,30 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
         });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_moderators" }, async () => {
+        if (!isMounted) return;
         const { data } = await supabase.from("chat_moderators").select("username");
-        if (data) setChatModUsernames(new Set(data.map((m: any) => m.username)));
+        if (data && isMounted) setChatModUsernames(new Set(data.map((m: any) => m.username)));
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
+        if (!isMounted) return;
         if (payload.new?.value !== undefined) {
           setChatEnabled(payload.new.value !== "false");
         }
       })
       .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.warn("[LiveChat] Realtime channel error, retrying...");
+        if (status === "CHANNEL_ERROR" && isMounted) {
+          console.warn("[LiveChat] Realtime error, will reconnect in 5s...");
           setTimeout(() => {
-            supabase.removeChannel(channel);
+            if (isMounted) forceReconnect();
           }, 5000);
         }
       });
 
-    return () => { supabase.removeChannel(channel); };
-  }, []);
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [reconnectKey]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
