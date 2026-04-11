@@ -131,6 +131,42 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
   const isChatMod = chatModUsernames.has(username);
 
+  const syncMessages = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("chat_messages")
+      .select("*")
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error || !data) return;
+
+    const sorted = (data as unknown as ChatMessage[]).reverse();
+    startTransition(() => {
+      setMessages(sorted);
+      setPinnedMessages(sorted.filter((m) => m.is_pinned));
+    });
+  }, [startTransition]);
+
+  const syncChatModerators = useCallback(async () => {
+    const { data } = await supabase.from("chat_moderators").select("username");
+    if (data) {
+      setChatModUsernames(new Set(data.map((m: any) => m.username)));
+    }
+  }, []);
+
+  const syncChatEnabled = useCallback(async () => {
+    const { data } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "chat_enabled")
+      .maybeSingle();
+
+    if (data) {
+      setChatEnabled(data.value !== "false");
+    }
+  }, []);
+
   // Get current user id
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -144,25 +180,11 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
     const init = async () => {
       try {
-        const [settingsRes, modsRes, msgsRes] = await Promise.allSettled([
-          supabase.from("site_settings").select("value").eq("key", "chat_enabled").single(),
-          supabase.from("chat_moderators").select("username"),
-          supabase.from("chat_messages").select("*").eq("is_deleted", false).order("created_at", { ascending: false }).limit(20),
+        await Promise.allSettled([
+          syncChatEnabled(),
+          syncChatModerators(),
+          syncMessages(),
         ]);
-        if (!isMounted) return;
-        if (settingsRes.status === "fulfilled" && settingsRes.value.data) {
-          setChatEnabled(settingsRes.value.data.value !== "false");
-        }
-        if (modsRes.status === "fulfilled" && modsRes.value.data) {
-          setChatModUsernames(new Set(modsRes.value.data.map((m: any) => m.username)));
-        }
-        if (msgsRes.status === "fulfilled" && msgsRes.value.data) {
-          const sorted = (msgsRes.value.data as unknown as ChatMessage[]).reverse();
-          startTransition(() => {
-            setMessages(sorted);
-            setPinnedMessages(sorted.filter((m) => m.is_pinned));
-          });
-        }
       } catch (e) {
         console.warn("[LiveChat] init error:", e);
       }
@@ -170,9 +192,8 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     init();
 
     // Realtime channel with auto-reconnect on error
-    const channelName = `chat-rt-${reconnectKey}`;
     const channel = supabase
-      .channel(channelName)
+      .channel(`chat-main-${reconnectKey}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
         if (!isMounted) return;
         startTransition(() => {
@@ -214,11 +235,6 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           }
         });
       })
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_moderators" }, async () => {
-        if (!isMounted) return;
-        const { data } = await supabase.from("chat_moderators").select("username");
-        if (data && isMounted) setChatModUsernames(new Set(data.map((m: any) => m.username)));
-      })
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
         if (!isMounted) return;
         if (payload.new?.value !== undefined) {
@@ -226,6 +242,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
         }
       })
       .subscribe((status) => {
+        if (status === "SUBSCRIBED" && isMounted) {
+          void syncMessages();
+        }
         if (status === "CHANNEL_ERROR" && isMounted) {
           console.warn("[LiveChat] Realtime error, will reconnect in 5s...");
           setTimeout(() => {
@@ -238,7 +257,39 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, [reconnectKey]);
+  }, [reconnectKey, syncChatEnabled, syncChatModerators, syncMessages, startTransition]);
+
+  useEffect(() => {
+    let intervalId: number;
+
+    const startPolling = () => {
+      if (intervalId) window.clearInterval(intervalId);
+      const intervalMs = document.visibilityState === "visible" ? 4000 : 12000;
+      intervalId = window.setInterval(() => {
+        void syncMessages();
+      }, intervalMs);
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", startPolling);
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", startPolling);
+    };
+  }, [syncMessages]);
+
+  useEffect(() => {
+    void syncChatModerators();
+    void syncChatEnabled();
+
+    const intervalId = window.setInterval(() => {
+      void syncChatModerators();
+      void syncChatEnabled();
+    }, 15000);
+
+    return () => window.clearInterval(intervalId);
+  }, [syncChatEnabled, syncChatModerators]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -279,21 +330,35 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       console.error("[LiveChat] send error:", error);
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+    } else {
+      await syncMessages();
     }
     setSending(false);
     inputRef.current?.focus();
-  }, [newMessage, username, tokenId, isAdmin, currentUserId]);
+  }, [newMessage, username, tokenId, isAdmin, currentUserId, syncMessages]);
 
   const handlePin = useCallback(async (id: string) => {
-    if (onPinMessage) { onPinMessage(id); return; }
+    if (onPinMessage) {
+      await Promise.resolve(onPinMessage(id));
+      await syncMessages();
+      return;
+    }
     const msg = messages.find((m) => m.id === id);
-    if (msg) await supabase.from("chat_messages").update({ is_pinned: !msg.is_pinned } as any).eq("id", id);
-  }, [messages, onPinMessage]);
+    if (msg) {
+      await supabase.from("chat_messages").update({ is_pinned: !msg.is_pinned } as any).eq("id", id);
+      await syncMessages();
+    }
+  }, [messages, onPinMessage, syncMessages]);
 
   const handleDelete = useCallback(async (id: string) => {
-    if (onDeleteMessage) { onDeleteMessage(id); return; }
+    if (onDeleteMessage) {
+      await Promise.resolve(onDeleteMessage(id));
+      await syncMessages();
+      return;
+    }
     await supabase.from("chat_messages").delete().eq("id", id);
-  }, [onDeleteMessage]);
+    await syncMessages();
+  }, [onDeleteMessage, syncMessages]);
 
   const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
 
