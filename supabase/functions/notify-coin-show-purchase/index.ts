@@ -122,13 +122,13 @@ Deno.serve(async (req) => {
       if (groupLink) {
         message += `\n🔗 *Link Grup:*\n${groupLink}\n`;
       }
-      message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+      message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
       if (replayPassword) {
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
     } else if (purchase_type === 'replay' || isReplay) {
       message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Replay Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n📦 Tipe: *Replay*\n💳 Metode: *Koin*\n`;
-      message += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app/replay\n`;
+      message += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
       if (replayPassword) {
         message += `🔐 *Sandi Replay:* ${replayPassword}\n`;
       }
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         message += `📅 *Jadwal:* ${scheduleDate} ${scheduleTime}\n`;
       }
       if (replayPassword) {
-        message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+        message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
     }

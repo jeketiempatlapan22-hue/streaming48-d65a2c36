@@ -520,7 +520,7 @@ const MembershipPage = () => {
                       <div className="rounded-lg border border-accent/30 bg-accent/5 p-3">
                         <p className="text-xs text-muted-foreground mb-1">🔑 Sandi Replay</p>
                         <p className="font-mono font-bold text-foreground">{membershipResult.access_password}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">🔗 Link Replay: replaytime.lovable.app/replay</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">🔗 Link Replay: replaytime.lovable.app</p>
                       </div>
                     )}
                   </div>

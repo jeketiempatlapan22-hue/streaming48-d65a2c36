@@ -201,13 +201,13 @@ Deno.serve(async (req) => {
             waMessage += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
           }
           // Include replay info for membership
-          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
           if (show.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
         } else if (show?.is_replay) {
           waMessage += `📦 Tipe: *Replay*\n`;
-          waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app/replay\n`;
+          waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
           if (show.access_password) {
             waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
           }
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
           if (show?.schedule_date) {
             waMessage += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
           }
-          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
           if (show?.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
