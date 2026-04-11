@@ -137,59 +137,67 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     });
     // Fetch chat_enabled + moderators + messages in parallel
     const init = async () => {
-      const [settingsRes, modsRes, msgsRes] = await Promise.allSettled([
-        supabase.from("site_settings").select("value").eq("key", "chat_enabled").single(),
-        supabase.from("chat_moderators").select("username"),
-        supabase.from("chat_messages").select("*").eq("is_deleted", false).order("created_at", { ascending: false }).limit(20),
-      ]);
-      if (settingsRes.status === "fulfilled" && settingsRes.value.data) {
-        setChatEnabled(settingsRes.value.data.value !== "false");
-      }
-      if (modsRes.status === "fulfilled" && modsRes.value.data) {
-        setChatModUsernames(new Set(modsRes.value.data.map((m: any) => m.username)));
-      }
-      if (msgsRes.status === "fulfilled" && msgsRes.value.data) {
-        const sorted = (msgsRes.value.data as unknown as ChatMessage[]).reverse();
-        startTransition(() => {
-          setMessages(sorted);
-          setPinnedMessages(sorted.filter((m) => m.is_pinned));
-        });
+      try {
+        const [settingsRes, modsRes, msgsRes] = await Promise.allSettled([
+          supabase.from("site_settings").select("value").eq("key", "chat_enabled").single(),
+          supabase.from("chat_moderators").select("username"),
+          supabase.from("chat_messages").select("*").eq("is_deleted", false).order("created_at", { ascending: false }).limit(20),
+        ]);
+        if (settingsRes.status === "fulfilled" && settingsRes.value.data) {
+          setChatEnabled(settingsRes.value.data.value !== "false");
+        }
+        if (modsRes.status === "fulfilled" && modsRes.value.data) {
+          setChatModUsernames(new Set(modsRes.value.data.map((m: any) => m.username)));
+        }
+        if (msgsRes.status === "fulfilled" && msgsRes.value.data) {
+          const sorted = (msgsRes.value.data as unknown as ChatMessage[]).reverse();
+          startTransition(() => {
+            setMessages(sorted);
+            setPinnedMessages(sorted.filter((m) => m.is_pinned));
+          });
+        }
+      } catch (e) {
+        console.warn("[LiveChat] init error:", e);
       }
     };
     init();
 
-    // Single consolidated realtime channel (saves 2 connections per user at scale)
+    // Single consolidated realtime channel
     const channel = supabase
       .channel("chat-all-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, (payload) => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
         startTransition(() => {
-          if (payload.eventType === "INSERT") {
-            const newMsg = payload.new as ChatMessage;
-            if (newMsg.is_deleted) return;
-            setMessages((prev) => {
-              const next = [...prev, newMsg];
-              return next.length > 20 ? next.slice(-20) : next;
+          const newMsg = payload.new as ChatMessage;
+          if (newMsg.is_deleted) return;
+          setMessages((prev) => {
+            const next = [...prev, newMsg];
+            return next.length > 20 ? next.slice(-20) : next;
+          });
+          if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
+        });
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, (payload) => {
+        startTransition(() => {
+          setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+          setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+        });
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, (payload) => {
+        startTransition(() => {
+          const updated = payload.new as ChatMessage;
+          if (updated.is_deleted) {
+            setMessages((prev) => prev.filter((m) => m.id !== updated.id));
+            setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
+            return;
+          }
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+          if (updated.is_pinned) {
+            setPinnedMessages((prev) => {
+              const exists = prev.find((m) => m.id === updated.id);
+              return exists ? prev.map((m) => (m.id === updated.id ? updated : m)) : [...prev, updated];
             });
-            if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
-          } else if (payload.eventType === "DELETE") {
-            setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-            setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
-          } else if (payload.eventType === "UPDATE") {
-            const updated = payload.new as ChatMessage;
-            if (updated.is_deleted) {
-              setMessages((prev) => prev.filter((m) => m.id !== updated.id));
-              setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
-              return;
-            }
-            setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-            if (updated.is_pinned) {
-              setPinnedMessages((prev) => {
-                const exists = prev.find((m) => m.id === updated.id);
-                return exists ? prev.map((m) => (m.id === updated.id ? updated : m)) : [...prev, updated];
-              });
-            } else {
-              setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
-            }
+          } else {
+            setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
           }
         });
       })
@@ -202,7 +210,14 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           setChatEnabled(payload.new.value !== "false");
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn("[LiveChat] Realtime channel error, retrying...");
+          setTimeout(() => {
+            supabase.removeChannel(channel);
+          }, 5000);
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
   }, []);
