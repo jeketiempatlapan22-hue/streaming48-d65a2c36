@@ -28,7 +28,8 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
       // Send initial heartbeat
       supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
 
-      // Poll viewer count every 15s + send heartbeat every 30s
+      // Poll viewer count every 30s + send heartbeat every 60s
+      // Optimized for 1000+ concurrent viewers (reduces DB load by 50%)
       let tick = 0;
       const interval = setInterval(async () => {
         tick++;
@@ -37,7 +38,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
         }
         const { data } = await supabase.rpc("get_viewer_count");
         if (typeof data === "number") setCount(data);
-      }, 15_000);
+      }, 30_000);
 
       supabase.rpc("get_viewer_count").then(({ data }) => {
         if (typeof data === "number") setCount(data);
@@ -55,7 +56,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
       if (typeof data === "number") setCount(data);
     };
     fetchCount();
-    const interval = setInterval(fetchCount, 15_000);
+    const interval = setInterval(fetchCount, 30_000);
     return () => clearInterval(interval);
   }, [isLive, readOnly]);
 

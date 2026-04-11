@@ -46,8 +46,8 @@ const ConnectionStatus = () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    // Periodic lightweight connectivity check (every 30s)
-    // Only activates status bar when there's an actual problem
+    // Periodic lightweight connectivity check (every 60s)
+    // Reduced from 30s to minimize request volume at 1000+ concurrent users
     pingInterval.current = setInterval(async () => {
       if (!navigator.onLine) {
         showDisconnected();
@@ -69,7 +69,7 @@ const ConnectionStatus = () => {
           // Still disconnected, stay in that state
         }
       }
-    }, 30000);
+    }, 60000);
 
     return () => {
       clearTimeout(hideTimeout.current);
