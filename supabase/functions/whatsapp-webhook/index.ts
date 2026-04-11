@@ -751,7 +751,7 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
           if (show?.access_password) {
             waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
           }
-          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
           if (show?.access_password) {
             waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
@@ -979,7 +979,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
       }
 
-      waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+      waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
       if (show?.access_password) {
         waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
       }
@@ -1654,7 +1654,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
 
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay`;
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
     if (show.access_password) {
       msg += `\n🔐 Sandi Replay: ${show.access_password}`;
     }
@@ -1728,7 +1728,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
 
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay`;
+    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
     if (show.access_password) {
       msg += `\n🔐 Sandi Replay: ${show.access_password}`;
     }
@@ -1799,7 +1799,7 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     msg += `📱 Max Device: *${maxDevices}*\n`;
     msg += `⏰ Kedaluwarsa: ${expDate}\n\n`;
 
-    msg += `🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app/replay\n`;
+    msg += `🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
     if (show.access_password) {
       msg += `🔐 Sandi Replay: ${show.access_password}\n`;
     }
