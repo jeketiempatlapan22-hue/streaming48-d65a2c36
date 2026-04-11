@@ -44,7 +44,11 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
 
   const handleInstall = async () => {
     const prompt = deferredPrompt || getInstallPrompt();
-    if (!prompt) return;
+    if (!prompt) {
+      // Fallback: navigate to install page for manual instructions
+      window.location.href = "/install";
+      return;
+    }
     await prompt.prompt();
     const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") dismiss();
@@ -78,21 +82,12 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
           </button>
         </div>
         <div className="mt-3 flex gap-2">
-          {deferredPrompt ? (
-            <button
-              onClick={handleInstall}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.98]"
-            >
-              <Download className="h-4 w-4" /> Install Sekarang
-            </button>
-          ) : (
-            <a
-              href="/install"
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90"
-            >
-              <Download className="h-4 w-4" /> Cara Install
-            </a>
-          )}
+          <button
+            onClick={handleInstall}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.98]"
+          >
+            <Download className="h-4 w-4" /> Install Sekarang
+          </button>
           <button onClick={dismiss} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground transition hover:bg-secondary/80">
             Nanti
           </button>
