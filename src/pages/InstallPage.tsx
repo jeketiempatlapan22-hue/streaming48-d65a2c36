@@ -29,7 +29,11 @@ const InstallPage = () => {
 
   const handleInstall = async () => {
     const prompt = deferredPrompt || getInstallPrompt();
-    if (!prompt) return;
+    if (!prompt) {
+      // No native prompt available — scroll to manual instructions
+      document.getElementById("manual-instructions")?.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
     await prompt.prompt();
     const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") setInstalled(true);
@@ -68,14 +72,14 @@ const InstallPage = () => {
             <p className="font-semibold text-foreground">Berhasil Di-install!</p>
             <p className="text-sm text-muted-foreground">Buka RealTime48 dari home screen kamu</p>
           </div>
-        ) : deferredPrompt ? (
+        ) : (
           <button
             onClick={handleInstall}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-4 text-base font-bold text-primary-foreground shadow-lg shadow-primary/25 transition hover:bg-primary/90 active:scale-[0.98] mb-6 animate-pulse hover:animate-none"
           >
             <Download className="h-5 w-5" /> Install Sekarang
           </button>
-        ) : null}
+        )}
 
         <div className="space-y-3 mb-8">
           {[
@@ -91,8 +95,9 @@ const InstallPage = () => {
           ))}
         </div>
 
-        {/* Manual instructions — always show when no native prompt and not yet installed */}
+        {/* Manual instructions — shown as fallback */}
         {!installed && (
+          <div id="manual-instructions">
           isIOS ? (
             <div className="rounded-xl border border-border bg-card p-6">
               <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di iPhone / iPad:</p>
@@ -129,6 +134,7 @@ const InstallPage = () => {
               </div>
             </div>
           )
+        </div>
         )}
 
         <div className="mt-6 flex items-center justify-center gap-2 text-center">
