@@ -250,16 +250,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const hlsConfig: any = {
         enableWorker: true,
-        lowLatencyMode: usesNativeHeaderInjection,
-        backBufferLength: 15,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        maxBufferHole: 0.5,
-        nudgeOffset: 0.1,
-        nudgeMaxRetry: 8,
-        liveSyncDurationCount: usesNativeHeaderInjection ? 2 : 3,
-        liveMaxLatencyDurationCount: usesNativeHeaderInjection ? 4 : 6,
-        liveBackBufferLength: 15,
+        lowLatencyMode: true,
+        backBufferLength: 10,
+        maxBufferLength: 12,
+        maxMaxBufferLength: 20,
+        maxBufferHole: 0.3,
+        nudgeOffset: 0.05,
+        nudgeMaxRetry: 10,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 3,
+        liveBackBufferLength: 10,
+        liveDurationInfinity: true,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
@@ -267,16 +268,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         fragLoadingMaxRetry: 8,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 500,
-        manifestLoadingTimeOut: 10000,
-        fragLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 10000,
+        fragLoadingRetryDelay: 300,
+        manifestLoadingTimeOut: 8000,
+        fragLoadingTimeOut: 10000,
+        levelLoadingTimeOut: 8000,
         testBandwidth: true,
-        abrEwmaDefaultEstimate: 1500000,
+        abrEwmaDefaultEstimate: 2000000,
         abrEwmaDefaultEstimateMax: 5000000,
-        maxStarvationDelay: 4,
-        maxLoadingDelay: 4,
-        highBufferWatchdogPeriod: 2,
+        maxStarvationDelay: 2,
+        maxLoadingDelay: 2,
+        highBufferWatchdogPeriod: 1,
       };
 
       // Only inject custom headers via XHR when proxy stream needs them
@@ -476,16 +477,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const liveCheckId = setInterval(() => {
         if (destroyed || video.paused || !hls.liveSyncPosition) return;
         const lag = hls.liveSyncPosition - video.currentTime;
-        const behindLive = lag > 6;
+        const behindLive = lag > 4;
         if (isBehindLiveRef.current !== behindLive) {
           isBehindLiveRef.current = behindLive;
           setIsBehindLive(behindLive);
         }
         // Auto-recover: if drifted too far behind, jump to near live edge
-        if (lag > 15 && !video.paused) {
-          video.currentTime = hls.liveSyncPosition - 1;
+        if (lag > 8 && !video.paused) {
+          video.currentTime = hls.liveSyncPosition - 0.5;
         }
-      }, 2000);
+      }, 1500);
 
       const onVisible = () => {
         if (destroyed || document.hidden || !hlsRef.current) return;
@@ -503,11 +504,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if (video.readyState < 3) {
           hlsRef.current.startLoad();
           // If really stuck and live, jump to live edge
-          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
-            video.currentTime = hlsRef.current.liveSyncPosition - 1;
+          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 3) {
+            video.currentTime = hlsRef.current.liveSyncPosition - 0.5;
           }
         }
-      }, 10000);
+      }, 5000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
