@@ -130,60 +130,37 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
   const isChatMod = chatModUsernames.has(username);
 
-  // Get current user id + chat_enabled setting
+  // Get current user id + initial data
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id || null);
     });
-    // Fetch chat_enabled setting
-    const fetchChatEnabled = async () => {
-      const { data } = await supabase.from("site_settings").select("value").eq("key", "chat_enabled").single();
-      if (data) setChatEnabled(data.value !== "false");
-    };
-    fetchChatEnabled();
-    // Listen for realtime changes to chat_enabled
-    const settingsCh = supabase.channel("chat-enabled-rt").on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
-      if (payload.new?.value !== undefined) {
-        setChatEnabled(payload.new.value !== "false");
+    // Fetch chat_enabled + moderators + messages in parallel
+    const init = async () => {
+      const [settingsRes, modsRes, msgsRes] = await Promise.allSettled([
+        supabase.from("site_settings").select("value").eq("key", "chat_enabled").single(),
+        supabase.from("chat_moderators").select("username"),
+        supabase.from("chat_messages").select("*").eq("is_deleted", false).order("created_at", { ascending: false }).limit(20),
+      ]);
+      if (settingsRes.status === "fulfilled" && settingsRes.value.data) {
+        setChatEnabled(settingsRes.value.data.value !== "false");
       }
-    }).subscribe();
-    return () => { supabase.removeChannel(settingsCh); };
-  }, []);
-
-  // Load chat moderators
-  useEffect(() => {
-    const fetchMods = async () => {
-      const { data } = await supabase.from("chat_moderators").select("username");
-      if (data) setChatModUsernames(new Set(data.map((m: any) => m.username)));
-    };
-    fetchMods();
-    const channel = supabase.channel("chat-mods-realtime").on("postgres_changes", { event: "*", schema: "public", table: "chat_moderators" }, () => fetchMods()).subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  // Viewer count is already polled by LiveViewerCount component — no duplicate polling needed
-
-  // Load messages + realtime
-  useEffect(() => {
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      if (data) {
-        const sorted = (data as unknown as ChatMessage[]).reverse();
+      if (modsRes.status === "fulfilled" && modsRes.value.data) {
+        setChatModUsernames(new Set(modsRes.value.data.map((m: any) => m.username)));
+      }
+      if (msgsRes.status === "fulfilled" && msgsRes.value.data) {
+        const sorted = (msgsRes.value.data as unknown as ChatMessage[]).reverse();
         startTransition(() => {
           setMessages(sorted);
           setPinnedMessages(sorted.filter((m) => m.is_pinned));
         });
       }
     };
-    fetchMessages();
+    init();
 
+    // Single consolidated realtime channel (saves 2 connections per user at scale)
     const channel = supabase
-      .channel("chat-realtime")
+      .channel("chat-all-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages" }, (payload) => {
         startTransition(() => {
           if (payload.eventType === "INSERT") {
@@ -191,7 +168,6 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
             if (newMsg.is_deleted) return;
             setMessages((prev) => {
               const next = [...prev, newMsg];
-              // Keep only latest 20 messages
               return next.length > 20 ? next.slice(-20) : next;
             });
             if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
@@ -216,6 +192,15 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
             }
           }
         });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_moderators" }, async () => {
+        const { data } = await supabase.from("chat_moderators").select("username");
+        if (data) setChatModUsernames(new Set(data.map((m: any) => m.username)));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
+        if (payload.new?.value !== undefined) {
+          setChatEnabled(payload.new.value !== "false");
+        }
       })
       .subscribe();
 
