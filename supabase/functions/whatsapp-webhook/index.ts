@@ -729,12 +729,13 @@ async function processCoinOrder(supabase: any, order: any, action: 'approve' | '
 async function processSubOrder(supabase: any, order: any, action: 'approve' | 'reject'): Promise<string> {
   try {
     const sid = order.short_id || order.id.substring(0, 6);
-    const { data: show } = await supabase.from('shows').select('title, group_link, is_subscription, access_password').eq('id', order.show_id).single();
+    const { data: show } = await supabase.from('shows').select('title, group_link, is_subscription, is_replay, access_password, membership_duration_days, schedule_date, schedule_time').eq('id', order.show_id).single();
     const showTitle = show?.title || 'Unknown Show';
 
     if (action === 'approve') {
-      // Use confirm_regular_order RPC which handles both membership and regular shows
-      const { data: rpcResult, error: rpcError } = await supabase.rpc('confirm_regular_order', { _order_id: order.id });
+      // Use correct RPC based on show type
+      const rpcName = show?.is_subscription ? 'confirm_membership_order' : 'confirm_regular_order';
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, { _order_id: order.id });
       const result = typeof rpcResult === 'string' ? (() => { try { return JSON.parse(rpcResult); } catch { return null; } })() : rpcResult;
 
       if (rpcError || !result?.success) {
@@ -745,22 +746,37 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
       const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
       if (FONNTE_TOKEN && order.phone) {
         const siteUrl = 'https://realtime48stream.my.id';
-        if (result.type === 'regular' && result.token_code) {
+
+        if (show?.is_subscription) {
+          // Membership confirmation with token/link/replay info
+          let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Membership Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n⏰ Durasi: *${result.duration_days || show?.membership_duration_days || 30} hari*\n`;
+          if (result.token_code) {
+            waMsg += `\n🎫 *Token Membership:* ${result.token_code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${result.token_code}\n`;
+          }
+          if (show?.group_link) {
+            waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+          }
+          waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          if (show?.access_password) {
+            waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+          }
+          waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah berlangganan!_ 🎉`;
+          await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
+        } else if (result.type === 'regular' && result.token_code) {
+          // Regular show confirmation
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
           let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pesanan Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n\n🎫 *Token Akses:* ${result.token_code}\n📺 *Link Nonton:*\n${liveLink}\n`;
           if (show?.access_password) {
             waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
+          }
+          if (show?.schedule_date) {
+            waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
           }
           waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
           if (show?.access_password) {
             waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
           waMsg += `\n⚠️ _Token hanya berlaku untuk 1 perangkat._\n_Jangan bagikan link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
-          await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
-        } else if (result.type === 'subscription') {
-          let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Membership Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n`;
-          if (show?.group_link) waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
-          waMsg += `\n_Terima kasih telah berlangganan!_ 🎉\n━━━━━━━━━━━━━━━━━━`;
           await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
         }
       }
