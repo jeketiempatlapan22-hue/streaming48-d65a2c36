@@ -179,7 +179,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           const newMsg = payload.new as ChatMessage;
           if (newMsg.is_deleted) return;
           setMessages((prev) => {
-            const next = [...prev, newMsg];
+            // Remove any optimistic message with matching content
+            const filtered = prev.filter((m) => !(m.id.startsWith("opt-") && m.message === newMsg.message && m.username === newMsg.username));
+            const next = [...filtered, newMsg];
             return next.length > 20 ? next.slice(-20) : next;
           });
           if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
