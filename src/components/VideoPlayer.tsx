@@ -37,6 +37,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [playerError, setPlayerError] = useState<string | null>(null);
   const [qualityChanging, setQualityChanging] = useState<string | null>(null);
   const [streamInactive, setStreamInactive] = useState(false);
+
+  // DVR seekbar state
+  const [watchElapsed, setWatchElapsed] = useState(0); // seconds since player started
+  const [seekableStart, setSeekableStart] = useState(0);
+  const [seekableEnd, setSeekableEnd] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [liveEdge, setLiveEdge] = useState(0);
+  const watchStartRef = useRef<number>(0);
   const qualityChangeTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const inactiveRetryRef = useRef<ReturnType<typeof setTimeout>>();
   const fragLoadedRef = useRef(false);
