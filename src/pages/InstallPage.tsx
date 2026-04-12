@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { Download, CheckCircle, Share, MoreVertical, Smartphone } from "lucide-react";
 import SharedNavbar from "@/components/SharedNavbar";
-import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
+import {
+  getInstallPrompt,
+  clearInstallPrompt,
+  onInstallPromptChange,
+  waitForInstallPrompt,
+  isAppInstalled,
+  type BeforeInstallPromptEvent,
+} from "@/lib/installPrompt";
 
 const InstallPage = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt());
@@ -11,34 +18,47 @@ const InstallPage = () => {
 
   useEffect(() => {
     setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent));
-    setIsStandalone(
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true
-    );
+    setIsStandalone(isAppInstalled());
 
     const unsub = onInstallPromptChange((p) => {
       setDeferredPrompt(p);
     });
 
-    window.addEventListener("appinstalled", () => setInstalled(true));
-    return unsub;
+    const handleInstalled = () => {
+      setInstalled(true);
+      setIsStandalone(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener("appinstalled", handleInstalled);
+
+    return () => {
+      unsub();
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
   }, []);
 
   const handleInstall = async () => {
-    const prompt = deferredPrompt || getInstallPrompt();
+    const prompt = deferredPrompt || getInstallPrompt() || await waitForInstallPrompt();
+
     if (!prompt) {
       document.getElementById("manual-instructions")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
+
     try {
       await prompt.prompt();
       const { outcome } = await prompt.userChoice;
-      if (outcome === "accepted") setInstalled(true);
-    } catch (err) {
-      console.warn("Install prompt failed:", err);
+      if (outcome === "accepted") {
+        setInstalled(true);
+        setIsStandalone(true);
+      }
+    } catch {
+      document.getElementById("manual-instructions")?.scrollIntoView({ behavior: "smooth" });
+    } finally {
+      clearInstallPrompt();
+      setDeferredPrompt(null);
     }
-    clearInstallPrompt();
-    setDeferredPrompt(null);
   };
 
   if (isStandalone) {

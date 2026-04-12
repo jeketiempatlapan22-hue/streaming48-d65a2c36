@@ -3,7 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import { motion, AnimatePresence } from "framer-motion";
 import { cachedQuery, invalidateCache, preloadLandingData, fetchCachedEndpoint } from "@/lib/queryCache";
-import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange } from "@/lib/installPrompt";
+import {
+  getInstallPrompt,
+  clearInstallPrompt,
+  onInstallPromptChange,
+  waitForInstallPrompt,
+  isAppInstalled,
+} from "@/lib/installPrompt";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
@@ -156,15 +162,15 @@ const Index = () => {
   useEffect(() => {
     fetchData();
 
-    // PWA install prompt detection
-    setIsStandalone(
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true
-    );
+    setIsStandalone(isAppInstalled());
     const unsub = onInstallPromptChange((p) => {
       setInstallPrompt(p);
-      if (!p) setIsStandalone(true);
     });
+
+    const handleInstalled = () => {
+      setIsStandalone(true);
+      setInstallPrompt(null);
+    };
 
     // Single combined realtime channel instead of 4 separate ones — reduces DB connections
     const realtimeCh = supabase.channel("idx-combined")
@@ -182,23 +188,30 @@ const Index = () => {
       }).catch(() => {});
     }, 60_000);
 
+    window.addEventListener("appinstalled", handleInstalled);
+
     return () => {
       supabase.removeChannel(realtimeCh);
       clearInterval(settingsPoll);
       unsub();
+      window.removeEventListener("appinstalled", handleInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    const prompt = installPrompt || getInstallPrompt();
-    if (prompt) {
+    const prompt = installPrompt || getInstallPrompt() || await waitForInstallPrompt();
+    if (!prompt) {
+      window.location.href = "/install";
+      return;
+    }
+
+    try {
       await prompt.prompt();
       const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setIsStandalone(true);
+    } finally {
       clearInstallPrompt();
       setInstallPrompt(null);
-    } else {
-      window.location.href = "/install";
     }
   };
 

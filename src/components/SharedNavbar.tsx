@@ -10,7 +10,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
+import {
+  getInstallPrompt,
+  clearInstallPrompt,
+  onInstallPromptChange,
+  waitForInstallPrompt,
+  isAppInstalled,
+  type BeforeInstallPromptEvent,
+} from "@/lib/installPrompt";
 
 interface SharedNavbarProps {
   showCoinBadge?: boolean;
@@ -26,15 +33,16 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
   const [loginPopup, setLoginPopup] = useState(false);
 
   useEffect(() => {
-    setIsStandalone(
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true
-    );
+    setIsStandalone(isAppInstalled());
 
     const unsub = onInstallPromptChange((p) => {
       setInstallPrompt(p);
-      if (!p) setIsStandalone(true);
     });
+
+    const handleInstalled = () => {
+      setIsStandalone(true);
+      setInstallPrompt(null);
+    };
 
     // Delay auth check — use cached session to avoid extra DB hit
     const timer = setTimeout(async () => {
@@ -55,22 +63,29 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
       } catch {}
     }, 500);
 
+    window.addEventListener("appinstalled", handleInstalled);
+
     return () => {
       unsub();
       clearTimeout(timer);
+      window.removeEventListener("appinstalled", handleInstalled);
     };
   }, []);
 
   const handleInstallClick = async () => {
-    const prompt = installPrompt || getInstallPrompt();
-    if (prompt) {
+    const prompt = installPrompt || getInstallPrompt() || await waitForInstallPrompt();
+    if (!prompt) {
+      window.location.href = "/install";
+      return;
+    }
+
+    try {
       await prompt.prompt();
       const { outcome } = await prompt.userChoice;
       if (outcome === "accepted") setIsStandalone(true);
+    } finally {
       clearInstallPrompt();
       setInstallPrompt(null);
-    } else {
-      window.location.href = "/install";
     }
   };
 
