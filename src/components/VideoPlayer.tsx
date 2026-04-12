@@ -1115,7 +1115,49 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           LIVE
         </button>
 
-        <div className="flex-1" />
+        {/* DVR Seekbar — HLS only */}
+        {playlistType === "m3u8" && seekableEnd > seekableStart && (
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {/* Elapsed watch time */}
+            <span className="text-[10px] text-white/70 font-mono whitespace-nowrap tabular-nums">
+              {formatTime(watchElapsed)}
+            </span>
+
+            {/* Seekbar slider */}
+            <div className="flex-1 relative group">
+              <input
+                type="range"
+                min={seekableStart}
+                max={seekableEnd}
+                step={0.1}
+                value={currentTime}
+                onChange={(e) => {
+                  const t = parseFloat(e.target.value);
+                  const video = videoRef.current;
+                  if (video) {
+                    video.currentTime = t;
+                    setCurrentTime(t);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full h-1 rounded-full appearance-none cursor-pointer bg-white/20
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
+                  [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:border-0"
+                style={{
+                  background: `linear-gradient(to right, hsl(var(--primary)) ${((currentTime - seekableStart) / (seekableEnd - seekableStart)) * 100}%, rgba(255,255,255,0.2) ${((currentTime - seekableStart) / (seekableEnd - seekableStart)) * 100}%)`
+                }}
+              />
+            </div>
+
+            {/* Live offset */}
+            <span className={`text-[10px] font-mono whitespace-nowrap tabular-nums ${liveEdge - currentTime > 4 ? "text-red-400" : "text-white/70"}`}>
+              {liveEdge - currentTime > 1.5 ? `-${Math.round(liveEdge - currentTime)}s` : "LIVE"}
+            </span>
+          </div>
+        )}
+
+        {playlistType !== "m3u8" && <div className="flex-1" />}
+        {playlistType === "m3u8" && seekableEnd <= seekableStart && <div className="flex-1" />}
 
         {/* Quality selector — only for HLS */}
         {qualities.length > 0 && (
