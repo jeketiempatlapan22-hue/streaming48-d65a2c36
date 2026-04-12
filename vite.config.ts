@@ -17,9 +17,11 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png", "logo.png", "robots.txt"],
+      devOptions: {
+        enabled: false,
+      },
+      includeAssets: ["favicon.png", "logo.png", "robots.txt", "pwa-192x192.png", "pwa-512x512.png", "pwa-maskable-512x512.png"],
       workbox: {
-        // Skip waiting so the new SW activates immediately
         skipWaiting: true,
         clientsClaim: true,
         navigateFallbackDenylist: [
@@ -31,16 +33,13 @@ export default defineConfig(({ mode }) => ({
         ],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        // Clean old caches on update
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            // NEVER cache Supabase auth, realtime, functions
             urlPattern: /^https:\/\/.*\.supabase\.co\/(auth|realtime|functions|rest\/v1\/rpc)\/.*/i,
             handler: "NetworkOnly",
           },
           {
-            // Supabase REST API - network first with short cache
             urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/.*/i,
             handler: "NetworkFirst",
             options: {
@@ -50,7 +49,6 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            // Images - cache first
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
             handler: "CacheFirst",
             options: {
@@ -59,7 +57,6 @@ export default defineConfig(({ mode }) => ({
             },
           },
           {
-            // Supabase storage files - stale while revalidate
             urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/.*/i,
             handler: "StaleWhileRevalidate",
             options: {
@@ -80,9 +77,9 @@ export default defineConfig(({ mode }) => ({
         start_url: "/",
         scope: "/",
         icons: [
-          { src: "/logo.png", sizes: "192x192", type: "image/png" },
-          { src: "/logo.png", sizes: "512x512", type: "image/png" },
-          { src: "/logo.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/pwa-maskable-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         categories: ["entertainment", "video"],
       },

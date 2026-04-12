@@ -1,6 +1,13 @@
 import { useState, useEffect, forwardRef } from "react";
 import { X, Download, Share, Smartphone } from "lucide-react";
-import { getInstallPrompt, clearInstallPrompt, onInstallPromptChange, type BeforeInstallPromptEvent } from "@/lib/installPrompt";
+import {
+  getInstallPrompt,
+  clearInstallPrompt,
+  onInstallPromptChange,
+  waitForInstallPrompt,
+  isAppInstalled,
+  type BeforeInstallPromptEvent,
+} from "@/lib/installPrompt";
 
 const PWA_BANNER_KEY = "pwa-banner-dismissed";
 
@@ -10,10 +17,7 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    const isStandalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true;
-    if (isStandalone) return;
+    if (isAppInstalled()) return;
 
     const dismissed = localStorage.getItem(PWA_BANNER_KEY);
     if (dismissed && Date.now() - parseInt(dismissed, 10) < 3 * 24 * 60 * 60 * 1000) return;
@@ -25,15 +29,21 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
       if (p) setShow(true);
     });
 
-    // Show banner after 2s regardless
+    const handleInstalled = () => {
+      setShow(false);
+      setDeferredPrompt(null);
+    };
+
     const timer = setTimeout(() => setShow(true), 2000);
 
-    // If prompt already captured, show immediately
     if (getInstallPrompt()) setShow(true);
+
+    window.addEventListener("appinstalled", handleInstalled);
 
     return () => {
       unsub();
       clearTimeout(timer);
+      window.removeEventListener("appinstalled", handleInstalled);
     };
   }, []);
 
@@ -43,23 +53,30 @@ const InstallBanner = forwardRef<HTMLDivElement>((_, ref) => {
   };
 
   const handleInstall = async () => {
-    const prompt = deferredPrompt || getInstallPrompt();
+    const prompt = deferredPrompt || getInstallPrompt() || await waitForInstallPrompt();
     if (!prompt) {
-      // Fallback: navigate to install page for manual instructions
       window.location.href = "/install";
       return;
     }
-    await prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    if (outcome === "accepted") dismiss();
-    clearInstallPrompt();
-    setDeferredPrompt(null);
+
+    try {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") {
+        setShow(false);
+      }
+    } catch {
+      window.location.href = "/install";
+    } finally {
+      clearInstallPrompt();
+      setDeferredPrompt(null);
+    }
   };
 
   if (!show) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[90] p-3 animate-in slide-in-from-bottom duration-300">
+    <div ref={ref} className="fixed inset-x-0 bottom-0 z-[90] p-3 animate-in slide-in-from-bottom duration-300">
       <div className="mx-auto max-w-md rounded-2xl border border-border bg-card/95 p-4 shadow-xl backdrop-blur-md">
         <div className="flex items-start gap-3">
           <div className="h-12 w-12 shrink-0 rounded-xl border border-primary/30 bg-primary/10 flex items-center justify-center">
