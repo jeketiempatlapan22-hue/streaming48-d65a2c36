@@ -18,9 +18,6 @@ const InstallPage = () => {
 
     const unsub = onInstallPromptChange((p) => {
       setDeferredPrompt(p);
-      if (!p && installed === false) {
-        // appinstalled fired
-      }
     });
 
     window.addEventListener("appinstalled", () => setInstalled(true));
@@ -30,13 +27,16 @@ const InstallPage = () => {
   const handleInstall = async () => {
     const prompt = deferredPrompt || getInstallPrompt();
     if (!prompt) {
-      // No native prompt available — scroll to manual instructions
       document.getElementById("manual-instructions")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
-    await prompt.prompt();
-    const { outcome } = await prompt.userChoice;
-    if (outcome === "accepted") setInstalled(true);
+    try {
+      await prompt.prompt();
+      const { outcome } = await prompt.userChoice;
+      if (outcome === "accepted") setInstalled(true);
+    } catch (err) {
+      console.warn("Install prompt failed:", err);
+    }
     clearInstallPrompt();
     setDeferredPrompt(null);
   };
@@ -95,46 +95,45 @@ const InstallPage = () => {
           ))}
         </div>
 
-        {/* Manual instructions — shown as fallback */}
         {!installed && (
           <div id="manual-instructions">
-          isIOS ? (
-            <div className="rounded-xl border border-border bg-card p-6">
-              <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di iPhone / iPad:</p>
-              <div className="space-y-3">
-                {[
-                  <><span>Buka halaman ini di</span> <span className="font-medium text-foreground">Safari</span></>,
-                  <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span></>,
-                  <>Pilih <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
-                  <>Ketuk <span className="font-medium text-foreground">"Add"</span></>,
-                ].map((content, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
-                    <p className="text-sm text-muted-foreground">{content}</p>
-                  </div>
-                ))}
+            {isIOS ? (
+              <div className="rounded-xl border border-border bg-card p-6">
+                <p className="mb-4 text-center text-sm font-semibold text-foreground">Cara Install di iPhone / iPad:</p>
+                <div className="space-y-3">
+                  {[
+                    <><span>Buka halaman ini di</span> <span className="font-medium text-foreground">Safari</span></>,
+                    <><span>Ketuk tombol</span> <Share className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">Share</span></>,
+                    <>Pilih <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
+                    <>Ketuk <span className="font-medium text-foreground">"Add"</span></>,
+                  ].map((content, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
+                      <p className="text-sm text-muted-foreground">{content}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-card p-6">
-              <p className="mb-4 text-center text-sm font-semibold text-foreground">
-                {deferredPrompt ? "Atau install secara manual:" : "Cara Install di Chrome / Browser:"}
-              </p>
-              <div className="space-y-3">
-                {[
-                  <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span> <span>(⋮ di pojok kanan atas)</span></>,
-                  <>Pilih <span className="font-medium text-foreground">"Install app"</span> atau <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
-                  <>Ketuk <span className="font-medium text-foreground">"Install"</span></>,
-                ].map((content, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
-                    <p className="text-sm text-muted-foreground">{content}</p>
-                  </div>
-                ))}
+            ) : (
+              <div className="rounded-xl border border-border bg-card p-6">
+                <p className="mb-4 text-center text-sm font-semibold text-foreground">
+                  {deferredPrompt ? "Atau install secara manual:" : "Cara Install di Chrome / Browser:"}
+                </p>
+                <div className="space-y-3">
+                  {[
+                    <><span>Ketuk</span> <MoreVertical className="inline h-4 w-4 text-primary" /> <span className="font-medium text-foreground">menu browser</span> <span>(⋮ di pojok kanan atas)</span></>,
+                    <>Pilih <span className="font-medium text-foreground">"Install app"</span> atau <span className="font-medium text-foreground">"Add to Home Screen"</span></>,
+                    <>Ketuk <span className="font-medium text-foreground">"Install"</span></>,
+                  ].map((content, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{i + 1}</div>
+                      <p className="text-sm text-muted-foreground">{content}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        </div>
+            )}
+          </div>
         )}
 
         <div className="mt-6 flex items-center justify-center gap-2 text-center">
