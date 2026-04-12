@@ -887,7 +887,37 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     };
   }, []);
 
-  // Block DevTools
+  // ── DVR seekbar tracking ──
+  useEffect(() => {
+    if (playlistType !== "m3u8") return;
+    watchStartRef.current = Date.now();
+    const id = setInterval(() => {
+      const video = videoRef.current;
+      const hls = hlsRef.current;
+      if (!video) return;
+
+      // Elapsed watch time
+      setWatchElapsed(Math.floor((Date.now() - watchStartRef.current) / 1000));
+
+      // Seekable buffer range
+      if (video.buffered.length > 0) {
+        const start = video.buffered.start(0);
+        const end = video.buffered.end(video.buffered.length - 1);
+        setSeekableStart(start);
+        setSeekableEnd(end);
+        setCurrentTime(video.currentTime);
+      }
+
+      // Live edge position
+      if (hls?.liveSyncPosition) {
+        setLiveEdge(hls.liveSyncPosition);
+      } else if (video.buffered.length > 0) {
+        setLiveEdge(video.buffered.end(video.buffered.length - 1));
+      }
+    }, 500);
+
+    return () => clearInterval(id);
+  }, [playlistType]);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C")) || (e.ctrlKey && e.key === "u") || (e.ctrlKey && e.key === "s")) {
