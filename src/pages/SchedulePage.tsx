@@ -132,7 +132,7 @@ const SchedulePage = () => {
     setDynamicLoading(true);
     setDynamicQrisStep("qris");
     try {
-      const priceNum = (selectedShow as any).qris_price || parseInt(selectedShow.price.replace(/[^\d]/g, "")) || 0;
+      const priceNum = selectedShow.qris_price || parseInt(selectedShow.price.replace(/[^\d]/g, "")) || 0;
       if (priceNum <= 0) { toast.error("Harga tidak valid"); setDynamicLoading(false); return; }
       const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
         body: { show_id: selectedShow.id, amount: priceNum, phone: phone.replace(/^0/, "62").replace(/[^0-9]/g, ""), order_type: "regular" },
