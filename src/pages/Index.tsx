@@ -297,6 +297,7 @@ const Index = () => {
       if (result.access_password) addAccessPassword(coinShowTarget.id, result.access_password);
 
       // Send WhatsApp notification with token + replay info
+      const purchaseType = coinShowTarget.is_bundle ? "bundle" : coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular");
       supabase.functions.invoke("notify-coin-show-purchase", {
         body: {
           user_id: coinUser.id,
@@ -304,7 +305,7 @@ const Index = () => {
           token_code: result.token_code,
           access_password: result.access_password || result.replay_password,
           show_title: coinShowTarget.title,
-          purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
+          purchase_type: purchaseType,
           phone: coinPhone.replace(/[\s-]/g, ""),
         },
       }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
