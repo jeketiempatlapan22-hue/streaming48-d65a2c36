@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       // Get show details
       const { data: show } = await supabase
         .from("shows")
-        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days")
+        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days, is_bundle, bundle_replay_passwords, bundle_replay_info")
         .eq("id", subOrder.show_id)
         .maybeSingle();
 
