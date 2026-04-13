@@ -343,7 +343,7 @@ async function findShowByIdOrName(supabase: any, input: string, activeOnly = tru
   const cleanInput = input.replace(/^#/, '').trim();
   
   // First try matching by custom short_id
-  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id');
+  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
   if (activeOnly) query0.eq('is_active', true);
   const { data: allShows } = await query0;
   
@@ -1840,25 +1840,8 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       return;
     }
 
-    // Generate token code with RT48- prefix
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-
-    // Calculate expiry: if show has schedule, expire end of that day; otherwise 24h
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        // End of show day (23:59:59 WIB)
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        // If already past, use 24h from now
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) {
-      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    }
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
       code,
@@ -1874,19 +1857,31 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
     }
 
     const last4 = code.slice(-4);
-    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
-    const escapedCode = escapeMarkdown(code);
-    const escapedExpDate = escapeMarkdown(expDate);
-    await sendTelegramMessage(botToken, chatId,
-      `✅ *Token Berhasil Dibuat\\!*\n\n` +
+    let msg = `✅ *Token Berhasil Dibuat\\!*\n\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
-      `🔑 Kode: \`${escapedCode}\`\n` +
+      `📅 Jadwal: ${escapeMarkdown(schedule)}\n` +
+      `🔑 Kode: \`${escapeMarkdown(code)}\`\n` +
       `📱 Max Device: *${maxDevices}*\n` +
-      `⏰ Kedaluwarsa: ${escapedExpDate}\n` +
-      `🔢 4 Digit: \`${last4}\`\n\n` +
-      `💡 Link: realtime48stream\\.my\\.id/live?t\\=${escapedCode}`
-    );
+      `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n` +
+      `🔢 4 Digit: \`${escapeMarkdown(last4)}\``;
+
+    if (show.is_bundle) {
+      msg += `\n📦 Durasi Bundle: *${escapeMarkdown(String(show.bundle_duration_days || 30))} hari*`;
+    }
+
+    msg += `\n\n💡 Link: https://realtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(code)}`;
+    msg += buildReplayInfoMessageTelegram(show);
+
+    await sendTelegramMessage(botToken, chatId, msg);
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
@@ -1899,7 +1894,6 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
       return;
     }
 
-    // Find user by username
     const { data: profiles } = await supabase.from('profiles').select('id, username').ilike('username', usernameInput).limit(5);
     if (!profiles || profiles.length === 0) {
       await sendTelegramMessage(botToken, chatId, `⚠️ User "${escapeMarkdown(usernameInput)}" tidak ditemukan`);
@@ -1907,28 +1901,14 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
     }
     const profile = profiles.find((p: any) => p.username?.toLowerCase() === usernameInput.toLowerCase()) || profiles[0];
 
-    // Find show
     const { show, error } = await findShowByIdOrName(supabase, showInput, false);
     if (error || !show) {
       await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
       return;
     }
 
-    // Generate token
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-
-    // Calculate expiry
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
       code,
@@ -1944,18 +1924,31 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
       return;
     }
 
-    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
-    const escapedCode = escapeMarkdown(code);
-    await sendTelegramMessage(botToken, chatId,
-      `✅ *Token Diberikan ke User\\!*\n\n` +
+    let msg = `✅ *Token Diberikan ke User\\!*\n\n` +
       `👤 User: *${escapeMarkdown(profile.username || 'Unknown')}*\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
-      `🔑 Kode: \`${escapedCode}\`\n` +
+      `📅 Jadwal: ${escapeMarkdown(schedule)}\n` +
+      `🔑 Kode: \`${escapeMarkdown(code)}\`\n` +
       `📱 Max Device: *${maxDevices}*\n` +
-      `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n` +
-      `💡 Link: realtime48stream\\.my\\.id/live?t\\=${escapedCode}`
-    );
+      `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}`;
+
+    if (show.is_bundle) {
+      msg += `\n📦 Durasi Bundle: *${escapeMarkdown(String(show.bundle_duration_days || 30))} hari*`;
+    }
+
+    msg += `\n\n💡 Link: https://realtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(code)}`;
+    msg += buildReplayInfoMessageTelegram(show);
+
+    await sendTelegramMessage(botToken, chatId, msg);
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
@@ -1978,18 +1971,7 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
       return;
     }
 
-    // Calculate expiry
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     await sendTelegramMessage(botToken, chatId, `⏳ Membuat ${count} token untuk *${escapeMarkdown(show.title)}*\\.\\.\\.`);
 
@@ -2007,41 +1989,41 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
       return;
     }
 
-    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
 
     let msg = `✅ *${count} Token Berhasil Dibuat\\!*\n\n`;
     msg += `🎬 Show: *${escapeMarkdown(show.title)}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
-    msg += `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n`;
-
-    // Show replay info
-    msg += `🔄 *Info Replay:*\n🔗 Link: replaytime\\.lovable\\.app/replay\n`;
-    if (show.access_password) {
-      msg += `🔐 Sandi: ${escapeMarkdown(show.access_password)}\n`;
+    msg += `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n`;
+    if (show.is_bundle) {
+      msg += `📦 Durasi Bundle: *${escapeMarkdown(String(show.bundle_duration_days || 30))} hari*\n`;
     }
-    msg += `\n`;
+    msg += buildReplayInfoMessageTelegram(show);
+    msg += `\n\n🔑 *Daftar Token:*\n`;
 
-    msg += `🔑 *Daftar Token:*\n`;
-    // Split into chunks if too many
     const chunkSize = 30;
     const chunks: typeof tokens[] = [];
     for (let i = 0; i < tokens.length; i += chunkSize) {
       chunks.push(tokens.slice(i, i + chunkSize));
     }
 
-    // Send first chunk with header
     const firstChunk = chunks[0];
     for (const t of firstChunk) {
       msg += `\`${escapeMarkdown(t.code)}\`\n`;
     }
 
     if (chunks.length === 1) {
-      msg += `\n📺 *Link Nonton \\(contoh\\):*\nrealtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(firstChunk[0].code)}`;
+      msg += `\n📺 *Link Nonton \\(contoh\\):*\nhttps://realtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(firstChunk[0].code)}`;
     }
 
     await sendTelegramMessage(botToken, chatId, msg);
 
-    // Send remaining chunks
     for (let i = 1; i < chunks.length; i++) {
       let chunkMsg = `🔑 *Token \\(lanjutan ${i + 1}/${chunks.length}\\):*\n`;
       for (const t of chunks[i]) {
@@ -2053,6 +2035,60 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
+}
+
+function buildReplayInfoMessageTelegram(show: any): string {
+  if (show?.is_bundle) {
+    let msg = '';
+    const bundlePasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
+    if (bundlePasswords.length > 0) {
+      msg += `\n\n📦 *Sandi Replay Bundle:*`;
+      for (const entry of bundlePasswords) {
+        if (entry?.show_name && entry?.password) {
+          msg += `\n🎭 ${escapeMarkdown(entry.show_name)}: *${escapeMarkdown(entry.password)}*`;
+        }
+      }
+    }
+    if (show.bundle_replay_info) {
+      msg += `\n\n🎬 *Info Replay:*\n🔗 ${escapeMarkdown(show.bundle_replay_info)}`;
+    } else {
+      msg += `\n\n🎬 *Link Replay:*\n🔗 https://replaytime\\.lovable\\.app`;
+    }
+    if (show.access_password) {
+      msg += `\n🔑 Sandi Akses: *${escapeMarkdown(show.access_password)}*`;
+    }
+    return msg;
+  }
+
+  let msg = `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime\\.lovable\\.app`;
+  if (show?.access_password) {
+    msg += `\n🔐 Sandi Replay: ${escapeMarkdown(show.access_password)}`;
+  }
+  return msg;
+}
+
+async function calculateShowTokenExpiry(supabase: any, show: any): Promise<string> {
+  if (show?.is_bundle && (show.bundle_duration_days || 0) > 0) {
+    return new Date(Date.now() + show.bundle_duration_days * 86400000).toISOString();
+  }
+
+  if (show?.schedule_date) {
+    const { data: parsed } = await supabase.rpc('parse_show_datetime', {
+      _date: show.schedule_date,
+      _time: show.schedule_time || '23.59 WIB',
+    });
+
+    if (parsed) {
+      const showDt = new Date(parsed);
+      const endOfDay = new Date(showDt);
+      endOfDay.setHours(23, 59, 59, 0);
+      if (endOfDay > new Date()) {
+        return endOfDay.toISOString();
+      }
+    }
+  }
+
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 }
 
 async function handleSetShortIdCommand(supabase: any, botToken: string, chatId: string, hexId: string, shortId: string) {
