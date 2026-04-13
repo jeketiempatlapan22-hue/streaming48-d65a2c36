@@ -179,7 +179,7 @@ const SchedulePage = () => {
         token_code: result.token_code,
         access_password: result.access_password,
         show_title: coinBuyTarget.title,
-        purchase_type: coinBuyTarget.is_replay ? "replay" : "regular",
+        purchase_type: coinBuyTarget.is_bundle ? "bundle" : coinBuyTarget.is_replay ? "replay" : (coinBuyTarget.is_subscription ? "membership" : "regular"),
         phone: coinBuyPhone.replace(/[\s-]/g, ""),
       },
     }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));

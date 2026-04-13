@@ -272,7 +272,7 @@ const CoinShop = () => {
           token_code: result.token_code,
           access_password: result.access_password,
           show_title: targetShow?.title || "",
-          purchase_type: targetShow?.is_replay ? "replay" : "regular",
+          purchase_type: targetShow?.is_bundle ? "bundle" : targetShow?.is_replay ? "replay" : (targetShow?.is_subscription ? "membership" : "regular"),
           phone: redeemPhone.replace(/[\s-]/g, ""),
         },
       }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
