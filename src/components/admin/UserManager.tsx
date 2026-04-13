@@ -212,13 +212,15 @@ const UserManager = () => {
       const identifier = user.phone || (user.username ? `${user.username}@rt48.user` : user.id);
       
       // Use the request_password_reset RPC to create a reset request
-      const { data: resetData, error: resetErr } = await supabase.rpc("request_password_reset", {
+      const { data: resetRaw, error: resetErr } = await supabase.rpc("request_password_reset", {
         _identifier: identifier,
       });
 
+      const resetData = resetRaw as Record<string, any> | null;
+
       if (resetErr || !resetData?.success) {
         const errMsg = resetData?.error || resetErr?.message || "Gagal membuat permintaan reset";
-        toast.error(errMsg);
+        toast.error(String(errMsg));
         return;
       }
 
@@ -233,7 +235,7 @@ const UserManager = () => {
 
       if (!reqList || reqList.length === 0) {
         // Fallback: just show the link
-        if (resetData.secure_token) {
+        if (resetData?.secure_token) {
           const link = `${APP_URL}/reset-password?token=${resetData.secure_token}`;
           await navigator.clipboard.writeText(link);
           toast.success("Link reset disalin ke clipboard. Kirim manual ke user.");
