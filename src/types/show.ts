@@ -20,6 +20,11 @@ export interface Show {
   access_password?: string;
   replay_qris_price?: number;
   team?: string;
+  is_bundle?: boolean;
+  bundle_description?: string;
+  bundle_duration_days?: number;
+  bundle_replay_passwords?: Array<{ show_name: string; password: string }>;
+  bundle_replay_info?: string;
 }
 
 export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {
