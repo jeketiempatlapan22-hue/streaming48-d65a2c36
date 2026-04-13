@@ -87,7 +87,7 @@ const TokenFactory = () => {
 
     const rows = Array.from({ length: count }, () => ({
       code: `rt48_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
-      max_devices: isPublic ? 9999 : parseInt(maxDevices),
+      max_devices: isPublic ? 9999 : Math.min(9999, Math.max(1, parseInt(maxDevices) || 1)),
       duration_type: storedDuration,
       expires_at: expiresAt.toISOString(),
       is_public: isPublic,
