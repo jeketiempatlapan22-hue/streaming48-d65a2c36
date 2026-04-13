@@ -128,8 +128,20 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const lastSentRef = useRef(0);
   const [reconnectKey, forceReconnect] = useReducer((x: number) => x + 1, 0);
+  // Track IDs we've seen to prevent duplicates
+  const seenIdsRef = useRef(new Set<string>());
+  // Track optimistic messages for dedup
+  const optimisticRef = useRef(new Map<string, string>()); // optimisticId -> message content key
 
   const isChatMod = chatModUsernames.has(username);
+
+  const scrollToBottom = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    });
+  }, []);
 
   const syncMessages = useCallback(async () => {
     const { data, error } = await supabase
@@ -142,6 +154,13 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     if (error || !data) return;
 
     const sorted = (data as unknown as ChatMessage[]).reverse();
+    // Update seen IDs
+    const newSeenIds = new Set<string>();
+    sorted.forEach((m) => newSeenIds.add(m.id));
+    seenIdsRef.current = newSeenIds;
+    // Clear any remaining optimistic messages since we have fresh data
+    optimisticRef.current.clear();
+
     startTransition(() => {
       setMessages(sorted);
       setPinnedMessages(sorted.filter((m) => m.is_pinned));
@@ -196,12 +215,27 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       .channel(`chat-main-${reconnectKey}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
         if (!isMounted) return;
+        const newMsg = payload.new as ChatMessage;
+        if (newMsg.is_deleted) return;
+        // Skip if already seen (from syncMessages)
+        if (seenIdsRef.current.has(newMsg.id)) return;
+        seenIdsRef.current.add(newMsg.id);
+
         startTransition(() => {
-          const newMsg = payload.new as ChatMessage;
-          if (newMsg.is_deleted) return;
           setMessages((prev) => {
-            // Remove any optimistic message with matching content
-            const filtered = prev.filter((m) => !(m.id.startsWith("opt-") && m.message === newMsg.message && m.username === newMsg.username));
+            // Check if this real message matches any optimistic message
+            const contentKey = `${newMsg.username}::${newMsg.message}`;
+            let filtered = prev;
+            // Find and remove matching optimistic message
+            for (const [optId, optKey] of optimisticRef.current.entries()) {
+              if (optKey === contentKey) {
+                filtered = prev.filter((m) => m.id !== optId);
+                optimisticRef.current.delete(optId);
+                break;
+              }
+            }
+            // Don't add if already exists by ID
+            if (filtered.some((m) => m.id === newMsg.id)) return filtered;
             const next = [...filtered, newMsg];
             return next.length > 20 ? next.slice(-20) : next;
           });
@@ -264,7 +298,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
     const startPolling = () => {
       if (intervalId) window.clearInterval(intervalId);
-      const intervalMs = document.visibilityState === "visible" ? 4000 : 12000;
+      const intervalMs = document.visibilityState === "visible" ? 6000 : 15000;
       intervalId = window.setInterval(() => {
         void syncMessages();
       }, intervalMs);
@@ -291,9 +325,10 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     return () => window.clearInterval(intervalId);
   }, [syncChatEnabled, syncChatModerators]);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   const sendMessage = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,6 +342,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
     // Optimistic update - show message immediately
     const optimisticId = `opt-${now}`;
+    const contentKey = `${username}::${trimmed}`;
+    optimisticRef.current.set(optimisticId, contentKey);
+
     const optimisticMsg: ChatMessage = {
       id: optimisticId,
       username,
@@ -329,13 +367,13 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     if (error) {
       console.error("[LiveChat] send error:", error);
       // Remove optimistic message on failure
+      optimisticRef.current.delete(optimisticId);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-    } else {
-      await syncMessages();
     }
+    // Don't call syncMessages here - realtime INSERT event will handle dedup
     setSending(false);
     inputRef.current?.focus();
-  }, [newMessage, username, tokenId, isAdmin, currentUserId, syncMessages]);
+  }, [newMessage, username, tokenId, isAdmin, currentUserId]);
 
   const handlePin = useCallback(async (id: string) => {
     if (onPinMessage) {
@@ -367,7 +405,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       <ChatLeaderboard isOpen={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
 
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-3 shrink-0">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
             <span className="text-sm">💬</span>
@@ -390,7 +428,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
       {/* Pinned */}
       {pinnedMessages.length > 0 && (
-        <div className="border-b border-primary/20 bg-primary/5 px-4 py-2 space-y-1">
+        <div className="border-b border-primary/20 bg-primary/5 px-4 py-2 space-y-1 shrink-0">
           {pinnedMessages.map((m) => (
             <div key={m.id} className="flex items-start gap-2 text-xs">
               <Pin className="mt-0.5 h-3 w-3 text-primary shrink-0" />
@@ -403,8 +441,12 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
         </div>
       )}
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
+      {/* Messages - scrollable area */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-0.5"
+        style={{ minHeight: 0 }}
+      >
         {messages.map((msg) => (
           <ChatMessageItem key={msg.id} msg={msg} isAdmin={isAdmin} isChatMod={isChatMod} chatModUsernames={chatModUsernames} onPin={handlePin} onDelete={handleDelete} onBlock={onBlockUser} onToggleMod={onToggleChatMod} onBanUser={onBanUser} formatTime={formatTime} />
         ))}
@@ -419,14 +461,14 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
       {/* Chat disabled banner for non-admin */}
       {!chatEnabled && !isAdmin && (
-        <div className="border-t border-border bg-destructive/5 px-4 py-3 text-center">
+        <div className="border-t border-border bg-destructive/5 px-4 py-3 text-center shrink-0">
           <p className="text-xs font-medium text-destructive">🔇 Chat sedang dinonaktifkan oleh admin</p>
         </div>
       )}
 
       {/* Input - hidden for non-admin when chat disabled */}
       {(chatEnabled || isAdmin) && (
-        <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3">
+        <form onSubmit={sendMessage} className="flex items-center gap-2 border-t border-border bg-card p-3 shrink-0">
           <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder={!chatEnabled && isAdmin ? "Chat nonaktif — hanya admin yang bisa kirim" : username ? "Ketik pesan..." : "Masukkan username dulu"} disabled={!username || sending} className="flex-1 border-secondary bg-secondary/50 text-sm placeholder:text-muted-foreground/50 focus:bg-background" />
           <Button type="submit" size="icon" disabled={!username || sending || !newMessage.trim()} className="h-10 w-10 shrink-0 rounded-lg">
             <Send className="h-4 w-4" />
