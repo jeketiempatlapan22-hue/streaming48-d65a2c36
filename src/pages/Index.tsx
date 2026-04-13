@@ -34,6 +34,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import InstallBanner from "@/components/viewer/InstallBanner";
+import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
 
