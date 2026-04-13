@@ -390,6 +390,18 @@ const ReplayPage = () => {
             })}
           </div>
         )}
+
+        {/* Bundle Shows */}
+        {bundleShows.length > 0 && (
+          <div className="mt-10">
+            <h2 className="mb-6 text-center text-xl font-bold text-foreground">📦 Paket Bundle</h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {bundleShows.map((show, i) => (
+                <BundleShowCard key={show.id} show={show} index={i} redeemedToken={""} onBuy={(s) => openPurchase(s)} onCoinBuy={(s) => openPurchase(s)} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Purchase Dialog */}

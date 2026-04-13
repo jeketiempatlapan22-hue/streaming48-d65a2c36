@@ -104,6 +104,11 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   short_id: show.short_id?.trim() ? show.short_id.trim().toLowerCase() : null,
   external_show_id: show.external_show_id?.trim() ? show.external_show_id.trim() : null,
   team: show.team ?? "",
+  is_bundle: show.is_bundle ?? false,
+  bundle_description: show.bundle_description ?? "",
+  bundle_duration_days: show.bundle_duration_days ?? 30,
+  bundle_replay_passwords: show.bundle_replay_passwords ?? [],
+  bundle_replay_info: show.bundle_replay_info ?? "",
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
