@@ -313,6 +313,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
+  const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|hari))(?:\s+(\d+))?(?:\s+(.+))?$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -347,6 +348,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (bulktokenMatch) return await handleBulkTokenWa(supabase, bulktokenMatch[1].trim(), parseInt(bulktokenMatch[2], 10), bulktokenMatch[3] ? parseInt(bulktokenMatch[3], 10) : 1);
   if (setshortidMatch) return await handleSetShortIdWa(supabase, setshortidMatch[1], setshortidMatch[2]);
   if (resendMatch) return await handleResendWa(supabase, resendMatch[1]);
+  if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {

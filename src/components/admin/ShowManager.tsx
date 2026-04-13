@@ -525,7 +525,44 @@ const ShowManager = () => {
                 </div>
                 <Switch checked={draft.is_subscription} onCheckedChange={(value) => updateDraft({ is_subscription: value })} />
               </div>
+
+              <div className="flex items-center justify-between rounded-lg border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">📦</span>
+                  <span className="text-sm font-medium text-foreground">Bundle Show</span>
+                </div>
+                <Switch checked={draft.is_bundle} onCheckedChange={(value) => updateDraft({ is_bundle: value })} />
+              </div>
             </div>
+
+            {draft.is_bundle && (
+              <div className="space-y-3 rounded-lg border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-4">
+                <p className="text-xs font-bold text-[hsl(var(--warning))]">📦 Pengaturan Bundle</p>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi Token (hari)</label>
+                  <Input type="number" value={draft.bundle_duration_days} onChange={(e) => updateDraft({ bundle_duration_days: Math.max(1, parseInt(e.target.value || "30", 10) || 30) })} className="bg-background" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Deskripsi Bundle (show yang didapat)</label>
+                  <Textarea value={draft.bundle_description} onChange={(e) => updateDraft({ bundle_description: e.target.value })} className="bg-background" rows={3} placeholder="Show A, Show B, Show C..." />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Info Replay</label>
+                  <Textarea value={draft.bundle_replay_info} onChange={(e) => updateDraft({ bundle_replay_info: e.target.value })} className="bg-background" rows={2} placeholder="Info replay untuk pembeli bundle..." />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Sandi Replay (multi show)</label>
+                  {(draft.bundle_replay_passwords || []).map((rp: any, idx: number) => (
+                    <div key={idx} className="flex gap-2 mb-2">
+                      <Input value={rp.show_name || ""} onChange={(e) => { const arr = [...(draft.bundle_replay_passwords || [])]; arr[idx] = { ...arr[idx], show_name: e.target.value }; updateDraft({ bundle_replay_passwords: arr }); }} className="bg-background flex-1" placeholder="Nama show" />
+                      <Input value={rp.password || ""} onChange={(e) => { const arr = [...(draft.bundle_replay_passwords || [])]; arr[idx] = { ...arr[idx], password: e.target.value }; updateDraft({ bundle_replay_passwords: arr }); }} className="bg-background flex-1" placeholder="Sandi" />
+                      <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive" onClick={() => { const arr = [...(draft.bundle_replay_passwords || [])]; arr.splice(idx, 1); updateDraft({ bundle_replay_passwords: arr }); }}>✕</Button>
+                    </div>
+                  ))}
+                  <Button variant="outline" size="sm" onClick={() => updateDraft({ bundle_replay_passwords: [...(draft.bundle_replay_passwords || []), { show_name: "", password: "" }] })}>+ Tambah Sandi</Button>
+                </div>
+              </div>
+            )}
 
             {!draft.is_subscription && draft.replay_coin_price > 0 ? (
               <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
