@@ -50,7 +50,7 @@ const LiveControl = () => {
       const [streamRes, settingsRes, showsRes] = await Promise.all([
         supabase.from("streams").select("*").limit(1).single(),
         supabase.from("site_settings").select("*"),
-        supabase.from("shows").select("id, title, is_active, is_replay, schedule_date").order("created_at", { ascending: false }),
+        supabase.from("shows").select("id, title, is_active, is_replay, is_bundle, schedule_date").order("created_at", { ascending: false }),
       ]);
       if (streamRes.data) {
         setStream(streamRes.data);
@@ -260,7 +260,7 @@ const LiveControl = () => {
         <Select value={activeShowId} onValueChange={saveActiveShow}>
           <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
           <SelectContent>
-            {shows.filter(s => s.is_active && !s.is_replay).map((show) => (
+            {shows.filter(s => s.is_active && !s.is_replay && !s.is_bundle).map((show) => (
               <SelectItem key={show.id} value={show.id}>
                 {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
               </SelectItem>

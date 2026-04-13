@@ -908,6 +908,10 @@ async function handleSetLiveCommand(supabase: any, botToken: string, chatId: str
     if (title) {
       const result = await findShowByIdOrName(supabase, title);
       if (result.show) {
+        if (result.show.is_bundle) {
+          await sendTelegramMessage(botToken, chatId, `⚠️ Bundle show tidak bisa dijadikan show aktif\\.`);
+          return;
+        }
         await supabase.from('site_settings').upsert({ key: 'active_show_id', value: result.show.id }, { onConflict: 'key' });
         showInfo = `\n🎭 Show aktif: *${escapeMarkdown(result.show.title)}* \\(\`#${showShortId(result.show.id)}\`\\)`;
       } else if (result.multiple) {
@@ -944,6 +948,10 @@ async function handleSetActiveCommand(supabase: any, botToken: string, chatId: s
       return;
     }
     const show = result.show;
+    if (show.is_bundle) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Bundle show tidak bisa dijadikan show aktif\\.`);
+      return;
+    }
     await supabase.from('site_settings').upsert({ key: 'active_show_id', value: show.id }, { onConflict: 'key' });
     await sendTelegramMessage(botToken, chatId, `✅ *Show Aktif Diubah\\!*\n\n🎭 ${escapeMarkdown(show.title)} \\(\`#${showShortId(show.id)}\`\\)\n📅 ${escapeMarkdown(show.schedule_date || '-')}`);
   } catch (e) { await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`); }
