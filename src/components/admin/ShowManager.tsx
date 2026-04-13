@@ -317,6 +317,7 @@ const ShowManager = () => {
       membership_duration_days: Math.max(1, Number(draft.membership_duration_days) || 30),
       short_id: cleanShortId,
       external_show_id: draft.external_show_id?.trim() || null,
+      team: draft.team.trim() || null,
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
