@@ -680,6 +680,7 @@ export type Database = {
           schedule_time: string | null
           short_id: string | null
           subscription_benefits: string | null
+          team: string | null
           title: string
           updated_at: string
         }
@@ -709,6 +710,7 @@ export type Database = {
           schedule_time?: string | null
           short_id?: string | null
           subscription_benefits?: string | null
+          team?: string | null
           title: string
           updated_at?: string
         }
@@ -738,6 +740,7 @@ export type Database = {
           schedule_time?: string | null
           short_id?: string | null
           subscription_benefits?: string | null
+          team?: string | null
           title?: string
           updated_at?: string
         }
@@ -1182,6 +1185,7 @@ export type Database = {
           schedule_time: string | null
           short_id: string | null
           subscription_benefits: string | null
+          team: string | null
           title: string
           updated_at: string
         }[]

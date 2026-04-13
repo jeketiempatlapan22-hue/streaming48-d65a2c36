@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import TeamBadge from "@/components/viewer/TeamBadge";
 
 interface MemberPhoto {
   name: string;
@@ -9,6 +10,7 @@ interface MemberPhoto {
 
 interface LineupAvatarsProps {
   showId?: string;
+  team?: string | null;
 }
 
 /**
@@ -36,7 +38,7 @@ function parseLineup(lineup: string): string[] {
   });
 }
 
-const LineupAvatars = ({ showId }: LineupAvatarsProps) => {
+const LineupAvatars = ({ showId, team }: LineupAvatarsProps) => {
   const [memberPhotos, setMemberPhotos] = useState<MemberPhoto[]>([]);
   const [lineupNames, setLineupNames] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -91,6 +93,7 @@ const LineupAvatars = ({ showId }: LineupAvatarsProps) => {
     <div className="border-t border-border px-3 py-3">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Lineup</span>
+        {team && <TeamBadge team={team} size="sm" />}
         <div className="h-px flex-1 bg-border" />
       </div>
       <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">

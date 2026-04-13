@@ -51,6 +51,7 @@ interface Show {
   membership_duration_days: number;
   short_id: string | null;
   external_show_id: string | null;
+  team: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -102,6 +103,7 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   membership_duration_days: show.membership_duration_days ?? 30,
   short_id: show.short_id?.trim() ? show.short_id.trim().toLowerCase() : null,
   external_show_id: show.external_show_id?.trim() ? show.external_show_id.trim() : null,
+  team: show.team ?? "",
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
@@ -315,6 +317,7 @@ const ShowManager = () => {
       membership_duration_days: Math.max(1, Number(draft.membership_duration_days) || 30),
       short_id: cleanShortId,
       external_show_id: draft.external_show_id?.trim() || null,
+      team: draft.team.trim() || null,
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
@@ -569,6 +572,29 @@ const ShowManager = () => {
                 <Input value={draft.category_member} onChange={(event) => updateDraft({ category_member: event.target.value })} className="bg-background" />
               </div>
             ) : null}
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">🏅 Tim</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { value: "", label: "Tidak ada" },
+                  { value: "passion", label: "🔥 Passion" },
+                  { value: "dream", label: "☁️ Dream" },
+                  { value: "love", label: "💗 Love" },
+                ].map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => updateDraft({ team: t.value })}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
+                      draft.team === t.value ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Nama Show</label>

@@ -93,6 +93,7 @@ const LivePage = () => {
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
+  const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -281,6 +282,7 @@ const LivePage = () => {
         } else {
           setExternalShowId(null);
         }
+        setActiveShowTeam(activeShow?.team || null);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -700,7 +702,7 @@ const LivePage = () => {
           </div>
         )}
         <Suspense fallback={null}>
-          <LineupAvatars />
+          <LineupAvatars team={activeShowTeam} />
         </Suspense>
         <div className="border-t border-border px-4 py-2"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
       </div>
