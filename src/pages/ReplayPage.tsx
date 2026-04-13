@@ -328,7 +328,6 @@ const ReplayPage = () => {
                         const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show") ? ` — ${show.category_member}` : "";
                         return <span className={`rounded-full px-3 py-1 text-[10px] font-bold backdrop-blur-sm w-fit ${cat.color}`}>{cat.label}{memberText}</span>;
                       })()}
-                      {show.team && <TeamBadge team={show.team} size="sm" />}
                     </div>
                     <span className="absolute top-3 right-3 rounded-full bg-accent/80 px-2.5 py-1 text-[10px] font-bold text-accent-foreground backdrop-blur-sm">REPLAY</span>
                     <div className="absolute bottom-3 left-4 right-4"><h3 className="text-lg font-bold text-foreground">{show.title}</h3></div>
@@ -342,9 +341,10 @@ const ReplayPage = () => {
                     )}
                     {show.lineup && (
                       <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                        <Users className="mt-0.5 h-3.5 w-3.5 text-primary" /><span className="line-clamp-2">{show.lineup}</span>
+                        <Users className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" /><span className="leading-relaxed">{show.lineup}</span>
                       </div>
                     )}
+                    {show.team && <TeamBadge team={show.team} size="md" />}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-sm text-primary"><Coins className="h-4 w-4" /><span className="font-semibold">{show.replay_coin_price} Koin</span></div>
                       {(show as any).replay_qris_price > 0 ? (
