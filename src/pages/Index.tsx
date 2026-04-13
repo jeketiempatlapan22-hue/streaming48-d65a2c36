@@ -1264,9 +1264,15 @@ const Index = () => {
           ) : (
             <div className="space-y-4 text-center">
               <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
-              <p className="font-semibold text-foreground">Pembelian Berhasil!</p>
+              <p className="font-semibold text-foreground">
+                {coinShowTarget?.is_bundle ? "📦 Pembelian Bundle Berhasil!" : "Pembelian Berhasil!"}
+              </p>
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_duration_days && (
+                <p className="text-xs text-muted-foreground">Token berlaku selama <span className="font-bold text-[hsl(var(--warning))]">{coinShowTarget.bundle_duration_days} hari</span></p>
+              )}
               {coinResult.token_code && (
                 <div className="rounded-lg bg-secondary p-4">
+                  <p className="text-[10px] text-muted-foreground mb-1">🎫 Token Akses</p>
                   <p className="font-mono text-lg font-bold text-primary">{coinResult.token_code}</p>
                 </div>
               )}
@@ -1282,6 +1288,27 @@ const Index = () => {
                   <p className="font-mono text-lg font-bold text-primary">{coinResult.access_password}</p>
                 </div>
               )}
+              {/* Bundle replay passwords */}
+              {coinShowTarget?.is_bundle && Array.isArray(coinShowTarget?.bundle_replay_passwords) && coinShowTarget.bundle_replay_passwords.length > 0 && (
+                <div className="rounded-lg border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3 text-left">
+                  <p className="text-xs font-semibold text-[hsl(var(--warning))] mb-2">📦 Sandi Replay Bundle:</p>
+                  {coinShowTarget.bundle_replay_passwords.map((entry: any, i: number) => (
+                    entry.show_name && entry.password ? (
+                      <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                        <span className="text-muted-foreground">🎭 {entry.show_name}</span>
+                        <span className="font-mono font-bold text-foreground">{entry.password}</span>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              )}
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_replay_info && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-left">
+                  <p className="text-xs font-semibold text-primary mb-1">🎬 Info Replay:</p>
+                  <p className="text-xs text-muted-foreground">{coinShowTarget.bundle_replay_info}</p>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Info lengkap sudah dikirim ke WhatsApp Anda</p>
               <div className="flex gap-2">
                 <Button className="flex-1 gap-2" variant="outline"
                   onClick={() => { navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${coinResult.token_code}`); toast.success("Link disalin!"); }}>
