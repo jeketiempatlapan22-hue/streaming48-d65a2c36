@@ -630,7 +630,7 @@ async function processCoinOrder(supabase: any, botToken: string, chatId: string,
 async function processSubscriptionOrder(supabase: any, botToken: string, chatId: string, order: any, action: 'approve' | 'reject', isBulk: boolean): Promise<{ success: boolean; message: string }> {
   try {
     const sid = order.short_id || order.id.substring(0, 6);
-    const { data: show } = await supabase.from('shows').select('title, group_link, is_subscription, access_password').eq('id', order.show_id).single();
+    const { data: show } = await supabase.from('shows').select('title, group_link, is_subscription, access_password, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, schedule_date, schedule_time').eq('id', order.show_id).single();
     const showTitle = show?.title || 'Unknown Show';
 
     if (action === 'approve') {
@@ -649,14 +649,44 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
       if (order.phone) {
         const siteUrl = 'https://realtime48stream.my.id';
         if (result.type === 'regular' && result.token_code) {
-          // Regular show: send live link + token + replay info
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
-          let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
-          if (show?.access_password) {
-            waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: https://replaytime.lovable.app\n🔑 Sandi: ${show.access_password}\n`;
+
+          if (show?.is_bundle) {
+            // Bundle show confirmation
+            const bundleDays = show.bundle_duration_days || 30;
+            let waMsg = `━━━━━━━━━━━━━━━━━━\n📦 *Pembelian Bundle Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Paket: *${showTitle}*\n⏰ Durasi Token: *${bundleDays} hari*\n`;
+            waMsg += `\n🎫 *Token Akses:* ${result.token_code}\n📺 *Link Nonton:*\n${liveLink}\n`;
+            if (show.schedule_date) {
+              waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
+            }
+            const bundlePasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
+            if (bundlePasswords.length > 0) {
+              waMsg += `\n📦 *Sandi Replay Bundle:*\n`;
+              for (const entry of bundlePasswords) {
+                if (entry.show_name && entry.password) {
+                  waMsg += `  🎭 ${entry.show_name}: *${entry.password}*\n`;
+                }
+              }
+            }
+            if (show.bundle_replay_info) {
+              waMsg += `\n🎬 *Info Replay:*\n🔗 ${show.bundle_replay_info}\n`;
+            } else {
+              waMsg += `\n🎬 *Link Replay:*\n🔗 https://replaytime.lovable.app\n`;
+            }
+            if (show.access_password) {
+              waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
+            }
+            waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
+            await sendFonnteWhatsApp(order.phone, waMsg);
+          } else {
+            // Regular show: send live link + token + replay info
+            let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
+            if (show?.access_password) {
+              waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: https://replaytime.lovable.app\n🔑 Sandi: ${show.access_password}\n`;
+            }
+            waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
+            await sendFonnteWhatsApp(order.phone, waMsg);
           }
-          waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
-          await sendFonnteWhatsApp(order.phone, waMsg);
         } else if (result.type === 'subscription') {
           // Membership: send group link
           let waMsg = `✅ *Membership Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n`;
@@ -2082,7 +2112,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
 
       const { data: show } = await supabase
         .from('shows')
-        .select('title, access_password, is_subscription, is_replay, group_link, schedule_date, schedule_time')
+        .select('title, access_password, is_subscription, is_replay, group_link, schedule_date, schedule_time, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info')
         .eq('id', subOrder.show_id)
         .maybeSingle();
 
@@ -2123,27 +2153,52 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         return;
       }
 
-      let waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
+      let waMsg = '';
 
-      if (token?.code) {
-        waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
-      }
-
-      if (show?.access_password) {
-        waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
-      }
-
-      if (show?.schedule_date) {
-        waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
-      }
-
-      if (show?.group_link) {
-        waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
-      }
-
-      waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
-      if (show?.access_password) {
-        waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+      if (show?.is_bundle) {
+        const bundleDays = show.bundle_duration_days || 30;
+        waMsg = `━━━━━━━━━━━━━━━━━━\n📦 *Info Paket Bundle Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Paket: *${show?.title || 'Show'}*\n⏰ Durasi Token: *${bundleDays} hari*\n`;
+        if (token?.code) {
+          waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
+        }
+        if (show.schedule_date) {
+          waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
+        }
+        const bundlePasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
+        if (bundlePasswords.length > 0) {
+          waMsg += `\n📦 *Sandi Replay Bundle:*\n`;
+          for (const entry of bundlePasswords) {
+            if (entry.show_name && entry.password) {
+              waMsg += `  🎭 ${entry.show_name}: *${entry.password}*\n`;
+            }
+          }
+        }
+        if (show.bundle_replay_info) {
+          waMsg += `\n🎬 *Info Replay:*\n🔗 ${show.bundle_replay_info}\n`;
+        } else {
+          waMsg += `\n🎬 *Link Replay:*\n🔗 https://replaytime.lovable.app\n`;
+        }
+        if (show.access_password) {
+          waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
+        }
+      } else {
+        waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
+        if (token?.code) {
+          waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
+        }
+        if (show?.access_password) {
+          waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
+        }
+        if (show?.schedule_date) {
+          waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
+        }
+        if (show?.group_link) {
+          waMsg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
+        }
+        waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+        if (show?.access_password) {
+          waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
+        }
       }
 
       waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
