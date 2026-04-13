@@ -427,7 +427,13 @@ TOLAK_RESET <id> - Tolak reset password
 /topusers - Top user berdasarkan saldo
 /announce <pesan> - Kirim WA ke semua user
 /setprice <nama/ID> coin <harga> - Set harga koin show
-/setprice <nama/ID> replay <harga> - Set harga replay show`;
+/setprice <nama/ID> replay <harga> - Set harga replay show
+
+🎫 *Token Custom:*
+/maketoken <show> <durasi> - Token durasi custom (1 device)
+/maketoken <show> <durasi> <max> - Token durasi + max device
+/maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
+  Durasi: 30hari, 1minggu, 2bulan, dll`;
 }
 
 async function handleStatus(supabase: any): Promise<string> {
@@ -1640,7 +1646,7 @@ async function handleSetPriceWa(supabase: any, showInput: string, priceType: 'co
 
 async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices: number): Promise<string> {
   try {
-    if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
+    if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
     const cleanInput = showInput.replace(/^#/, '').trim();
     let show: any = null;
@@ -1709,7 +1715,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
 async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput: string, maxDevices: number): Promise<string> {
   try {
-    if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
+    if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
     const { data: profiles } = await supabase.from('profiles').select('id, username').ilike('username', usernameInput).limit(5);
     if (!profiles || profiles.length === 0) return `⚠️ User "${usernameInput}" tidak ditemukan`;
@@ -1784,7 +1790,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 async function handleBulkTokenWa(supabase: any, showInput: string, count: number, maxDevices: number): Promise<string> {
   try {
     if (count < 1 || count > 100) return '⚠️ Jumlah token harus antara 1-100';
-    if (maxDevices < 1 || maxDevices > 10) return '⚠️ Max device harus antara 1-10';
+    if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
     // Find show by custom short_id, hex ID, or name
     const cleanInput = showInput.replace(/^#/, '').trim();
