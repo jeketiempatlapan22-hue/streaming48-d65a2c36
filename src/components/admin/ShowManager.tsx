@@ -52,6 +52,11 @@ interface Show {
   short_id: string | null;
   external_show_id: string | null;
   team: string;
+  is_bundle: boolean;
+  bundle_description: string;
+  bundle_duration_days: number;
+  bundle_replay_passwords: any[];
+  bundle_replay_info: string;
 }
 
 const CATEGORY_OPTIONS = [
