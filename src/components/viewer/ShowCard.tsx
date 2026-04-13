@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
+import TeamBadge from "@/components/viewer/TeamBadge";
 import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
@@ -131,15 +132,18 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
 
-        {/* Category badge on image - top left */}
-        {show.category && (() => {
-          const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
-          return (
-            <div className="absolute top-2.5 left-2.5 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 border border-white/10">
-              <span className="text-[10px] font-bold text-white">{cat.label}</span>
-            </div>
-          );
-        })()}
+        {/* Category + Team badges on image - top left */}
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
+          {show.category && (() => {
+            const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
+            return (
+              <div className="rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 border border-white/10 w-fit">
+                <span className="text-[10px] font-bold text-white">{cat.label}</span>
+              </div>
+            );
+          })()}
+          {show.team && <TeamBadge team={show.team} size="sm" />}
+        </div>
 
         {/* LIVE badge */}
         {showCountdown && countdown?.live && !show.is_replay && (

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
+import TeamBadge from "@/components/viewer/TeamBadge";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 
 const isShowPast4Hours = (show: Show) => {
@@ -314,11 +315,14 @@ const ReplayPage = () => {
                       <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 to-accent/10"><Play className="h-16 w-16 text-primary/30" /></div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
-                    {show.category && show.category !== "regular" && (() => {
-                      const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
-                      const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show") ? ` — ${show.category_member}` : "";
-                      return <span className={`absolute top-3 left-3 rounded-full px-3 py-1 text-[10px] font-bold backdrop-blur-sm ${cat.color}`}>{cat.label}{memberText}</span>;
-                    })()}
+                    <div className="absolute top-3 left-3 flex flex-col gap-1">
+                      {show.category && show.category !== "regular" && (() => {
+                        const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
+                        const memberText = show.category_member && (show.category === "birthday" || show.category === "last_show") ? ` — ${show.category_member}` : "";
+                        return <span className={`rounded-full px-3 py-1 text-[10px] font-bold backdrop-blur-sm w-fit ${cat.color}`}>{cat.label}{memberText}</span>;
+                      })()}
+                      {show.team && <TeamBadge team={show.team} size="sm" />}
+                    </div>
                     <span className="absolute top-3 right-3 rounded-full bg-accent/80 px-2.5 py-1 text-[10px] font-bold text-accent-foreground backdrop-blur-sm">REPLAY</span>
                     <div className="absolute bottom-3 left-4 right-4"><h3 className="text-lg font-bold text-foreground">{show.title}</h3></div>
                   </div>
