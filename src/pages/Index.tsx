@@ -452,9 +452,10 @@ const Index = () => {
     });
   };
 
-  const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay));
-  const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0));
-  const membershipShows = shows.filter((s) => s.is_subscription);
+  const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));
+  const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0 && !s.is_bundle));
+  const membershipShows = shows.filter((s) => s.is_subscription && !s.is_bundle);
+  const bundleShows = sortBySchedule(shows.filter((s) => s.is_bundle));
   const hasMembershipOpen = membershipShows.some((s) => !s.is_order_closed);
 
   const menuItems = [
