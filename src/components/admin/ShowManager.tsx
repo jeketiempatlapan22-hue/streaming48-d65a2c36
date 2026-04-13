@@ -256,6 +256,12 @@ const ShowManager = () => {
         membership_duration_days: 30,
         short_id: null,
         external_show_id: null,
+        team: null,
+        is_bundle: false,
+        bundle_description: "",
+        bundle_duration_days: 30,
+        bundle_replay_passwords: [],
+        bundle_replay_info: "",
       })
       .select()
       .single();
