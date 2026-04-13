@@ -121,7 +121,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
       className="group relative overflow-hidden rounded-2xl glass-neon transition-all duration-500 hover:border-[hsl(var(--neon-cyan)/0.5)] hover:shadow-[0_0_25px_hsl(var(--neon-cyan)/0.12),0_0_50px_hsl(var(--neon-cyan)/0.05)]"
     >
       {/* Image */}
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-44 overflow-hidden">
         {show.background_image_url ? (
           <img src={show.background_image_url} alt={show.title} loading="lazy" decoding="async"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -130,9 +130,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             <Ticket className="h-16 w-16 text-primary/30" />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-card/60 to-transparent" />
 
-        {/* Category + Team badges on image - top left */}
+        {/* Category badge - top left */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1">
           {show.category && (() => {
             const cat = SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular;
@@ -142,10 +142,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
               </div>
             );
           })()}
-          {show.team && <TeamBadge team={show.team} size="sm" />}
         </div>
 
-        {/* LIVE badge */}
+        {/* LIVE badge - top right */}
         {showCountdown && countdown?.live && !show.is_replay && (
           <div className="absolute top-2.5 right-2.5">
             <motion.div
@@ -159,23 +158,11 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           </div>
         )}
 
-        {/* Title + countdown strip at bottom of image */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 pt-8 bg-gradient-to-t from-card via-card/80 to-transparent">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-lg font-bold text-foreground leading-tight flex-1">{show.title}</h3>
-            {!show.is_replay && show.schedule_date && (
-              <button
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReminder(); }}
-                className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full transition-all ${reminded ? "bg-primary/20 text-primary" : "bg-white/10 text-white/60 hover:bg-white/20 hover:text-white"}`}
-                title={reminded ? "Hapus pengingat" : "Ingatkan saya"}
-              >
-                {reminded ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
-              </button>
-            )}
-          </div>
-          {showCountdown && countdown && !countdown.live && !show.is_replay && (
-            <div className="mt-1.5 flex items-center gap-2">
-              <Timer className="h-3 w-3 text-primary/70 animate-pulse shrink-0" />
+        {/* Countdown strip at bottom of image */}
+        {showCountdown && countdown && !countdown.live && !show.is_replay && (
+          <div className="absolute bottom-2 left-3 right-3">
+            <div className="flex items-center gap-2 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1.5 w-fit">
+              <Timer className="h-3 w-3 text-primary animate-pulse shrink-0" />
               <div className="flex items-center gap-1.5">
                 {countdown.d > 0 && (
                   <>
@@ -190,32 +177,57 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 <CountdownDigit value={countdown.s} label="s" />
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}
-      <div className="space-y-3 p-4">
+      <div className="space-y-2.5 p-4">
+        {/* Title + reminder */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-base font-bold text-foreground leading-tight flex-1">{show.title}</h3>
+          {!show.is_replay && show.schedule_date && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReminder(); }}
+              className={`shrink-0 flex h-7 w-7 items-center justify-center rounded-full transition-all ${reminded ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+              title={reminded ? "Hapus pengingat" : "Ingatkan saya"}
+            >
+              {reminded ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Team badge - prominent */}
+        {show.team && <TeamBadge team={show.team} size="md" />}
+
         {/* Category member info */}
         {show.category && show.category !== "regular" && show.category_member && (
-          <div className={`rounded-lg px-3 py-2 ${(SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular).color}`}>
+          <div className={`rounded-lg px-3 py-1.5 ${(SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular).color}`}>
             <p className="text-xs font-semibold">{show.category_member}</p>
           </div>
         )}
 
-        {isReplayMode && show.replay_coin_price > 0 ? (
-          <div className="flex items-center gap-1.5 text-sm text-accent">
-            <Film className="h-4 w-4" />
-            <span className="font-semibold">Replay: {show.replay_coin_price} Koin</span>
-          </div>
-        ) : show.coin_price > 0 ? (
-          <div className="flex items-center gap-1.5 text-sm text-[hsl(var(--warning))]">
-            <Coins className="h-4 w-4" />
-            <span className="font-semibold">{show.coin_price} Koin</span>
-          </div>
-        ) : null}
-
-        <span className="rounded-full bg-muted px-3 py-1 text-sm font-bold text-muted-foreground">{show.price}</span>
+        {/* Price & Coin combined in one line with / separator */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {show.price && show.price !== "Gratis" && (
+            <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-muted-foreground">{show.price}</span>
+          )}
+          {show.price && show.price !== "Gratis" && ((isReplayMode && show.replay_coin_price > 0) || (!isReplayMode && show.coin_price > 0)) && (
+            <span className="text-xs text-muted-foreground">/</span>
+          )}
+          {isReplayMode && show.replay_coin_price > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-bold text-accent">
+              <Film className="h-3 w-3" /> {show.replay_coin_price} Koin
+            </span>
+          ) : show.coin_price > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--warning))]/15 px-2.5 py-0.5 text-xs font-bold text-[hsl(var(--warning))]">
+              <Coins className="h-3 w-3" /> {show.coin_price} Koin
+            </span>
+          ) : null}
+          {show.price === "Gratis" && (
+            <span className="rounded-full bg-[hsl(var(--success))]/15 px-2.5 py-0.5 text-xs font-bold text-[hsl(var(--success))]">Gratis</span>
+          )}
+        </div>
 
         {show.schedule_date && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
