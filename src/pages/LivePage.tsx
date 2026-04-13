@@ -304,6 +304,7 @@ const LivePage = () => {
           Boolean(tokenShow?.is_subscription) ||
           normalizedTokenCode.startsWith("MBR-") ||
           normalizedTokenCode.startsWith("MRD-");
+        const isBundleToken = Boolean(tokenShow?.is_bundle);
 
         setTokenData({
           id: result.id,
@@ -312,9 +313,10 @@ const LivePage = () => {
           expires_at: result.expires_at,
           created_at: result.created_at,
           is_membership: isMembershipToken,
+          is_bundle: isBundleToken,
         });
 
-        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken) {
+        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken) {
           setShowMismatch(true);
           setMismatchShowTitle(JSON.stringify({
             tokenShowTitle: tokenShow?.title || "Show Lain",
