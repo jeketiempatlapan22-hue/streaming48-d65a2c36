@@ -836,28 +836,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Replay Shows Section - Link to /replay */}
-      {replayShows.length > 0 && (
-        <section className="px-4 py-8">
-          <div className="mx-auto max-w-6xl">
-            <motion.div
-              className="rounded-2xl border border-border bg-card p-8 text-center"
-              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-            >
-              <Film className="mx-auto mb-3 h-10 w-10 text-primary" />
-              <h2 className="text-2xl font-bold text-foreground mb-2">🎬 Replay Show</h2>
-              <p className="text-sm text-muted-foreground mb-4">{replayShows.length} show tersedia untuk ditonton ulang</p>
-              <a
-                href="/replay"
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.97]"
-              >
-                <Play className="h-4 w-4" /> Lihat Semua Replay
-              </a>
-            </motion.div>
-          </div>
-        </section>
-      )}
-
       {/* Bundle Shows Section */}
       {bundleShows.length > 0 && (
         <section className="px-4 py-8">
@@ -882,6 +860,28 @@ const Index = () => {
                 />
               ))}
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Replay Shows Section - Link to /replay */}
+      {replayShows.length > 0 && (
+        <section className="px-4 py-8">
+          <div className="mx-auto max-w-6xl">
+            <motion.div
+              className="rounded-2xl border border-border bg-card p-8 text-center"
+              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            >
+              <Film className="mx-auto mb-3 h-10 w-10 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">🎬 Replay Show</h2>
+              <p className="text-sm text-muted-foreground mb-4">{replayShows.length} show tersedia untuk ditonton ulang</p>
+              <a
+                href="/replay"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.97]"
+              >
+                <Play className="h-4 w-4" /> Lihat Semua Replay
+              </a>
+            </motion.div>
           </div>
         </section>
       )}
