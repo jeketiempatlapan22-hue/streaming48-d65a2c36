@@ -1,43 +1,54 @@
 
 
-# DVR Seekbar untuk Live Player
+# Tambah Badge Tim (Passion/Dream/Love) di Show Card, Replay, dan Lineup
 
-## Jawaban Pertanyaan
+## Ringkasan
+Menambahkan kolom `team` pada tabel shows dan menampilkan badge tim dengan warna dan ikon khas di kartu show, halaman replay, dan section lineup di halaman live.
 
-**Apakah fitur ini akan mengganggu fitur lain?**
-Tidak, jika diimplementasikan dengan benar. Fitur ini hanya menambahkan UI seekbar dan tracking waktu di sisi klien — tidak mengubah cara stream dimuat atau diputar.
+## Tim yang didukung
+| Tim | Warna | Ikon/Tema |
+|-----|-------|-----------|
+| Passion | Merah (`red-500`) | 🔥 Api |
+| Dream | Biru (`blue-500`) | ☁️ Awan |
+| Love | Pink (`pink-500`) | 💗 Hati |
 
-**Apakah bisa digunakan untuk M3U8 dan API Hanabira (proxy)?**
-- **M3U8 (HLS)**: Ya, **bisa**. HLS.js menyimpan buffer segmen yang sudah diunduh. User bisa seek mundur dalam buffer yang tersedia (biasanya 20-60 detik tergantung konfigurasi server). Namun, seek mundur hanya bisa sejauh buffer HLS yang tersedia — bukan seluruh durasi menonton.
-- **Proxy (Hanabira)**: Ya, **sama seperti M3U8** karena proxy juga menggunakan HLS.js. Batasan buffer yang sama berlaku.
-- **YouTube**: Terbatas. YouTube API tidak mengekspos buffered range secara detail untuk live stream.
-- **Cloudflare**: Tidak bisa — menggunakan iframe dengan kontrol sendiri.
+## Perubahan
 
-**Batasan penting**: Untuk live stream, seek mundur hanya bisa dilakukan dalam jangkauan buffer HLS (biasanya 20-60 detik). Tidak mungkin mundur ke "awal menonton" karena segmen lama sudah dibuang dari buffer. Ini adalah limitasi teknis HLS, bukan bug.
+### 1. Database Migration
+Tambah kolom `team` (text, nullable) ke tabel `shows`:
+```sql
+ALTER TABLE public.shows ADD COLUMN team text;
+```
+Update juga RPC `get_public_shows` agar mengembalikan field `team`.
 
-## Rencana Implementasi
+### 2. `src/types/show.ts`
+- Tambah `team?: string` ke interface `Show`
+- Tambah constant `SHOW_TEAMS` dengan config warna, label, dan ikon per tim
 
-### Apa yang akan dibuat
-Seekbar di control bar player yang menunjukkan:
-- Durasi user telah menonton (timer dari awal join)
-- Progress bar yang menunjukkan posisi relatif terhadap live edge
-- Kemampuan seek mundur/maju dalam buffer HLS yang tersedia
-- Label waktu: elapsed time dan jarak dari live edge
+### 3. `src/components/viewer/TeamBadge.tsx` (baru)
+Komponen reusable badge tim:
+- Banner kecil rounded dengan background gradient sesuai tim
+- Ikon tema (flame/cloud/heart SVG atau emoji)
+- Nama tim
+- Ukuran kecil (`text-[10px]`) agar muat di kartu
 
-### Perubahan file
+### 4. `src/components/viewer/ShowCard.tsx`
+- Import `TeamBadge`
+- Tampilkan badge tim di area image (sebelah badge kategori, atau di bawahnya)
 
-**`src/components/VideoPlayer.tsx`**
-1. Tambah state: `watchStartTime` (timestamp saat player dimulai), `currentLiveOffset` (detik dari live edge), `seekableRange` (range buffer yang tersedia)
-2. Tambah interval (setiap 500ms) yang membaca `video.buffered`, `video.currentTime`, dan `hls.liveSyncPosition` untuk menghitung seekable range dan posisi saat ini
-3. Tambah seekbar (Slider dari Radix) di antara tombol LIVE dan spacer di control bar
-4. Tampilkan label waktu: durasi menonton (format `HH:MM:SS`) dan offset dari live (`-Xs`)
-5. Handler `onSeek`: gunakan `video.currentTime = targetTime` untuk seek dalam buffer
-6. Seekbar hanya tampil untuk tipe `m3u8` (termasuk proxy) — hidden untuk YouTube/Cloudflare
+### 5. `src/pages/ReplayPage.tsx`
+- Tampilkan `TeamBadge` di kartu replay (sudah ada badge kategori, tambah badge tim di samping/bawahnya)
 
-### Detail teknis
-- Seekbar range: `buffered.start(0)` sampai `buffered.end(last)` 
-- Thumb position: `video.currentTime` relatif terhadap range
-- Elapsed timer: `Date.now() - watchStartTime` (pure client-side, tidak perlu database)
-- Saat user seek, update `isBehindLive` state sesuai jarak dari live edge
-- Tidak mengubah konfigurasi HLS buffer yang sudah ada
+### 6. `src/components/viewer/LineupAvatars.tsx`
+- Terima prop `team?: string`
+- Tampilkan `TeamBadge` di header section lineup, di samping label "Lineup"
+
+### 7. `src/pages/LivePage.tsx`
+- Pass `team` dari show data ke `LineupAvatars`
+
+### 8. `src/components/admin/ShowManager.tsx`
+- Tambah dropdown/pilihan tim (Passion/Dream/Love/kosong) di form edit show
+
+## Tidak ada dampak ke fitur lain
+Kolom baru nullable, default null — show tanpa tim tidak menampilkan badge.
 
