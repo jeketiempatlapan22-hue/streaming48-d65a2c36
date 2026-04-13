@@ -1726,18 +1726,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
       code,
@@ -1751,14 +1740,14 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
-    const liveLink = `realtime48stream.my.id/live?t=${code}`;
+    const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
-    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
-
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
-    if (show.access_password) {
-      msg += `\n🔐 Sandi Replay: ${show.access_password}`;
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
+    if (show.is_bundle) {
+      msg += `\n📦 Durasi Bundle: *${show.bundle_duration_days || 30} hari*`;
     }
+    msg += `\n\n📺 *Link Nonton:*\n${liveLink}`;
+    msg += buildReplayInfoMessage(show);
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
@@ -1786,18 +1775,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
-
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
       code,
@@ -1812,14 +1790,14 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
-    const liveLink = `realtime48stream.my.id/live?t=${code}`;
+    const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
-    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}`;
-
-    msg += `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
-    if (show.access_password) {
-      msg += `\n🔐 Sandi Replay: ${show.access_password}`;
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
+    if (show.is_bundle) {
+      msg += `\n📦 Durasi Bundle: *${show.bundle_duration_days || 30} hari*`;
     }
+    msg += `\n\n📺 *Link Nonton:*\n${liveLink}`;
+    msg += buildReplayInfoMessage(show);
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
@@ -1843,17 +1821,7 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     }
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
-    let expiresAt: string | null = null;
-    if (show.schedule_date && show.schedule_time) {
-      const { data: parsed } = await supabase.rpc('parse_show_datetime', { _date: show.schedule_date, _time: show.schedule_time || '23.59 WIB' });
-      if (parsed) {
-        const showDt = new Date(parsed);
-        const endOfDay = new Date(showDt);
-        endOfDay.setHours(23, 59, 59, 0);
-        expiresAt = endOfDay > new Date() ? endOfDay.toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      }
-    }
-    if (!expiresAt) expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const tokens: string[] = [];
     const rows = [];
@@ -1871,23 +1839,76 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *${count} Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n`;
     msg += `🎬 Show: *${show.title}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
-    msg += `⏰ Kedaluwarsa: ${expDate}\n\n`;
-
-    msg += `🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
-    if (show.access_password) {
-      msg += `🔐 Sandi Replay: ${show.access_password}\n`;
+    msg += `⏰ Kedaluwarsa: ${expDate}\n`;
+    if (show.is_bundle) {
+      msg += `📦 Durasi Bundle: *${show.bundle_duration_days || 30} hari*\n`;
     }
-    msg += `\n🔑 *Daftar Token:*\n`;
+    msg += buildReplayInfoMessage(show);
+    msg += `\n\n🔑 *Daftar Token:*\n`;
     for (const code of tokens) {
       msg += `${code}\n`;
     }
-    msg += `\n📺 *Link Nonton (contoh):*\nrealtime48stream.my.id/live?t=${tokens[0]}`;
+    msg += `\n📺 *Link Nonton (contoh):*\nhttps://realtime48stream.my.id/live?t=${tokens[0]}`;
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
+}
+
+function buildReplayInfoMessage(show: any): string {
+  if (show?.is_bundle) {
+    let msg = '';
+    const bundlePasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
+    if (bundlePasswords.length > 0) {
+      msg += `\n\n📦 *Sandi Replay Bundle:*`;
+      for (const entry of bundlePasswords) {
+        if (entry?.show_name && entry?.password) {
+          msg += `\n🎭 ${entry.show_name}: *${entry.password}*`;
+        }
+      }
+    }
+    if (show.bundle_replay_info) {
+      msg += `\n\n🎬 *Info Replay:*\n🔗 ${show.bundle_replay_info}`;
+    } else {
+      msg += `\n\n🎬 *Link Replay:*\n🔗 https://replaytime.lovable.app`;
+    }
+    if (show.access_password) {
+      msg += `\n🔑 Sandi Akses: *${show.access_password}*`;
+    }
+    return msg;
+  }
+
+  let msg = `\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+  if (show?.access_password) {
+    msg += `\n🔐 Sandi Replay: ${show.access_password}`;
+  }
+  return msg;
+}
+
+async function calculateShowTokenExpiry(supabase: any, show: any): Promise<string> {
+  if (show?.is_bundle && (show.bundle_duration_days || 0) > 0) {
+    return new Date(Date.now() + show.bundle_duration_days * 86400000).toISOString();
+  }
+
+  if (show?.schedule_date) {
+    const { data: parsed } = await supabase.rpc('parse_show_datetime', {
+      _date: show.schedule_date,
+      _time: show.schedule_time || '23.59 WIB',
+    });
+
+    if (parsed) {
+      const showDt = new Date(parsed);
+      const endOfDay = new Date(showDt);
+      endOfDay.setHours(23, 59, 59, 0);
+      if (endOfDay > new Date()) {
+        return endOfDay.toISOString();
+      }
+    }
+  }
+
+  return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 }
 
 async function handleSetShortIdWa(supabase: any, hexId: string, shortId: string): Promise<string> {
