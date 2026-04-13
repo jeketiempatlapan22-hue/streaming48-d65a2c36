@@ -433,7 +433,9 @@ TOLAK_RESET <id> - Tolak reset password
 /maketoken <show> <durasi> - Token durasi custom (1 device)
 /maketoken <show> <durasi> <max> - Token durasi + max device
 /maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
-  Durasi: 30hari, 1minggu, 2bulan, dll`;
+  Durasi: 30hari, 1minggu, 2bulan, dll
+
+💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
 }
 
 async function handleStatus(supabase: any): Promise<string> {
@@ -606,14 +608,15 @@ async function handleReplayList(supabase: any): Promise<string> {
   }
 }
 
-async function findShowByInput(supabase: any, input: string): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
+async function findShowByInput(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
   const cleanInput = input.replace(/^#/, '').trim();
 
-  // Fetch all active shows for matching
-  const { data: allShows } = await supabase
+  // Fetch shows for matching
+  const query = supabase
     .from('shows')
-    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category')
-    .eq('is_active', true);
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
+  if (activeOnly) query.eq('is_active', true);
+  const { data: allShows } = await query;
 
   if (!allShows || allShows.length === 0) return { show: null, multiple: null, error: 'Tidak ada show aktif.' };
 
@@ -621,9 +624,24 @@ async function findShowByInput(supabase: any, input: string): Promise<{ show: an
   const shortIdMatch = allShows.find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
   if (shortIdMatch) return { show: shortIdMatch, multiple: null, error: null };
 
-  // Try hex ID prefix match (first 6 chars of UUID)
-  const hexMatch = allShows.find((s: any) => s.id.substring(0, 6).toLowerCase() === cleanInput.toLowerCase());
-  if (hexMatch) return { show: hexMatch, multiple: null, error: null };
+  // Try matching by UUID (full or partial)
+  const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+  const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+
+  if (isHexId) {
+    // Exact full UUID match
+    const exactMatch = allShows.find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+    if (exactMatch) return { show: exactMatch, multiple: null, error: null };
+
+    // Prefix match (6+ chars)
+    if (hexOnly.length >= 6) {
+      const prefixMatches = allShows.filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+      if (prefixMatches.length === 1) return { show: prefixMatches[0], multiple: null, error: null };
+      if (prefixMatches.length > 1) return { show: null, multiple: prefixMatches, error: null };
+    }
+
+    return { show: null, multiple: null, error: `Show dengan ID #${hexOnly.slice(0, 6)} tidak ditemukan.` };
+  }
 
   // Try title search
   const titleMatches = allShows.filter((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
@@ -869,16 +887,15 @@ async function handleMsgShow(supabase: any, showName: string, message: string): 
     const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
     if (!FONNTE_TOKEN) return '⚠️ FONNTE_API_TOKEN tidak dikonfigurasi.';
 
-    const { data: shows } = await supabase.from('shows').select('id, title').eq('is_active', true).ilike('title', `%${showName}%`).limit(5);
-    if (!shows || shows.length === 0) return `⚠️ Show "${showName}" tidak ditemukan.`;
-    if (shows.length > 1) {
-      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
-      for (const s of shows) msg += `• ${s.title}\n`;
-      msg += '\n💡 Gunakan nama yang lebih spesifik.';
+    const { show, error, multiple } = await findShowByInput(supabase, showName);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+      msg += '\n💡 Gunakan ID: /msgshow #<id> pesan';
       return msg;
     }
-
-    const show = shows[0];
+    if (!show) return `⚠️ Show "${showName}" tidak ditemukan.`;
     const phones = await collectShowBuyerPhones(supabase, show.id);
 
     if (phones.length === 0) return `⚠️ Tidak ada pemesan dengan nomor telepon untuk show "${show.title}".`;
@@ -1622,19 +1639,14 @@ async function handleTopUsersWa(supabase: any): Promise<string> {
 async function handleSetPriceWa(supabase: any, showInput: string, priceType: 'coin' | 'replay', price: number): Promise<string> {
   if (price < 0 || price > 999999) return '⚠️ Harga harus antara 0-999.999';
 
-  // Try to find show by name or short ID
-  const shortIdMatch = showInput.match(/^#?([a-f0-9]{6})$/i);
-  let show: any = null;
-
-  if (shortIdMatch) {
-    const shortId = shortIdMatch[1].toLowerCase();
-    const { data: shows } = await supabase.from('shows').select('id, title, coin_price, replay_coin_price');
-    show = (shows || []).find((s: any) => s.id.replace(/-/g, '').slice(0, 6).toLowerCase() === shortId);
-  } else {
-    const { data: shows } = await supabase.from('shows').select('id, title, coin_price, replay_coin_price').ilike('title', `%${showInput}%`).limit(1);
-    show = shows?.[0];
+  const { show, error, multiple } = await findShowByInput(supabase, showInput, false);
+  if (error) return `⚠️ ${error}`;
+  if (multiple) {
+    let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+    for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+    msg += '\n💡 Gunakan ID: /setprice #<id> ...';
+    return msg;
   }
-
   if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
   const field = priceType === 'coin' ? 'coin_price' : 'replay_coin_price';
@@ -1648,27 +1660,14 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
   try {
     if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
-    const cleanInput = showInput.replace(/^#/, '').trim();
-    let show: any = null;
-
-    // Try custom short_id first
-    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
-    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
-
-    if (!show) {
-      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
-      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
-      if (isHexId) {
-        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-        if (!show && hexOnly.length >= 6) {
-          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
-          if (prefixMatches.length === 1) show = prefixMatches[0];
-        }
-      } else {
-        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
-      }
+    const { show, error, multiple } = await findShowByInput(supabase, showInput, false);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+      msg += '\n💡 Gunakan ID: /createtoken #<id> ...';
+      return msg;
     }
-
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -1721,27 +1720,14 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     if (!profiles || profiles.length === 0) return `⚠️ User "${usernameInput}" tidak ditemukan`;
     const profile = profiles.find((p: any) => p.username?.toLowerCase() === usernameInput.toLowerCase()) || profiles[0];
 
-    const cleanShowInput = showInput.replace(/^#/, '').trim();
-    let show: any = null;
-
-    // Try custom short_id first
-    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
-    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanShowInput.toLowerCase());
-
-    if (!show) {
-      const hexOnly = cleanShowInput.replace(/-/g, '').toLowerCase();
-      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
-      if (isHexId) {
-        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-        if (!show && hexOnly.length >= 6) {
-          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
-          if (prefixMatches.length === 1) show = prefixMatches[0];
-        }
-      } else {
-        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanShowInput.toLowerCase()));
-      }
+    const { show, error: showErr, multiple } = await findShowByInput(supabase, showInput, false);
+    if (showErr) return `⚠️ ${showErr}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+      msg += '\n💡 Gunakan ID: /givetoken user #<id> ...';
+      return msg;
     }
-
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
     const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
@@ -1792,28 +1778,14 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     if (count < 1 || count > 100) return '⚠️ Jumlah token harus antara 1-100';
     if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
-    // Find show by custom short_id, hex ID, or name
-    const cleanInput = showInput.replace(/^#/, '').trim();
-    let show: any = null;
-
-    // Try custom short_id first
-    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
-    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
-
-    if (!show) {
-      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
-      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
-      if (isHexId) {
-        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-        if (!show && hexOnly.length >= 6) {
-          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
-          if (prefixMatches.length === 1) show = prefixMatches[0];
-        }
-      } else {
-        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
-      }
+    const { show, error, multiple } = await findShowByInput(supabase, showInput, false);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+      msg += '\n💡 Gunakan ID: /bulktoken #<id> ...';
+      return msg;
     }
-
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
     let expiresAt: string | null = null;
@@ -1905,22 +1877,13 @@ async function handleMakeTokenWa(supabase: any, showInput: string, durationStr: 
       return '⚠️ Durasi >30 hari wajib menyertakan sandi replay.\nContoh: /maketoken ShowA 60hari 1 sandiABC';
     }
 
-    const cleanInput = showInput.replace(/^#/, '').trim();
-    let show: any = null;
-    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
-    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
-    if (!show) {
-      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
-      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
-      if (isHexId) {
-        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
-        if (!show && hexOnly.length >= 6) {
-          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
-          if (prefixMatches.length === 1) show = prefixMatches[0];
-        }
-      } else {
-        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
-      }
+    const { show, error, multiple } = await findShowByInput(supabase, showInput, false);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${s.title} (#${s.short_id || s.id.substring(0, 6)})\n`;
+      msg += '\n💡 Gunakan ID: /maketoken #<id> ...';
+      return msg;
     }
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
