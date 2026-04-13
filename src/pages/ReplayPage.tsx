@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 
 const isShowPast4Hours = (show: Show) => {
