@@ -1884,6 +1884,70 @@ async function handleSetShortIdWa(supabase: any, hexId: string, shortId: string)
   }
 }
 
+function parseDuration(durationStr: string): number {
+  const match = durationStr.match(/^(\d+)\s*(hari|minggu|bulan)$/i);
+  if (!match) return 0;
+  const num = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === 'hari') return num;
+  if (unit === 'minggu') return num * 7;
+  if (unit === 'bulan') return num * 30;
+  return 0;
+}
+
+async function handleMakeTokenWa(supabase: any, showInput: string, durationStr: string, maxDevices: number, replayPassword: string | null): Promise<string> {
+  try {
+    if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
+    const durationDays = parseDuration(durationStr);
+    if (durationDays <= 0) return '⚠️ Format durasi salah. Contoh: 30hari, 1minggu, 2bulan';
+
+    if (durationDays > 30 && !replayPassword) {
+      return '⚠️ Durasi >30 hari wajib menyertakan sandi replay.\nContoh: /maketoken ShowA 60hari 1 sandiABC';
+    }
+
+    const cleanInput = showInput.replace(/^#/, '').trim();
+    let show: any = null;
+    const { data: allShows } = await supabase.from('shows').select('id, title, schedule_date, schedule_time, access_password, short_id');
+    show = (allShows || []).find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+    if (!show) {
+      const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+      const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+      if (isHexId) {
+        show = (allShows || []).find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+        if (!show && hexOnly.length >= 6) {
+          const prefixMatches = (allShows || []).filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+          if (prefixMatches.length === 1) show = prefixMatches[0];
+        }
+      } else {
+        show = (allShows || []).find((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
+      }
+    }
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
+
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+    });
+    if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric' });
+    const liveLink = `realtime48stream.my.id/live?t=${code}`;
+
+    let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Custom Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n🔑 Token: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Durasi: *${durationDays} hari*\n📅 Kedaluwarsa: ${expDate}\n\n📺 *Link Nonton:*\n${liveLink}\n\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app`;
+
+    if (durationDays > 7 && replayPassword) {
+      msg += `\n🔐 Sandi Replay: ${replayPassword}`;
+    }
+    msg += `\n━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
