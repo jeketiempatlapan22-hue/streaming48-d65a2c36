@@ -657,6 +657,10 @@ export type Database = {
         Row: {
           access_password: string | null
           background_image_url: string | null
+          bundle_description: string | null
+          bundle_duration_days: number
+          bundle_replay_info: string | null
+          bundle_replay_passwords: Json
           category: string | null
           category_member: string | null
           coin_price: number
@@ -665,6 +669,7 @@ export type Database = {
           group_link: string | null
           id: string
           is_active: boolean
+          is_bundle: boolean
           is_order_closed: boolean
           is_replay: boolean
           is_subscription: boolean
@@ -687,6 +692,10 @@ export type Database = {
         Insert: {
           access_password?: string | null
           background_image_url?: string | null
+          bundle_description?: string | null
+          bundle_duration_days?: number
+          bundle_replay_info?: string | null
+          bundle_replay_passwords?: Json
           category?: string | null
           category_member?: string | null
           coin_price?: number
@@ -695,6 +704,7 @@ export type Database = {
           group_link?: string | null
           id?: string
           is_active?: boolean
+          is_bundle?: boolean
           is_order_closed?: boolean
           is_replay?: boolean
           is_subscription?: boolean
@@ -717,6 +727,10 @@ export type Database = {
         Update: {
           access_password?: string | null
           background_image_url?: string | null
+          bundle_description?: string | null
+          bundle_duration_days?: number
+          bundle_replay_info?: string | null
+          bundle_replay_passwords?: Json
           category?: string | null
           category_member?: string | null
           coin_price?: number
@@ -725,6 +739,7 @@ export type Database = {
           group_link?: string | null
           id?: string
           is_active?: boolean
+          is_bundle?: boolean
           is_order_closed?: boolean
           is_replay?: boolean
           is_subscription?: boolean
@@ -1109,6 +1124,7 @@ export type Database = {
     }
     Functions: {
       auto_cleanup_chat: { Args: never; Returns: undefined }
+      auto_reset_long_token_sessions: { Args: never; Returns: undefined }
       auto_unblock_expired_ips: { Args: never; Returns: undefined }
       change_poll_vote: {
         Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
@@ -1162,6 +1178,10 @@ export type Database = {
         Returns: {
           access_password: string | null
           background_image_url: string | null
+          bundle_description: string | null
+          bundle_duration_days: number
+          bundle_replay_info: string | null
+          bundle_replay_passwords: Json
           category: string | null
           category_member: string | null
           coin_price: number
@@ -1170,6 +1190,7 @@ export type Database = {
           group_link: string | null
           id: string
           is_active: boolean
+          is_bundle: boolean
           is_order_closed: boolean
           is_replay: boolean
           is_subscription: boolean
