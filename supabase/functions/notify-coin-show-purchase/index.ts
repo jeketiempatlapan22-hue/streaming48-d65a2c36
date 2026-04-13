@@ -153,6 +153,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Append bundle replay passwords if available
+    if (isBundle && bundleReplayPasswords.length > 0) {
+      message += `\n📦 *Sandi Replay Bundle:*\n`;
+      for (const entry of bundleReplayPasswords) {
+        if (entry.show_name && entry.password) {
+          message += `  🎭 ${entry.show_name}: ${entry.password}\n`;
+        }
+      }
+    }
+    if (isBundle && bundleReplayInfo) {
+      message += `\nℹ️ *Info Replay:* ${bundleReplayInfo}\n`;
+    }
+
     message += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
 
     // Clean phone number
