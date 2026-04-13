@@ -130,11 +130,6 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 {cat.label}
               </span>
             )}
-            {show.team && (
-              <div className="scale-90 origin-left">
-                <TeamBadge team={show.team} size="sm" />
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-1">
             {showCountdown && countdown?.live && !show.is_replay && (
@@ -219,13 +214,16 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           )}
         </div>
 
-        {/* Lineup - single line */}
+        {/* Lineup - full display */}
         {show.lineup && (
-          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Users className="h-3 w-3 text-primary/70 shrink-0" />
-            <span className="line-clamp-1">{show.lineup}</span>
-          </p>
+          <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+            <Users className="h-3 w-3 text-primary/70 shrink-0 mt-0.5" />
+            <span className="leading-relaxed">{show.lineup}</span>
+          </div>
         )}
+
+        {/* Team badge - full width below lineup */}
+        {show.team && <TeamBadge team={show.team} size="md" />}
 
         {/* Action buttons - slimmer */}
         <div className="flex flex-col gap-1.5 pt-1">
