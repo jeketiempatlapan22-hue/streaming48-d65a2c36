@@ -17,6 +17,7 @@ export interface Show {
   coin_price: number;
   replay_coin_price: number;
   is_replay: boolean;
+  is_active?: boolean;
   access_password?: string;
   replay_qris_price?: number;
   team?: string;
@@ -25,6 +26,7 @@ export interface Show {
   bundle_duration_days?: number;
   bundle_replay_passwords?: any;
   bundle_replay_info?: string;
+  short_id?: string | null;
 }
 
 export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {

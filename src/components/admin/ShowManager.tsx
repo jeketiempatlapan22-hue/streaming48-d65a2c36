@@ -256,6 +256,12 @@ const ShowManager = () => {
         membership_duration_days: 30,
         short_id: null,
         external_show_id: null,
+        team: null,
+        is_bundle: false,
+        bundle_description: "",
+        bundle_duration_days: 30,
+        bundle_replay_passwords: [],
+        bundle_replay_info: "",
       })
       .select()
       .single();
@@ -328,6 +334,11 @@ const ShowManager = () => {
       short_id: cleanShortId,
       external_show_id: draft.external_show_id?.trim() || null,
       team: draft.team.trim() || null,
+      is_bundle: draft.is_bundle,
+      bundle_description: draft.bundle_description.trim(),
+      bundle_duration_days: Math.max(1, Number(draft.bundle_duration_days) || 30),
+      bundle_replay_passwords: draft.bundle_replay_passwords || [],
+      bundle_replay_info: draft.bundle_replay_info.trim(),
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();

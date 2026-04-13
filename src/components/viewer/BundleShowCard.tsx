@@ -4,6 +4,7 @@ import { Calendar, Clock, Coins, CreditCard, Package, Play, Timer } from "lucide
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import bundleBg from "@/assets/bundle-bg.jpg";
 
 interface BundleShowCardProps {
   show: Show;
@@ -38,9 +39,12 @@ const BundleShowCard = forwardRef<HTMLDivElement, BundleShowCardProps>(
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
             />
           ) : (
-            <div className="flex h-full items-center justify-center bg-gradient-to-br from-[hsl(var(--warning))]/20 to-primary/10">
-              <Package className="h-16 w-16 text-[hsl(var(--warning))]/40" />
-            </div>
+            <img
+              src={bundleBg}
+              alt="Bundle"
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
           
