@@ -235,6 +235,7 @@ const ReplayPage = () => {
   };
 
   const filteredShows = shows.filter((s) => {
+    if (s.is_bundle) return false;
     const q = searchQuery.toLowerCase();
     const matchesSearch = s.title.toLowerCase().includes(q) ||
       (s.schedule_date || "").toLowerCase().includes(q) ||
@@ -242,6 +243,11 @@ const ReplayPage = () => {
       (s.category_member || "").toLowerCase().includes(q);
     const matchesCategory = categoryFilter === "all" || (s.category || "regular") === categoryFilter;
     return matchesSearch && matchesCategory;
+  });
+  const bundleShows = shows.filter((s) => {
+    if (!s.is_bundle) return false;
+    const q = searchQuery.toLowerCase();
+    return s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q);
   });
 
   const availableCategories = ["all", ...Array.from(new Set(shows.map((s) => s.category || "regular")))];
