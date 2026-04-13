@@ -1207,9 +1207,15 @@ const Index = () => {
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Show</span>
+                  <span className="text-muted-foreground">{coinShowTarget?.is_bundle ? "Paket" : "Show"}</span>
                   <span className="font-semibold text-foreground">{coinShowTarget?.title}</span>
                 </div>
+                {coinShowTarget?.is_bundle && coinShowTarget?.bundle_duration_days && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Durasi Token</span>
+                    <span className="font-semibold text-[hsl(var(--warning))]">{coinShowTarget.bundle_duration_days} hari</span>
+                  </div>
+                )}
                 {coinShowTarget?.schedule_date && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Jadwal</span>
@@ -1227,12 +1233,19 @@ const Index = () => {
                   </span>
                 </div>
               </div>
+              {/* Bundle description preview */}
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_description && (
+                <div className="rounded-xl border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 p-3">
+                  <p className="text-xs font-semibold text-[hsl(var(--warning))] mb-1">📋 Termasuk dalam paket:</p>
+                  <p className="text-xs text-muted-foreground whitespace-pre-line">{coinShowTarget.bundle_description}</p>
+                </div>
+              )}
               <div>
                 <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   📱 Nomor WhatsApp <span className="text-destructive">*</span>
                 </label>
                 <Input value={coinPhone} onChange={(e) => setCoinPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
-                <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Token, link nonton & info replay akan dikirim ke nomor ini</p>
               </div>
               {coinBalance < (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? (
                 <div className="space-y-3">
