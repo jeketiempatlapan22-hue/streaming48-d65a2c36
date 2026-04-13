@@ -588,9 +588,10 @@ async function handleReplayList(supabase: any): Promise<string> {
     for (const s of shows) {
       const status = s.is_replay ? '🟢 ON' : '🔴 OFF';
       const pw = s.access_password ? `🔐 ${s.access_password}` : '⚠️ No password';
-      msg += `${status} *${s.title}*\n   📅 ${s.schedule_date || '-'} | 🪙 ${s.replay_coin_price} koin | ${pw}\n\n`;
+      const sid = s.short_id || s.id.substring(0, 6);
+      msg += `${status} *${s.title}* (#${sid})\n   📅 ${s.schedule_date || '-'} | 🪙 ${s.replay_coin_price} koin | ${pw}\n\n`;
     }
-    msg += '💡 Toggle replay: /replay <nama show>';
+    msg += '💡 Toggle replay: /replay <nama/ID>';
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
