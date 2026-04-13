@@ -4,6 +4,7 @@ import { Calendar, Clock, Coins, CreditCard, Package, Play, Timer } from "lucide
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import bundleBg from "@/assets/bundle-bg.jpg";
 
 interface BundleShowCardProps {
   show: Show;
