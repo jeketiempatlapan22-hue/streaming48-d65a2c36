@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
+import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
@@ -281,7 +282,11 @@ const SchedulePage = () => {
 
   const filteredShows = shows.filter(s => {
     const q = searchQuery.toLowerCase();
-    return s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q) || (s.lineup || "").toLowerCase().includes(q);
+    return !s.is_bundle && (s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q) || (s.lineup || "").toLowerCase().includes(q));
+  });
+  const bundleShows = shows.filter(s => {
+    const q = searchQuery.toLowerCase();
+    return s.is_bundle && (s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q) || (s.lineup || "").toLowerCase().includes(q));
   });
 
   const nextShow = shows.find(s => {
@@ -329,6 +334,18 @@ const SchedulePage = () => {
                 <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id]} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} />
               </motion.div>
             ))}
+          </div>
+        )}
+
+        {/* Bundle Shows */}
+        {bundleShows.length > 0 && (
+          <div className="mt-10">
+            <h2 className="mb-6 text-center text-xl font-bold text-foreground">📦 Paket Bundle</h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {bundleShows.map((show, i) => (
+                <BundleShowCard key={show.id} show={show} index={i} redeemedToken={redeemedTokens[show.id]} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} />
+              ))}
+            </div>
           </div>
         )}
       </div>

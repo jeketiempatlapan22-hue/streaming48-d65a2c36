@@ -34,6 +34,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import InstallBanner from "@/components/viewer/InstallBanner";
+import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
 
@@ -452,9 +453,10 @@ const Index = () => {
     });
   };
 
-  const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay));
-  const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0));
-  const membershipShows = shows.filter((s) => s.is_subscription);
+  const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));
+  const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0 && !s.is_bundle));
+  const membershipShows = shows.filter((s) => s.is_subscription && !s.is_bundle);
+  const bundleShows = sortBySchedule(shows.filter((s) => s.is_bundle));
   const hasMembershipOpen = membershipShows.some((s) => !s.is_order_closed);
 
   const menuItems = [
@@ -852,6 +854,34 @@ const Index = () => {
                 <Play className="h-4 w-4" /> Lihat Semua Replay
               </a>
             </motion.div>
+          </div>
+        </section>
+      )}
+
+      {/* Bundle Shows Section */}
+      {bundleShows.length > 0 && (
+        <section className="px-4 py-8">
+          <div className="mx-auto max-w-6xl">
+            <motion.h2
+              className="mb-6 text-center text-2xl font-bold text-foreground md:text-3xl"
+              initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            >
+              📦 Paket Bundle
+            </motion.h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {bundleShows.map((show, i) => (
+                <BundleShowCard
+                  key={show.id}
+                  show={show}
+                  index={i}
+                  redeemedToken={redeemedTokens[show.id]}
+                  accessPassword={accessPasswords[show.id]}
+                  replayPassword={replayPasswords[show.id]}
+                  onBuy={handleBuy}
+                  onCoinBuy={handleCoinBuy}
+                />
+              ))}
+            </div>
           </div>
         </section>
       )}

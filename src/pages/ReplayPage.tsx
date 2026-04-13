@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 
 const isShowPast4Hours = (show: Show) => {
@@ -234,6 +235,7 @@ const ReplayPage = () => {
   };
 
   const filteredShows = shows.filter((s) => {
+    if (s.is_bundle) return false;
     const q = searchQuery.toLowerCase();
     const matchesSearch = s.title.toLowerCase().includes(q) ||
       (s.schedule_date || "").toLowerCase().includes(q) ||
@@ -241,6 +243,11 @@ const ReplayPage = () => {
       (s.category_member || "").toLowerCase().includes(q);
     const matchesCategory = categoryFilter === "all" || (s.category || "regular") === categoryFilter;
     return matchesSearch && matchesCategory;
+  });
+  const bundleShows = shows.filter((s) => {
+    if (!s.is_bundle) return false;
+    const q = searchQuery.toLowerCase();
+    return s.title.toLowerCase().includes(q) || (s.schedule_date || "").toLowerCase().includes(q);
   });
 
   const availableCategories = ["all", ...Array.from(new Set(shows.map((s) => s.category || "regular")))];
@@ -381,6 +388,18 @@ const ReplayPage = () => {
                 </motion.div>
               );
             })}
+          </div>
+        )}
+
+        {/* Bundle Shows */}
+        {bundleShows.length > 0 && (
+          <div className="mt-10">
+            <h2 className="mb-6 text-center text-xl font-bold text-foreground">📦 Paket Bundle</h2>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {bundleShows.map((show, i) => (
+                <BundleShowCard key={show.id} show={show} index={i} redeemedToken={""} onBuy={(s) => openPurchase(s)} onCoinBuy={(s) => openPurchase(s)} />
+              ))}
+            </div>
           </div>
         )}
       </div>
