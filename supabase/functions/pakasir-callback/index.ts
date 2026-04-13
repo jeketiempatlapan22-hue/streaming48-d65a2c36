@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       // Get show details
       const { data: show } = await supabase
         .from("shows")
-        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days")
+        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days, is_bundle, bundle_replay_passwords, bundle_replay_info")
         .eq("id", subOrder.show_id)
         .maybeSingle();
 
@@ -226,6 +226,19 @@ Deno.serve(async (req) => {
           if (show?.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
+        }
+
+        // Bundle replay passwords
+        if (show?.is_bundle && Array.isArray(show.bundle_replay_passwords) && show.bundle_replay_passwords.length > 0) {
+          waMessage += `\n📦 *Sandi Replay Bundle:*\n`;
+          for (const entry of show.bundle_replay_passwords as any[]) {
+            if (entry.show_name && entry.password) {
+              waMessage += `  🎭 ${entry.show_name}: ${entry.password}\n`;
+            }
+          }
+        }
+        if (show?.is_bundle && show.bundle_replay_info) {
+          waMessage += `\nℹ️ *Info Replay:* ${show.bundle_replay_info}\n`;
         }
 
         waMessage += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;

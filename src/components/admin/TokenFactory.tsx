@@ -417,12 +417,7 @@ const TokenFactory = () => {
         {!isPublic && (
           <div>
             <label className="mb-1 block text-xs font-medium text-muted-foreground">Max Device</label>
-            <Select value={maxDevices} onValueChange={setMaxDevices}>
-              <SelectTrigger className="w-24 bg-background"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {[1, 2, 3, 4, 5].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Input type="number" min="1" max="9999" value={maxDevices} onChange={(e) => setMaxDevices(e.target.value)} className="w-24 bg-background" />
           </div>
         )}
         <div>

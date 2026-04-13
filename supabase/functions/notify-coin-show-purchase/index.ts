@@ -96,9 +96,13 @@ Deno.serve(async (req) => {
 
     const { data: show } = await supabase
       .from('shows')
-      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time')
+      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info')
       .eq('id', show_id)
       .maybeSingle();
+
+    let isBundle = false;
+    let bundleReplayPasswords: any[] = [];
+    let bundleReplayInfo = '';
 
     if (show) {
       title = title || show.title;
@@ -109,6 +113,9 @@ Deno.serve(async (req) => {
       durationDays = show.membership_duration_days || 30;
       scheduleDate = show.schedule_date || '';
       scheduleTime = show.schedule_time || '';
+      isBundle = show.is_bundle || false;
+      bundleReplayPasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
+      bundleReplayInfo = show.bundle_replay_info || '';
     }
 
     const siteUrl = 'realtime48stream.my.id';
@@ -144,6 +151,19 @@ Deno.serve(async (req) => {
         message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
+    }
+
+    // Append bundle replay passwords if available
+    if (isBundle && bundleReplayPasswords.length > 0) {
+      message += `\n📦 *Sandi Replay Bundle:*\n`;
+      for (const entry of bundleReplayPasswords) {
+        if (entry.show_name && entry.password) {
+          message += `  🎭 ${entry.show_name}: ${entry.password}\n`;
+        }
+      }
+    }
+    if (isBundle && bundleReplayInfo) {
+      message += `\nℹ️ *Info Replay:* ${bundleReplayInfo}\n`;
     }
 
     message += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
