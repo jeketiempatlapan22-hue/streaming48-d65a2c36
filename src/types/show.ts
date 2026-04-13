@@ -39,7 +39,7 @@ export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> =
 };
 
 export const SHOW_TEAMS: Record<string, { label: string; gradient: string; icon: string; borderColor: string }> = {
-  passion: { label: "Passion", gradient: "from-red-600 to-orange-500", icon: "🔥", borderColor: "border-red-500/40" },
-  dream: { label: "Dream", gradient: "from-blue-600 to-cyan-400", icon: "☁️", borderColor: "border-blue-500/40" },
-  love: { label: "Love", gradient: "from-pink-600 to-rose-400", icon: "💗", borderColor: "border-pink-500/40" },
+  passion: { label: "Tim Passion", gradient: "from-red-600 to-orange-500", icon: "🔥", borderColor: "border-red-500/40" },
+  dream: { label: "Tim Dream", gradient: "from-blue-600 to-cyan-400", icon: "☁️", borderColor: "border-blue-500/40" },
+  love: { label: "Tim Love", gradient: "from-pink-600 to-rose-400", icon: "💗", borderColor: "border-pink-500/40" },
 };

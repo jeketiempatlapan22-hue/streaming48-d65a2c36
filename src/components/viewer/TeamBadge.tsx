@@ -11,8 +11,8 @@ const TeamBadge = ({ team, size = "sm" }: TeamBadgeProps) => {
   if (!config) return null;
 
   const sizeClasses = size === "sm"
-    ? "px-2.5 py-0.5 text-[10px] gap-1"
-    : "px-3 py-1 text-xs gap-1.5";
+    ? "px-3 py-1 text-[10px] gap-1.5"
+    : "px-4 py-1.5 text-xs gap-2";
 
   return (
     <span
