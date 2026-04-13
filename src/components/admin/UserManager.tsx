@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -13,8 +13,10 @@ interface UserProfile {
   balance: number;
   order_count: number;
   token_count: number;
+  phone?: string;
 }
 
+const APP_URL = "https://realtime48stream.my.id";
 const PAGE_SIZE = 50;
 
 const UserManager = () => {
@@ -31,6 +33,7 @@ const UserManager = () => {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [sendingResetLink, setSendingResetLink] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [fetchError, setFetchError] = useState("");
 
@@ -38,7 +41,6 @@ const UserManager = () => {
     setLoading(true);
     setFetchError("");
     try {
-      // Fetch all profiles with pagination to bypass 1000-row limit
       let allProfiles: any[] = [];
       let from = 0;
       const batchSize = 1000;
@@ -55,11 +57,12 @@ const UserManager = () => {
         from += batchSize;
       }
 
-      // Fetch balances and counts in parallel
-      const [balancesRes, ordersRes, tokensRes] = await Promise.allSettled([
+      const [balancesRes, ordersRes, tokensRes, phoneRes] = await Promise.allSettled([
         supabase.from("coin_balances").select("user_id, balance").limit(5000),
         supabase.from("coin_orders").select("user_id").limit(5000),
         supabase.from("tokens").select("user_id").limit(5000),
+        // Get phone numbers from various sources
+        supabase.from("password_reset_requests").select("user_id, phone").not("phone", "eq", "").order("created_at", { ascending: false }).limit(5000),
       ]);
 
       const balanceMap: Record<string, number> = {};
@@ -77,6 +80,32 @@ const UserManager = () => {
         tokensRes.value.data.forEach((t: any) => { if (t.user_id) tokenCountMap[t.user_id] = (tokenCountMap[t.user_id] || 0) + 1; });
       }
 
+      // Build phone map (most recent phone per user)
+      const phoneMap: Record<string, string> = {};
+      if (phoneRes.status === "fulfilled" && phoneRes.value.data) {
+        phoneRes.value.data.forEach((r: any) => {
+          if (r.user_id && r.phone && !phoneMap[r.user_id]) {
+            phoneMap[r.user_id] = r.phone;
+          }
+        });
+      }
+
+      // Also try coin_orders and subscription_orders for phones
+      const [coinPhoneRes, subPhoneRes] = await Promise.allSettled([
+        supabase.from("coin_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
+        supabase.from("subscription_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
+      ]);
+      if (coinPhoneRes.status === "fulfilled" && coinPhoneRes.value.data) {
+        coinPhoneRes.value.data.forEach((r: any) => {
+          if (r.user_id && r.phone && !phoneMap[r.user_id]) phoneMap[r.user_id] = r.phone;
+        });
+      }
+      if (subPhoneRes.status === "fulfilled" && subPhoneRes.value.data) {
+        subPhoneRes.value.data.forEach((r: any) => {
+          if (r.user_id && r.phone && !phoneMap[r.user_id]) phoneMap[r.user_id] = r.phone;
+        });
+      }
+
       const mapped: UserProfile[] = allProfiles.map((p: any) => ({
         id: p.id,
         username: p.username,
@@ -84,6 +113,7 @@ const UserManager = () => {
         balance: balanceMap[p.id] || 0,
         order_count: orderCountMap[p.id] || 0,
         token_count: tokenCountMap[p.id] || 0,
+        phone: phoneMap[p.id] || "",
       }));
 
       setUsers(mapped);
@@ -175,6 +205,71 @@ const UserManager = () => {
     }
   };
 
+  const sendResetLink = async (user: UserProfile) => {
+    setSendingResetLink(user.id);
+    try {
+      // Create a password reset request via RPC, then approve it
+      const identifier = user.phone || (user.username ? `${user.username}@rt48.user` : user.id);
+      
+      // Use the request_password_reset RPC to create a reset request
+      const { data: resetRaw, error: resetErr } = await supabase.rpc("request_password_reset", {
+        _identifier: identifier,
+      });
+
+      const resetData = resetRaw as Record<string, any> | null;
+
+      if (resetErr || !resetData?.success) {
+        const errMsg = resetData?.error || resetErr?.message || "Gagal membuat permintaan reset";
+        toast.error(String(errMsg));
+        return;
+      }
+
+      // Now auto-approve it
+      const { data: reqList } = await supabase
+        .from("password_reset_requests")
+        .select("id, secure_token")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!reqList || reqList.length === 0) {
+        // Fallback: just show the link
+        if (resetData?.secure_token) {
+          const link = `${APP_URL}/reset-password?token=${resetData.secure_token}`;
+          await navigator.clipboard.writeText(link);
+          toast.success("Link reset disalin ke clipboard. Kirim manual ke user.");
+        } else {
+          toast.success("Permintaan reset dibuat. Setujui di halaman Reset Password.");
+        }
+        return;
+      }
+
+      // Auto-approve via edge function
+      const { data: approveData, error: approveErr } = await supabase.functions.invoke("process-password-reset-request", {
+        body: { request_id: reqList[0].id, action: "approve" },
+      });
+
+      if (approveErr || !approveData?.success) {
+        // Fallback: copy link
+        if (reqList[0].secure_token) {
+          const link = `${APP_URL}/reset-password?token=${reqList[0].secure_token}`;
+          await navigator.clipboard.writeText(link);
+          toast.info("Link terkirim gagal via WA. Link disalin ke clipboard.");
+        } else {
+          toast.error(approveData?.error || "Gagal mengirim link reset");
+        }
+        return;
+      }
+
+      toast.success(`Link reset berhasil dikirim ke ${approveData.target || user.phone || "WhatsApp user"}`);
+    } catch (err: any) {
+      toast.error(err?.message || "Gagal mengirim link reset");
+    } finally {
+      setSendingResetLink(null);
+    }
+  };
+
   const toggleSort = (field: typeof sortField) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortDir("desc"); }
@@ -187,9 +282,19 @@ const UserManager = () => {
   };
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().replace(/\D/g, "") ? search.replace(/\s/g, "") : search.toLowerCase();
+    const isPhoneSearch = /^\d{4,}$/.test(q);
+    
     return users
-      .filter(u => !q || (u.username || "").toLowerCase().includes(q) || u.id.toLowerCase().includes(q))
+      .filter(u => {
+        if (!q) return true;
+        if (isPhoneSearch) {
+          // Search by phone number
+          const normalizedPhone = (u.phone || "").replace(/\D/g, "");
+          return normalizedPhone.includes(q) || (u.username || "").toLowerCase().includes(search.toLowerCase()) || u.id.toLowerCase().includes(search.toLowerCase());
+        }
+        return (u.username || "").toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || (u.phone || "").includes(q);
+      })
       .sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1;
         if (sortField === "balance") return (a.balance - b.balance) * dir;
@@ -201,7 +306,6 @@ const UserManager = () => {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  // Reset page when search changes
   useEffect(() => { setPage(0); }, [search]);
 
   return (
@@ -226,7 +330,7 @@ const UserManager = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username atau ID..." className="pl-10 bg-background" />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username, ID, atau nomor HP..." className="pl-10 bg-background" />
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -265,6 +369,11 @@ const UserManager = () => {
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">{u.username || "—"}</p>
                       <p className="text-[10px] text-muted-foreground font-mono">{u.id.slice(0, 8)}...</p>
+                      {u.phone && (
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                          <Phone className="h-2.5 w-2.5" /> {u.phone}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={`font-bold ${u.balance > 0 ? "text-primary" : "text-muted-foreground"}`}>{u.balance}</span>
@@ -275,12 +384,21 @@ const UserManager = () => {
                       {new Date(u.created_at).toLocaleDateString("id-ID")}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setSelectedUser(u); setCoinAmount(""); setCoinReason(""); }}>
                           <Coins className="mr-1 h-3 w-3" /> Koin
                         </Button>
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setResetUser(u); setNewPassword(""); setShowPassword(false); }}>
                           <KeyRound className="mr-1 h-3 w-3" /> Sandi
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => sendResetLink(u)}
+                          disabled={sendingResetLink === u.id}
+                        >
+                          <Send className="mr-1 h-3 w-3" /> {sendingResetLink === u.id ? "..." : "Link"}
                         </Button>
                       </div>
                     </td>
@@ -291,7 +409,6 @@ const UserManager = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-border px-4 py-2">
             <p className="text-xs text-muted-foreground">

@@ -382,7 +382,7 @@ TIDAK <id> - Tolak order
 
 🎬 *Show Management:*
 /replay - Lihat daftar show replay
-/replay <nama show> - Toggle mode replay
+/replay <nama/ID> - Toggle mode replay (nama, #hexid, atau short_id)
 
 📡 *Live Stream:*
 /showinfo - Info stream & show aktif saat ini
@@ -588,37 +588,60 @@ async function handleReplayList(supabase: any): Promise<string> {
     for (const s of shows) {
       const status = s.is_replay ? '🟢 ON' : '🔴 OFF';
       const pw = s.access_password ? `🔐 ${s.access_password}` : '⚠️ No password';
-      msg += `${status} *${s.title}*\n   📅 ${s.schedule_date || '-'} | 🪙 ${s.replay_coin_price} koin | ${pw}\n\n`;
+      const sid = s.short_id || s.id.substring(0, 6);
+      msg += `${status} *${s.title}* (#${sid})\n   📅 ${s.schedule_date || '-'} | 🪙 ${s.replay_coin_price} koin | ${pw}\n\n`;
     }
-    msg += '💡 Toggle replay: /replay <nama show>';
+    msg += '💡 Toggle replay: /replay <nama/ID>';
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
 }
 
+async function findShowByInput(supabase: any, input: string): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
+  const cleanInput = input.replace(/^#/, '').trim();
+
+  // Fetch all active shows for matching
+  const { data: allShows } = await supabase
+    .from('shows')
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category')
+    .eq('is_active', true);
+
+  if (!allShows || allShows.length === 0) return { show: null, multiple: null, error: 'Tidak ada show aktif.' };
+
+  // Try custom short_id match
+  const shortIdMatch = allShows.find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
+  if (shortIdMatch) return { show: shortIdMatch, multiple: null, error: null };
+
+  // Try hex ID prefix match (first 6 chars of UUID)
+  const hexMatch = allShows.find((s: any) => s.id.substring(0, 6).toLowerCase() === cleanInput.toLowerCase());
+  if (hexMatch) return { show: hexMatch, multiple: null, error: null };
+
+  // Try title search
+  const titleMatches = allShows.filter((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
+  if (titleMatches.length === 1) return { show: titleMatches[0], multiple: null, error: null };
+  if (titleMatches.length > 1) return { show: null, multiple: titleMatches, error: null };
+
+  return { show: null, multiple: null, error: `Show "${input}" tidak ditemukan.` };
+}
+
 async function handleReplayToggle(supabase: any, showName: string): Promise<string> {
   try {
-    const { data: shows } = await supabase
-      .from('shows')
-      .select('id, title, is_replay, replay_coin_price, access_password')
-      .eq('is_active', true)
-      .ilike('title', `%${showName}%`)
-      .limit(5);
+    const result = await findShowByInput(supabase, showName);
+    if (result.error) return `⚠️ ${result.error}`;
 
-    if (!shows || shows.length === 0) return `⚠️ Show "${showName}" tidak ditemukan.`;
-
-    if (shows.length > 1) {
-      let msg = `⚠️ Ditemukan ${shows.length} show:\n\n`;
-      for (const s of shows) {
+    if (result.multiple) {
+      let msg = `⚠️ Ditemukan ${result.multiple.length} show:\n\n`;
+      for (const s of result.multiple) {
         const status = s.is_replay ? '🟢 ON' : '🔴 OFF';
-        msg += `${status} ${s.title}\n`;
+        const sid = s.short_id || s.id.substring(0, 6);
+        msg += `${status} ${s.title} (#${sid})\n`;
       }
-      msg += '\n💡 Gunakan nama yang lebih spesifik.';
+      msg += '\n💡 Gunakan ID: /replay #<id>';
       return msg;
     }
 
-    const show = shows[0];
+    const show = result.show;
     const newStatus = !show.is_replay;
     await supabase.from('shows').update({ is_replay: newStatus }).eq('id', show.id);
 
