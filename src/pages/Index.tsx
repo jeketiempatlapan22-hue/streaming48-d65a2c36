@@ -297,6 +297,7 @@ const Index = () => {
       if (result.access_password) addAccessPassword(coinShowTarget.id, result.access_password);
 
       // Send WhatsApp notification with token + replay info
+      const purchaseType = coinShowTarget.is_bundle ? "bundle" : coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular");
       supabase.functions.invoke("notify-coin-show-purchase", {
         body: {
           user_id: coinUser.id,
@@ -304,7 +305,7 @@ const Index = () => {
           token_code: result.token_code,
           access_password: result.access_password || result.replay_password,
           show_title: coinShowTarget.title,
-          purchase_type: coinShowTarget.is_replay ? "replay" : (coinShowTarget.is_subscription ? "membership" : "regular"),
+          purchase_type: purchaseType,
           phone: coinPhone.replace(/[\s-]/g, ""),
         },
       }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
@@ -1206,9 +1207,15 @@ const Index = () => {
             <div className="space-y-4">
               <div className="rounded-xl border border-border bg-secondary/50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Show</span>
+                  <span className="text-muted-foreground">{coinShowTarget?.is_bundle ? "Paket" : "Show"}</span>
                   <span className="font-semibold text-foreground">{coinShowTarget?.title}</span>
                 </div>
+                {coinShowTarget?.is_bundle && coinShowTarget?.bundle_duration_days && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Durasi Token</span>
+                    <span className="font-semibold text-[hsl(var(--warning))]">{coinShowTarget.bundle_duration_days} hari</span>
+                  </div>
+                )}
                 {coinShowTarget?.schedule_date && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Jadwal</span>
@@ -1226,12 +1233,19 @@ const Index = () => {
                   </span>
                 </div>
               </div>
+              {/* Bundle description preview */}
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_description && (
+                <div className="rounded-xl border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 p-3">
+                  <p className="text-xs font-semibold text-[hsl(var(--warning))] mb-1">📋 Termasuk dalam paket:</p>
+                  <p className="text-xs text-muted-foreground whitespace-pre-line">{coinShowTarget.bundle_description}</p>
+                </div>
+              )}
               <div>
                 <label className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                   📱 Nomor WhatsApp <span className="text-destructive">*</span>
                 </label>
                 <Input value={coinPhone} onChange={(e) => setCoinPhone(e.target.value)} placeholder="08xxxxxxxxxx" className="bg-background" />
-                <p className="mt-1 text-[10px] text-muted-foreground">Untuk menerima notifikasi token & info replay</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Token, link nonton & info replay akan dikirim ke nomor ini</p>
               </div>
               {coinBalance < (coinShowTarget?.is_replay ? (coinShowTarget?.replay_coin_price || 0) : (coinShowTarget?.coin_price || 0)) ? (
                 <div className="space-y-3">
@@ -1250,9 +1264,15 @@ const Index = () => {
           ) : (
             <div className="space-y-4 text-center">
               <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
-              <p className="font-semibold text-foreground">Pembelian Berhasil!</p>
+              <p className="font-semibold text-foreground">
+                {coinShowTarget?.is_bundle ? "📦 Pembelian Bundle Berhasil!" : "Pembelian Berhasil!"}
+              </p>
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_duration_days && (
+                <p className="text-xs text-muted-foreground">Token berlaku selama <span className="font-bold text-[hsl(var(--warning))]">{coinShowTarget.bundle_duration_days} hari</span></p>
+              )}
               {coinResult.token_code && (
                 <div className="rounded-lg bg-secondary p-4">
+                  <p className="text-[10px] text-muted-foreground mb-1">🎫 Token Akses</p>
                   <p className="font-mono text-lg font-bold text-primary">{coinResult.token_code}</p>
                 </div>
               )}
@@ -1268,6 +1288,27 @@ const Index = () => {
                   <p className="font-mono text-lg font-bold text-primary">{coinResult.access_password}</p>
                 </div>
               )}
+              {/* Bundle replay passwords */}
+              {coinShowTarget?.is_bundle && Array.isArray(coinShowTarget?.bundle_replay_passwords) && coinShowTarget.bundle_replay_passwords.length > 0 && (
+                <div className="rounded-lg border border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-3 text-left">
+                  <p className="text-xs font-semibold text-[hsl(var(--warning))] mb-2">📦 Sandi Replay Bundle:</p>
+                  {coinShowTarget.bundle_replay_passwords.map((entry: any, i: number) => (
+                    entry.show_name && entry.password ? (
+                      <div key={i} className="flex items-center justify-between text-xs py-0.5">
+                        <span className="text-muted-foreground">🎭 {entry.show_name}</span>
+                        <span className="font-mono font-bold text-foreground">{entry.password}</span>
+                      </div>
+                    ) : null
+                  ))}
+                </div>
+              )}
+              {coinShowTarget?.is_bundle && coinShowTarget?.bundle_replay_info && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-left">
+                  <p className="text-xs font-semibold text-primary mb-1">🎬 Info Replay:</p>
+                  <p className="text-xs text-muted-foreground">{coinShowTarget.bundle_replay_info}</p>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">Info lengkap sudah dikirim ke WhatsApp Anda</p>
               <div className="flex gap-2">
                 <Button className="flex-1 gap-2" variant="outline"
                   onClick={() => { navigator.clipboard.writeText(`https://realtime48stream.my.id/live?t=${coinResult.token_code}`); toast.success("Link disalin!"); }}>

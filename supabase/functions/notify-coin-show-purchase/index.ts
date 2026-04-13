@@ -40,7 +40,6 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    console.log('Received body keys:', Object.keys(body), 'phone:', body.phone, 'provided_phone type:', typeof body.phone);
     const { user_id, show_id, token_code, access_password, show_title, purchase_type, phone: provided_phone } = body;
     if (!user_id || !show_id) {
       return new Response(JSON.stringify({ error: 'Missing user_id or show_id' }), {
@@ -48,12 +47,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use provided phone first, then look up from order history
+    // Resolve phone number
     let phone: string | null = provided_phone || null;
-    console.log('Phone resolved:', phone, 'from provided:', provided_phone);
 
     if (!phone) {
-      // 1. Check subscription_orders for this user
       const { data: subOrders } = await supabase
         .from('subscription_orders')
         .select('phone')
@@ -65,7 +62,6 @@ Deno.serve(async (req) => {
       if (subOrders?.[0]?.phone) phone = subOrders[0].phone;
     }
 
-    // 2. Check coin_orders
     if (!phone) {
       const { data: coinOrders } = await supabase
         .from('coin_orders')
@@ -84,25 +80,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get show details if not provided
+    // Get show details
+    const { data: show } = await supabase
+      .from('shows')
+      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info, bundle_duration_days')
+      .eq('id', show_id)
+      .maybeSingle();
+
     let title = show_title || '';
     let replayPassword = access_password || '';
     let groupLink = '';
     let isSubscription = false;
     let isReplay = false;
-    let durationDays = 30;
+    let membershipDays = 30;
     let scheduleDate = '';
     let scheduleTime = '';
-
-    const { data: show } = await supabase
-      .from('shows')
-      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info')
-      .eq('id', show_id)
-      .maybeSingle();
-
     let isBundle = false;
     let bundleReplayPasswords: any[] = [];
     let bundleReplayInfo = '';
+    let bundleDurationDays = 30;
 
     if (show) {
       title = title || show.title;
@@ -110,19 +106,54 @@ Deno.serve(async (req) => {
       groupLink = show.group_link || '';
       isSubscription = show.is_subscription;
       isReplay = show.is_replay;
-      durationDays = show.membership_duration_days || 30;
+      membershipDays = show.membership_duration_days || 30;
       scheduleDate = show.schedule_date || '';
       scheduleTime = show.schedule_time || '';
       isBundle = show.is_bundle || false;
       bundleReplayPasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
       bundleReplayInfo = show.bundle_replay_info || '';
+      bundleDurationDays = show.bundle_duration_days || 30;
     }
 
     const siteUrl = 'realtime48stream.my.id';
     let message = '';
 
-    if (purchase_type === 'membership' || isSubscription) {
-      message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Membership Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n📦 Tipe: *Membership*\n💳 Metode: *Koin*\n⏰ Durasi: *${durationDays} hari*\n`;
+    if (purchase_type === 'bundle' || isBundle) {
+      // ===== BUNDLE SHOW =====
+      message = `━━━━━━━━━━━━━━━━━━\n📦 *Pembelian Bundle Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Paket: *${title}*\n💳 Metode: *Koin*\n⏰ Durasi Token: *${bundleDurationDays} hari*\n`;
+
+      if (token_code) {
+        message += `\n🎫 *Token Akses:* ${token_code}\n📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${token_code}\n`;
+      }
+
+      if (scheduleDate) {
+        message += `📅 *Jadwal:* ${scheduleDate} ${scheduleTime}\n`;
+      }
+
+      // Bundle replay passwords
+      if (bundleReplayPasswords.length > 0) {
+        message += `\n📦 *Sandi Replay Bundle:*\n`;
+        for (const entry of bundleReplayPasswords) {
+          if (entry.show_name && entry.password) {
+            message += `  🎭 ${entry.show_name}: *${entry.password}*\n`;
+          }
+        }
+      }
+
+      // Bundle replay info
+      if (bundleReplayInfo) {
+        message += `\n🎬 *Info Replay:*\n🔗 ${bundleReplayInfo}\n`;
+      } else {
+        message += `\n🎬 *Link Replay:*\n🔗 https://replaytime.lovable.app\n`;
+      }
+
+      // Single access password if exists
+      if (replayPassword) {
+        message += `🔑 Sandi Akses: *${replayPassword}*\n`;
+      }
+
+    } else if (purchase_type === 'membership' || isSubscription) {
+      message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Membership Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n📦 Tipe: *Membership*\n💳 Metode: *Koin*\n⏰ Durasi: *${membershipDays} hari*\n`;
       if (token_code) {
         message += `\n🎫 *Token Membership:* ${token_code}\n📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${token_code}\n`;
       }
@@ -140,6 +171,7 @@ Deno.serve(async (req) => {
         message += `🔐 *Sandi Replay:* ${replayPassword}\n`;
       }
     } else {
+      // Regular show
       message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Show Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n💳 Metode: *Koin*\n`;
       if (token_code) {
         message += `\n🎫 *Token Akses:* ${token_code}\n📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${token_code}\n`;
@@ -151,19 +183,6 @@ Deno.serve(async (req) => {
         message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
-    }
-
-    // Append bundle replay passwords if available
-    if (isBundle && bundleReplayPasswords.length > 0) {
-      message += `\n📦 *Sandi Replay Bundle:*\n`;
-      for (const entry of bundleReplayPasswords) {
-        if (entry.show_name && entry.password) {
-          message += `  🎭 ${entry.show_name}: ${entry.password}\n`;
-        }
-      }
-    }
-    if (isBundle && bundleReplayInfo) {
-      message += `\nℹ️ *Info Replay:* ${bundleReplayInfo}\n`;
     }
 
     message += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
