@@ -606,14 +606,15 @@ async function handleReplayList(supabase: any): Promise<string> {
   }
 }
 
-async function findShowByInput(supabase: any, input: string): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
+async function findShowByInput(supabase: any, input: string, activeOnly = true): Promise<{ show: any | null; multiple: any[] | null; error: string | null }> {
   const cleanInput = input.replace(/^#/, '').trim();
 
-  // Fetch all active shows for matching
-  const { data: allShows } = await supabase
+  // Fetch shows for matching
+  const query = supabase
     .from('shows')
-    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category')
-    .eq('is_active', true);
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
+  if (activeOnly) query.eq('is_active', true);
+  const { data: allShows } = await query;
 
   if (!allShows || allShows.length === 0) return { show: null, multiple: null, error: 'Tidak ada show aktif.' };
 
@@ -621,9 +622,24 @@ async function findShowByInput(supabase: any, input: string): Promise<{ show: an
   const shortIdMatch = allShows.find((s: any) => s.short_id && s.short_id.toLowerCase() === cleanInput.toLowerCase());
   if (shortIdMatch) return { show: shortIdMatch, multiple: null, error: null };
 
-  // Try hex ID prefix match (first 6 chars of UUID)
-  const hexMatch = allShows.find((s: any) => s.id.substring(0, 6).toLowerCase() === cleanInput.toLowerCase());
-  if (hexMatch) return { show: hexMatch, multiple: null, error: null };
+  // Try matching by UUID (full or partial)
+  const hexOnly = cleanInput.replace(/-/g, '').toLowerCase();
+  const isHexId = /^[a-f0-9]{6,32}$/i.test(hexOnly);
+
+  if (isHexId) {
+    // Exact full UUID match
+    const exactMatch = allShows.find((s: any) => s.id.replace(/-/g, '').toLowerCase() === hexOnly);
+    if (exactMatch) return { show: exactMatch, multiple: null, error: null };
+
+    // Prefix match (6+ chars)
+    if (hexOnly.length >= 6) {
+      const prefixMatches = allShows.filter((s: any) => s.id.replace(/-/g, '').toLowerCase().startsWith(hexOnly));
+      if (prefixMatches.length === 1) return { show: prefixMatches[0], multiple: null, error: null };
+      if (prefixMatches.length > 1) return { show: null, multiple: prefixMatches, error: null };
+    }
+
+    return { show: null, multiple: null, error: `Show dengan ID #${hexOnly.slice(0, 6)} tidak ditemukan.` };
+  }
 
   // Try title search
   const titleMatches = allShows.filter((s: any) => s.title.toLowerCase().includes(cleanInput.toLowerCase()));
