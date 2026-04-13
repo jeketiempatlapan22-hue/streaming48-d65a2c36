@@ -228,6 +228,19 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Bundle replay passwords
+        if (show?.is_bundle && Array.isArray(show.bundle_replay_passwords) && show.bundle_replay_passwords.length > 0) {
+          waMessage += `\n📦 *Sandi Replay Bundle:*\n`;
+          for (const entry of show.bundle_replay_passwords as any[]) {
+            if (entry.show_name && entry.password) {
+              waMessage += `  🎭 ${entry.show_name}: ${entry.password}\n`;
+            }
+          }
+        }
+        if (show?.is_bundle && show.bundle_replay_info) {
+          waMessage += `\nℹ️ *Info Replay:* ${show.bundle_replay_info}\n`;
+        }
+
         waMessage += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
         await sendBuyerWhatsApp(subOrder.phone, waMessage);
       }
