@@ -20,6 +20,7 @@ export interface Show {
   is_active?: boolean;
   access_password?: string;
   replay_qris_price?: number;
+  qris_price?: number;
   team?: string;
   is_bundle?: boolean;
   bundle_description?: string;

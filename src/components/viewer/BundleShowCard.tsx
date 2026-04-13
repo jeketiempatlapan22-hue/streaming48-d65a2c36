@@ -137,23 +137,21 @@ const BundleShowCard = forwardRef<HTMLDivElement, BundleShowCardProps>(
               </a>
             </div>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               {show.coin_price > 0 && (
                 <button
                   onClick={() => onCoinBuy(show)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[hsl(var(--warning))] to-[hsl(var(--warning))]/80 px-4 py-2.5 text-xs font-bold text-background transition hover:opacity-90 active:scale-[0.97]"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[hsl(var(--warning))] to-[hsl(var(--warning))]/80 px-4 py-2.5 text-xs font-bold text-background transition hover:opacity-90 active:scale-[0.97]"
                 >
-                  <Coins className="h-4 w-4" /> Beli Koin
+                  <Coins className="h-4 w-4" /> Beli dengan {show.coin_price} Koin
                 </button>
               )}
-              {show.qris_image_url && (
-                <button
-                  onClick={() => onBuy(show)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border-2 border-[hsl(var(--warning))]/40 px-4 py-2.5 text-xs font-bold text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/10 active:scale-[0.97]"
-                >
-                  <CreditCard className="h-4 w-4" /> QRIS
-                </button>
-              )}
+              <button
+                onClick={() => onBuy(show)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-[hsl(var(--warning))]/40 px-4 py-2.5 text-xs font-bold text-[hsl(var(--warning))] transition hover:bg-[hsl(var(--warning))]/10 active:scale-[0.97]"
+              >
+                <CreditCard className="h-4 w-4" /> Beli via QRIS
+              </button>
             </div>
           )}
         </div>
