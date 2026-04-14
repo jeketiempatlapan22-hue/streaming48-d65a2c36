@@ -286,6 +286,7 @@ const LivePage = () => {
           setExternalShowId(null);
         }
         setActiveShowTeam(activeShow?.team || null);
+        setActiveShowTitle(activeShow?.title || null);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
