@@ -432,6 +432,12 @@ const LivePage = () => {
         if (activeShow?.external_show_id) {
           setExternalShowId(activeShow.external_show_id);
         }
+        if (activeShow?.title) {
+          setActiveShowTitle(activeShow.title);
+        }
+        if (activeShow?.team !== undefined) {
+          setActiveShowTeam(activeShow.team || null);
+        }
       }
     } catch {}
   }, [syncPlaylists]);
