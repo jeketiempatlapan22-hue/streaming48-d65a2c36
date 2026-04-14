@@ -708,6 +708,12 @@ const LivePage = () => {
             />
           </div>
         )}
+        {activeShowTitle && isLive && (
+          <div className="border-t border-border px-4 py-2">
+            <p className="text-xs font-semibold text-primary">🔴 Sedang Live</p>
+            <h2 className="text-sm font-bold text-foreground">{activeShowTitle}</h2>
+          </div>
+        )}
         <Suspense fallback={null}>
           <LineupAvatars team={activeShowTeam} />
         </Suspense>
