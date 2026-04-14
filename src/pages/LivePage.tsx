@@ -145,11 +145,13 @@ const LivePage = () => {
   };
 
   const syncPlaylists = useCallback((nextPlaylists: any[]) => {
-    setPlaylists(nextPlaylists);
+    // Filter out inactive playlists client-side as safety net
+    const activePlaylists = nextPlaylists.filter((p: any) => p.is_active !== false);
+    setPlaylists(activePlaylists);
     setActivePlaylist((prev: any) => {
-      if (!nextPlaylists.length) return null;
-      if (!prev) return nextPlaylists[0];
-      return nextPlaylists.find((item: any) => item.id === prev.id) || nextPlaylists[0];
+      if (!activePlaylists.length) return null;
+      if (!prev) return activePlaylists[0];
+      return activePlaylists.find((item: any) => item.id === prev.id) || activePlaylists[0];
     });
   }, []);
 
