@@ -52,13 +52,17 @@ if (import.meta.env.PROD) {
   });
 }
 
-// PWA: Listen for service worker updates and reload automatically
+// PWA: Listen for service worker updates — only reload on user-initiated navigation, not during streaming
 if ("serviceWorker" in navigator) {
   let controllerChanged = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (controllerChanged) return;
     controllerChanged = true;
-    // New service worker took control — reload for latest version
+    // Don't reload if user is on the live page (would interrupt streaming)
+    if (window.location.pathname === "/live") {
+      console.log("[SW] New service worker active, will apply on next navigation");
+      return;
+    }
     window.location.reload();
   });
 }
