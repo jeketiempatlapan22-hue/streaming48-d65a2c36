@@ -399,6 +399,7 @@ TIDAK <id> - Tolak order
 /deletetoken <4digit> - Hapus token
 /createtoken <nama/ID> - Buat token untuk show (1 device)
 /createtoken <nama/ID> <max> - Buat token + max device
+/createtoken show1,show2 <max> - Buat token untuk beberapa show
 /bulktoken <show> <jumlah> - Buat banyak token sekaligus
 /bulktoken <show> <jumlah> <max> - Bulk token + max device
 /givetoken <user> <show> - Beri token ke user
@@ -1715,6 +1716,41 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
   try {
     if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
 
+    // Support comma-separated shows: /createtoken show1,show2 <max>
+    const showInputs = showInput.split(',').map(s => s.trim()).filter(Boolean);
+    
+    if (showInputs.length > 1) {
+      // Multi-show token creation
+      let allMessages: string[] = [];
+      for (const input of showInputs) {
+        const { show, error, multiple } = await findShowByInput(supabase, input, false);
+        if (error) { allMessages.push(`⚠️ "${input}": ${error}`); continue; }
+        if (multiple) { allMessages.push(`⚠️ "${input}": Ditemukan ${multiple.length} show, gunakan ID spesifik`); continue; }
+        if (!show) { allMessages.push(`⚠️ "${input}": Tidak ditemukan`); continue; }
+
+        const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const expiresAt = await calculateShowTokenExpiry(supabase, show);
+
+        const { error: insertErr } = await supabase.from('tokens').insert({
+          code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+        });
+
+        if (insertErr) { allMessages.push(`⚠️ "${show.title}": ${insertErr.message}`); continue; }
+
+        const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
+
+        let msg = `✅ *${show.title}*\n🔑 Token: ${code}\n📱 Max: ${maxDevices} | ⏰ ${expDate}`;
+        if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
+        msg += `\n📺 ${liveLink}`;
+        if (show.access_password) msg += `\n🔐 Sandi: ${show.access_password}`;
+        allMessages.push(msg);
+      }
+
+      return `━━━━━━━━━━━━━━━━━━\n📋 *Multi-Token Dibuat (${showInputs.length} show)*\n━━━━━━━━━━━━━━━━━━\n\n${allMessages.join('\n\n')}\n\n━━━━━━━━━━━━━━━━━━`;
+    }
+
+    // Single show token creation
     const { show, error, multiple } = await findShowByInput(supabase, showInput, false);
     if (error) return `⚠️ ${error}`;
     if (multiple) {
@@ -1725,7 +1761,7 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     }
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
-    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
