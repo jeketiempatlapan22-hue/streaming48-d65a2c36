@@ -413,6 +413,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/deletetoken <4digit>\` \\- Hapus token\n` +
     `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
     `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n` +
+    `\`/createtoken show1,show2 <max>\` \\- Multi\\-show token\n` +
     `\`/bulktoken <show> <jumlah>\` \\- Buat banyak token sekaligus\n` +
     `\`/bulktoken <show> <jumlah> <max>\` \\- Bulk token \\+ max device\n` +
     `\`/givetoken <user> <show>\` \\- Beri token ke user\n` +
