@@ -308,8 +308,8 @@ const LivePage = () => {
           Boolean(tokenShow?.is_subscription) ||
           normalizedTokenCode.startsWith("MBR-") ||
           normalizedTokenCode.startsWith("MRD-");
-        // Bundle tokens: detect by show flag OR by duration_type
-        const isBundleToken = Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
+        // Bundle tokens: detect by validate_token response, show flag, OR code prefix
+        const isBundleToken = Boolean(result.is_bundle) || Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
 
         setTokenData({
           id: result.id,
