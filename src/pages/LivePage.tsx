@@ -94,6 +94,7 @@ const LivePage = () => {
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
+  const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -144,11 +145,13 @@ const LivePage = () => {
   };
 
   const syncPlaylists = useCallback((nextPlaylists: any[]) => {
-    setPlaylists(nextPlaylists);
+    // Filter out inactive playlists client-side as safety net
+    const activePlaylists = nextPlaylists.filter((p: any) => p.is_active !== false);
+    setPlaylists(activePlaylists);
     setActivePlaylist((prev: any) => {
-      if (!nextPlaylists.length) return null;
-      if (!prev) return nextPlaylists[0];
-      return nextPlaylists.find((item: any) => item.id === prev.id) || nextPlaylists[0];
+      if (!activePlaylists.length) return null;
+      if (!prev) return activePlaylists[0];
+      return activePlaylists.find((item: any) => item.id === prev.id) || activePlaylists[0];
     });
   }, []);
 
@@ -283,6 +286,7 @@ const LivePage = () => {
           setExternalShowId(null);
         }
         setActiveShowTeam(activeShow?.team || null);
+        setActiveShowTitle(activeShow?.title || null);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -427,6 +431,12 @@ const LivePage = () => {
         const activeShow = (showData as any[])?.find((s: any) => s.id === showId);
         if (activeShow?.external_show_id) {
           setExternalShowId(activeShow.external_show_id);
+        }
+        if (activeShow?.title) {
+          setActiveShowTitle(activeShow.title);
+        }
+        if (activeShow?.team !== undefined) {
+          setActiveShowTeam(activeShow.team || null);
         }
       }
     } catch {}
@@ -702,6 +712,12 @@ const LivePage = () => {
               activePlaylistId={activePlaylist?.id ?? null}
               onSelect={handlePlaylistSwitch}
             />
+          </div>
+        )}
+        {activeShowTitle && isLive && (
+          <div className="border-t border-border px-4 py-2">
+            <p className="text-xs font-semibold text-primary">🔴 Sedang Live</p>
+            <h2 className="text-sm font-bold text-foreground">{activeShowTitle}</h2>
           </div>
         )}
         <Suspense fallback={null}>
