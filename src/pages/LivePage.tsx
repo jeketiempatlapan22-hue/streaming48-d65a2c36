@@ -94,6 +94,7 @@ const LivePage = () => {
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
+  const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
