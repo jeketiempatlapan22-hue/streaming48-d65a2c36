@@ -241,7 +241,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
   const isBanlist = /^\/banlist$/i.test(rawText);
   const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
-  const createtokenMatch = rawText.match(/^\/createtoken\s+(\S+?)(?:\s+(\d+))?$/i);
+  const createtokenMatch = rawText.match(/^\/createtoken\s+(.+?)(?:\s+(\d+))?$/i);
   const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
