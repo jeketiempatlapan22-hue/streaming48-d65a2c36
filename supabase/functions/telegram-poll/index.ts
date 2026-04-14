@@ -241,7 +241,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const unbanuserMatch = rawText.match(/^\/unbanuser\s+(\S+)$/i);
   const isBanlist = /^\/banlist$/i.test(rawText);
   const suspiciousMatch = rawText.match(/^\/suspicious(?:\s+(\S+))?$/i);
-  const createtokenMatch = rawText.match(/^\/createtoken\s+(\S+?)(?:\s+(\d+))?$/i);
+  const createtokenMatch = rawText.match(/^\/createtoken\s+(.+?)(?:\s+(\d+))?$/i);
   const givetokenMatch = rawText.match(/^\/givetoken\s+(\S+)\s+(.+?)(?:\s+(\d+))?$/i);
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
@@ -413,6 +413,7 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/deletetoken <4digit>\` \\- Hapus token\n` +
     `\`/createtoken #ID\` \\- Buat token untuk show \\(1 device\\)\n` +
     `\`/createtoken #ID <max>\` \\- Buat token \\+ max device\n` +
+    `\`/createtoken show1,show2 <max>\` \\- Multi\\-show token\n` +
     `\`/bulktoken <show> <jumlah>\` \\- Buat banyak token sekaligus\n` +
     `\`/bulktoken <show> <jumlah> <max>\` \\- Bulk token \\+ max device\n` +
     `\`/givetoken <user> <show>\` \\- Beri token ke user\n` +
@@ -1837,18 +1838,48 @@ async function handleSuspiciousCommand(supabase: any, botToken: string, chatId: 
 
 async function handleCreateTokenCommand(supabase: any, botToken: string, chatId: string, showInput: string, maxDevices: number) {
   try {
+    if (maxDevices < 1 || maxDevices > 9999) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-9999');
+      return;
+    }
+
+    // Support comma-separated shows
+    const showInputs = showInput.split(',').map((s: string) => s.trim()).filter(Boolean);
+
+    if (showInputs.length > 1) {
+      let allMessages: string[] = [];
+      for (const input of showInputs) {
+        const { show, error } = await findShowByIdOrName(supabase, input, false);
+        if (error || !show) { allMessages.push(`⚠️ "${escapeMarkdown(input)}": ${escapeMarkdown(error || 'Tidak ditemukan')}`); continue; }
+
+        const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const expiresAt = await calculateShowTokenExpiry(supabase, show);
+
+        const { error: insertErr } = await supabase.from('tokens').insert({
+          code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+        });
+
+        if (insertErr) { allMessages.push(`⚠️ "${escapeMarkdown(show.title)}": ${escapeMarkdown(insertErr.message)}`); continue; }
+
+        const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+        let msg = `✅ *${escapeMarkdown(show.title)}*\n🔑 \`${escapeMarkdown(code)}\`\n📱 Max: ${maxDevices} ⏰ ${escapeMarkdown(expDate)}`;
+        if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
+        msg += `\n💡 https://realtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(code)}`;
+        allMessages.push(msg);
+      }
+
+      await sendTelegramMessage(botToken, chatId, `📋 *Multi\\-Token \\(${showInputs.length} show\\)*\n\n${allMessages.join('\n\n')}`);
+      return;
+    }
+
+    // Single show
     const { show, error } = await findShowByIdOrName(supabase, showInput, false);
     if (error || !show) {
       await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error || 'Show tidak ditemukan')}`);
       return;
     }
 
-    if (maxDevices < 1 || maxDevices > 10) {
-      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-10');
-      return;
-    }
-
-    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({

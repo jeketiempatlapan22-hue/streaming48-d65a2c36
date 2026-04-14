@@ -290,7 +290,7 @@ const LivePage = () => {
                 (async () =>
                   await supabase
                     .from("shows")
-                    .select("id, title, schedule_date, schedule_time, is_subscription")
+                    .select("id, title, schedule_date, schedule_time, is_subscription, is_bundle, bundle_duration_days")
                     .eq("id", result.show_id)
                     .maybeSingle())(),
                 8_000,
@@ -304,7 +304,8 @@ const LivePage = () => {
           Boolean(tokenShow?.is_subscription) ||
           normalizedTokenCode.startsWith("MBR-") ||
           normalizedTokenCode.startsWith("MRD-");
-        const isBundleToken = Boolean(tokenShow?.is_bundle);
+        // Bundle tokens: detect by show flag OR by duration_type
+        const isBundleToken = Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
 
         setTokenData({
           id: result.id,
