@@ -660,14 +660,22 @@ const LivePage = () => {
           </Sheet>
         </header>
         <div className="player-area relative z-10">
-          {/* Membership badge overlay on player */}
-          {tokenData?.is_membership && tokenData?.expires_at && (() => {
+          {/* Token duration badge overlay on player */}
+          {(tokenData?.is_membership || tokenData?.is_bundle || tokenData?.is_custom) && tokenData?.expires_at && (() => {
             const expiresAt = new Date(tokenData.expires_at);
-            const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            const diffMs = expiresAt.getTime() - Date.now();
+            const daysLeft = Math.max(0, Math.ceil(diffMs / 86400000));
+            const hoursLeft = Math.max(0, Math.ceil(diffMs / 3600000));
+            const label = tokenData.is_membership ? "👑 Member" : tokenData.is_bundle ? "📦 Bundle" : "🎫 Custom";
+            const borderColor = tokenData.is_membership ? "border-yellow-500/40" : tokenData.is_custom ? "border-cyan-400/40" : "border-primary/40";
+            const textColor = tokenData.is_membership ? "text-yellow-400" : tokenData.is_custom ? "text-cyan-400" : "text-primary";
+            const isNearExpiry = daysLeft <= 3;
             return (
-              <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-yellow-500/40 px-2.5 py-1">
-                <span className="text-xs">👑</span>
-                <span className="text-[10px] font-semibold text-yellow-400">{daysLeft}d</span>
+              <div className={`absolute top-2 left-2 z-30 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm border ${borderColor} px-2.5 py-1`}>
+                <span className="text-[10px]">{label.split(" ")[0]}</span>
+                <span className={`text-[10px] font-semibold ${isNearExpiry ? "text-destructive" : textColor}`}>
+                  {daysLeft > 0 ? `${daysLeft}d` : `${hoursLeft}h`}
+                </span>
               </div>
             );
           })()}
