@@ -371,6 +371,7 @@ const TokenFactory = () => {
                 </Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setExtendToken(t); setExtendDays("30"); }} title="Perpanjang durasi">
                   <Clock className="h-3 w-3 text-primary" />
+                </Button>
                 {!t.is_public && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => resetSessions(t.id)} title="Reset session">
                     <RefreshCw className="h-3 w-3" />
