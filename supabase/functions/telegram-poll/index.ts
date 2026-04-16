@@ -2333,6 +2333,58 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
   }
 }
 
+function parseDurationTg(durationStr: string): number {
+  const match = durationStr.match(/^(\d+)\s*(hari|minggu|bulan|tahun)$/i);
+  if (!match) return 0;
+  const num = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === 'hari') return num;
+  if (unit === 'minggu') return num * 7;
+  if (unit === 'bulan') return num * 30;
+  if (unit === 'tahun') return num * 365;
+  return 0;
+}
+
+async function handleTokenAllCommand(supabase: any, botToken: string, chatId: string, durationStr: string, maxDevices: number) {
+  try {
+    if (maxDevices < 1 || maxDevices > 9999) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-9999');
+      return;
+    }
+    const durationDays = parseDurationTg(durationStr);
+    if (durationDays <= 0) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Format durasi salah\\. Contoh: 30hari, 1minggu, 2bulan, 1tahun');
+      return;
+    }
+
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code, show_id: null, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+    });
+    if (insertErr) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal membuat token: ${escapeMarkdown(insertErr.message)}`);
+      return;
+    }
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric' });
+    const liveLink = `realtime48stream.my.id/live?t=${code}`;
+
+    await sendTelegramMessage(botToken, chatId,
+      `✅ *Token ALL Show Berhasil\\!*\n\n` +
+      `🔑 Token: \`${escapeMarkdown(code)}\`\n` +
+      `📱 Max Device: *${maxDevices}*\n` +
+      `⏰ Durasi: *${durationDays} hari*\n` +
+      `📅 Kedaluwarsa: ${escapeMarkdown(expDate)}\n` +
+      `🎬 Akses: *SEMUA SHOW*\n\n` +
+      `📺 Link: \`${escapeMarkdown(liveLink)}\``
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function errorResponse(msg: string) {
   console.error('telegram-poll error:', msg);
   return jsonResponse({ error: msg }, 500);
