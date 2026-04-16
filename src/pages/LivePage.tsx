@@ -321,9 +321,10 @@ const LivePage = () => {
           created_at: result.created_at,
           is_membership: isMembershipToken,
           is_bundle: isBundleToken,
+          is_custom: isCustomToken,
         });
 
-        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken) {
+        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken && !isCustomToken) {
           setShowMismatch(true);
           setMismatchShowTitle(JSON.stringify({
             tokenShowTitle: tokenShow?.title || "Show Lain",
