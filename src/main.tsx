@@ -3,22 +3,39 @@ import App from "./App.tsx";
 import "./index.css";
 import "./lib/installPrompt";
 
-const CACHE_RESET_VERSION = "rt48-cache-reset-v6";
+const CACHE_RESET_VERSION = "rt48-cache-reset-v7";
 
 async function resetLegacyServiceWorkerCache() {
-  if (!import.meta.env.PROD || !("serviceWorker" in navigator) || !("caches" in window)) return;
-  if (localStorage.getItem(CACHE_RESET_VERSION) === "done") return;
+  if (!("caches" in window)) return;
+
+  const lastVersion = localStorage.getItem("rt48-cache-version");
+  const versionChanged = lastVersion !== CACHE_RESET_VERSION;
 
   try {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    const cacheKeys = await caches.keys();
+    // Always clear all caches on version change
+    if (versionChanged) {
+      const cacheKeys = await caches.keys();
+      await Promise.all(cacheKeys.map((key) => caches.delete(key)));
 
-    await Promise.all(registrations.map((reg) => reg.unregister()));
-    await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+      // Unregister all service workers
+      if ("serviceWorker" in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((reg) => reg.unregister()));
+      }
 
-    localStorage.setItem(CACHE_RESET_VERSION, "done");
-    if (registrations.length > 0 || cacheKeys.length > 0) {
-      window.location.reload();
+      localStorage.setItem("rt48-cache-version", CACHE_RESET_VERSION);
+
+      // Only reload if there were actual caches/SWs to clear
+      if (cacheKeys.length > 0) {
+        window.location.reload();
+        return;
+      }
+    }
+
+    // For PWA: force SW update check on every page load
+    if (import.meta.env.PROD && "serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      registrations.forEach((reg) => reg.update());
     }
   } catch {
     // noop: keep app usable even if cleanup fails
