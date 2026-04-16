@@ -25,6 +25,7 @@ const SchedulePage = () => {
     addRedeemedToken, addAccessPassword, membershipToken, bundleToken, customToken,
   } = usePurchasedShows();
   const [isStreamLive, setIsStreamLive] = useState(false);
+  const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const universalToken = membershipToken || bundleToken || customToken || null;
 
   // Purchase modal state
@@ -76,7 +77,7 @@ const SchedulePage = () => {
     const fetchData = async () => {
       const [showsRes, settingsRes, streamRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
-        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
+        supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris", "active_show_id"]),
         (supabase.rpc as any)("get_stream_status"),
       ]);
       if (streamRes.data?.length) setIsStreamLive(streamRes.data[0].is_live);
@@ -105,6 +106,7 @@ const SchedulePage = () => {
         const s: any = {};
         settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
         setSettings(prev => ({ ...prev, ...s }));
+        if (s.active_show_id) setActiveShowId(s.active_show_id);
       }
       setLoading(false);
     };
@@ -340,7 +342,7 @@ const SchedulePage = () => {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredShows.map((show, i) => (
               <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}>
-                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive} isUniversalAccess={!!universalToken} />
+                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive && show.id === activeShowId} isUniversalAccess={!!universalToken} />
               </motion.div>
             ))}
           </div>
