@@ -2055,6 +2055,43 @@ async function handleTokenAllWa(supabase: any, durationStr: string, maxDevices: 
   }
 }
 
+async function handlePerpanjangWa(supabase: any, tokenSuffix: string, durationStr: string): Promise<string> {
+  try {
+    const durationDays = parseDuration(durationStr);
+    if (durationDays <= 0) return '⚠️ Format durasi salah. Contoh: 30hari, 1minggu, 2bulan, 1tahun';
+
+    // Find token by last 4+ chars
+    const suffix = tokenSuffix.toLowerCase();
+    const { data: allTokens } = await supabase.from('tokens').select('id, code, expires_at, status, show_id').eq('status', 'active');
+    const matches = (allTokens || []).filter((t: any) => t.code.toLowerCase().endsWith(suffix) || t.code.toLowerCase().includes(suffix));
+
+    if (matches.length === 0) return `⚠️ Token dengan kode "${tokenSuffix}" tidak ditemukan.`;
+    if (matches.length > 1) {
+      let msg = `⚠️ Ditemukan ${matches.length} token:\n\n`;
+      for (const t of matches) msg += `• ${t.code} (${t.status})\n`;
+      msg += '\n💡 Gunakan kode yang lebih spesifik.';
+      return msg;
+    }
+
+    const token = matches[0];
+    const currentExpiry = token.expires_at ? new Date(token.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    const newExpiry = new Date(baseDate.getTime() + durationDays * 86400000);
+
+    const { error: updateErr } = await supabase.from('tokens').update({
+      expires_at: newExpiry.toISOString(),
+    }).eq('id', token.id);
+
+    if (updateErr) return `⚠️ Gagal memperpanjang: ${updateErr.message}`;
+
+    const expDate = newExpiry.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    return `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Diperpanjang!*\n━━━━━━━━━━━━━━━━━━\n\n🔑 Token: ${token.code}\n⏰ Ditambah: *${durationDays} hari*\n📅 Kedaluwarsa baru: ${expDate}\n━━━━━━━━━━━━━━━━━━`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
