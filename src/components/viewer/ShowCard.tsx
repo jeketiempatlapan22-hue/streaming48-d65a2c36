@@ -23,6 +23,8 @@ interface ShowCardProps {
   showCountdown?: boolean;
   /** Whether the stream is currently live */
   isLive?: boolean;
+  /** Whether the user has a universal membership/bundle token */
+  isUniversalAccess?: boolean;
 }
 
 const INDONESIAN_MONTHS: Record<string, number> = {
@@ -75,7 +77,7 @@ function useCountdown(dateStr: string, timeStr: string) {
 
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
-  onBuy, onCoinBuy, showCountdown = true, isLive = false,
+  onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
