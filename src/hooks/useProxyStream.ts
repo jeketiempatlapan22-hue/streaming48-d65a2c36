@@ -9,11 +9,12 @@ interface ProxyStreamResult {
 }
 
 const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
+const PLAYBACK_URL = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
 
 /**
- * Hook that fetches stream token directly from hanabira48.com API (no CORS issues — domain whitelisted),
- * then provides the playback URL from hanabira's own response (NO external proxy).
- * Headers are injected via xhrSetup ref so HLS.js always uses the latest token.
+ * Hook: fetch token from hanabira48.com/api/stream-token every ~1h55m,
+ * then inject auth headers via xhrSetup ref into HLS.js requests to
+ * https://proxy.mediastream48.workers.dev/api/proxy/playback.
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -170,12 +171,10 @@ function parseTokenResponse(data: any): ParsedToken | null {
 
   if (!apiToken || !secKey) return null;
 
-  // Use hanabira's own playback endpoint — NO external workers.dev proxy
-  if (!playbackUrl) {
-    playbackUrl = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
-  }
+  // Always use the workers.dev proxy playback endpoint
+  playbackUrl = PLAYBACK_URL;
 
-  console.log("[useProxyStream] Using hanabira playback URL:", playbackUrl);
+  console.log("[useProxyStream] Playback URL:", playbackUrl);
 
   const headers: Record<string, string> = {
     "x-api-token": apiToken,
