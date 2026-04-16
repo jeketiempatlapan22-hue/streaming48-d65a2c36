@@ -254,6 +254,26 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             ) : (
               <>
                 {(() => {
+                  // If stream is currently live, always show "Tonton Live" — skip countdown
+                  if (isLive) {
+                    return (
+                      <>
+                        <a
+                          href={`/live?t=${redeemedToken}`}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90 animate-pulse"
+                        >
+                          <Radio className="h-3.5 w-3.5" /> 🔴 Tonton Live
+                        </a>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
+                        >
+                          <Copy className="h-3 w-3" /> Salin Link
+                        </button>
+                      </>
+                    );
+                  }
+
                   const showStart = parseShowDateTime(show.schedule_date, show.schedule_time);
                   const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
                   const isTooEarly = accessOpens ? Date.now() < accessOpens : false;
