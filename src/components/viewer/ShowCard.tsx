@@ -21,6 +21,8 @@ interface ShowCardProps {
   onBuy: (show: Show) => void;
   onCoinBuy: (show: Show) => void;
   showCountdown?: boolean;
+  /** Whether the stream is currently live */
+  isLive?: boolean;
 }
 
 const INDONESIAN_MONTHS: Record<string, number> = {
@@ -73,7 +75,7 @@ function useCountdown(dateStr: string, timeStr: string) {
 
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
-  onBuy, onCoinBuy, showCountdown = true,
+  onBuy, onCoinBuy, showCountdown = true, isLive = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
