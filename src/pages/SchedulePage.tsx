@@ -340,7 +340,7 @@ const SchedulePage = () => {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredShows.map((show, i) => (
               <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}>
-                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id]} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} />
+                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive} />
               </motion.div>
             ))}
           </div>
