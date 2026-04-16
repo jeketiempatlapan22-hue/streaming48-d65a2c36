@@ -314,6 +314,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
+  const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -349,6 +350,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (setshortidMatch) return await handleSetShortIdWa(supabase, setshortidMatch[1], setshortidMatch[2]);
   if (resendMatch) return await handleResendWa(supabase, resendMatch[1]);
   if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
+  if (tokenallMatch) return await handleTokenAllWa(supabase, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -434,6 +436,8 @@ TOLAK_RESET <id> - Tolak reset password
 /maketoken <show> <durasi> - Token durasi custom (1 device)
 /maketoken <show> <durasi> <max> - Token durasi + max device
 /maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
+/tokenall <durasi> - Token ALL show (1 device)
+/tokenall <durasi> <max> - Token ALL show + max device
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
@@ -2019,6 +2023,30 @@ async function handleMakeTokenWa(supabase: any, showInput: string, durationStr: 
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleTokenAllWa(supabase: any, durationStr: string, maxDevices: number): Promise<string> {
+  try {
+    if (maxDevices < 1 || maxDevices > 9999) return '⚠️ Max device harus antara 1-9999';
+    const durationDays = parseDuration(durationStr);
+    if (durationDays <= 0) return '⚠️ Format durasi salah. Contoh: 30hari, 1minggu, 2bulan, 1tahun';
+
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+
+    // Token tanpa show_id = akses semua show
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code, show_id: null, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+    });
+    if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric' });
+    const liveLink = `realtime48stream.my.id/live?t=${code}`;
+
+    return `━━━━━━━━━━━━━━━━━━\n✅ *Token ALL Show Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🔑 Token: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Durasi: *${durationDays} hari*\n📅 Kedaluwarsa: ${expDate}\n🎬 Akses: *SEMUA SHOW*\n\n📺 *Link Nonton:*\n${liveLink}\n━━━━━━━━━━━━━━━━━━`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
