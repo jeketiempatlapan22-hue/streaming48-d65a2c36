@@ -22,10 +22,10 @@ const SchedulePage = () => {
   const [settings, setSettings] = useState<{ whatsapp_number: string; use_dynamic_qris?: string }>({ whatsapp_number: "" });
   const {
     coinUser, redeemedTokens, accessPasswords, replayPasswords,
-    addRedeemedToken, addAccessPassword, membershipToken, bundleToken,
+    addRedeemedToken, addAccessPassword, membershipToken, bundleToken, customToken,
   } = usePurchasedShows();
   const [isStreamLive, setIsStreamLive] = useState(false);
-  const universalToken = membershipToken || bundleToken || null;
+  const universalToken = membershipToken || bundleToken || customToken || null;
 
   // Purchase modal state
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);

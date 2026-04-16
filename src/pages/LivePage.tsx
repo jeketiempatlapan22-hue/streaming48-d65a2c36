@@ -310,6 +310,8 @@ const LivePage = () => {
           normalizedTokenCode.startsWith("MRD-");
         // Bundle tokens: detect by validate_token response, show flag, OR code prefix
         const isBundleToken = Boolean(result.is_bundle) || Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
+        // Custom tokens (RT48-) created via bot command - universal access
+        const isCustomToken = normalizedTokenCode.startsWith("RT48-");
 
         setTokenData({
           id: result.id,

@@ -87,7 +87,7 @@ const Index = () => {
   const {
     coinUser, coinBalance, coinUsername, redeemedTokens, accessPasswords, replayPasswords,
     addRedeemedToken, addAccessPassword, addReplayPassword, setCoinBalance,
-    membershipToken, bundleToken,
+    membershipToken, bundleToken, customToken,
   } = usePurchasedShows();
   const [coinShowTarget, setCoinShowTarget] = useState<Show | null>(null);
   const [coinRedeeming, setCoinRedeeming] = useState(false);
@@ -461,8 +461,8 @@ const Index = () => {
     });
   };
 
-  // Universal access token for membership/bundle users
-  const universalToken = membershipToken || bundleToken || null;
+  // Universal access token for membership/bundle/custom users
+  const universalToken = membershipToken || bundleToken || customToken || null;
 
   const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));
   const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0 && !s.is_bundle));
