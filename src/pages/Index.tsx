@@ -835,11 +835,12 @@ const Index = () => {
                   show={show}
                   index={i}
                   isReplayMode={show.is_replay}
-                  redeemedToken={redeemedTokens[show.id]}
+                  redeemedToken={redeemedTokens[show.id] || (!show.is_replay ? universalToken : null) || undefined}
                   accessPassword={accessPasswords[show.id]}
                   replayPassword={replayPasswords[show.id]}
                   onBuy={handleBuy}
                   onCoinBuy={handleCoinBuy}
+                  isLive={isStreamLive}
                 />
               ))}
             </div>
