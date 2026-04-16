@@ -70,7 +70,7 @@ const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, on
 
   return (
     <>
-      <aside className="hidden w-56 flex-col border-r border-border bg-card md:flex lg:w-64">{sidebarContent}</aside>
+      <aside className="hidden w-56 flex-col border-r border-border bg-card md:flex lg:w-64 2xl:w-72">{sidebarContent}</aside>
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="flex w-72 flex-col p-0">
           <SheetHeader className="sr-only"><SheetTitle>Menu</SheetTitle></SheetHeader>
