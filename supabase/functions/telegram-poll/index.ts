@@ -2399,6 +2399,108 @@ async function handleTokenAllCommand(supabase: any, botToken: string, chatId: st
   }
 }
 
+async function handleMakeTokenCommand(supabase: any, botToken: string, chatId: string, showInput: string, durationStr: string, maxDevices: number, replayPassword: string | null) {
+  try {
+    if (maxDevices < 1 || maxDevices > 9999) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Max device harus antara 1\\-9999');
+      return;
+    }
+    const durationDays = parseDurationTg(durationStr);
+    if (durationDays <= 0) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Format durasi salah\\. Contoh: 30hari, 1minggu, 2bulan');
+      return;
+    }
+    if (durationDays > 30 && !replayPassword) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Durasi \\>30 hari wajib menyertakan sandi replay\\.\nContoh: `/maketoken ShowA 60hari 1 sandiABC`');
+      return;
+    }
+
+    const { show, error, multiple } = await findShowByIdOrName(supabase, showInput, false);
+    if (error) { await sendTelegramMessage(botToken, chatId, `⚠️ ${escapeMarkdown(error)}`); return; }
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show:\n\n`;
+      for (const s of multiple) msg += `• ${escapeMarkdown(s.title)} \\(\`${s.short_id || '#' + showShortId(s.id)}\`\\)\n`;
+      msg += `\n💡 Gunakan ID: \`/maketoken #<id> \\.\\.\\.\``;
+      await sendTelegramMessage(botToken, chatId, msg);
+      return;
+    }
+    if (!show) { await sendTelegramMessage(botToken, chatId, `⚠️ Show "${escapeMarkdown(showInput)}" tidak ditemukan\\.`); return; }
+
+    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const expiresAt = new Date(Date.now() + durationDays * 86400000).toISOString();
+
+    const { error: insertErr } = await supabase.from('tokens').insert({
+      code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+    });
+    if (insertErr) { await sendTelegramMessage(botToken, chatId, `⚠️ Gagal: ${escapeMarkdown(insertErr.message)}`); return; }
+
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric' });
+    let msg = `✅ *Token Custom Berhasil\\!*\n\n` +
+      `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
+      `🔑 Token: \`${escapeMarkdown(code)}\`\n` +
+      `📱 Max Device: *${maxDevices}*\n` +
+      `⏰ Durasi: *${durationDays} hari*\n` +
+      `📅 Kedaluwarsa: ${escapeMarkdown(expDate)}\n\n` +
+      `📺 Link: \`realtime48stream\\.my\\.id/live?t=${escapeMarkdown(code)}\``;
+    if (durationDays > 7 && replayPassword) {
+      msg += `\n🔐 Sandi Replay: ${escapeMarkdown(replayPassword)}`;
+    }
+    await sendTelegramMessage(botToken, chatId, msg);
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
+async function handlePerpanjangCommand(supabase: any, botToken: string, chatId: string, tokenSuffix: string, durationStr: string) {
+  try {
+    const durationDays = parseDurationTg(durationStr);
+    if (durationDays <= 0) {
+      await sendTelegramMessage(botToken, chatId, '⚠️ Format durasi salah\\. Contoh: 30hari, 1minggu, 2bulan, 1tahun');
+      return;
+    }
+
+    const suffix = tokenSuffix.toLowerCase();
+    const { data: allTokens } = await supabase.from('tokens').select('id, code, expires_at, status, show_id').eq('status', 'active');
+    const matches = (allTokens || []).filter((t: any) => t.code.toLowerCase().endsWith(suffix) || t.code.toLowerCase().includes(suffix));
+
+    if (matches.length === 0) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Token "${escapeMarkdown(tokenSuffix)}" tidak ditemukan\\.`);
+      return;
+    }
+    if (matches.length > 1) {
+      let msg = `⚠️ Ditemukan ${matches.length} token:\n\n`;
+      for (const t of matches) msg += `• \`${escapeMarkdown(t.code)}\`\n`;
+      msg += `\n💡 Gunakan kode yang lebih spesifik\\.`;
+      await sendTelegramMessage(botToken, chatId, msg);
+      return;
+    }
+
+    const token = matches[0];
+    const currentExpiry = token.expires_at ? new Date(token.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    const newExpiry = new Date(baseDate.getTime() + durationDays * 86400000);
+
+    const { error: updateErr } = await supabase.from('tokens').update({
+      expires_at: newExpiry.toISOString(),
+    }).eq('id', token.id);
+
+    if (updateErr) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal: ${escapeMarkdown(updateErr.message)}`);
+      return;
+    }
+
+    const expDate = newExpiry.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    await sendTelegramMessage(botToken, chatId,
+      `✅ *Token Berhasil Diperpanjang\\!*\n\n` +
+      `🔑 Token: \`${escapeMarkdown(token.code)}\`\n` +
+      `⏰ Ditambah: *${durationDays} hari*\n` +
+      `📅 Kedaluwarsa baru: ${escapeMarkdown(expDate)}`
+    );
+  } catch (e) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
+  }
+}
+
 function errorResponse(msg: string) {
   console.error('telegram-poll error:', msg);
   return jsonResponse({ error: msg }, 500);
