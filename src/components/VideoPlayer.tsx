@@ -297,18 +297,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         highBufferWatchdogPeriod: 1,
       };
 
-      // Only inject custom headers via XHR when proxy stream needs them
+      // Inject custom auth headers for hanabira proxy stream via xhrSetup
       if (usesNativeHeaderInjection) {
-        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, url: string) => {
-          if (xhr.readyState === 0) {
-            xhr.open("GET", url, true);
-          }
+        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, _url: string) => {
+          // HLS.js calls xhrSetup AFTER xhr.open — just set headers, don't re-open
           xhr.withCredentials = false;
           const hdrs = customHeadersRef?.current;
           if (!hdrs) return;
-          Object.entries(hdrs).forEach(([key, value]) => {
-            xhr.setRequestHeader(key, value);
-          });
+          // Set all auth headers: x-api-token, x-sec-key, x-showid, x-token-id + aliases
+          for (const [key, value] of Object.entries(hdrs)) {
+            try { xhr.setRequestHeader(key, value); } catch {}
+          }
         };
       }
 
