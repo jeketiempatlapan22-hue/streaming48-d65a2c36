@@ -21,6 +21,8 @@ interface ShowCardProps {
   onBuy: (show: Show) => void;
   onCoinBuy: (show: Show) => void;
   showCountdown?: boolean;
+  /** Whether the stream is currently live */
+  isLive?: boolean;
 }
 
 const INDONESIAN_MONTHS: Record<string, number> = {
@@ -73,7 +75,7 @@ function useCountdown(dateStr: string, timeStr: string) {
 
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
-  onBuy, onCoinBuy, showCountdown = true,
+  onBuy, onCoinBuy, showCountdown = true, isLive = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
   const pw = accessPassword || replayPassword;
@@ -132,7 +134,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             )}
           </div>
           <div className="flex items-center gap-1">
-            {showCountdown && countdown?.live && !show.is_replay && (
+            {((showCountdown && countdown?.live) || isLive) && !show.is_replay && (
               <motion.div
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
@@ -252,6 +254,26 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             ) : (
               <>
                 {(() => {
+                  // If stream is currently live, always show "Tonton Live" — skip countdown
+                  if (isLive) {
+                    return (
+                      <>
+                        <a
+                          href={`/live?t=${redeemedToken}`}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90 animate-pulse"
+                        >
+                          <Radio className="h-3.5 w-3.5" /> 🔴 Tonton Live
+                        </a>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
+                        >
+                          <Copy className="h-3 w-3" /> Salin Link
+                        </button>
+                      </>
+                    );
+                  }
+
                   const showStart = parseShowDateTime(show.schedule_date, show.schedule_time);
                   const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
                   const isTooEarly = accessOpens ? Date.now() < accessOpens : false;

@@ -22,8 +22,10 @@ const SchedulePage = () => {
   const [settings, setSettings] = useState<{ whatsapp_number: string; use_dynamic_qris?: string }>({ whatsapp_number: "" });
   const {
     coinUser, redeemedTokens, accessPasswords, replayPasswords,
-    addRedeemedToken, addAccessPassword,
+    addRedeemedToken, addAccessPassword, membershipToken, bundleToken,
   } = usePurchasedShows();
+  const [isStreamLive, setIsStreamLive] = useState(false);
+  const universalToken = membershipToken || bundleToken || null;
 
   // Purchase modal state
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
@@ -72,10 +74,12 @@ const SchedulePage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [showsRes, settingsRes] = await Promise.all([
+      const [showsRes, settingsRes, streamRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
         supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
+        (supabase.rpc as any)("get_stream_status"),
       ]);
+      if (streamRes.data?.length) setIsStreamLive(streamRes.data[0].is_live);
       if (showsRes.data) {
         const upcoming = (showsRes.data as Show[]).filter(s => !s.is_subscription && !s.is_replay && s.schedule_date);
         upcoming.sort((a, b) => {
@@ -105,7 +109,12 @@ const SchedulePage = () => {
       setLoading(false);
     };
     fetchData();
-    const ch = supabase.channel("sched-shows").on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData()).subscribe();
+    const ch = supabase.channel("sched-shows")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (payload: any) => {
+        if (payload.new?.is_live !== undefined) setIsStreamLive(payload.new.is_live);
+      })
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
 
@@ -331,7 +340,7 @@ const SchedulePage = () => {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredShows.map((show, i) => (
               <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}>
-                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id]} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} />
+                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive} />
               </motion.div>
             ))}
           </div>

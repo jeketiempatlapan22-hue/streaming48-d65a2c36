@@ -87,6 +87,7 @@ const Index = () => {
   const {
     coinUser, coinBalance, coinUsername, redeemedTokens, accessPasswords, replayPasswords,
     addRedeemedToken, addAccessPassword, addReplayPassword, setCoinBalance,
+    membershipToken, bundleToken,
   } = usePurchasedShows();
   const [coinShowTarget, setCoinShowTarget] = useState<Show | null>(null);
   const [coinRedeeming, setCoinRedeeming] = useState(false);
@@ -442,6 +443,12 @@ const Index = () => {
   const sortBySchedule = (list: Show[]) => {
     const now = Date.now();
     return [...list].sort((a, b) => {
+      // Live shows always on top
+      const aIsLive = isStreamLive && !a.is_replay;
+      const bIsLive = isStreamLive && !b.is_replay;
+      if (aIsLive && !bIsLive) return -1;
+      if (!aIsLive && bIsLive) return 1;
+
       const tA = parseShowSchedule(a);
       const tB = parseShowSchedule(b);
       // Upcoming shows first (closest future), then past shows (most recent first)
@@ -453,6 +460,9 @@ const Index = () => {
       return tB - tA; // both past: most recent first
     });
   };
+
+  // Universal access token for membership/bundle users
+  const universalToken = membershipToken || bundleToken || null;
 
   const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));
   const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0 && !s.is_bundle));
@@ -825,11 +835,12 @@ const Index = () => {
                   show={show}
                   index={i}
                   isReplayMode={show.is_replay}
-                  redeemedToken={redeemedTokens[show.id]}
+                  redeemedToken={redeemedTokens[show.id] || (!show.is_replay ? universalToken : null) || undefined}
                   accessPassword={accessPasswords[show.id]}
                   replayPassword={replayPasswords[show.id]}
                   onBuy={handleBuy}
                   onCoinBuy={handleCoinBuy}
+                  isLive={isStreamLive}
                 />
               ))}
             </div>

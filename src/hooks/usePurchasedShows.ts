@@ -10,6 +10,10 @@ interface PurchasedShowsState {
   coinBalance: number;
   coinUsername: string;
   loading: boolean;
+  /** Active membership token code (MBR-/MRD-) if user has one */
+  membershipToken: string | null;
+  /** Active bundle token code (BDL-) if user has one */
+  bundleToken: string | null;
 }
 
 /**
@@ -25,6 +29,8 @@ export function usePurchasedShows() {
     coinBalance: 0,
     coinUsername: "",
     loading: true,
+    membershipToken: null,
+    bundleToken: null,
   });
 
   const mergeAndPersist = useCallback((
@@ -67,11 +73,24 @@ export function usePurchasedShows() {
       supabase.from("profiles").select("username").eq("id", user.id).maybeSingle(),
     ]);
 
-    // Build token map from DB: show_id -> token_code
+    // Build token map from DB: show_id -> token_code, and detect membership/bundle tokens
     const dbTokens: Record<string, string> = {};
     const dbAccessPw: Record<string, string> = {};
+    let membershipToken: string | null = null;
+    let bundleToken: string | null = null;
     if (tokensRes.status === "fulfilled" && tokensRes.value.data) {
       for (const t of tokensRes.value.data) {
+        if (t.code) {
+          const code = String(t.code).toUpperCase();
+          // Detect membership tokens
+          if ((code.startsWith("MBR-") || code.startsWith("MRD-")) && (!t.expires_at || new Date(t.expires_at) > new Date())) {
+            membershipToken = t.code;
+          }
+          // Detect bundle tokens
+          if (code.startsWith("BDL-") && (!t.expires_at || new Date(t.expires_at) > new Date())) {
+            bundleToken = t.code;
+          }
+        }
         if (t.show_id && t.code) {
           // Only include non-expired tokens
           if (!t.expires_at || new Date(t.expires_at) > new Date()) {
@@ -108,6 +127,8 @@ export function usePurchasedShows() {
       coinBalance: balance,
       coinUsername: username,
       loading: false,
+      membershipToken,
+      bundleToken,
     });
   }, [mergeAndPersist]);
 
