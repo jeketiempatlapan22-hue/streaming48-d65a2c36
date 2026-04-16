@@ -246,6 +246,7 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
+  const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -329,6 +330,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleSetShortIdCommand(supabase, botToken, chatId, setshortidMatch[1], setshortidMatch[2]);
   } else if (resendMatch) {
     await handleResendCommand(supabase, botToken, chatId, resendMatch[1]);
+  } else if (tokenallMatch) {
+    await handleTokenAllCommand(supabase, botToken, chatId, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
