@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { withTimeout } from "@/lib/queryCache";
-import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil, Award } from "lucide-react";
+import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil, Award, Crown } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
@@ -128,6 +128,54 @@ const ViewerProfile = () => {
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-primary">{orders.length}</p><p className="text-[10px] text-muted-foreground">Order Koin</p></div>
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-[hsl(var(--success))]">{tokens.filter(t => t.status === "active").length}</p><p className="text-[10px] text-muted-foreground">Token Aktif</p></div>
         </motion.div>
+
+        {/* Membership/Bundle Duration Card */}
+        {(() => {
+          const membershipTokens = tokens.filter((t: any) => {
+            if (t.status !== "active" || !t.expires_at) return false;
+            const code = (t.code || "").toUpperCase();
+            return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-");
+          });
+          if (membershipTokens.length === 0) return null;
+          return (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }} className="space-y-2">
+              {membershipTokens.map((t: any) => {
+                const code = (t.code || "").toUpperCase();
+                const isMembership = code.startsWith("MBR-") || code.startsWith("MRD-");
+                const isBundle = code.startsWith("BDL-");
+                const expiresAt = new Date(t.expires_at);
+                const now = new Date();
+                const diffMs = expiresAt.getTime() - now.getTime();
+                const isExpired = diffMs <= 0;
+                const daysLeft = Math.ceil(diffMs / 86400000);
+                const hoursLeft = Math.ceil(diffMs / 3600000);
+
+                return (
+                  <div key={t.id} className={`rounded-xl border p-4 ${isExpired ? "border-border bg-muted/30" : isMembership ? "border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-primary/5" : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5"}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Crown className={`h-4 w-4 ${isExpired ? "text-muted-foreground" : isMembership ? "text-yellow-500" : "text-primary"}`} />
+                        <span className="text-xs font-bold text-foreground">{isMembership ? "👑 Membership" : "📦 Bundle"}</span>
+                      </div>
+                      {isExpired ? (
+                        <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">Kedaluwarsa</span>
+                      ) : (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${daysLeft <= 3 ? "text-destructive bg-destructive/10" : "text-[hsl(var(--success))] bg-[hsl(var(--success))]/10"}`}>
+                          {daysLeft > 0 ? `${daysLeft} hari lagi` : `${hoursLeft} jam lagi`}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Token: <span className="font-mono">{t.code}</span></p>
+                    <p className="text-[10px] text-muted-foreground">Berakhir: {expiresAt.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
+                    {!isExpired && daysLeft <= 3 && (
+                      <p className="text-[10px] text-destructive mt-1">⚠️ Segera berakhir!</p>
+                    )}
+                  </div>
+                );
+              })}
+            </motion.div>
+          );
+        })()}
 
         {/* Badges */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }} className="rounded-xl glass p-4">

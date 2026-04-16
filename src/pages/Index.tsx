@@ -841,6 +841,7 @@ const Index = () => {
                   onBuy={handleBuy}
                   onCoinBuy={handleCoinBuy}
                   isLive={isStreamLive}
+                  isUniversalAccess={!!universalToken}
                 />
               ))}
             </div>
