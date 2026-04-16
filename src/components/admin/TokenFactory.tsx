@@ -7,7 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Trash2, Ban, RefreshCw, Plus, Search, Globe, Lock, ClipboardList, CheckCircle } from "lucide-react";
+import { Copy, Trash2, Ban, RefreshCw, Plus, Search, Globe, Lock, ClipboardList, CheckCircle, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const DURATION_TABS = [
   { key: "daily", label: "Harian", emoji: "📅" },
@@ -43,6 +44,8 @@ const TokenFactory = () => {
     } catch { return new Set(); }
   });
   const [lastCopied, setLastCopied] = useState<string[]>([]);
+  const [extendToken, setExtendToken] = useState<any>(null);
+  const [extendDays, setExtendDays] = useState("30");
   const { toast } = useToast();
 
   const fetchTokens = async () => {
@@ -174,6 +177,23 @@ const TokenFactory = () => {
     await supabase.from("token_sessions").delete().eq("token_id", id);
     await fetchTokens();
     toast({ title: "Session direset" });
+  };
+
+  const extendTokenDuration = async () => {
+    if (!extendToken) return;
+    const days = Math.max(1, Math.min(3650, parseInt(extendDays) || 30));
+    const currentExpiry = extendToken.expires_at ? new Date(extendToken.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    const newExpiry = new Date(baseDate.getTime() + days * 86400000);
+    const { error } = await supabase.from("tokens").update({ expires_at: newExpiry.toISOString() }).eq("id", extendToken.id);
+    if (error) {
+      toast({ title: "Gagal memperpanjang", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Token diperpanjang ${days} hari` });
+    }
+    setExtendToken(null);
+    setExtendDays("30");
+    await fetchTokens();
   };
 
   const deleteTokens = async (ids: string[], dur: TabKey) => {
