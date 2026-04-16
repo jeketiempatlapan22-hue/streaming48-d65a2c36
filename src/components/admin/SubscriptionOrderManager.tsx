@@ -503,14 +503,33 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
           if (result.token_code && order?.phone && showInfo) {
             const liveLink = `${siteUrl}/live?t=${result.token_code}`;
-            let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
-            if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
-            message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
-            if (showInfo.access_password) {
-              message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+            const isMembership = showInfo.is_subscription;
+            if (isMembership) {
+              const durationDays = result.duration_days || 30;
+              let message = `✅ *Membership Dikonfirmasi!*\n\n🎭 Paket: *${showInfo.title}*\n`;
+              message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
+              message += `⏳ Durasi: *${durationDays} hari*\n`;
+              if (result.expires_at) {
+                const expDate = new Date(result.expires_at);
+                message += `📅 Berlaku hingga: *${expDate.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}*\n`;
+              }
+              if (showInfo.group_link) message += `\n👥 *Link Grup:*\n🔗 ${showInfo.group_link}\n`;
+              if (showInfo.access_password || result.access_password) {
+                const pw = result.access_password || showInfo.access_password;
+                message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${pw}\`\n`;
+              }
+              message += `\n✨ Akses *semua show* selama masa aktif.\n⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+              sendWhatsApp(order.phone, message);
+            } else {
+              let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
+              if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
+              message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
+              if (showInfo.access_password) {
+                message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
+              }
+              message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+              sendWhatsApp(order.phone, message);
             }
-            message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
-            sendWhatsApp(order.phone, message);
           } else if (!result.token_code && order?.phone && showInfo) {
             const message = `✅ *Membership Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n${showInfo.group_link ? `🔗 Link Grup: ${showInfo.group_link}\n` : ""}\nTerima kasih! 🎉`;
             sendWhatsApp(order.phone, message);
