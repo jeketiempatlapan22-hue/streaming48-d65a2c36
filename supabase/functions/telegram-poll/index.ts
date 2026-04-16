@@ -247,6 +247,8 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
+  const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
+  const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
@@ -330,8 +332,12 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
     await handleSetShortIdCommand(supabase, botToken, chatId, setshortidMatch[1], setshortidMatch[2]);
   } else if (resendMatch) {
     await handleResendCommand(supabase, botToken, chatId, resendMatch[1]);
+  } else if (maketokenMatch) {
+    await handleMakeTokenCommand(supabase, botToken, chatId, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   } else if (tokenallMatch) {
     await handleTokenAllCommand(supabase, botToken, chatId, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
+  } else if (perpanjangMatch) {
+    await handlePerpanjangCommand(supabase, botToken, chatId, perpanjangMatch[1], perpanjangMatch[2].trim());
   } else if (yaMatch) {
     const ids = yaMatch[1].split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
     await processBulkOrders(supabase, botToken, chatId, ids, 'approve');
@@ -442,6 +448,14 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/announce <pesan>\` \\- Kirim WA ke semua user\n` +
     `\`/setprice #ID coin <harga>\` \\- Set harga koin show\n` +
     `\`/setprice #ID replay <harga>\` \\- Set harga replay show\n\n` +
+    `🎫 *Token Custom:*\n` +
+    `\`/maketoken <show> <durasi>\` \\- Token durasi custom \\(1 device\\)\n` +
+    `\`/maketoken <show> <durasi> <max>\` \\- Token durasi \\+ max device\n` +
+    `\`/maketoken <show> <durasi> <max> <sandi>\` \\- Token \\+ sandi replay\n` +
+    `\`/tokenall <durasi>\` \\- Token ALL show \\(1 device\\)\n` +
+    `\`/tokenall <durasi> <max>\` \\- Token ALL show \\+ max device\n` +
+    `\`/perpanjang <4digit> <durasi>\` \\- Perpanjang durasi token\n` +
+    `  Durasi: 30hari, 1minggu, 2bulan, 1tahun\n\n` +
     `💡 _Gunakan \\#ID \\(6 digit hex\\) atau custom ID untuk show, 4 digit belakang untuk token\\._`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
