@@ -134,7 +134,7 @@ const ViewerProfile = () => {
           const membershipTokens = tokens.filter((t: any) => {
             if (t.status !== "active" || !t.expires_at) return false;
             const code = (t.code || "").toUpperCase();
-            return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-");
+            return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
           });
           if (membershipTokens.length === 0) return null;
           return (
@@ -143,6 +143,7 @@ const ViewerProfile = () => {
                 const code = (t.code || "").toUpperCase();
                 const isMembership = code.startsWith("MBR-") || code.startsWith("MRD-");
                 const isBundle = code.startsWith("BDL-");
+                const isCustom = code.startsWith("RT48-");
                 const expiresAt = new Date(t.expires_at);
                 const now = new Date();
                 const diffMs = expiresAt.getTime() - now.getTime();
@@ -150,12 +151,16 @@ const ViewerProfile = () => {
                 const daysLeft = Math.ceil(diffMs / 86400000);
                 const hoursLeft = Math.ceil(diffMs / 3600000);
 
+                const label = isMembership ? "👑 Membership" : isBundle ? "📦 Bundle" : "🎫 Token Custom";
+                const iconColor = isExpired ? "text-muted-foreground" : isMembership ? "text-yellow-500" : isCustom ? "text-cyan-400" : "text-primary";
+                const borderClass = isExpired ? "border-border bg-muted/30" : isMembership ? "border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-primary/5" : isCustom ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5" : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
+
                 return (
-                  <div key={t.id} className={`rounded-xl border p-4 ${isExpired ? "border-border bg-muted/30" : isMembership ? "border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-primary/5" : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5"}`}>
+                  <div key={t.id} className={`rounded-xl border p-4 ${borderClass}`}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Crown className={`h-4 w-4 ${isExpired ? "text-muted-foreground" : isMembership ? "text-yellow-500" : "text-primary"}`} />
-                        <span className="text-xs font-bold text-foreground">{isMembership ? "👑 Membership" : "📦 Bundle"}</span>
+                        <Crown className={`h-4 w-4 ${iconColor}`} />
+                        <span className="text-xs font-bold text-foreground">{label}</span>
                       </div>
                       {isExpired ? (
                         <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">Kedaluwarsa</span>

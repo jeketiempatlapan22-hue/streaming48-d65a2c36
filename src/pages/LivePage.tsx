@@ -310,6 +310,8 @@ const LivePage = () => {
           normalizedTokenCode.startsWith("MRD-");
         // Bundle tokens: detect by validate_token response, show flag, OR code prefix
         const isBundleToken = Boolean(result.is_bundle) || Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
+        // Custom tokens (RT48-) created via bot command - universal access
+        const isCustomToken = normalizedTokenCode.startsWith("RT48-");
 
         setTokenData({
           id: result.id,
@@ -319,9 +321,10 @@ const LivePage = () => {
           created_at: result.created_at,
           is_membership: isMembershipToken,
           is_bundle: isBundleToken,
+          is_custom: isCustomToken,
         });
 
-        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken) {
+        if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken && !isCustomToken) {
           setShowMismatch(true);
           setMismatchShowTitle(JSON.stringify({
             tokenShowTitle: tokenShow?.title || "Show Lain",

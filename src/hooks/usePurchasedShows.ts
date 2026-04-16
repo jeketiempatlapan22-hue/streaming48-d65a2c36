@@ -14,6 +14,8 @@ interface PurchasedShowsState {
   membershipToken: string | null;
   /** Active bundle token code (BDL-) if user has one */
   bundleToken: string | null;
+  /** Active custom token code (RT48-) if user has one */
+  customToken: string | null;
 }
 
 /**
@@ -31,6 +33,7 @@ export function usePurchasedShows() {
     loading: true,
     membershipToken: null,
     bundleToken: null,
+    customToken: null,
   });
 
   const mergeAndPersist = useCallback((
@@ -78,6 +81,7 @@ export function usePurchasedShows() {
     const dbAccessPw: Record<string, string> = {};
     let membershipToken: string | null = null;
     let bundleToken: string | null = null;
+    let customToken: string | null = null;
     if (tokensRes.status === "fulfilled" && tokensRes.value.data) {
       for (const t of tokensRes.value.data) {
         if (t.code) {
@@ -89,6 +93,10 @@ export function usePurchasedShows() {
           // Detect bundle tokens
           if (code.startsWith("BDL-") && (!t.expires_at || new Date(t.expires_at) > new Date())) {
             bundleToken = t.code;
+          }
+          // Detect custom tokens (created via bot command)
+          if (code.startsWith("RT48-") && (!t.expires_at || new Date(t.expires_at) > new Date())) {
+            customToken = t.code;
           }
         }
         if (t.show_id && t.code) {
@@ -106,8 +114,8 @@ export function usePurchasedShows() {
       Object.assign(dbAccessPw, pwData);
     }
 
-    // If user has membership/bundle, fetch ALL show passwords
-    if (membershipToken || bundleToken) {
+    // If user has membership/bundle/custom, fetch ALL show passwords
+    if (membershipToken || bundleToken || customToken) {
       try {
         const { data: allPw } = await (supabase.rpc as any)("get_membership_show_passwords");
         if (allPw && typeof allPw === "object") {
@@ -139,6 +147,7 @@ export function usePurchasedShows() {
       loading: false,
       membershipToken,
       bundleToken,
+      customToken,
     });
   }, [mergeAndPersist]);
 
