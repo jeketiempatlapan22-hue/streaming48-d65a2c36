@@ -315,6 +315,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
+  const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -351,6 +352,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (resendMatch) return await handleResendWa(supabase, resendMatch[1]);
   if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   if (tokenallMatch) return await handleTokenAllWa(supabase, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
+  if (perpanjangMatch) return await handlePerpanjangWa(supabase, perpanjangMatch[1], perpanjangMatch[2].trim());
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -438,6 +440,7 @@ TOLAK_RESET <id> - Tolak reset password
 /maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
 /tokenall <durasi> - Token ALL show (1 device)
 /tokenall <durasi> <max> - Token ALL show + max device
+/perpanjang <4digit> <durasi> - Perpanjang token
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
