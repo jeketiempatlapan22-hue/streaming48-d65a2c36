@@ -229,6 +229,22 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {/* Team badge - full width below lineup */}
         {show.team && <TeamBadge team={show.team} size="md" />}
 
+        {/* Show replay/access password for membership/bundle users */}
+        {isUniversalAccess && show.access_password && (
+          <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
+            <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
+            <div className="flex items-center justify-between">
+              <p className="font-mono text-sm font-bold text-[hsl(var(--warning))]">{show.access_password}</p>
+              <button
+                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(show.access_password!); toast.success("Sandi disalin!"); }}
+                className="text-muted-foreground hover:text-primary active:scale-[0.95]"
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Action buttons - slimmer */}
         <div className="flex flex-col gap-1.5 pt-1">
           {redeemedToken ? (
