@@ -434,7 +434,7 @@ TOLAK_RESET <id> - Tolak reset password
 /maketoken <show> <durasi> - Token durasi custom (1 device)
 /maketoken <show> <durasi> <max> - Token durasi + max device
 /maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
-  Durasi: 30hari, 1minggu, 2bulan, dll
+  Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
 }
