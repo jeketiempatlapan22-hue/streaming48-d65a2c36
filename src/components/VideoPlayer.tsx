@@ -265,6 +265,43 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
       const usesNativeHeaderInjection = Boolean(customHeadersRef);
 
+      const getProxyHeaders = (): Record<string, string> | undefined => {
+        const hdrs = customHeadersRef?.current;
+        if (!hdrs) return undefined;
+
+        const normalizedEntries = Object.entries(hdrs).filter(([, value]) => Boolean(value));
+        if (!normalizedEntries.length) return undefined;
+
+        return Object.fromEntries(normalizedEntries.map(([key, value]) => [key, String(value)]));
+      };
+
+      class HeaderInjectingLoader extends Hls.DefaultConfig.loader {
+        constructor(config: any) {
+          super(config);
+        }
+
+        load(context: any, config: any, callbacks: any) {
+          const headerMap = getProxyHeaders();
+
+          if (headerMap) {
+            context.headers = {
+              ...(context.headers || {}),
+              ...headerMap,
+            };
+
+            console.log(
+              "[VideoPlayer proxyLoader] Inject headers via context.headers:",
+              context.url,
+              Object.keys(headerMap).join(",")
+            );
+          } else {
+            console.warn("[VideoPlayer proxyLoader] No custom headers available for:", context.url);
+          }
+
+          return super.load(context, config, callbacks);
+        }
+      }
+
       const hlsConfig: any = {
         enableWorker: true,
         lowLatencyMode: true,
@@ -295,28 +332,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         maxStarvationDelay: 2,
         maxLoadingDelay: 2,
         highBufferWatchdogPeriod: 1,
+        ...(usesNativeHeaderInjection ? { loader: HeaderInjectingLoader } : {}),
       };
 
       // Inject custom auth headers for hanabira proxy stream via xhrSetup
       if (usesNativeHeaderInjection) {
         hlsConfig.xhrSetup = (xhr: XMLHttpRequest, url: string) => {
-          // HLS.js calls xhrSetup AFTER xhr.open — just set headers, don't re-open
           xhr.withCredentials = false;
-          const hdrs = customHeadersRef?.current;
+          const hdrs = getProxyHeaders();
           console.log("[VideoPlayer xhrSetup] URL:", url, "Headers available:", hdrs ? Object.keys(hdrs).join(",") : "NONE");
-          if (!hdrs || Object.keys(hdrs).length === 0) {
+          if (!hdrs) {
             console.warn("[VideoPlayer xhrSetup] No custom headers available — request will likely fail");
             return;
           }
-          // Set all auth headers: x-api-token, x-sec-key, x-showid, x-token-id + aliases
           for (const [key, value] of Object.entries(hdrs)) {
-            if (value) {
-              try {
-                xhr.setRequestHeader(key, value);
-                console.log("[VideoPlayer xhrSetup] Set header:", key, "=", value.substring(0, 8) + "...");
-              } catch (e) {
-                console.error("[VideoPlayer xhrSetup] Failed to set header:", key, e);
-              }
+            try {
+              xhr.setRequestHeader(key, value);
+              console.log("[VideoPlayer xhrSetup] Set header:", key, "=", value.substring(0, 8) + "...");
+            } catch (e) {
+              console.error("[VideoPlayer xhrSetup] Failed to set header:", key, e);
             }
           }
         };
