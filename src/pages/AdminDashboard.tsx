@@ -221,7 +221,7 @@ const AdminDashboard = () => {
           <AdminGlobalSearch onNavigate={setActiveSection} />
           <Suspense fallback={null}><AdminNotifications /></Suspense>
         </header>
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 lg:p-8 2xl:p-10">
           <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
             {renderSection()}
           </Suspense>

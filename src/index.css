@@ -58,6 +58,23 @@
   }
 }
 
+/* TV/Projector large screen optimizations */
+@media (min-width: 1920px) {
+  html { font-size: 18px !important; }
+}
+@media (min-width: 2560px) {
+  html { font-size: 20px !important; }
+}
+@media (min-width: 3840px) {
+  html { font-size: 24px !important; }
+}
+
+/* Ensure all interactive elements are keyboard/remote navigable */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role="button"]:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
 @layer base {
   * {
     @apply border-border;

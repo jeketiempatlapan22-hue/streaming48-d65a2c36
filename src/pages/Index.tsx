@@ -52,6 +52,7 @@ interface SiteSettings {
 const Index = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [isStreamLive, setIsStreamLive] = useState(false);
+  const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const [descriptions, setDescriptions] = useState<any[]>([]);
   const [settings, setSettings] = useState<SiteSettings>({
     whatsapp_number: "",
@@ -107,7 +108,10 @@ const Index = () => {
       setShows(cachedData.shows as Show[]);
       if (cachedData.isStreamLive !== undefined) setIsStreamLive(cachedData.isStreamLive);
       if (cachedData.descriptions) setDescriptions(cachedData.descriptions);
-      if (cachedData.settings) setSettings((prev) => ({ ...prev, ...cachedData.settings }));
+      if (cachedData.settings) {
+        setSettings((prev) => ({ ...prev, ...cachedData.settings }));
+        if (cachedData.settings.active_show_id) setActiveShowId(cachedData.settings.active_show_id);
+      }
       return;
     }
 
@@ -133,6 +137,7 @@ const Index = () => {
         const s: any = {};
         settingsRes.data.forEach((row: any) => { s[row.key] = row.value; });
         setSettings((prev) => ({ ...prev, ...s }));
+        if (s.active_show_id) setActiveShowId(s.active_show_id);
       }
     }, 300);
   };
@@ -840,7 +845,7 @@ const Index = () => {
                   replayPassword={replayPasswords[show.id]}
                   onBuy={handleBuy}
                   onCoinBuy={handleCoinBuy}
-                  isLive={isStreamLive}
+                  isLive={isStreamLive && show.id === activeShowId}
                   isUniversalAccess={!!universalToken}
                 />
               ))}
