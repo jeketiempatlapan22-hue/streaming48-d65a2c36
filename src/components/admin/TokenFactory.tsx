@@ -475,6 +475,40 @@ const TokenFactory = () => {
         ))}
         <TabsContent value="coin" className="mt-4">{renderTokenList("coin")}</TabsContent>
       </Tabs>
+
+      {/* Extend Token Dialog */}
+      <Dialog open={!!extendToken} onOpenChange={(o) => !o && setExtendToken(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>⏰ Perpanjang Token</DialogTitle>
+          </DialogHeader>
+          {extendToken && (
+            <div className="space-y-3">
+              <p className="font-mono text-sm text-foreground">{extendToken.code}</p>
+              {extendToken.expires_at && (
+                <p className="text-xs text-muted-foreground">
+                  Kedaluwarsa saat ini: {new Date(extendToken.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Tambah durasi (hari)</label>
+                <Input type="number" min="1" max="3650" value={extendDays} onChange={(e) => setExtendDays(e.target.value)} className="bg-background" />
+              </div>
+              {extendDays && parseInt(extendDays) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Kedaluwarsa baru: {new Date(
+                    (extendToken.expires_at && new Date(extendToken.expires_at) > new Date() ? new Date(extendToken.expires_at).getTime() : Date.now()) + (parseInt(extendDays) || 30) * 86400000
+                  ).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExtendToken(null)}>Batal</Button>
+            <Button onClick={extendTokenDuration}>Perpanjang</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
