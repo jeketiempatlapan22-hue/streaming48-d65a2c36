@@ -74,10 +74,12 @@ const SchedulePage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [showsRes, settingsRes] = await Promise.all([
+      const [showsRes, settingsRes, streamRes] = await Promise.all([
         supabase.rpc("get_public_shows"),
         supabase.from("site_settings").select("*").in("key", ["whatsapp_number", "use_dynamic_qris"]),
+        (supabase.rpc as any)("get_stream_status"),
       ]);
+      if (streamRes.data?.length) setIsStreamLive(streamRes.data[0].is_live);
       if (showsRes.data) {
         const upcoming = (showsRes.data as Show[]).filter(s => !s.is_subscription && !s.is_replay && s.schedule_date);
         upcoming.sort((a, b) => {
@@ -107,7 +109,12 @@ const SchedulePage = () => {
       setLoading(false);
     };
     fetchData();
-    const ch = supabase.channel("sched-shows").on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData()).subscribe();
+    const ch = supabase.channel("sched-shows")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => fetchData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (payload: any) => {
+        if (payload.new?.is_live !== undefined) setIsStreamLive(payload.new.is_live);
+      })
+      .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, []);
 
