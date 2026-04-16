@@ -313,7 +313,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const bulktokenMatch = rawText.match(/^\/bulktoken\s+(.+?)\s+(\d+)(?:\s+(\d+))?$/i);
   const setshortidMatch = rawText.match(/^\/setshortid\s+#([a-f0-9]{6})\s+(\S+)$/i);
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
-  const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|hari))(?:\s+(\d+))?(?:\s+(.+))?$/i);
+  const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -1969,13 +1969,14 @@ async function handleSetShortIdWa(supabase: any, hexId: string, shortId: string)
 }
 
 function parseDuration(durationStr: string): number {
-  const match = durationStr.match(/^(\d+)\s*(hari|minggu|bulan)$/i);
+  const match = durationStr.match(/^(\d+)\s*(hari|minggu|bulan|tahun)$/i);
   if (!match) return 0;
   const num = parseInt(match[1], 10);
   const unit = match[2].toLowerCase();
   if (unit === 'hari') return num;
   if (unit === 'minggu') return num * 7;
   if (unit === 'bulan') return num * 30;
+  if (unit === 'tahun') return num * 365;
   return 0;
 }
 
