@@ -9,12 +9,11 @@ interface ProxyStreamResult {
 }
 
 const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
-const PLAYBACK_URL = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
 
 /**
  * Hook: fetch token from hanabira48.com/api/stream-token every ~1h55m,
- * then inject auth headers via xhrSetup ref into HLS.js requests to
- * https://proxy.mediastream48.workers.dev/api/proxy/playback.
+ * then inject auth headers via xhrSetup ref into HLS.js requests.
+ * The playback URL comes directly from the token response (hanabira's own proxy).
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -52,7 +51,7 @@ export function useProxyStream(
       if (!parsed) throw new Error("Token response tidak valid — data tidak ditemukan");
 
       console.log("[useProxyStream] Parsed playbackUrl:", parsed.playbackUrl);
-      console.log("[useProxyStream] Headers ready:", Object.keys(parsed.headers));
+      console.log("[useProxyStream] Headers:", JSON.stringify(parsed.headers));
 
       // Update ref silently — no state change, no HLS re-init on refresh
       customHeadersRef.current = parsed.headers;
@@ -113,19 +112,17 @@ interface ParsedToken {
 
 /**
  * Parse hanabira48 token response.
- * Extracts playback URL from the response (hanabira provides its own proxy URL).
- * Falls back to hanabira's known playback endpoint if URL not in response.
+ * Uses the playback URL directly from the response (hanabira has its own proxy).
  */
 function parseTokenResponse(data: any): ParsedToken | null {
   if (!data) return null;
 
-  // Try to find the playback URL from the response
+  // Extract playback URL from response
   const extractUrl = (src: any): string | null => {
     if (!src) return null;
     return src.playbackUrl || src.playback_url || src.url || src.streamUrl || src.stream_url || null;
   };
 
-  // Try multiple payload shapes to extract auth credentials
   let apiToken: string | null = null;
   let secKey: string | null = null;
   let showId: string | null = null;
@@ -171,20 +168,20 @@ function parseTokenResponse(data: any): ParsedToken | null {
 
   if (!apiToken || !secKey) return null;
 
-  // Always use the workers.dev proxy playback endpoint
-  playbackUrl = PLAYBACK_URL;
+  // Use the URL from the token response directly (hanabira's own proxy)
+  // No more overriding with workers.dev proxy
+  if (!playbackUrl) {
+    console.warn("[useProxyStream] No playbackUrl in token response, cannot proceed");
+    return null;
+  }
 
-  console.log("[useProxyStream] Playback URL:", playbackUrl);
+  console.log("[useProxyStream] Using playback URL from token response:", playbackUrl);
 
   const headers: Record<string, string> = {
     "x-api-token": apiToken,
     "x-sec-key": secKey,
     "x-showid": showId,
     "x-token-id": tokenId,
-    xapi: apiToken,
-    xsec: secKey,
-    xshowid: showId,
-    x: tokenId,
   };
 
   return { playbackUrl, headers };
