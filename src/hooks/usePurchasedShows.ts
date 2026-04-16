@@ -106,6 +106,16 @@ export function usePurchasedShows() {
       Object.assign(dbAccessPw, pwData);
     }
 
+    // If user has membership/bundle, fetch ALL show passwords
+    if (membershipToken || bundleToken) {
+      try {
+        const { data: allPw } = await (supabase.rpc as any)("get_membership_show_passwords");
+        if (allPw && typeof allPw === "object") {
+          Object.assign(dbAccessPw, allPw as Record<string, string>);
+        }
+      } catch {}
+    }
+
     // Replay passwords come from coin_transactions with type 'replay_redeem'
     // The get_purchased_show_passwords RPC already includes both redeem and replay_redeem
     const dbReplayPw: Record<string, string> = { ...dbAccessPw };
