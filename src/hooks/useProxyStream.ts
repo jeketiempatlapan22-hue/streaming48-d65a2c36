@@ -9,11 +9,13 @@ interface ProxyStreamResult {
 }
 
 const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
+const PLAYBACK_URL = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
+const TOKEN_TO_PLAYBACK_DELAY_MS = 1500; // 1.5s delay after token fetch before starting playback
 
 /**
- * Hook: fetch token from hanabira48.com/api/stream-token every ~1h55m,
- * then inject auth headers via xhrSetup ref into HLS.js requests.
- * The playback URL comes directly from the token response (hanabira's own proxy).
+ * Hook: fetch token dari hanabira48.com/api/stream-token setiap ~1h55m,
+ * lalu inject header auth langsung ke HLS.js xhr requests menuju
+ * https://proxy.mediastream48.workers.dev/api/proxy/playback via setRequestHeader.
  */
 export function useProxyStream(
   isProxy: boolean,
@@ -28,7 +30,6 @@ export function useProxyStream(
   const isMounted = useRef(true);
 
   const fetchToken = useCallback(async () => {
-    console.log("[useProxyStream] fetchToken called, isProxy:", isProxy, "showId:", externalShowId);
     if (!isProxy || !externalShowId) return;
 
     const isInitial = customHeadersRef.current === null;
@@ -37,49 +38,54 @@ export function useProxyStream(
       setError(null);
 
       const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
-      console.log("[useProxyStream] Fetching token from:", tokenUrl);
+      console.log("[ProxyStream] Fetching token:", tokenUrl);
       const res = await fetch(tokenUrl);
 
-      if (!res.ok) throw new Error(`Token API error: ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(`Token API ${res.status}`);
 
-      const tokenData = await res.json();
+      const data = await res.json();
       if (!isMounted.current) return;
 
-      console.log("[useProxyStream] Full token response:", JSON.stringify(tokenData));
+      console.log("[ProxyStream] Token response:", JSON.stringify(data));
 
-      const parsed = parseTokenResponse(tokenData);
-      if (!parsed) throw new Error("Token response tidak valid — data tidak ditemukan");
+      const headers = extractHeaders(data);
+      if (!headers) throw new Error("Token response tidak valid");
 
-      console.log("[useProxyStream] Parsed playbackUrl:", parsed.playbackUrl);
-      console.log("[useProxyStream] Headers:", JSON.stringify(parsed.headers));
+      console.log("[ProxyStream] Headers extracted:", Object.keys(headers).join(", "));
 
-      // Update ref silently — no state change, no HLS re-init on refresh
-      customHeadersRef.current = parsed.headers;
+      // Update headers ref (read by xhrSetup on every HLS request)
+      customHeadersRef.current = headers;
 
       if (isInitial) {
-        setPlaybackUrl(parsed.playbackUrl);
+        // Delay sebelum set playback URL agar token siap di server proxy
+        console.log(`[ProxyStream] Waiting ${TOKEN_TO_PLAYBACK_DELAY_MS}ms before playback...`);
+        await new Promise(r => setTimeout(r, TOKEN_TO_PLAYBACK_DELAY_MS));
+        if (!isMounted.current) return;
+
+        setPlaybackUrl(PLAYBACK_URL);
         setLoading(false);
+        console.log("[ProxyStream] Playback URL set:", PLAYBACK_URL);
       }
 
-      // Schedule silent refresh every 1 h 55 min
+      // Schedule silent refresh
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) {
-          console.log("[useProxyStream] Silent token refresh…");
+          console.log("[ProxyStream] Silent token refresh...");
           fetchToken();
         }
       }, TOKEN_REFRESH_MS);
     } catch (err: any) {
       if (!isMounted.current) return;
-      console.error("[useProxyStream] Error:", err);
-      setError(err.message || "Gagal memuat proxy stream");
+      console.error("[ProxyStream] Error:", err);
+      setError(err.message || "Gagal memuat stream");
       if (isInitial) {
         setLoading(false);
         setPlaybackUrl(null);
         customHeadersRef.current = null;
       }
 
-      // Retry after 10 s
+      // Retry after 10s
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) fetchToken();
@@ -105,84 +111,53 @@ export function useProxyStream(
   return { playbackUrl, customHeadersRef, loading, error };
 }
 
-interface ParsedToken {
-  playbackUrl: string;
-  headers: Record<string, string>;
-}
-
 /**
- * Parse hanabira48 token response.
- * Uses the playback URL directly from the response (hanabira has its own proxy).
+ * Extract auth headers dari berbagai format response stream-token.
+ * Header ini akan di-inject langsung via xhr.setRequestHeader ke proxy playback.
  */
-function parseTokenResponse(data: any): ParsedToken | null {
+function extractHeaders(data: any): Record<string, string> | null {
   if (!data) return null;
-
-  // Extract playback URL from response
-  const extractUrl = (src: any): string | null => {
-    if (!src) return null;
-    return src.playbackUrl || src.playback_url || src.url || src.streamUrl || src.stream_url || null;
-  };
 
   let apiToken: string | null = null;
   let secKey: string | null = null;
   let showId: string | null = null;
   let tokenId: string | null = null;
-  let playbackUrl: string | null = null;
 
-  // Shape 1: flat { apiToken, secKey, showId, tokenId, playbackUrl? }
+  // Shape 1: flat { apiToken, secKey, ... }
   if (data.apiToken && data.secKey) {
-    apiToken = String(data.apiToken);
-    secKey = String(data.secKey);
-    showId = String(data.showId ?? "");
-    tokenId = String(data.tokenId ?? "");
-    playbackUrl = extractUrl(data);
+    apiToken = data.apiToken;
+    secKey = data.secKey;
+    showId = data.showId ?? "";
+    tokenId = data.tokenId ?? "";
   }
   // Shape 2: { token: { ... } }
   else if (data.token?.apiToken && data.token?.secKey) {
-    apiToken = String(data.token.apiToken);
-    secKey = String(data.token.secKey);
-    showId = String(data.token.showId ?? "");
-    tokenId = String(data.token.tokenId ?? "");
-    playbackUrl = extractUrl(data.token) || extractUrl(data);
+    apiToken = data.token.apiToken;
+    secKey = data.token.secKey;
+    showId = data.token.showId ?? "";
+    tokenId = data.token.tokenId ?? "";
   }
   // Shape 3: { data: { ... } }
   else if (data.data?.apiToken && data.data?.secKey) {
-    apiToken = String(data.data.apiToken);
-    secKey = String(data.data.secKey);
-    showId = String(data.data.showId ?? "");
-    tokenId = String(data.data.tokenId ?? "");
-    playbackUrl = extractUrl(data.data) || extractUrl(data);
+    apiToken = data.data.apiToken;
+    secKey = data.data.secKey;
+    showId = data.data.showId ?? "";
+    tokenId = data.data.tokenId ?? "";
   }
-  // Shape 4: already x-header format
+  // Shape 4: x-header format
   else {
-    const at = data["x-api-token"] ?? data.xapi;
-    const sk = data["x-sec-key"] ?? data.xsec;
-    if (at && sk) {
-      apiToken = String(at);
-      secKey = String(sk);
-      showId = String(data["x-showid"] ?? data.xshowid ?? "");
-      tokenId = String(data["x-token-id"] ?? data.xtoken ?? data.x ?? "");
-      playbackUrl = extractUrl(data);
-    }
+    apiToken = data["x-api-token"] ?? data.xapi ?? null;
+    secKey = data["x-sec-key"] ?? data.xsec ?? null;
+    showId = data["x-showid"] ?? data.xshowid ?? "";
+    tokenId = data["x-token-id"] ?? data.xtoken ?? "";
   }
 
   if (!apiToken || !secKey) return null;
 
-  // Use the URL from the token response directly (hanabira's own proxy)
-  // No more overriding with workers.dev proxy
-  if (!playbackUrl) {
-    console.warn("[useProxyStream] No playbackUrl in token response, cannot proceed");
-    return null;
-  }
-
-  console.log("[useProxyStream] Using playback URL from token response:", playbackUrl);
-
-  const headers: Record<string, string> = {
-    "x-api-token": apiToken,
-    "x-sec-key": secKey,
-    "x-showid": showId,
-    "x-token-id": tokenId,
+  return {
+    "x-api-token": String(apiToken),
+    "x-sec-key": String(secKey),
+    "x-showid": String(showId),
+    "x-token-id": String(tokenId),
   };
-
-  return { playbackUrl, headers };
 }
