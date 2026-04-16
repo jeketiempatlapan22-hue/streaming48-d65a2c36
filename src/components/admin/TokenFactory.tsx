@@ -7,7 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Trash2, Ban, RefreshCw, Plus, Search, Globe, Lock, ClipboardList, CheckCircle } from "lucide-react";
+import { Copy, Trash2, Ban, RefreshCw, Plus, Search, Globe, Lock, ClipboardList, CheckCircle, Clock } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const DURATION_TABS = [
   { key: "daily", label: "Harian", emoji: "📅" },
@@ -43,6 +44,8 @@ const TokenFactory = () => {
     } catch { return new Set(); }
   });
   const [lastCopied, setLastCopied] = useState<string[]>([]);
+  const [extendToken, setExtendToken] = useState<any>(null);
+  const [extendDays, setExtendDays] = useState("30");
   const { toast } = useToast();
 
   const fetchTokens = async () => {
@@ -174,6 +177,23 @@ const TokenFactory = () => {
     await supabase.from("token_sessions").delete().eq("token_id", id);
     await fetchTokens();
     toast({ title: "Session direset" });
+  };
+
+  const extendTokenDuration = async () => {
+    if (!extendToken) return;
+    const days = Math.max(1, Math.min(3650, parseInt(extendDays) || 30));
+    const currentExpiry = extendToken.expires_at ? new Date(extendToken.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    const newExpiry = new Date(baseDate.getTime() + days * 86400000);
+    const { error } = await supabase.from("tokens").update({ expires_at: newExpiry.toISOString() }).eq("id", extendToken.id);
+    if (error) {
+      toast({ title: "Gagal memperpanjang", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Token diperpanjang ${days} hari` });
+    }
+    setExtendToken(null);
+    setExtendDays("30");
+    await fetchTokens();
   };
 
   const deleteTokens = async (ids: string[], dur: TabKey) => {
@@ -349,6 +369,9 @@ const TokenFactory = () => {
                 >
                   {copiedTokens.has(t.code) ? <CheckCircle className="h-3 w-3 text-muted-foreground" /> : <Copy className="h-3 w-3" />}
                 </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setExtendToken(t); setExtendDays("30"); }} title="Perpanjang durasi">
+                  <Clock className="h-3 w-3 text-primary" />
+                </Button>
                 {!t.is_public && (
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => resetSessions(t.id)} title="Reset session">
                     <RefreshCw className="h-3 w-3" />
@@ -452,6 +475,40 @@ const TokenFactory = () => {
         ))}
         <TabsContent value="coin" className="mt-4">{renderTokenList("coin")}</TabsContent>
       </Tabs>
+
+      {/* Extend Token Dialog */}
+      <Dialog open={!!extendToken} onOpenChange={(o) => !o && setExtendToken(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>⏰ Perpanjang Token</DialogTitle>
+          </DialogHeader>
+          {extendToken && (
+            <div className="space-y-3">
+              <p className="font-mono text-sm text-foreground">{extendToken.code}</p>
+              {extendToken.expires_at && (
+                <p className="text-xs text-muted-foreground">
+                  Kedaluwarsa saat ini: {new Date(extendToken.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Tambah durasi (hari)</label>
+                <Input type="number" min="1" max="3650" value={extendDays} onChange={(e) => setExtendDays(e.target.value)} className="bg-background" />
+              </div>
+              {extendDays && parseInt(extendDays) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Kedaluwarsa baru: {new Date(
+                    (extendToken.expires_at && new Date(extendToken.expires_at) > new Date() ? new Date(extendToken.expires_at).getTime() : Date.now()) + (parseInt(extendDays) || 30) * 86400000
+                  ).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExtendToken(null)}>Batal</Button>
+            <Button onClick={extendTokenDuration}>Perpanjang</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -315,6 +315,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const resendMatch = rawText.match(/^\/resend\s+(\S+)$/i);
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
+  const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -351,6 +352,7 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (resendMatch) return await handleResendWa(supabase, resendMatch[1]);
   if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   if (tokenallMatch) return await handleTokenAllWa(supabase, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
+  if (perpanjangMatch) return await handlePerpanjangWa(supabase, perpanjangMatch[1], perpanjangMatch[2].trim());
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -438,6 +440,7 @@ TOLAK_RESET <id> - Tolak reset password
 /maketoken <show> <durasi> <max> <sandi> - Token + sandi replay
 /tokenall <durasi> - Token ALL show (1 device)
 /tokenall <durasi> <max> - Token ALL show + max device
+/perpanjang <4digit> <durasi> - Perpanjang token
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
@@ -2047,6 +2050,43 @@ async function handleTokenAllWa(supabase: any, durationStr: string, maxDevices: 
     const liveLink = `realtime48stream.my.id/live?t=${code}`;
 
     return `━━━━━━━━━━━━━━━━━━\n✅ *Token ALL Show Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🔑 Token: ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Durasi: *${durationDays} hari*\n📅 Kedaluwarsa: ${expDate}\n🎬 Akses: *SEMUA SHOW*\n\n📺 *Link Nonton:*\n${liveLink}\n━━━━━━━━━━━━━━━━━━`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handlePerpanjangWa(supabase: any, tokenSuffix: string, durationStr: string): Promise<string> {
+  try {
+    const durationDays = parseDuration(durationStr);
+    if (durationDays <= 0) return '⚠️ Format durasi salah. Contoh: 30hari, 1minggu, 2bulan, 1tahun';
+
+    // Find token by last 4+ chars
+    const suffix = tokenSuffix.toLowerCase();
+    const { data: allTokens } = await supabase.from('tokens').select('id, code, expires_at, status, show_id').eq('status', 'active');
+    const matches = (allTokens || []).filter((t: any) => t.code.toLowerCase().endsWith(suffix) || t.code.toLowerCase().includes(suffix));
+
+    if (matches.length === 0) return `⚠️ Token dengan kode "${tokenSuffix}" tidak ditemukan.`;
+    if (matches.length > 1) {
+      let msg = `⚠️ Ditemukan ${matches.length} token:\n\n`;
+      for (const t of matches) msg += `• ${t.code} (${t.status})\n`;
+      msg += '\n💡 Gunakan kode yang lebih spesifik.';
+      return msg;
+    }
+
+    const token = matches[0];
+    const currentExpiry = token.expires_at ? new Date(token.expires_at) : new Date();
+    const baseDate = currentExpiry > new Date() ? currentExpiry : new Date();
+    const newExpiry = new Date(baseDate.getTime() + durationDays * 86400000);
+
+    const { error: updateErr } = await supabase.from('tokens').update({
+      expires_at: newExpiry.toISOString(),
+    }).eq('id', token.id);
+
+    if (updateErr) return `⚠️ Gagal memperpanjang: ${updateErr.message}`;
+
+    const expDate = newExpiry.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    return `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Diperpanjang!*\n━━━━━━━━━━━━━━━━━━\n\n🔑 Token: ${token.code}\n⏰ Ditambah: *${durationDays} hari*\n📅 Kedaluwarsa baru: ${expDate}\n━━━━━━━━━━━━━━━━━━`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
