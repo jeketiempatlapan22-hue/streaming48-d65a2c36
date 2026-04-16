@@ -134,7 +134,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             )}
           </div>
           <div className="flex items-center gap-1">
-            {showCountdown && countdown?.live && !show.is_replay && (
+            {((showCountdown && countdown?.live) || isLive) && !show.is_replay && (
               <motion.div
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
