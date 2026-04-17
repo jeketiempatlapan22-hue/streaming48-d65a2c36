@@ -563,9 +563,14 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   };
 
   // Filter orders by mode (membership vs regular)
+  // IMPORTANT: Orders for deleted shows OR shows that no longer match the mode flag
+  // are NEVER hidden — they fall back to the "regular" tab so admins always see all data.
   const modeOrders = orders.filter((o) => {
     const showInfo = shows[o.show_id];
-    if (!showInfo) return false;
+    if (!showInfo) {
+      // Show was deleted — keep visible in the "regular" tab so the order is never lost
+      return mode === "regular";
+    }
     return mode === "membership" ? showInfo.is_subscription : !showInfo.is_subscription;
   });
 
