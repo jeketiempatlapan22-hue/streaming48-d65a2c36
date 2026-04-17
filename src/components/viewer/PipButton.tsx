@@ -14,7 +14,6 @@ const PipButton = () => {
     const onLeave = () => setActive(false);
 
     const attachVideoListeners = (video: HTMLVideoElement | null) => {
-      // Detach from old video
       if (videoRef.current) {
         videoRef.current.removeEventListener("enterpictureinpicture", onEnter);
         videoRef.current.removeEventListener("leavepictureinpicture", onLeave);
@@ -39,7 +38,6 @@ const PipButton = () => {
     checkVideo();
     const interval = setInterval(checkVideo, 2000);
 
-    // Also check when PiP state changes globally
     setActive(!!(document as any).pictureInPictureElement);
 
     return () => {
@@ -59,12 +57,11 @@ const PipButton = () => {
       } else {
         const video = document.querySelector("video");
         if (video) {
-          // Ensure video has enough data to enter PiP
           if (video.readyState < 2) {
             await new Promise<void>((resolve) => {
               const onReady = () => { video.removeEventListener("loadeddata", onReady); resolve(); };
               video.addEventListener("loadeddata", onReady);
-              setTimeout(resolve, 3000); // timeout fallback
+              setTimeout(resolve, 3000);
             });
           }
           await (video as any).requestPictureInPicture();
@@ -77,15 +74,7 @@ const PipButton = () => {
   }, []);
 
   if (isYouTube) {
-    return (
-      <button
-        disabled
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/40 text-muted-foreground cursor-not-allowed opacity-50"
-        title="PiP tidak tersedia untuk YouTube"
-      >
-        <PictureInPicture2 className="h-4 w-4" />
-      </button>
-    );
+    return null; // Hide for YouTube — not supported reliably
   }
 
   if (!supported) return null;
@@ -93,12 +82,16 @@ const PipButton = () => {
   return (
     <button
       onClick={togglePip}
-      className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-sm transition ${
-        active ? "bg-primary text-primary-foreground" : "bg-secondary/80 text-secondary-foreground hover:bg-secondary"
+      className={`flex items-center gap-1.5 rounded-full backdrop-blur-md transition-all px-3 py-1.5 shadow-lg border ${
+        active
+          ? "bg-primary text-primary-foreground border-primary/50 shadow-primary/40"
+          : "bg-black/70 text-white border-white/30 hover:bg-black/85 hover:border-primary/60"
       }`}
-      title={active ? "Keluar dari Picture-in-Picture" : "Picture-in-Picture"}
+      title={active ? "Keluar dari Picture-in-Picture" : "Buka Picture-in-Picture (mini player)"}
+      aria-label="Toggle Picture-in-Picture"
     >
       <PictureInPicture2 className="h-4 w-4" />
+      <span className="text-xs font-semibold tracking-wide">PiP</span>
     </button>
   );
 };
