@@ -38,7 +38,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [orders, setOrders] = useState<Order[]>([]);
   const [shows, setShows] = useState<Record<string, ShowInfo>>({});
   const [orderTokens, setOrderTokens] = useState<Record<string, { code: string; expires_at: string | null; created_at: string | null }>>({});
-  const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("pending");
+  const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("all");
   const [showFilter, setShowFilter] = useState<string>("all");
   const [waMessages, setWaMessages] = useState<Record<string, string>>({});
   const [editEmails, setEditEmails] = useState<Record<string, string>>({});
