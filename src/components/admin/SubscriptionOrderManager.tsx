@@ -562,28 +562,18 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     });
   };
 
-  const hasExplicitMembershipShows = Object.values(shows).some((s) => s.is_subscription);
-
   // Filter orders by mode (membership vs regular)
-  // If no show is currently marked as membership, keep old behavior by showing
-  // all subscription orders inside the membership panel so admin data never looks lost.
   const modeOrders = orders.filter((o) => {
     const showInfo = shows[o.show_id];
-
-    if (mode === "membership" && !hasExplicitMembershipShows) {
-      return true;
-    }
-
     if (!showInfo) {
       return mode === "regular";
     }
-
     return mode === "membership" ? showInfo.is_subscription : !showInfo.is_subscription;
   });
 
   // Get available shows for this mode
   const modeShows = Object.entries(shows).filter(([, s]) =>
-    ((mode === "membership" && !hasExplicitMembershipShows) ? true : (mode === "membership" ? s.is_subscription : !s.is_subscription)) && !s.is_replay
+    (mode === "membership" ? s.is_subscription : !s.is_subscription) && !s.is_replay
   );
 
   // Apply show filter
