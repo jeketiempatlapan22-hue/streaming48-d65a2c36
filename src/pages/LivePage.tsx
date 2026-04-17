@@ -681,8 +681,8 @@ const LivePage = () => {
               </div>
             );
           })()}
-          {/* PiP button overlay on player */}
-          <div className="absolute top-2 right-2 z-30">
+          {/* PiP button overlay on player — top right with label */}
+          <div className="absolute top-2 right-2 z-30 pointer-events-auto">
             <PipButton />
           </div>
           {isLive && activePlaylist ? (
