@@ -325,7 +325,9 @@ const LivePage = () => {
         });
 
         if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken && !isCustomToken) {
-          setShowMismatch(true);
+          // Do not hard-block valid tokens when another show is currently active.
+          // Keep the info for UI/debugging, but still allow playback using the valid token.
+          setShowMismatch(false);
           setMismatchShowTitle(JSON.stringify({
             tokenShowTitle: tokenShow?.title || "Show Lain",
             tokenShowDate: tokenShow?.schedule_date || "",
