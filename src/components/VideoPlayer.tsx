@@ -986,16 +986,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   // ── DevTools detection: pause video + show warning overlay ──
-  // Conservative: only desktop, only when sustained, ignore zoom/DPR/sidebar/orientation noise.
+  // Hybrid approach: window-size heuristic on desktop + getter-trap on mobile.
+  // Both require sustained hits to avoid false positives on normal viewers.
   const [devToolsOpen, setDevToolsOpen] = useState(false);
   useEffect(() => {
-    // Skip entirely on mobile/touch devices and tablets — browser chrome (collapsing
-    // address bars, split view, virtual keyboards) routinely causes >200px size diffs
-    // that produce false positives for normal viewers.
-    const isTouch = typeof window !== "undefined" &&
-      ("ontouchstart" in window || (navigator as any).maxTouchPoints > 0);
-    const isSmallScreen = typeof window !== "undefined" && window.innerWidth < 1024;
-    if (isTouch || isSmallScreen) return;
     // Skip in iframe/preview contexts
     try { if (window.self !== window.top) return; } catch { return; }
 
@@ -1013,34 +1007,66 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     };
 
-    // Higher threshold + require BOTH dimensions to be off (devtools docked side OR bottom),
-    // and require 4 consecutive sustained hits (~6s) to filter resize/zoom noise.
-    const THRESHOLD = 280;
+    const isTouch = typeof window !== "undefined" &&
+      ("ontouchstart" in window || (navigator as any).maxTouchPoints > 0);
+    const isSmallScreen = typeof window !== "undefined" && window.innerWidth < 1024;
+    const isMobile = isTouch || isSmallScreen;
+
     let positiveHits = 0;
-    const check = () => {
-      if (window.outerWidth === 0) return;
-      // Account for browser zoom: at high zoom, outer-inner diff inflates
-      const dpr = window.devicePixelRatio || 1;
-      if (dpr > 2) return; // skip on high-DPI displays where heuristic is unreliable
+    let getterHits = 0;
+    let cleanup: (() => void) | null = null;
 
-      const widthDiff = window.outerWidth - window.innerWidth;
-      const heightDiff = window.outerHeight - window.innerHeight;
-      // Require diff to be clearly larger than browser chrome (~120-180px typical)
-      const open = widthDiff > THRESHOLD || heightDiff > THRESHOLD;
-
-      if (open) positiveHits++;
-      else positiveHits = Math.max(0, positiveHits - 1);
-
-      const confirmed = positiveHits >= 4;
-      setDevToolsOpen((prev) => {
-        if (confirmed && !prev) pauseAll();
-        if (!open && positiveHits === 0 && prev) return false;
-        return confirmed || prev;
+    if (isMobile) {
+      // Mobile: getter-trap. When DevTools (or remote inspector like Eruda) reads
+      // a logged object, it triggers our getter. Conservative: require sustained reads.
+      const trap = {} as any;
+      Object.defineProperty(trap, "rt48_devtools_check", {
+        get() { getterHits++; return "rt48"; },
       });
-    };
+      const check = () => {
+        const before = getterHits;
+        // Logging the object forces DevTools (when open) to enumerate it.
+        try { console.log("%c", "", trap); } catch {}
+        // Console clear so user does not see noise.
+        if (before !== getterHits) positiveHits++;
+        else positiveHits = Math.max(0, positiveHits - 1);
+        // Require 10 sustained hits (~15s) before triggering — way conservative.
+        const confirmed = positiveHits >= 10;
+        setDevToolsOpen((prev) => {
+          if (confirmed && !prev) pauseAll();
+          if (positiveHits === 0 && prev) return false;
+          return confirmed || prev;
+        });
+      };
+      const id = setInterval(check, 1500);
+      cleanup = () => clearInterval(id);
+    } else {
+      // Desktop: window-size heuristic.
+      const THRESHOLD = 280;
+      const check = () => {
+        if (window.outerWidth === 0) return;
+        const dpr = window.devicePixelRatio || 1;
+        if (dpr > 2) return; // skip on high-DPI displays where heuristic is unreliable
 
-    const id = setInterval(check, 1500);
-    return () => clearInterval(id);
+        const widthDiff = window.outerWidth - window.innerWidth;
+        const heightDiff = window.outerHeight - window.innerHeight;
+        const open = widthDiff > THRESHOLD || heightDiff > THRESHOLD;
+
+        if (open) positiveHits++;
+        else positiveHits = Math.max(0, positiveHits - 1);
+
+        const confirmed = positiveHits >= 4;
+        setDevToolsOpen((prev) => {
+          if (confirmed && !prev) pauseAll();
+          if (!open && positiveHits === 0 && prev) return false;
+          return confirmed || prev;
+        });
+      };
+      const id = setInterval(check, 1500);
+      cleanup = () => clearInterval(id);
+    }
+
+    return () => { cleanup?.(); };
   }, [playlistType, ytIframeCommand]);
 
   // YouTube iframe URL — pakai youtube-nocookie.com (privacy-enhanced) + semua param anti-overlay
