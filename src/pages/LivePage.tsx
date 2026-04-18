@@ -399,7 +399,23 @@ const LivePage = () => {
           "Shows timeout"
         ).catch(() => null);
         const allShows = showRes?.data as any[] | undefined;
-        const activeShow = allShows?.find((s: any) => s.id === activeShowId);
+        let activeShow = allShows?.find((s: any) => s.id === activeShowId);
+
+        // Fallback: if admin hasn't set active_show_id (or it doesn't match a show),
+        // pick the next upcoming non-replay show by schedule (today's show first).
+        if (!activeShow && allShows?.length) {
+          const now = Date.now();
+          const upcoming = allShows
+            .filter((s: any) => !s.is_replay && s.schedule_date)
+            .map((s: any) => ({
+              show: s,
+              ts: parseWIBDateTime(s.schedule_date, s.schedule_time || "23:59") ?? 0,
+            }))
+            .filter((x) => x.ts > 0)
+            .sort((a, b) => a.ts - b.ts);
+          // Prefer the next future show; if none, use the most recent one today
+          activeShow = upcoming.find((x) => x.ts >= now - 3 * 3600 * 1000)?.show || upcoming[0]?.show;
+        }
 
         if (activeShow?.external_show_id) {
           setExternalShowId(activeShow.external_show_id);
