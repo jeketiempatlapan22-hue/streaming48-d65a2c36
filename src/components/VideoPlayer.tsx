@@ -22,7 +22,7 @@ export interface VideoPlayerHandle {
   getCurrentTime?: () => number;
 }
 
-const YT_ORIGIN = "https://www.youtube.com";
+const YT_ORIGIN = "https://www.youtube-nocookie.com";
 
 const formatTime = (totalSeconds: number): string => {
   const h = Math.floor(totalSeconds / 3600);
@@ -982,9 +982,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("keydown", handler, true);
   }, []);
 
-  // YouTube iframe URL — controls=0, disablekb=1, enablejsapi=1 for postMessage control
+  // YouTube iframe URL — pakai youtube-nocookie.com (privacy-enhanced) + semua param anti-overlay
   const ytIframeUrl = playlistType === "youtube"
-    ? `https://www.youtube.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&origin=${encodeURIComponent(window.location.origin)}&enablejsapi=1`
+    ? `https://www.youtube-nocookie.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&showinfo=0&cc_load_policy=0&origin=${encodeURIComponent(window.location.origin)}&enablejsapi=1`
     : "";
 
   // ── Render ──
@@ -1021,9 +1021,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           />
           {/* Overlay always present — blocks YouTube UI during loading AND api mode */}
           <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            className="absolute inset-0 z-10 cursor-pointer select-none"
+            style={{
+              background: "rgba(0,0,0,0.001)",
+              pointerEvents: "all",
+              WebkitTouchCallout: "none",
+              WebkitUserSelect: "none",
+              userSelect: "none",
+            }}
             onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
             onClick={e => { e.stopPropagation(); handlePlayPause(e); }}
           />
         </div>
@@ -1043,9 +1050,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           />
           {/* Full overlay — blocks ALL YouTube buttons & source URL access */}
           <div
-            className="absolute inset-0 z-[2] cursor-pointer"
-            style={{ background: "rgba(0,0,0,0.001)", pointerEvents: "all" }}
+            className="absolute inset-0 z-[2] cursor-pointer select-none"
+            style={{
+              background: "rgba(0,0,0,0.001)",
+              pointerEvents: "all",
+              WebkitTouchCallout: "none",
+              WebkitUserSelect: "none",
+              userSelect: "none",
+            }}
             onContextMenu={e => e.preventDefault()}
+            onDragStart={e => e.preventDefault()}
             onClick={e => { e.stopPropagation(); handlePlayPause(e); }}
           />
         </div>
