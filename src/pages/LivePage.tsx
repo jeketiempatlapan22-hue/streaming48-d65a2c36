@@ -399,7 +399,23 @@ const LivePage = () => {
           "Shows timeout"
         ).catch(() => null);
         const allShows = showRes?.data as any[] | undefined;
-        const activeShow = allShows?.find((s: any) => s.id === activeShowId);
+        let activeShow = allShows?.find((s: any) => s.id === activeShowId);
+
+        // Fallback: if admin hasn't set active_show_id (or it doesn't match a show),
+        // pick the next upcoming non-replay show by schedule (today's show first).
+        if (!activeShow && allShows?.length) {
+          const now = Date.now();
+          const upcoming = allShows
+            .filter((s: any) => !s.is_replay && s.schedule_date)
+            .map((s: any) => ({
+              show: s,
+              ts: parseWIBDateTime(s.schedule_date, s.schedule_time || "23:59") ?? 0,
+            }))
+            .filter((x) => x.ts > 0)
+            .sort((a, b) => a.ts - b.ts);
+          // Prefer the next future show; if none, use the most recent one today
+          activeShow = upcoming.find((x) => x.ts >= now - 3 * 3600 * 1000)?.show || upcoming[0]?.show;
+        }
 
         if (activeShow?.external_show_id) {
           setExternalShowId(activeShow.external_show_id);
@@ -554,28 +570,34 @@ const LivePage = () => {
         syncPlaylists(playlistRes.value.data || []);
       }
       // Also refresh externalShowId so proxy player can reconnect
-      if (settingsRes.status === "fulfilled" && settingsRes.value.data?.value) {
-        const showId = settingsRes.value.data.value;
-        const { data: showData } = await supabase.rpc("get_public_shows");
-        const activeShow = (showData as any[])?.find((s: any) => s.id === showId);
-        if (activeShow?.external_show_id) {
+      const showId = settingsRes.status === "fulfilled" ? settingsRes.value.data?.value : null;
+      const { data: showData } = await supabase.rpc("get_public_shows");
+      const allShows = (showData as any[]) || [];
+      let activeShow = showId ? allShows.find((s: any) => s.id === showId) : null;
+
+      // Fallback: pick today's / next upcoming show if admin hasn't set one
+      if (!activeShow && allShows.length) {
+        const now = Date.now();
+        const upcoming = allShows
+          .filter((s: any) => !s.is_replay && s.schedule_date)
+          .map((s: any) => ({
+            show: s,
+            ts: parseWIBDateTime(s.schedule_date, s.schedule_time || "23:59") ?? 0,
+          }))
+          .filter((x) => x.ts > 0)
+          .sort((a, b) => a.ts - b.ts);
+        activeShow = upcoming.find((x) => x.ts >= now - 3 * 3600 * 1000)?.show || upcoming[0]?.show;
+      }
+
+      if (activeShow) {
+        if (activeShow.external_show_id) {
           setExternalShowId(activeShow.external_show_id);
         }
-        if (activeShow?.title) {
-          setActiveShowTitle(activeShow.title);
-        }
-        if (activeShow?.team !== undefined) {
-          setActiveShowTeam(activeShow.team || null);
-        }
-        if (activeShow?.background_image_url !== undefined) {
-          setActiveShowImage(activeShow.background_image_url || null);
-        }
-        if (activeShow?.schedule_date !== undefined) {
-          setActiveShowDate(activeShow.schedule_date || null);
-        }
-        if (activeShow?.schedule_time !== undefined) {
-          setActiveShowTime(activeShow.schedule_time || null);
-        }
+        setActiveShowTitle(activeShow.title || null);
+        setActiveShowTeam(activeShow.team || null);
+        setActiveShowImage(activeShow.background_image_url || null);
+        setActiveShowDate(activeShow.schedule_date || null);
+        setActiveShowTime(activeShow.schedule_time || null);
       }
     } catch {}
   }, [syncPlaylists]);
@@ -930,10 +952,15 @@ const LivePage = () => {
                     <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-lg">
                       Show Belum Dimulai
                     </h3>
+                    {activeShowTitle && (
+                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow">
+                        🎭 {activeShowTitle}
+                      </p>
+                    )}
                     {(activeShowDate || activeShowTime) && (
-                      <p className="mt-1.5 text-center text-xs sm:text-sm text-muted-foreground">
-                        Jadwal: {activeShowDate ? formatDateWIB(activeShowDate) : ""}
-                        {activeShowDate && activeShowTime ? " | " : ""}
+                      <p className="mt-1 text-center text-xs sm:text-sm text-muted-foreground">
+                        📅 {activeShowDate ? formatDateWIB(activeShowDate) : ""}
+                        {activeShowDate && activeShowTime ? " • 🕐 " : ""}
                         {activeShowTime ? `${activeShowTime} WIB` : ""}
                       </p>
                     )}
