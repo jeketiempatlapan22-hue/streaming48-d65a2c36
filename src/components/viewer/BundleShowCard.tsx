@@ -94,15 +94,32 @@ const BundleShowCard = forwardRef<HTMLDivElement, BundleShowCardProps>(
 
           {/* Schedule */}
           {show.schedule_date && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
-              {show.schedule_date}
-              {show.schedule_time && (
-                <>
-                  <Clock className="ml-2 h-3.5 w-3.5 text-[hsl(var(--warning))]" />
-                  {show.schedule_time}
-                </>
-              )}
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
+                {show.schedule_date}
+              </div>
+              {show.schedule_time && zoneTimes ? (
+                <div className="flex items-start gap-2">
+                  <Clock className="h-3.5 w-3.5 text-[hsl(var(--warning))] mt-0.5 shrink-0" />
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                    <span className={userZone === "WIB" ? "font-semibold text-primary" : ""}>
+                      {zoneTimes.wib} <span className="text-[9px] opacity-70">WIB</span>
+                    </span>
+                    <span className={userZone === "WITA" ? "font-semibold text-primary" : ""}>
+                      {zoneTimes.wita} <span className="text-[9px] opacity-70">WITA</span>
+                    </span>
+                    <span className={userZone === "WIT" ? "font-semibold text-primary" : ""}>
+                      {zoneTimes.wit} <span className="text-[9px] opacity-70">WIT</span>
+                    </span>
+                  </div>
+                </div>
+              ) : show.schedule_time ? (
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
+                  {show.schedule_time} WIB
+                </div>
+              ) : null}
             </div>
           )}
 
