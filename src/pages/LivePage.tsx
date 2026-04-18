@@ -18,6 +18,7 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { parseWIBDateTime, formatDateWIB } from "@/lib/timeFormat";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
@@ -172,7 +173,7 @@ const LivePage = () => {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [countdown, setCountdown] = useState("");
+  const [countdown, setCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [showMismatch, setShowMismatch] = useState(false);
