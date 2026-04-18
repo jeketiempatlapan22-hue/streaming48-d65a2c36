@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock, Timer } from "lucide-react";
+import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock, Timer, Eye, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 interface BlockedIP {
@@ -27,6 +27,17 @@ interface Violation {
   created_at: string;
 }
 
+interface IpVisit {
+  id: string;
+  ip_address: string;
+  user_agent: string | null;
+  user_id: string | null;
+  visit_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  path: string | null;
+}
+
 const UNBLOCK_OPTIONS = [
   { value: "6", label: "6 jam" },
   { value: "12", label: "12 jam" },
@@ -42,20 +53,24 @@ const RateLimitMonitor = () => {
   const [search, setSearch] = useState("");
   const [manualIP, setManualIP] = useState("");
   const [manualReason, setManualReason] = useState("");
-  const [tab, setTab] = useState<"blocked" | "violations">("blocked");
+  const [tab, setTab] = useState<"blocked" | "violations" | "visitors">("blocked");
   const [unblockHours, setUnblockHours] = useState("24");
   const [savingHours, setSavingHours] = useState(false);
+  const [visitors, setVisitors] = useState<IpVisit[]>([]);
+  const [visitorSearch, setVisitorSearch] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const [blockedRes, violationsRes, settingsRes] = await Promise.all([
+      const [blockedRes, violationsRes, settingsRes, visitorsRes] = await Promise.all([
         supabase.from("blocked_ips").select("*").order("blocked_at", { ascending: false }),
         supabase.from("rate_limit_violations").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("site_settings").select("value").eq("key", "auto_unblock_hours").maybeSingle(),
+        (supabase as any).from("ip_visit_log").select("*").order("last_seen_at", { ascending: false }).limit(500),
       ]);
       if (blockedRes.data) setBlockedIPs(blockedRes.data as BlockedIP[]);
       if (violationsRes.data) setViolations(violationsRes.data as Violation[]);
       if (settingsRes.data?.value) setUnblockHours(settingsRes.data.value);
+      if (visitorsRes.data) setVisitors(visitorsRes.data as IpVisit[]);
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
@@ -200,12 +215,15 @@ const RateLimitMonitor = () => {
       </Card>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button variant={tab === "blocked" ? "default" : "outline"} size="sm" onClick={() => setTab("blocked")}>
           IP Terblokir ({blockedIPs.length})
         </Button>
         <Button variant={tab === "violations" ? "default" : "outline"} size="sm" onClick={() => setTab("violations")}>
           Top Violators ({topViolators.length})
+        </Button>
+        <Button variant={tab === "visitors" ? "default" : "outline"} size="sm" onClick={() => setTab("visitors")}>
+          <Globe className="mr-1 h-3 w-3" /> IP Pengunjung ({visitors.length})
         </Button>
       </div>
 
