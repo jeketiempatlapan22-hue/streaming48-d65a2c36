@@ -80,6 +80,54 @@ export function formatDateWIB(
   return formatWIB(input, options);
 }
 
+/**
+ * Parse a WIB date+time string into a UTC timestamp (ms).
+ * Accepts dateStr like "1 maret 2024", "2024-03-01", or "1 mar 2024",
+ * and timeStr like "19:00", "19.00", or "19:00 WIB".
+ * The parsed date/time is treated as WIB (UTC+7), so the returned
+ * timestamp is correct regardless of the viewer's local zone.
+ */
+const ID_MONTHS: Record<string, number> = {
+  januari: 1, februari: 2, maret: 3, april: 4, mei: 5, juni: 6,
+  juli: 7, agustus: 8, september: 9, oktober: 10, november: 11, desember: 12,
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+export function parseWIBDateTime(dateStr: string, timeStr: string): number | null {
+  if (!dateStr) return null;
+  const cleanTime = (timeStr || "00:00").replace(/\s*WIB\s*/i, "").trim().replace(/\./g, ":");
+  const tParts = cleanTime.split(":");
+  const hour = parseInt(tParts[0]) || 0;
+  const minute = parseInt(tParts[1]) || 0;
+
+  let year: number | null = null;
+  let month: number | null = null;
+  let day: number | null = null;
+
+  // ISO format YYYY-MM-DD
+  const iso = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    year = parseInt(iso[1]);
+    month = parseInt(iso[2]);
+    day = parseInt(iso[3]);
+  } else {
+    // Indonesian format "1 maret 2024"
+    const parts = dateStr.toLowerCase().trim().split(/\s+/);
+    if (parts.length >= 3) {
+      day = parseInt(parts[0]);
+      month = ID_MONTHS[parts[1]] ?? null;
+      year = parseInt(parts[2]);
+    }
+  }
+
+  if (!year || !month || !day) return null;
+  // Build UTC ms for the WIB wall-clock time: subtract 7h offset.
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - WIB_OFFSET_MIN * 60 * 1000;
+  if (isNaN(utcMs)) return null;
+  return utcMs;
+}
+
 /** Short label of user's zone, e.g. "WIB", "WITA", "WIT", or generic offset. */
 export function getUserZoneLabel(): string {
   const offset = getUserOffsetMin();
@@ -91,4 +139,29 @@ export function getUserZoneLabel(): string {
   const h = Math.floor(abs / 60);
   const m = abs % 60;
   return `UTC${sign}${h}${m ? `:${String(m).padStart(2, "0")}` : ""}`;
+}
+
+/**
+ * Given a WIB date+time string (e.g. dateStr "1 maret 2024", timeStr "19:00"),
+ * return formatted times for WIB, WITA, and WIT zones.
+ * Useful for show schedule cards so viewers in any Indonesian zone know the start time.
+ */
+export function formatScheduleAllZones(
+  dateStr: string,
+  timeStr: string
+): { wib: string; wita: string; wit: string } | null {
+  const ts = parseWIBDateTime(dateStr, timeStr);
+  if (ts == null) return null;
+  const fmt = (tz: string) =>
+    new Date(ts).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: tz,
+      hour12: false,
+    });
+  return {
+    wib: fmt("Asia/Jakarta"),
+    wita: fmt("Asia/Makassar"),
+    wit: fmt("Asia/Jayapura"),
+  };
 }

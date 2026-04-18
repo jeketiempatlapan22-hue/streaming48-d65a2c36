@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
+import { parseWIBDateTime, formatScheduleAllZones, getUserZoneLabel } from "@/lib/timeFormat";
 
 interface ShowCardProps {
   show: Show;
@@ -27,27 +28,8 @@ interface ShowCardProps {
   isUniversalAccess?: boolean;
 }
 
-const INDONESIAN_MONTHS: Record<string, number> = {
-  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
-  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
-};
-
 function parseShowDateTime(dateStr: string, timeStr: string): number | null {
-  if (!dateStr || !timeStr) return null;
-  const cleanTime = timeStr.replace(/\s*WIB\s*/i, "").trim().replace(/\./g, ":");
-  const [hour, minute] = cleanTime.split(":").map(Number);
-  let d = new Date(`${dateStr}T${cleanTime.padStart(5, "0")}:00`);
-  if (!isNaN(d.getTime())) return d.getTime();
-  const parts = dateStr.toLowerCase().trim().split(/\s+/);
-  if (parts.length === 3) {
-    const day = parseInt(parts[0]);
-    const month = INDONESIAN_MONTHS[parts[1]];
-    const year = parseInt(parts[2]);
-    if (!isNaN(day) && month !== undefined && !isNaN(year)) {
-      return new Date(year, month, day, hour || 0, minute || 0).getTime();
-    }
-  }
-  return null;
+  return parseWIBDateTime(dateStr, timeStr);
 }
 
 function useCountdown(dateStr: string, timeStr: string) {
@@ -80,6 +62,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
+  const zoneTimes = formatScheduleAllZones(show.schedule_date, show.schedule_time);
+  const userZone = getUserZoneLabel();
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
@@ -182,18 +166,33 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           <p className="text-[11px] font-medium text-muted-foreground">{show.category_member}</p>
         )}
 
-        {/* Meta row: date + time + price in one compact area */}
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        {/* Meta row: date + time per zone */}
+        <div className="space-y-1 text-[11px] text-muted-foreground">
           {show.schedule_date && (
-            <span className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3 text-primary/70" />{show.schedule_date}
-            </span>
+            </div>
           )}
-          {show.schedule_time && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-primary/70" />{show.schedule_time}
-            </span>
-          )}
+          {show.schedule_time && zoneTimes ? (
+            <div className="flex items-start gap-1">
+              <Clock className="h-3 w-3 text-primary/70 mt-0.5 shrink-0" />
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                <span className={userZone === "WIB" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wib} <span className="text-[9px] opacity-70">WIB</span>
+                </span>
+                <span className={userZone === "WITA" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wita} <span className="text-[9px] opacity-70">WITA</span>
+                </span>
+                <span className={userZone === "WIT" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wit} <span className="text-[9px] opacity-70">WIT</span>
+                </span>
+              </div>
+            </div>
+          ) : show.schedule_time ? (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-primary/70" />{show.schedule_time} <span className="text-[9px] opacity-70">WIB</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Price row */}
@@ -306,7 +305,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                       <div className="rounded-lg border border-muted bg-muted/30 p-3 text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground">⏳ Menunggu Live</p>
                         <p className="font-mono text-xl font-bold text-primary">{countdownText}</p>
-                        <p className="text-[9px] text-muted-foreground">{show.schedule_date} • {show.schedule_time}</p>
+                        <p className="text-[9px] text-muted-foreground">{show.schedule_date} • {show.schedule_time} WIB</p>
                       </div>
                     );
                   }

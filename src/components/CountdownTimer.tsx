@@ -1,36 +1,16 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Timer } from "lucide-react";
+import { parseWIBDateTime } from "@/lib/timeFormat";
 
 interface CountdownTimerProps {
   dateStr: string;
   timeStr: string;
 }
 
-const months: Record<string, number> = {
-  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
-  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
-  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-};
-
 const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
-  const timeMatch = timeStr?.match(/(\d{1,2})[:.:](\d{2})/);
-  const hours = timeMatch ? parseInt(timeMatch[1]) : 0;
-  const minutes = timeMatch ? parseInt(timeMatch[2]) : 0;
-
-  const dateMatch = dateStr?.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
-  if (dateMatch) {
-    const day = parseInt(dateMatch[1]);
-    const monthName = dateMatch[2].toLowerCase();
-    const year = parseInt(dateMatch[3]);
-    const month = months[monthName];
-    if (month !== undefined) {
-      const d = new Date(year, month, day, hours, minutes);
-      if (!isNaN(d.getTime())) return d;
-    }
-  }
-
+  const ts = parseWIBDateTime(dateStr, timeStr);
+  if (ts != null) return new Date(ts);
   const d = new Date(`${dateStr} ${timeStr}`);
   if (!isNaN(d.getTime())) return d;
   return null;
