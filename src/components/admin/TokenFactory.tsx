@@ -231,6 +231,18 @@ const TokenFactory = () => {
 
   const isExpired = (t: any) => t.expires_at && new Date(t.expires_at) < new Date();
 
+  const formatRemaining = (expiresAt: string | null) => {
+    if (!expiresAt) return "∞ (tanpa batas)";
+    const diffMs = new Date(expiresAt).getTime() - Date.now();
+    if (diffMs <= 0) return "Kedaluwarsa";
+    const days = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    if (days > 0) return `${days}h ${hours}j tersisa`;
+    if (hours > 0) return `${hours}j ${mins}m tersisa`;
+    return `${mins}m tersisa`;
+  };
+
   const getFilteredTokens = (dur: TabKey) => {
     const source = dur === "coin" ? coinTokens : tokens;
     return source.filter((t) => {
@@ -353,15 +365,24 @@ const TokenFactory = () => {
                   }`}>
                     {t.status === "blocked" ? "BLOCKED" : isExpired(t) ? "EXPIRED" : "ACTIVE"}
                   </span>
-                  {!t.is_public && <span className="text-[10px] text-muted-foreground">{t.max_devices} device</span>}
-                  {t.duration_type === "custom" && t.expires_at && (
-                    <span className="text-[10px] text-muted-foreground">
-                      s/d {new Date(t.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                  {!t.is_public && (
+                    <span className="flex items-center gap-0.5 rounded-sm bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      📱 {sessions[t.id] || 0}/{t.max_devices} device
                     </span>
                   )}
-                  {(sessions[t.id] || 0) > 0 && (
+                  {t.is_public && (sessions[t.id] || 0) > 0 && (
                     <span className="flex items-center gap-0.5 rounded-sm bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
                       👤 {sessions[t.id]} aktif
+                    </span>
+                  )}
+                  <span className={`flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
+                    isExpired(t) ? "bg-destructive/15 text-destructive" : "bg-[hsl(var(--success))]/10 text-[hsl(var(--success))]"
+                  }`}>
+                    ⏱ {formatRemaining(t.expires_at)}
+                  </span>
+                  {t.expires_at && (
+                    <span className="text-[10px] text-muted-foreground">
+                      s/d {new Date(t.expires_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
@@ -380,8 +401,8 @@ const TokenFactory = () => {
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setExtendToken(t); setExtendDays("30"); }} title="Perpanjang durasi">
                   <Clock className="h-3 w-3 text-primary" />
                 </Button>
-                {!t.is_public && (t.max_devices ?? 1) <= 5 && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => resetSessions(t.id)} title="Reset session">
+                {!t.is_public && (
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => resetSessions(t.id)} title="Reset semua sesi (paksa logout semua device)">
                     <RefreshCw className="h-3 w-3" />
                   </Button>
                 )}

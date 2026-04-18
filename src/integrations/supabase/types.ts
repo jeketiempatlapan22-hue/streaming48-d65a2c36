@@ -1272,6 +1272,17 @@ export type Database = {
           title: string
         }[]
       }
+      get_token_active_sessions: {
+        Args: { _token_id: string }
+        Returns: number
+      }
+      get_tokens_active_sessions: {
+        Args: { _token_ids: string[] }
+        Returns: {
+          active_count: number
+          token_id: string
+        }[]
+      }
       get_viewer_count: { Args: never; Returns: number }
       has_role: {
         Args: {
