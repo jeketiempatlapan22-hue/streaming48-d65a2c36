@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback, useTransition, memo, useReduc
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX } from "lucide-react";
+import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX, Reply } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
+import { formatTimeWIB, getUserZoneLabel, isUserOutsideWIB } from "@/lib/timeFormat";
 
 
 interface LiveChatProps {
@@ -41,77 +42,105 @@ const ModeratorBadge = () => (
   </span>
 );
 
-const ChatMessageItem = memo(({ msg, isAdmin, isChatMod, chatModUsernames, onPin, onDelete, onBlock, onToggleMod, onBanUser, formatTime }: {
+const ChatMessageItem = memo(({ msg, isAdmin, isChatMod, chatModUsernames, currentUsername, onPin, onDelete, onBlock, onToggleMod, onBanUser, onReply, formatTime }: {
   msg: ChatMessage;
   isAdmin: boolean;
   isChatMod: boolean;
   chatModUsernames: Set<string>;
+  currentUsername: string;
   onPin: (id: string) => void;
   onDelete: (id: string) => void;
   onBlock?: (tokenId: string) => void;
   onToggleMod?: (username: string, isMod: boolean) => void;
   onBanUser?: (username: string) => void;
+  onReply: (username: string) => void;
   formatTime: (d: string) => string;
 }) => {
   const canModerate = isAdmin || isChatMod;
   const isMsgFromMod = chatModUsernames.has(msg.username);
+  const isOwnMessage = currentUsername && msg.username === currentUsername;
+
+  // Parse @mention prefix at start of message for highlight
+  const mentionMatch = msg.message.match(/^@(\S+)\s+([\s\S]*)$/);
+  const mentionedUser = mentionMatch?.[1];
+  const restMessage = mentionMatch ? mentionMatch[2] : msg.message;
+  const isMentioningMe = mentionedUser && currentUsername && mentionedUser.toLowerCase() === currentUsername.toLowerCase();
 
   return (
-    <div className="group flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary/30">
+    <div className={`group flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-secondary/30 ${isMentioningMe ? "bg-primary/10 border-l-2 border-primary" : ""}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={`text-xs font-bold ${msg.is_admin ? "text-yellow-400" : isMsgFromMod ? "text-cyan-400" : "text-foreground/90"}`}>
+          <button
+            type="button"
+            onClick={() => !isOwnMessage && onReply(msg.username)}
+            className={`text-xs font-bold transition-colors ${isOwnMessage ? "cursor-default" : "cursor-pointer hover:underline"} ${msg.is_admin ? "text-yellow-400" : isMsgFromMod ? "text-cyan-400" : "text-foreground/90"}`}
+            title={isOwnMessage ? "" : `Balas ke ${msg.username}`}
+          >
             {msg.username}
-          </span>
+          </button>
           {msg.is_admin && <AdminBadge />}
           {!msg.is_admin && isMsgFromMod && <ModeratorBadge />}
           <span className="text-[10px] text-muted-foreground/60">{formatTime(msg.created_at)}</span>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed break-words">{msg.message}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed break-words">
+          {mentionedUser && (
+            <span className={`font-semibold ${isMentioningMe ? "text-primary" : "text-cyan-400/80"}`}>@{mentionedUser}</span>
+          )}
+          {mentionedUser ? " " : ""}
+          {restMessage}
+        </p>
       </div>
-      {canModerate && (
-        <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
-          {isAdmin && (
-            <button onClick={() => onPin(msg.id)} className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary" title="Pin">
-              <Pin className="h-3 w-3" />
-            </button>
-          )}
-          <button onClick={() => onDelete(msg.id)} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Hapus">
-            <Trash2 className="h-3 w-3" />
+      <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+        {!isOwnMessage && (
+          <button onClick={() => onReply(msg.username)} className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary" title={`Balas ${msg.username}`}>
+            <Reply className="h-3 w-3" />
           </button>
-          {msg.token_id && onBlock && (
-            <button onClick={() => onBlock(msg.token_id!)} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Blokir">
-              <ShieldBan className="h-3 w-3" />
+        )}
+        {canModerate && (
+          <>
+            {isAdmin && (
+              <button onClick={() => onPin(msg.id)} className="rounded p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary" title="Pin">
+                <Pin className="h-3 w-3" />
+              </button>
+            )}
+            <button onClick={() => onDelete(msg.id)} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Hapus">
+              <Trash2 className="h-3 w-3" />
             </button>
-          )}
-          {isAdmin && !msg.is_admin && onToggleMod && (
-            <button
-              onClick={() => onToggleMod(msg.username, isMsgFromMod)}
-              className={`rounded p-1 text-muted-foreground ${isMsgFromMod ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-cyan-500/10 hover:text-cyan-400"}`}
-              title={isMsgFromMod ? "Hapus Moderator" : "Jadikan Moderator"}
-            >
-              {isMsgFromMod ? <ShieldMinus className="h-3 w-3" /> : <ShieldPlus className="h-3 w-3" />}
-            </button>
-          )}
-          {isAdmin && !msg.is_admin && onBanUser && (
-            <button
-              onClick={() => {
-                if (confirm(`Ban user "${msg.username}"? User akan langsung dikeluarkan dan tidak bisa akses lagi.`)) {
-                  onBanUser(msg.username);
-                }
-              }}
-              className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
-              title="Ban User"
-            >
-              <UserX className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-      )}
+            {msg.token_id && onBlock && (
+              <button onClick={() => onBlock(msg.token_id!)} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Blokir">
+                <ShieldBan className="h-3 w-3" />
+              </button>
+            )}
+            {isAdmin && !msg.is_admin && onToggleMod && (
+              <button
+                onClick={() => onToggleMod(msg.username, isMsgFromMod)}
+                className={`rounded p-1 text-muted-foreground ${isMsgFromMod ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-cyan-500/10 hover:text-cyan-400"}`}
+                title={isMsgFromMod ? "Hapus Moderator" : "Jadikan Moderator"}
+              >
+                {isMsgFromMod ? <ShieldMinus className="h-3 w-3" /> : <ShieldPlus className="h-3 w-3" />}
+              </button>
+            )}
+            {isAdmin && !msg.is_admin && onBanUser && (
+              <button
+                onClick={() => {
+                  if (confirm(`Ban user "${msg.username}"? User akan langsung dikeluarkan dan tidak bisa akses lagi.`)) {
+                    onBanUser(msg.username);
+                  }
+                }}
+                className="rounded p-1 text-muted-foreground hover:bg-red-500/10 hover:text-red-500"
+                title="Ban User"
+              >
+                <UserX className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 });
 ChatMessageItem.displayName = "ChatMessageItem";
+
 
 const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMessage, onBlockUser, onToggleChatMod, onBanUser }: LiveChatProps) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
