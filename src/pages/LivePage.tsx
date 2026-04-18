@@ -884,10 +884,6 @@ const LivePage = () => {
               </div>
             );
           })()}
-          {/* PiP button overlay on player — top right with label */}
-          <div className="absolute top-2 right-2 z-30 pointer-events-auto">
-            <PipButton />
-          </div>
           {isLive && activePlaylist ? (
             <div className="relative">
               {effectiveStreamUrl ? (
@@ -980,13 +976,17 @@ const LivePage = () => {
             </div>
           )}
         </div>
-        {isLive && playlists.length > 1 && (
-          <div className="border-t border-border px-3 py-1.5">
-            <PlaylistSwitcher
-              playlists={playlists}
-              activePlaylistId={activePlaylist?.id ?? null}
-              onSelect={handlePlaylistSwitch}
-            />
+        {isLive && (
+          <div className="border-t border-border px-3 py-1.5 flex items-center gap-2 flex-wrap">
+            {playlists.length > 1 && (
+              <PlaylistSwitcher
+                playlists={playlists}
+                activePlaylistId={activePlaylist?.id ?? null}
+                onSelect={handlePlaylistSwitch}
+                className="flex-1 min-w-0"
+              />
+            )}
+            <PipButton />
           </div>
         )}
         {activeShowTitle && isLive && (

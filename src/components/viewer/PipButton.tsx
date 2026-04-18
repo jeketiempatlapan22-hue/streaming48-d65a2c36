@@ -2,13 +2,15 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import { PictureInPicture2 } from "lucide-react";
 
 const PipButton = () => {
-  const [supported, setSupported] = useState(false);
+  const [hasVideo, setHasVideo] = useState(false);
+  const [pipEnabled, setPipEnabled] = useState(false);
   const [active, setActive] = useState(false);
   const [isYouTube, setIsYouTube] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const hasPip = 'pictureInPictureEnabled' in document && (document as any).pictureInPictureEnabled;
+    setPipEnabled(!!hasPip);
 
     const onEnter = () => setActive(true);
     const onLeave = () => setActive(false);
@@ -29,14 +31,14 @@ const PipButton = () => {
       const video = document.querySelector("video");
       const ytIframe = document.querySelector('iframe[src*="youtube"]');
       setIsYouTube(!video && !!ytIframe);
-      setSupported(hasPip && !!video);
+      setHasVideo(!!video);
       if (video !== videoRef.current) {
         attachVideoListeners(video);
       }
     };
 
     checkVideo();
-    const interval = setInterval(checkVideo, 2000);
+    const interval = setInterval(checkVideo, 1500);
 
     setActive(!!(document as any).pictureInPictureElement);
 
@@ -73,25 +75,35 @@ const PipButton = () => {
     }
   }, []);
 
-  if (isYouTube) {
-    return null; // Hide for YouTube — not supported reliably
-  }
+  // Hide entirely on YouTube embeds (PiP not supported reliably) or if browser lacks PiP API
+  if (isYouTube || !pipEnabled) return null;
 
-  if (!supported) return null;
+  const disabled = !hasVideo;
 
   return (
     <button
+      type="button"
       onClick={togglePip}
-      className={`flex items-center gap-1.5 rounded-full backdrop-blur-md transition-all px-3 py-1.5 shadow-lg border ${
-        active
-          ? "bg-primary text-primary-foreground border-primary/50 shadow-primary/40"
-          : "bg-black/70 text-white border-white/30 hover:bg-black/85 hover:border-primary/60"
-      }`}
-      title={active ? "Keluar dari Picture-in-Picture" : "Buka Picture-in-Picture (mini player)"}
+      disabled={disabled}
+      aria-pressed={active}
+      title={
+        disabled
+          ? "Picture-in-Picture akan aktif saat video mulai diputar"
+          : active
+            ? "Keluar dari Picture-in-Picture"
+            : "Buka mini player (Picture-in-Picture)"
+      }
       aria-label="Toggle Picture-in-Picture"
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200 border shrink-0 ${
+        active
+          ? "bg-accent text-accent-foreground border-accent shadow-sm shadow-accent/30"
+          : disabled
+            ? "border-dashed border-border bg-muted/40 text-muted-foreground/70 cursor-not-allowed"
+            : "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 hover:border-accent/70"
+      }`}
     >
-      <PictureInPicture2 className="h-4 w-4" />
-      <span className="text-xs font-semibold tracking-wide">PiP</span>
+      <PictureInPicture2 className="h-3.5 w-3.5 shrink-0" />
+      <span className="tracking-wide">PiP</span>
     </button>
   );
 };
