@@ -427,7 +427,19 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     await syncMessages();
   }, [onDeleteMessage, syncMessages]);
 
-  const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  const formatTime = useCallback((dateStr: string) => formatTimeWIB(dateStr), []);
+
+  const handleReply = useCallback((toUsername: string) => {
+    if (!toUsername) return;
+    setNewMessage((prev) => {
+      const stripped = prev.replace(/^@\S+\s+/, "");
+      return `@${toUsername} ${stripped}`;
+    });
+    inputRef.current?.focus();
+  }, []);
+
+  const zoneLabel = getUserZoneLabel();
+  const showZoneHint = isUserOutsideWIB();
 
   return (
     <div className="relative flex h-full flex-col bg-card/50">
@@ -442,6 +454,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
           <div>
             <h3 className="text-sm font-bold text-foreground">Live Chat</h3>
             {!isLive && <p className="text-[10px] text-yellow-500">Stream offline · chat tetap aktif</p>}
+            {showZoneHint && <p className="text-[9px] text-muted-foreground/70">Waktu: WIB · zona Anda {zoneLabel}</p>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -477,7 +490,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
         style={{ minHeight: 0 }}
       >
         {messages.map((msg) => (
-          <ChatMessageItem key={msg.id} msg={msg} isAdmin={isAdmin} isChatMod={isChatMod} chatModUsernames={chatModUsernames} onPin={handlePin} onDelete={handleDelete} onBlock={onBlockUser} onToggleMod={onToggleChatMod} onBanUser={onBanUser} formatTime={formatTime} />
+          <ChatMessageItem key={msg.id} msg={msg} isAdmin={isAdmin} isChatMod={isChatMod} chatModUsernames={chatModUsernames} currentUsername={username} onPin={handlePin} onDelete={handleDelete} onBlock={onBlockUser} onToggleMod={onToggleChatMod} onBanUser={onBanUser} onReply={handleReply} formatTime={formatTime} />
         ))}
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
