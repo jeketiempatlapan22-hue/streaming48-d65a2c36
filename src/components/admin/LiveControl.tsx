@@ -282,16 +282,20 @@ const LiveControl = () => {
         )}
       </div>
 
-      {/* Active Show Selector */}
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6">
-        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
-        <p className="text-xs text-muted-foreground">Pilih show yang sedang berlangsung. Token hanya bisa akses show yang sesuai.</p>
+      {/* Active Show Selector — controls LIVE access, COUNTDOWN, and OFFLINE BACKGROUND */}
+      <div className="space-y-3 rounded-xl border border-primary/40 bg-primary/5 p-6">
+        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang / Akan Live</h3>
+        <p className="text-xs text-muted-foreground">
+          Pilih satu show. <span className="font-semibold text-primary">Countdown, jadwal, dan background offline player otomatis ikut show ini.</span> Token hanya bisa akses show yang sesuai.
+        </p>
         <Select value={activeShowId} onValueChange={saveActiveShow}>
           <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
           <SelectContent>
-            {shows.filter(s => s.is_active && !s.is_replay && !s.is_bundle).map((show) => (
+            {shows.filter(s => !s.is_replay && !s.is_bundle).map((show) => (
               <SelectItem key={show.id} value={show.id}>
-                {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
+                {show.title}
+                {!show.is_active ? " (Nonaktif)" : ""}
+                {show.schedule_date ? ` - ${show.schedule_date}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -303,25 +307,42 @@ const LiveControl = () => {
         )}
       </div>
 
-      {/* Next Show Countdown */}
+      {/* Offline Player Background Override */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
-        <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Show Berikutnya</h3>
-        <p className="text-xs text-muted-foreground">Countdown akan tampil di player saat offline.</p>
-        <div className="flex gap-2">
-          <Input type="datetime-local" value={nextShowTime} onChange={(e) => setNextShowTime(e.target.value)} className="bg-background" />
-          <Button onClick={saveNextShowTime} size="sm">Simpan</Button>
-        </div>
-        {nextShowTime && (() => {
-          const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-          if (!m) return null;
-          const [, y, mo, d, h, mi] = m;
-          const wibMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
-          return (
-            <p className="text-xs text-muted-foreground">
-              Dijadwalkan (WIB): {new Date(wibMs).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Jakarta" })} WIB
-            </p>
-          );
-        })()}
+        <h3 className="text-sm font-semibold text-foreground">🖼️ Background Player Offline (Opsional)</h3>
+        <p className="text-xs text-muted-foreground">
+          Override gambar background blur saat player offline. Kalau kosong → pakai background show terpilih → fallback gradient.
+        </p>
+        {offlineBgUrl ? (
+          <div className="space-y-2">
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-secondary/30">
+              <img src={offlineBgUrl} alt="Offline background preview" className="h-full w-full object-cover" />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => offlineBgInputRef.current?.click()} disabled={offlineBgUploading}>
+                <Upload className="mr-1 h-4 w-4" /> Ganti
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearOfflineBackground} className="text-destructive hover:text-destructive">
+                <ImageOff className="mr-1 h-4 w-4" /> Hapus
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => offlineBgInputRef.current?.click()} disabled={offlineBgUploading}>
+            <Upload className="mr-1 h-4 w-4" /> {offlineBgUploading ? "Mengupload..." : "Upload Background"}
+          </Button>
+        )}
+        <input
+          ref={offlineBgInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadOfflineBackground(f);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {/* Player Animation */}
