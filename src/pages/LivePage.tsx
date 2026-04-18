@@ -90,6 +90,32 @@ const resolveDisplayShow = (
 };
 
 const fetchDisplayShow = async (activeShowId: string | null, isLive: boolean) => {
+  // PRIORITAS 1: Kalau admin sudah pilih show, ambil LANGSUNG dari `shows` by id.
+  // Ini bypass filter is_active/is_replay — admin yang pilih, admin yang tahu.
+  if (activeShowId) {
+    const directRes = await withTimeout(
+      (async () =>
+        await supabase
+          .from("shows")
+          .select("id, title, schedule_date, schedule_time, background_image_url, team, external_show_id, is_replay, is_active")
+          .eq("id", activeShowId)
+          .maybeSingle())(),
+      8_000,
+      "Active show timeout"
+    ).catch(() => null);
+
+    if (directRes?.data) {
+      // Tetap ambil daftar lengkap untuk validasi token (best-effort, tidak blocking)
+      const showRes = await withTimeout(
+        (async () => await supabase.rpc("get_public_shows"))(),
+        6_000,
+        "Shows timeout"
+      ).catch(() => null);
+      return { activeShow: directRes.data, allShows: showRes?.data as any[] | undefined };
+    }
+  }
+
+  // PRIORITAS 2: Tidak ada pilihan admin → fallback ke jadwal terdekat dari shows publik.
   const showRes = await withTimeout(
     (async () => await supabase.rpc("get_public_shows"))(),
     8_000,
@@ -99,28 +125,7 @@ const fetchDisplayShow = async (activeShowId: string | null, isLive: boolean) =>
   const allShows = showRes?.data as any[] | undefined;
   const resolvedShow = resolveDisplayShow(allShows, activeShowId, isLive);
 
-  if (resolvedShow) {
-    return { activeShow: resolvedShow, allShows };
-  }
-
-  if (activeShowId) {
-    const showFallbackRes = await withTimeout(
-      (async () =>
-        await supabase
-          .from("shows")
-          .select("id, title, schedule_date, schedule_time, background_image_url, team, external_show_id, is_replay")
-          .eq("id", activeShowId)
-          .maybeSingle())(),
-      8_000,
-      "Active show timeout"
-    ).catch(() => null);
-
-    if (showFallbackRes?.data && !showFallbackRes.data.is_replay) {
-      return { activeShow: showFallbackRes.data, allShows };
-    }
-  }
-
-  return { activeShow: null, allShows };
+  return { activeShow: resolvedShow, allShows };
 };
 
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
@@ -278,6 +283,7 @@ const LivePage = () => {
   const [activeShowImage, setActiveShowImage] = useState<string | null>(null);
   const [activeShowDate, setActiveShowDate] = useState<string | null>(null);
   const [activeShowTime, setActiveShowTime] = useState<string | null>(null);
+  const [offlineBackgroundOverride, setOfflineBackgroundOverride] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -461,6 +467,7 @@ const LivePage = () => {
             if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
             if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
             if (s.key === "active_show_id") activeShowId = s.value;
+            if (s.key === "offline_background_url") setOfflineBackgroundOverride(s.value || null);
           });
         }
 
@@ -638,6 +645,9 @@ const LivePage = () => {
         if (p.new?.key === "active_show_id") {
           // Refresh active show metadata (image, schedule, etc.)
           refreshPlaylists();
+        }
+        if (p.new?.key === "offline_background_url") {
+          setOfflineBackgroundOverride(p.new.value || null);
         }
         // Also refresh playlists when any setting changes (admin may have toggled playlist)
         if (p.new?.key === "playlist_version") {
@@ -941,20 +951,23 @@ const LivePage = () => {
             </div>
           ) : (
             <div className="relative aspect-video w-full overflow-hidden bg-card">
-              {/* Background image of active show with strong blur + dark overlay */}
-              {activeShowImage ? (
-                <>
-                  <img
-                    src={activeShowImage}
-                    alt={activeShowTitle || "Show"}
-                    className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60"
-                    style={{ filter: "blur(28px)" }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80" />
-                </>
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
-              )}
+              {/* Background priority: admin override → active show image → gradient */}
+              {(() => {
+                const bgUrl = offlineBackgroundOverride || activeShowImage;
+                return bgUrl ? (
+                  <>
+                    <img
+                      src={bgUrl}
+                      alt={activeShowTitle || "Show"}
+                      className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60"
+                      style={{ filter: "blur(28px)" }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80" />
+                  </>
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
+                );
+              })()}
               {/* Foreground content */}
               <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-6">
                 {countdown ? (
