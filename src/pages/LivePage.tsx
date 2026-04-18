@@ -31,6 +31,36 @@ const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations
 const MAX_RESET_ATTEMPTS = 3;
 const RESET_KEY_PREFIX = "rt48_reset_count_";
 
+// Single flip digit (0-9) — animates whenever value changes
+const FlipDigit = ({ digit }: { digit: string }) => (
+  <span className="relative inline-block w-[0.62em] h-[1em] overflow-hidden align-baseline">
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.span
+        key={digit}
+        initial={{ y: "-100%", opacity: 0, rotateX: -90 }}
+        animate={{ y: "0%", opacity: 1, rotateX: 0 }}
+        exit={{ y: "100%", opacity: 0, rotateX: 90 }}
+        transition={{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }}
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ transformOrigin: "center" }}
+      >
+        {digit}
+      </motion.span>
+    </AnimatePresence>
+  </span>
+);
+
+// Two-digit flip group with subtle scale pulse on full change
+const FlipNumber = ({ value }: { value: number }) => {
+  const padded = value.toString().padStart(2, "0");
+  return (
+    <span className="inline-flex" style={{ perspective: 400 }}>
+      <FlipDigit digit={padded[0]} />
+      <FlipDigit digit={padded[1]} />
+    </span>
+  );
+};
+
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -872,11 +902,11 @@ const LivePage = () => {
                         { v: countdown.s, l: "DETIK" },
                       ].map((seg, idx, arr) => (
                         <div key={seg.l} className="flex items-center gap-2">
-                          <div className="flex flex-col items-center min-w-[36px]">
-                            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-primary tabular-nums leading-none">
-                              {seg.v.toString().padStart(2, "0")}
+                          <div className="flex flex-col items-center min-w-[44px]">
+                            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-primary tabular-nums leading-none drop-shadow-[0_0_8px_hsl(var(--primary)/0.55)]">
+                              <FlipNumber value={seg.v} />
                             </span>
-                            <span className="mt-1 text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground">
+                            <span className="mt-1.5 text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground">
                               {seg.l}
                             </span>
                           </div>
