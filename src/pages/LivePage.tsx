@@ -679,16 +679,17 @@ const LivePage = () => {
               return;
             }
             if (errorText === "device_limit") {
+              const isMulti = (tokenData?.max_devices ?? 1) > 1;
               consecutiveDeviceLimitErrors++;
-              // Auto-reset if within tolerance (covers refresh race conditions)
-              if (consecutiveDeviceLimitErrors <= MAX_DEVICE_LIMIT_TOLERANCE) {
+              // Single-device tokens: auto self-reset (covers refresh race conditions)
+              // Multi-device tokens: NEVER auto-reset — user harus beli ulang.
+              if (!isMulti && consecutiveDeviceLimitErrors <= MAX_DEVICE_LIMIT_TOLERANCE) {
                 console.warn(`[Session] device_limit hit ${consecutiveDeviceLimitErrors}/${MAX_DEVICE_LIMIT_TOLERANCE}, attempting self-reset...`);
                 try {
                   await supabase.rpc("self_reset_token_session" as any, { _token_code: tokenCode, _fingerprint: fpVal });
                 } catch {}
                 return;
               }
-              // Beyond tolerance, show error
               setError("device_limit");
               return;
             }
