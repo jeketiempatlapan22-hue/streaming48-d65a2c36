@@ -592,9 +592,16 @@ const LivePage = () => {
           }
         }
       })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (p: any) => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
           setPlayerAnimation((p.new.value || "none") as AnimationType);
+        }
+        if (p.new?.key === "next_show_time") {
+          setNextShowTime(p.new.value || "");
+        }
+        if (p.new?.key === "active_show_id") {
+          // Refresh active show metadata (image, schedule, etc.)
+          refreshPlaylists();
         }
         // Also refresh playlists when any setting changes (admin may have toggled playlist)
         if (p.new?.key === "playlist_version") {
@@ -632,11 +639,20 @@ const LivePage = () => {
 
   useEffect(() => {
     if (stream?.is_live) { setCountdown(null); return; }
-    // Priority: explicit nextShowTime > active show schedule (WIB)
+    // Always treat target time as WIB (UTC+7), regardless of viewer's local zone.
+    // This ensures user WIB & WITA see the SAME remaining time (countdown is absolute).
     let targetMs: number | null = null;
     if (nextShowTime) {
-      const t = new Date(nextShowTime).getTime();
-      if (!isNaN(t)) targetMs = t;
+      // datetime-local format: "YYYY-MM-DDTHH:mm" (no timezone) — interpret as WIB wall-clock
+      const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+      if (m) {
+        const [, y, mo, d, h, mi] = m;
+        // WIB = UTC+7, so subtract 7h from the wall-clock UTC value
+        targetMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
+      } else {
+        const t = new Date(nextShowTime).getTime();
+        if (!isNaN(t)) targetMs = t;
+      }
     }
     if (targetMs == null && activeShowDate && activeShowTime) {
       const wib = parseWIBDateTime(activeShowDate, activeShowTime);
