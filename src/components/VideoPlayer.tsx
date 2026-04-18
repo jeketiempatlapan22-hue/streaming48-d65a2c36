@@ -94,10 +94,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, [decryptUrl]);
 
   // ── Helper: send postMessage to YT iframe ──
+  // Use "*" because the iframe may be hosted on either youtube.com (API) or youtube-nocookie.com (fallback)
   const ytIframeCommand = useCallback((func: string) => {
     const iframe = ytIframeRef.current;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: "" }), YT_ORIGIN);
+      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: "" }), "*");
     }
   }, []);
 
