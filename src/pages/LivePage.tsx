@@ -921,36 +921,46 @@ const LivePage = () => {
             </div>
           ) : (
             <div className="relative aspect-video w-full overflow-hidden bg-card">
-              {/* Background image of active show with blur + dark overlay */}
-              {activeShowImage && (
+              {/* Background image of active show with strong blur + dark overlay */}
+              {activeShowImage ? (
                 <>
                   <img
                     src={activeShowImage}
                     alt={activeShowTitle || "Show"}
-                    className="absolute inset-0 h-full w-full object-cover scale-110 blur-xl opacity-40"
+                    className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60"
+                    style={{ filter: "blur(28px)" }}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/85" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80" />
                 </>
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
               )}
               {/* Foreground content */}
               <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-6">
                 {countdown ? (
                   <>
-                    <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-lg">
+                    <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                       Show Belum Dimulai
                     </h3>
                     {activeShowTitle && (
-                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow">
+                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                         🎭 {activeShowTitle}
                       </p>
                     )}
-                    {(activeShowDate || activeShowTime) && (
-                      <p className="mt-1 text-center text-xs sm:text-sm text-muted-foreground">
-                        📅 {activeShowDate ? formatDateWIB(activeShowDate) : ""}
-                        {activeShowDate && activeShowTime ? " • 🕐 " : ""}
-                        {activeShowTime ? `${activeShowTime} WIB` : ""}
-                      </p>
-                    )}
+                    {(activeShowDate || activeShowTime) && (() => {
+                      const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00");
+                      const dateLabel = parsedTs != null
+                        ? formatDateWIB(parsedTs)
+                        : (activeShowDate || "");
+                      const timeLabel = activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "";
+                      return (
+                        <p className="mt-1 text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                          📅 {dateLabel}
+                          {dateLabel && timeLabel ? " • 🕐 " : ""}
+                          {timeLabel}
+                        </p>
+                      );
+                    })()}
                     {/* Countdown digital box */}
                     <div className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-black/55 backdrop-blur-md border border-primary/25 px-4 py-2.5 shadow-[0_0_30px_hsl(var(--primary)/0.18)]">
                       {[
