@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown, Upload, ImageOff } from "lucide-react";
 import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
 import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
+import { compressImage } from "@/lib/imageCompressor";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
@@ -15,9 +16,11 @@ const LiveControl = () => {
   const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
-  const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [saving, setSaving] = useState(false);
+  const [offlineBgUrl, setOfflineBgUrl] = useState("");
+  const [offlineBgUploading, setOfflineBgUploading] = useState(false);
+  const offlineBgInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Auto-schedule live state
@@ -61,13 +64,13 @@ const LiveControl = () => {
       if (showsRes.data) setShows(showsRes.data);
       if (settingsRes.data) {
         settingsRes.data.forEach((s: any) => {
-          if (s.key === "next_show_time") setNextShowTime(s.value);
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
           if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
           if (s.key === "auto_live_enabled") setAutoLiveEnabled(s.value === "true");
           if (s.key === "auto_live_on_time") setAutoLiveOnTime(s.value);
           if (s.key === "auto_live_off_time") setAutoLiveOffTime(s.value);
+          if (s.key === "offline_background_url") setOfflineBgUrl(s.value || "");
         });
       }
     };
@@ -103,11 +106,37 @@ const LiveControl = () => {
     setSaving(false);
   };
 
-  const saveNextShowTime = async () => {
-    await supabase
+  const uploadOfflineBackground = async (file: File) => {
+    setOfflineBgUploading(true);
+    try {
+      const compressed = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.85 });
+      const safeName = `offline-bg-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+      const { error: upErr } = await supabase.storage.from("show-images").upload(safeName, compressed, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("show-images").getPublicUrl(safeName);
+      const url = pub.publicUrl;
+      const { error: setErr } = await supabase
+        .from("site_settings")
+        .upsert({ key: "offline_background_url", value: url } as any, { onConflict: "key" });
+      if (setErr) throw setErr;
+      setOfflineBgUrl(url);
+      toast({ title: "🖼️ Background offline disimpan!" });
+    } catch (e: any) {
+      toast({ title: "Gagal upload", description: e?.message || "Coba lagi", variant: "destructive" });
+    }
+    setOfflineBgUploading(false);
+  };
+
+  const clearOfflineBackground = async () => {
+    const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "next_show_time", value: nextShowTime } as any, { onConflict: "key" });
-    toast({ title: "Jadwal show disimpan!" });
+      .upsert({ key: "offline_background_url", value: "" } as any, { onConflict: "key" });
+    if (error) {
+      toast({ title: "Gagal menghapus", variant: "destructive" });
+      return;
+    }
+    setOfflineBgUrl("");
+    toast({ title: "Background offline dihapus" });
   };
 
   const addPlaylist = async () => {
