@@ -10,7 +10,7 @@ import SecurityAlert from "@/components/viewer/SecurityAlert";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import type { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
-import { Menu, X, MessageCircle, Home, Phone } from "lucide-react";
+import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
