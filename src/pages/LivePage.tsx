@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
