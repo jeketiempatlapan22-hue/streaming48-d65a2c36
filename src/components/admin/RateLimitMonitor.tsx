@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock, Timer } from "lucide-react";
+import { Shield, ShieldOff, RefreshCw, Ban, Search, Clock, Timer, Eye, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 interface BlockedIP {
@@ -27,6 +27,17 @@ interface Violation {
   created_at: string;
 }
 
+interface IpVisit {
+  id: string;
+  ip_address: string;
+  user_agent: string | null;
+  user_id: string | null;
+  visit_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  path: string | null;
+}
+
 const UNBLOCK_OPTIONS = [
   { value: "6", label: "6 jam" },
   { value: "12", label: "12 jam" },
@@ -42,20 +53,24 @@ const RateLimitMonitor = () => {
   const [search, setSearch] = useState("");
   const [manualIP, setManualIP] = useState("");
   const [manualReason, setManualReason] = useState("");
-  const [tab, setTab] = useState<"blocked" | "violations">("blocked");
+  const [tab, setTab] = useState<"blocked" | "violations" | "visitors">("blocked");
   const [unblockHours, setUnblockHours] = useState("24");
   const [savingHours, setSavingHours] = useState(false);
+  const [visitors, setVisitors] = useState<IpVisit[]>([]);
+  const [visitorSearch, setVisitorSearch] = useState("");
 
   const fetchData = useCallback(async () => {
     try {
-      const [blockedRes, violationsRes, settingsRes] = await Promise.all([
+      const [blockedRes, violationsRes, settingsRes, visitorsRes] = await Promise.all([
         supabase.from("blocked_ips").select("*").order("blocked_at", { ascending: false }),
         supabase.from("rate_limit_violations").select("*").order("created_at", { ascending: false }).limit(100),
         supabase.from("site_settings").select("value").eq("key", "auto_unblock_hours").maybeSingle(),
+        (supabase as any).from("ip_visit_log").select("*").order("last_seen_at", { ascending: false }).limit(500),
       ]);
       if (blockedRes.data) setBlockedIPs(blockedRes.data as BlockedIP[]);
       if (violationsRes.data) setViolations(violationsRes.data as Violation[]);
       if (settingsRes.data?.value) setUnblockHours(settingsRes.data.value);
+      if (visitorsRes.data) setVisitors(visitorsRes.data as IpVisit[]);
     } catch { /* silent */ } finally { setLoading(false); }
   }, []);
 
@@ -200,12 +215,15 @@ const RateLimitMonitor = () => {
       </Card>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button variant={tab === "blocked" ? "default" : "outline"} size="sm" onClick={() => setTab("blocked")}>
           IP Terblokir ({blockedIPs.length})
         </Button>
         <Button variant={tab === "violations" ? "default" : "outline"} size="sm" onClick={() => setTab("violations")}>
           Top Violators ({topViolators.length})
+        </Button>
+        <Button variant={tab === "visitors" ? "default" : "outline"} size="sm" onClick={() => setTab("visitors")}>
+          <Globe className="mr-1 h-3 w-3" /> IP Pengunjung ({visitors.length})
         </Button>
       </div>
 
@@ -281,6 +299,80 @@ const RateLimitMonitor = () => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "visitors" && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Eye className="h-4 w-4" /> IP Pengunjung Hari Ini
+              </CardTitle>
+              <Badge variant="outline" className="text-[10px]">
+                <Clock className="mr-1 h-2.5 w-2.5" /> Reset 00.00 WIB
+              </Badge>
+            </div>
+            <Input
+              placeholder="Cari IP / path..."
+              value={visitorSearch}
+              onChange={e => setVisitorSearch(e.target.value)}
+              className="h-8 text-xs mt-2"
+            />
+          </CardHeader>
+          <CardContent>
+            {visitors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada data pengunjung hari ini.</p>
+            ) : (
+              <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                {visitors
+                  .filter(v =>
+                    !visitorSearch ||
+                    v.ip_address.includes(visitorSearch) ||
+                    (v.path || "").toLowerCase().includes(visitorSearch.toLowerCase())
+                  )
+                  .map(v => {
+                    const isBlocked = blockedIPs.some(b => b.ip_address === v.ip_address && b.is_active);
+                    return (
+                      <div key={v.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-sm font-medium text-foreground">{v.ip_address}</span>
+                            <Badge variant="outline" className="text-[10px]">{v.visit_count}x</Badge>
+                            {v.user_id && <Badge variant="secondary" className="text-[10px]">login</Badge>}
+                            {isBlocked && <Badge variant="destructive" className="text-[10px]">blocked</Badge>}
+                            {v.visit_count > 50 && !isBlocked && (
+                              <Badge className="text-[10px] bg-[hsl(var(--warning))]/20 text-[hsl(var(--warning))]">⚠️ banyak</Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            {v.path || "/"} · {(v.user_agent || "").slice(0, 60)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Terakhir: {new Date(v.last_seen_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })} WIB
+                          </p>
+                        </div>
+                        {!isBlocked && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs shrink-0"
+                            onClick={() => {
+                              setManualIP(v.ip_address);
+                              setManualReason(`Manual block dari IP Monitor (${v.visit_count} visits)`);
+                              setTab("blocked");
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <Ban className="mr-1 h-3 w-3" /> Blokir
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </CardContent>

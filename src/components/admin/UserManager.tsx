@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone } from "lucide-react";
+import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone, Receipt } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { lazy, Suspense } from "react";
+
+const UserTransactionHistory = lazy(() => import("@/components/viewer/UserTransactionHistory"));
 
 interface UserProfile {
   id: string;
@@ -36,6 +39,8 @@ const UserManager = () => {
   const [sendingResetLink, setSendingResetLink] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [fetchError, setFetchError] = useState("");
+
+  const [historyUser, setHistoryUser] = useState<UserProfile | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -395,6 +400,14 @@ const UserManager = () => {
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          onClick={() => setHistoryUser(u)}
+                        >
+                          <Receipt className="mr-1 h-3 w-3" /> Riwayat
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
                           onClick={() => sendResetLink(u)}
                           disabled={sendingResetLink === u.id}
                         >
@@ -498,6 +511,26 @@ const UserManager = () => {
               <KeyRound className="h-4 w-4" /> {resetting ? "Mereset..." : "Reset Password"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Riwayat Transaksi Dialog */}
+      <Dialog open={!!historyUser} onOpenChange={() => setHistoryUser(null)}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-4 w-4" /> Riwayat Transaksi
+            </DialogTitle>
+            <DialogDescription>
+              {historyUser?.username || historyUser?.id.slice(0, 8)}
+              {historyUser?.phone && <span className="ml-1">· {historyUser.phone}</span>}
+            </DialogDescription>
+          </DialogHeader>
+          {historyUser && (
+            <Suspense fallback={<div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-14 skeleton rounded-lg" />)}</div>}>
+              <UserTransactionHistory userId={historyUser.id} isAdmin />
+            </Suspense>
+          )}
         </DialogContent>
       </Dialog>
     </div>

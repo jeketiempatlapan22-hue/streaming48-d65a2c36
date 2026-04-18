@@ -298,6 +298,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ip_visit_log: {
+        Row: {
+          first_seen_at: string
+          id: string
+          ip_address: string
+          last_seen_at: string
+          path: string | null
+          user_agent: string | null
+          user_id: string | null
+          visit_count: number
+        }
+        Insert: {
+          first_seen_at?: string
+          id?: string
+          ip_address: string
+          last_seen_at?: string
+          path?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          visit_count?: number
+        }
+        Update: {
+          first_seen_at?: string
+          id?: string
+          ip_address?: string
+          last_seen_at?: string
+          path?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+          visit_count?: number
+        }
+        Relationships: []
+      }
       landing_descriptions: {
         Row: {
           content: string
@@ -1280,6 +1313,7 @@ export type Database = {
             Args: { _identifier: string; _new_password?: string }
             Returns: Json
           }
+      reset_ip_visit_log_daily: { Args: never; Returns: undefined }
       self_reset_token_session: {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
