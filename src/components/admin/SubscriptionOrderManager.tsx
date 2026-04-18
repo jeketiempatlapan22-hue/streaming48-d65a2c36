@@ -759,12 +759,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 <div className="flex items-center gap-1.5">
                   <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
                   {editPhones[order.id] !== undefined ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       <Input
                         value={editPhones[order.id]}
                         onChange={(e) => setEditPhones((prev) => ({ ...prev, [order.id]: e.target.value }))}
                         placeholder="+628xx / +60xx"
-                        className="h-7 text-xs w-48"
+                        className="h-7 text-xs w-full max-w-[12rem]"
                       />
                       <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingPhone === order.id}
                         onClick={() => savePhone(order.id)}>
@@ -792,12 +792,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   <div className="flex items-center gap-1.5">
                     <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                     {editEmails[order.id] !== undefined ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         <Input
                           value={editEmails[order.id]}
                           onChange={(e) => setEditEmails((prev) => ({ ...prev, [order.id]: e.target.value }))}
                           placeholder="Ketik email user..."
-                          className="h-7 text-xs w-48"
+                          className="h-7 text-xs w-full max-w-[12rem]"
                         />
                         <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingEmail === order.id}
                           onClick={() => saveEmail(order.id)}>
