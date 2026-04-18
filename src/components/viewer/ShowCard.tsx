@@ -166,33 +166,35 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           <p className="text-[11px] font-medium text-muted-foreground">{show.category_member}</p>
         )}
 
-        {/* Meta row: date + time per zone */}
+        {/* Meta row: date + WIB time (patokan) + Waktu Anda jika beda zona */}
         <div className="space-y-1 text-[11px] text-muted-foreground">
           {show.schedule_date && (
             <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3 text-primary/70" />{show.schedule_date}
             </div>
           )}
-          {show.schedule_time && zoneTimes ? (
-            <div className="flex items-start gap-1">
-              <Clock className="h-3 w-3 text-primary/70 mt-0.5 shrink-0" />
-              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                <span className={userZone === "WIB" ? "font-semibold text-primary" : ""}>
-                  {zoneTimes.wib} <span className="text-[9px] opacity-70">WIB</span>
-                </span>
-                <span className={userZone === "WITA" ? "font-semibold text-primary" : ""}>
-                  {zoneTimes.wita} <span className="text-[9px] opacity-70">WITA</span>
-                </span>
-                <span className={userZone === "WIT" ? "font-semibold text-primary" : ""}>
-                  {zoneTimes.wit} <span className="text-[9px] opacity-70">WIT</span>
+          {show.schedule_time && (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-primary/70 shrink-0" />
+              <span className="font-semibold text-primary">
+                {(zoneTimes?.wib || show.schedule_time.replace(/\./g, ":"))}
+                <span className="ml-0.5 text-[9px] opacity-70 font-normal">WIB</span>
+              </span>
+            </div>
+          )}
+          {(() => {
+            const ts = parseShowDateTime(show.schedule_date, show.schedule_time);
+            if (ts == null || !isUserOutsideWIB()) return null;
+            const localTime = formatLocal(ts, { hour: "2-digit", minute: "2-digit" });
+            return (
+              <div className="flex items-center gap-1 text-primary/90">
+                <span className="text-[10px]">🌐</span>
+                <span>
+                  Waktu Anda: <span className="font-semibold">{localTime} {userZone}</span>
                 </span>
               </div>
-            </div>
-          ) : show.schedule_time ? (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-primary/70" />{show.schedule_time} <span className="text-[9px] opacity-70">WIB</span>
-            </div>
-          ) : null}
+            );
+          })()}
         </div>
 
         {/* Price row */}
