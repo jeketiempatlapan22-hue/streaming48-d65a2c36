@@ -1356,6 +1356,27 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           )}
         </button>
       </div>
+
+      {/* DevTools detection overlay — pause + warning */}
+      {devToolsOpen && (
+        <div
+          className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-md text-center px-4"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <div className="max-w-md">
+            <div className="text-5xl mb-4">⛔</div>
+            <h2 className="text-xl md:text-2xl font-bold text-red-400 mb-2">
+              Developer Tools Terdeteksi
+            </h2>
+            <p className="text-sm md:text-base text-white/80 mb-2">
+              Pemutaran video dihentikan untuk melindungi sumber stream.
+            </p>
+            <p className="text-xs text-white/50">
+              Tutup DevTools (F12 / Inspect) lalu refresh halaman untuk melanjutkan menonton.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
