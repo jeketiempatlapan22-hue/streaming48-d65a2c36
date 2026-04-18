@@ -82,6 +82,15 @@ if ("serviceWorker" in navigator) {
     }
     window.location.reload();
   });
+
+  // Aggressively poll for SW updates every 60s on non-live pages so stale browsers
+  // pick up new builds (PiP, countdown, background fixes) without waiting for full close.
+  setInterval(() => {
+    if (window.location.pathname === "/live") return;
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((reg) => reg.update().catch(() => {}));
+    });
+  }, 60_000);
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
