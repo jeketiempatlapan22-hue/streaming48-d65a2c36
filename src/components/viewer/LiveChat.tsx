@@ -409,6 +409,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       const next = [...prev, optimisticMsg];
       return next.length > 20 ? next.slice(-20) : next;
     });
+    // Force scroll to bottom when user sends a message
+    isAtBottomRef.current = true;
+    scrollToBottom(true);
 
     const insertData: any = { username, message: trimmed, token_id: tokenId || null };
     if (currentUserId) insertData.user_id = currentUserId;
