@@ -162,6 +162,17 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
         const newCount = resetCount + 1;
         setResetCount(newCount);
         try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
+        // Broadcast force-logout so the OTHER device immediately exits.
+        try {
+          const { data: tk } = await supabase.rpc("validate_token", { _code: tokenCode });
+          const tid = (tk as any)?.id;
+          if (tid) {
+            const ch = supabase.channel(`token-reset-${tid}`);
+            await ch.subscribe();
+            await ch.send({ type: "broadcast", event: "force_logout", payload: { source: "self" } });
+            setTimeout(() => supabase.removeChannel(ch), 1500);
+          }
+        } catch {}
         setResetSuccess(true);
         setTimeout(() => window.location.reload(), 900);
       } else {
@@ -263,6 +274,7 @@ const LivePage = () => {
   const [tokenData, setTokenData] = useState<any>(null);
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
+  const [forcedOut, setForcedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
@@ -680,6 +692,18 @@ const LivePage = () => {
     return () => { supabase.removeChannel(ch); };
   }, [tokenData?.show_id, tokenData?.id, refreshPlaylists]);
 
+  // Force-logout broadcast: admin or another device reset this token's sessions
+  // → terminate playback immediately on this device.
+  useEffect(() => {
+    if (!tokenData?.id) return;
+    const ch = supabase.channel(`token-reset-${tokenData.id}`)
+      .on("broadcast", { event: "force_logout" }, () => {
+        setForcedOut(true);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [tokenData?.id]);
+
   // Periodic playlist polling (realtime on playlists table blocked by RLS for non-admin viewers)
   useEffect(() => {
     if (!tokenData?.id) return;
@@ -798,6 +822,24 @@ const LivePage = () => {
           <button onClick={() => navigate("/")} className="rounded-full bg-primary px-8 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
             🏠 Kembali ke Beranda
           </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (forcedOut) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/40 bg-card p-8 text-center shadow-lg">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+          <RotateCcw className="h-9 w-9 text-[hsl(var(--warning))]" />
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-foreground">Sesi Dihentikan</h2>
+        <p className="mb-6 text-sm text-muted-foreground">
+          Link token ini baru saja di-reset (oleh admin atau di perangkat lain). Sesi di perangkat ini telah dihentikan.
+        </p>
+        <div className="flex flex-col gap-3">
+          <button onClick={() => window.location.reload()} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🔄 Klaim Ulang Sesi</button>
+          <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Kembali ke Beranda</button>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 import "./lib/installPrompt";
 
-const CACHE_RESET_VERSION = "rt48-cache-reset-v11";
+const CACHE_RESET_VERSION = "rt48-cache-reset-v12";
 
 async function resetLegacyServiceWorkerCache() {
   if (!("caches" in window)) return;
@@ -68,6 +68,20 @@ if (import.meta.env.PROD) {
     initSecurityGuard();
   });
 }
+
+// PWA standalone: when launched with ?t=TOKEN at root, route directly to /live
+try {
+  const isStandaloneLaunch =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true;
+  if (isStandaloneLaunch) {
+    const sp = new URLSearchParams(window.location.search);
+    const t = sp.get("t");
+    if (t && window.location.pathname !== "/live") {
+      window.history.replaceState({}, "", `/live?t=${encodeURIComponent(t)}`);
+    }
+  }
+} catch {}
 
 // PWA: Listen for service worker updates — only reload on user-initiated navigation, not during streaming
 if ("serviceWorker" in navigator) {

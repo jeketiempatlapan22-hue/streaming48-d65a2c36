@@ -31,10 +31,21 @@ export default defineConfig(({ mode }) => ({
           /^\/auth/,
           /^\/reset-password/,
         ],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+        globPatterns: ["**/*.{js,css,ico,png,svg,webp,woff2}"],
+        globIgnores: ["**/index.html"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // HTML navigations: always try network first so updated UI ships fast.
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "html-pages",
+              networkTimeoutSeconds: 3,
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 },
+            },
+          },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/(auth|realtime|functions|rest\/v1\/rpc)\/.*/i,
             handler: "NetworkOnly",
@@ -76,6 +87,8 @@ export default defineConfig(({ mode }) => ({
         orientation: "any",
         start_url: "/",
         scope: "/",
+        // Re-use existing PWA window when user opens a token link instead of opening a new instance.
+        launch_handler: { client_mode: ["focus-existing", "auto"] },
         icons: [
           { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },

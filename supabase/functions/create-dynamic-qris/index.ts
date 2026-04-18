@@ -91,8 +91,17 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (authHeader) {
       const token = authHeader.replace("Bearer ", "");
-      const { data: { user } } = await supabase.auth.getUser(token);
-      userId = user?.id || null;
+      try {
+        const { data: { user } } = await supabase.auth.getUser(token);
+        userId = user?.id || null;
+      } catch {
+        userId = null;
+      }
+    }
+    // Coin orders REQUIRE auth (must credit balance to a user).
+    // Regular & subscription orders accept anon (guest checkout via QRIS).
+    if (isCoinOrder && !userId) {
+      return new Response(JSON.stringify({ error: "Login diperlukan untuk pembelian koin" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let orderId: string;
@@ -100,9 +109,7 @@ Deno.serve(async (req) => {
     let orderTable: string;
 
     if (isCoinOrder) {
-      if (!userId) {
-        return new Response(JSON.stringify({ error: "Login diperlukan untuk pembelian koin" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      // userId already validated above
 
       const { data: orderData, error: orderErr } = await supabase
         .from("coin_orders")

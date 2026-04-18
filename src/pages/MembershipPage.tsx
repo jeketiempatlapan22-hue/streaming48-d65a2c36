@@ -121,8 +121,10 @@ const MembershipPage = () => {
 
   const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      toast({ title: "Silakan login terlebih dahulu", variant: "destructive" });
+
+    // QRIS allows guest checkout (anon). Coin redemption requires login.
+    if (mode === "coin" && !session?.user) {
+      toast({ title: "Silakan login terlebih dahulu untuk pembelian koin", variant: "destructive" });
       return;
     }
 
@@ -146,7 +148,7 @@ const MembershipPage = () => {
         return;
       }
       await fetchBalance();
-      const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session.user.id).maybeSingle();
+      const { data: bal } = await supabase.from("coin_balances").select("balance").eq("user_id", session!.user.id).maybeSingle();
       const currentBalance = bal?.balance || 0;
       setCoinBalance(currentBalance);
       setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
