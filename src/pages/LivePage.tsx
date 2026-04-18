@@ -600,11 +600,33 @@ const LivePage = () => {
   // No polling needed — saves ~60,000 req/hr at 1000 users
 
   useEffect(() => {
-    if (!nextShowTime || stream?.is_live) { setCountdown(""); return; }
-    const target = new Date(nextShowTime).getTime();
-    const update = () => { const d = target - Date.now(); if (d <= 0) { setCountdown(""); return; } setCountdown(`${Math.floor(d/3600000).toString().padStart(2,"0")}:${Math.floor((d%3600000)/60000).toString().padStart(2,"0")}:${Math.floor((d%60000)/1000).toString().padStart(2,"0")}`); };
-    update(); const i = setInterval(update, 1000); return () => clearInterval(i);
-  }, [nextShowTime, stream?.is_live]);
+    if (stream?.is_live) { setCountdown(null); return; }
+    // Priority: explicit nextShowTime > active show schedule (WIB)
+    let targetMs: number | null = null;
+    if (nextShowTime) {
+      const t = new Date(nextShowTime).getTime();
+      if (!isNaN(t)) targetMs = t;
+    }
+    if (targetMs == null && activeShowDate && activeShowTime) {
+      const wib = parseWIBDateTime(activeShowDate, activeShowTime);
+      if (wib != null) targetMs = wib;
+    }
+    if (targetMs == null) { setCountdown(null); return; }
+    const target = targetMs;
+    const update = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) { setCountdown(null); return; }
+      setCountdown({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+      });
+    };
+    update();
+    const i = setInterval(update, 1000);
+    return () => clearInterval(i);
+  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime]);
 
   useEffect(() => { const h = (e: MouseEvent) => { if ((e.target as HTMLElement).closest(".player-area")) e.preventDefault(); }; document.addEventListener("contextmenu", h); return () => document.removeEventListener("contextmenu", h); }, []);
 
