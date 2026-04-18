@@ -969,23 +969,34 @@ const LivePage = () => {
                     )}
                     {(activeShowDate || activeShowTime) && (() => {
                       const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00");
+                      const outsideWIB = parsedTs != null && isUserOutsideWIB();
+                      const userZoneLabel = getUserZoneLabel();
+                      // Tanggal: kalau di luar WIB, pakai tanggal lokal user (handle lewat tengah malam)
                       const dateLabel = parsedTs != null
-                        ? formatDateWIB(parsedTs)
+                        ? (outsideWIB
+                            ? formatLocal(parsedTs, { day: "numeric", month: "long", year: "numeric" })
+                            : formatDateWIB(parsedTs))
                         : (activeShowDate || "");
-                      const timeLabel = activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "";
-                      const showLocal = parsedTs != null && isUserOutsideWIB();
-                      const localTime = showLocal ? formatLocal(parsedTs!, { hour: "2-digit", minute: "2-digit" }) : "";
-                      const zoneLabel = showLocal ? getUserZoneLabel() : "";
+                      // Jam utama: kalau di luar WIB → jam lokal user (mis. WITA 20:00 / WIT 21:00)
+                      const primaryTimeLabel = parsedTs != null
+                        ? (outsideWIB
+                            ? `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit" })} ${userZoneLabel}`
+                            : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)} WIB`)
+                        : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "");
+                      // Keterangan WIB asli (hanya kalau user di luar WIB)
+                      const wibHint = outsideWIB && parsedTs != null
+                        ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)
+                        : "";
                       return (
                         <>
                           <p className="mt-1 text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                             📅 {dateLabel}
-                            {dateLabel && timeLabel ? " • 🕐 " : ""}
-                            {timeLabel}
+                            {dateLabel && primaryTimeLabel ? " • 🕐 " : ""}
+                            {primaryTimeLabel}
                           </p>
-                          {showLocal && (
+                          {outsideWIB && wibHint && (
                             <p className="mt-1 text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-                              🌐 Waktu Anda: <span className="font-semibold">{localTime} {zoneLabel}</span>
+                              🌐 Jadwal asli: <span className="font-semibold">{wibHint} WIB</span>
                             </p>
                           )}
                         </>
