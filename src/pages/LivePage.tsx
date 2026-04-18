@@ -976,13 +976,17 @@ const LivePage = () => {
             </div>
           )}
         </div>
-        {isLive && playlists.length > 1 && (
-          <div className="border-t border-border px-3 py-1.5">
-            <PlaylistSwitcher
-              playlists={playlists}
-              activePlaylistId={activePlaylist?.id ?? null}
-              onSelect={handlePlaylistSwitch}
-            />
+        {isLive && (playlists.length > 1 || true) && (
+          <div className="border-t border-border px-3 py-1.5 flex items-center gap-2 flex-wrap">
+            {playlists.length > 1 && (
+              <PlaylistSwitcher
+                playlists={playlists}
+                activePlaylistId={activePlaylist?.id ?? null}
+                onSelect={handlePlaylistSwitch}
+                className="flex-1 min-w-0"
+              />
+            )}
+            <PipButton />
           </div>
         )}
         {activeShowTitle && isLive && (
