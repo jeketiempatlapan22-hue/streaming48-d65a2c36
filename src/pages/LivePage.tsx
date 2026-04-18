@@ -634,6 +634,29 @@ const LivePage = () => {
     return () => clearInterval(interval);
   }, [tokenData?.id, refreshPlaylists]);
 
+  // Safety-net: poll stream status every 30s in case realtime drops.
+  // Ensures player switches to LIVE even if WS reconnect missed the toggle event.
+  useEffect(() => {
+    if (!tokenData?.id) return;
+    const poll = async () => {
+      try {
+        const { data } = await (supabase.rpc as any)("get_stream_status");
+        if (data?.length) {
+          setStream((prev: any) => {
+            const next = data[0];
+            // Only update if changed to avoid unnecessary re-renders
+            if (!prev || prev.is_live !== next.is_live || prev.title !== next.title) {
+              return next;
+            }
+            return prev;
+          });
+        }
+      } catch {}
+    };
+    const interval = setInterval(poll, 30_000);
+    return () => clearInterval(interval);
+  }, [tokenData?.id]);
+
   // Blocked status is handled via realtime subscription on tokens table (line ~393)
   // No polling needed — saves ~60,000 req/hr at 1000 users
 
