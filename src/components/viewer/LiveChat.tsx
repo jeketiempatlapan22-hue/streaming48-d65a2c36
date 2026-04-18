@@ -161,15 +161,36 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const seenIdsRef = useRef(new Set<string>());
   // Track optimistic messages for dedup
   const optimisticRef = useRef(new Map<string, string>()); // optimisticId -> message content key
+  // Track whether user is scrolled to bottom (so we don't yank them down)
+  const isAtBottomRef = useRef(true);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const isChatMod = chatModUsernames.has(username);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((force = false) => {
     requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const el = scrollRef.current;
+      if (!el) return;
+      if (force || isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+        isAtBottomRef.current = true;
+        setShowJumpToBottom(false);
       }
     });
+  }, []);
+
+  // Track scroll position so auto-scroll only kicks in when user is at the bottom
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = distanceFromBottom < 80; // 80px tolerance
+      isAtBottomRef.current = atBottom;
+      setShowJumpToBottom(!atBottom);
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   const syncMessages = useCallback(async () => {
