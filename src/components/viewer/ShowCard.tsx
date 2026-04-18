@@ -28,27 +28,8 @@ interface ShowCardProps {
   isUniversalAccess?: boolean;
 }
 
-const INDONESIAN_MONTHS: Record<string, number> = {
-  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
-  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
-};
-
 function parseShowDateTime(dateStr: string, timeStr: string): number | null {
-  if (!dateStr || !timeStr) return null;
-  const cleanTime = timeStr.replace(/\s*WIB\s*/i, "").trim().replace(/\./g, ":");
-  const [hour, minute] = cleanTime.split(":").map(Number);
-  let d = new Date(`${dateStr}T${cleanTime.padStart(5, "0")}:00`);
-  if (!isNaN(d.getTime())) return d.getTime();
-  const parts = dateStr.toLowerCase().trim().split(/\s+/);
-  if (parts.length === 3) {
-    const day = parseInt(parts[0]);
-    const month = INDONESIAN_MONTHS[parts[1]];
-    const year = parseInt(parts[2]);
-    if (!isNaN(day) && month !== undefined && !isNaN(year)) {
-      return new Date(year, month, day, hour || 0, minute || 0).getTime();
-    }
-  }
-  return null;
+  return parseWIBDateTime(dateStr, timeStr);
 }
 
 function useCountdown(dateStr: string, timeStr: string) {
