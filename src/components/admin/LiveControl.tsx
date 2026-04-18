@@ -282,11 +282,17 @@ const LiveControl = () => {
           <Input type="datetime-local" value={nextShowTime} onChange={(e) => setNextShowTime(e.target.value)} className="bg-background" />
           <Button onClick={saveNextShowTime} size="sm">Simpan</Button>
         </div>
-        {nextShowTime && (
-          <p className="text-xs text-muted-foreground">
-            Dijadwalkan: {new Date(nextShowTime).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" })}
-          </p>
-        )}
+        {nextShowTime && (() => {
+          const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+          if (!m) return null;
+          const [, y, mo, d, h, mi] = m;
+          const wibMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
+          return (
+            <p className="text-xs text-muted-foreground">
+              Dijadwalkan (WIB): {new Date(wibMs).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Jakarta" })} WIB
+            </p>
+          );
+        })()}
       </div>
 
       {/* Player Animation */}
