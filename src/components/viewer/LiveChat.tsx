@@ -161,15 +161,36 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const seenIdsRef = useRef(new Set<string>());
   // Track optimistic messages for dedup
   const optimisticRef = useRef(new Map<string, string>()); // optimisticId -> message content key
+  // Track whether user is scrolled to bottom (so we don't yank them down)
+  const isAtBottomRef = useRef(true);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
 
   const isChatMod = chatModUsernames.has(username);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((force = false) => {
     requestAnimationFrame(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      const el = scrollRef.current;
+      if (!el) return;
+      if (force || isAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+        isAtBottomRef.current = true;
+        setShowJumpToBottom(false);
       }
     });
+  }, []);
+
+  // Track scroll position so auto-scroll only kicks in when user is at the bottom
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const atBottom = distanceFromBottom < 80; // 80px tolerance
+      isAtBottomRef.current = atBottom;
+      setShowJumpToBottom(!atBottom);
+    };
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   const syncMessages = useCallback(async () => {
@@ -388,6 +409,9 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       const next = [...prev, optimisticMsg];
       return next.length > 20 ? next.slice(-20) : next;
     });
+    // Force scroll to bottom when user sends a message
+    isAtBottomRef.current = true;
+    scrollToBottom(true);
 
     const insertData: any = { username, message: trimmed, token_id: tokenId || null };
     if (currentUserId) insertData.user_id = currentUserId;
@@ -484,19 +508,31 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
       )}
 
       {/* Messages - scrollable area */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-0.5"
-        style={{ minHeight: 0 }}
-      >
-        {messages.map((msg) => (
-          <ChatMessageItem key={msg.id} msg={msg} isAdmin={isAdmin} isChatMod={isChatMod} chatModUsernames={chatModUsernames} currentUsername={username} onPin={handlePin} onDelete={handleDelete} onBlock={onBlockUser} onToggleMod={onToggleChatMod} onBanUser={onBanUser} onReply={handleReply} formatTime={formatTime} />
-        ))}
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <span className="text-3xl">💬</span>
-            <p className="mt-2 text-xs text-muted-foreground">Belum ada pesan. Mulai percakapan!</p>
-          </div>
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 overflow-y-auto overscroll-contain px-3 py-2 space-y-0.5"
+          style={{ WebkitOverflowScrolling: "touch" as any }}
+        >
+          {messages.map((msg) => (
+            <ChatMessageItem key={msg.id} msg={msg} isAdmin={isAdmin} isChatMod={isChatMod} chatModUsernames={chatModUsernames} currentUsername={username} onPin={handlePin} onDelete={handleDelete} onBlock={onBlockUser} onToggleMod={onToggleChatMod} onBanUser={onBanUser} onReply={handleReply} formatTime={formatTime} />
+          ))}
+          {messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <span className="text-3xl">💬</span>
+              <p className="mt-2 text-xs text-muted-foreground">Belum ada pesan. Mulai percakapan!</p>
+            </div>
+          )}
+        </div>
+        {showJumpToBottom && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom(true)}
+            className="absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary px-3 py-1.5 text-[10px] font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 active:scale-95"
+            title="Pesan terbaru"
+          >
+            ↓ Pesan baru
+          </button>
         )}
       </div>
 

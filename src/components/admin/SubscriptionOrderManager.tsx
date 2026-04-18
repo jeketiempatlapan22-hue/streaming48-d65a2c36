@@ -712,16 +712,16 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       <div className="space-y-3">
         {filteredOrders.map((order) => (
-          <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : deleteSelectedIds.has(order.id) ? "border-destructive bg-destructive/5" : "border-border"}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 flex-1">
+          <div key={order.id} className={`rounded-xl border bg-card p-3 sm:p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : deleteSelectedIds.has(order.id) ? "border-destructive bg-destructive/5" : "border-border"}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
                 <input
                   type="checkbox"
                   checked={deleteSelectedIds.has(order.id)}
                   onChange={() => toggleDeleteSelect(order.id)}
-                  className="mt-1 rounded border-input cursor-pointer"
+                  className="mt-1 rounded border-input cursor-pointer shrink-0"
                 />
-                <div className="flex-1 space-y-1.5">
+                <div className="flex-1 space-y-1.5 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {order.short_id && (
                     <button
@@ -759,12 +759,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 <div className="flex items-center gap-1.5">
                   <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
                   {editPhones[order.id] !== undefined ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                       <Input
                         value={editPhones[order.id]}
                         onChange={(e) => setEditPhones((prev) => ({ ...prev, [order.id]: e.target.value }))}
                         placeholder="+628xx / +60xx"
-                        className="h-7 text-xs w-48"
+                        className="h-7 text-xs w-full max-w-[12rem]"
                       />
                       <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingPhone === order.id}
                         onClick={() => savePhone(order.id)}>
@@ -792,12 +792,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                   <div className="flex items-center gap-1.5">
                     <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
                     {editEmails[order.id] !== undefined ? (
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
                         <Input
                           value={editEmails[order.id]}
                           onChange={(e) => setEditEmails((prev) => ({ ...prev, [order.id]: e.target.value }))}
                           placeholder="Ketik email user..."
-                          className="h-7 text-xs w-48"
+                          className="h-7 text-xs w-full max-w-[12rem]"
                         />
                         <Button size="sm" variant="outline" className="h-7 px-2" disabled={savingEmail === order.id}
                           onClick={() => saveEmail(order.id)}>
@@ -849,7 +849,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 })()}
               </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col gap-2 sm:items-end w-full sm:w-auto">
                 <div className="flex gap-1">
                   {order.payment_method !== "coin" && order.payment_method !== "manual" && order.payment_proof_url && (
                     <button onClick={() => setPreviewImage(order.payment_proof_url)}
@@ -898,9 +898,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       {/* Preview bukti */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Bukti Pembayaran</DialogTitle><DialogDescription>Preview bukti transfer</DialogDescription></DialogHeader>
           {previewImage && <img src={previewImage} alt="Bukti" className="w-full rounded-lg" />}
+          <Button variant="outline" onClick={() => setPreviewImage(null)} className="w-full mt-2">
+            Tutup
+          </Button>
         </DialogContent>
       </Dialog>
 

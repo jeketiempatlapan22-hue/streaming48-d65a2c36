@@ -11,7 +11,7 @@ import SecurityAlert from "@/components/viewer/SecurityAlert";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import type { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
-import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer } from "lucide-react";
+import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer, Calendar, MessageSquare } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
@@ -132,7 +132,36 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
-  const canSelfReset = (maxDevices ?? 1) <= 5;
+  // Single-device tokens: user boleh self-reset. Multi-device (>1): TIDAK boleh.
+  const isMultiDevice = (maxDevices ?? 1) > 1;
+  const canSelfReset = !isMultiDevice;
+
+  // For multi-device: cek apakah ada show terjadwal untuk arahkan user
+  const [hasUpcomingShow, setHasUpcomingShow] = useState<boolean | null>(null);
+  const [waNumber, setWaNumber] = useState<string>("");
+
+  useEffect(() => {
+    if (!isMultiDevice) return;
+    (async () => {
+      try {
+        const [showsRes, settingsRes] = await Promise.all([
+          supabase.rpc("get_public_shows"),
+          supabase.from("site_settings").select("key,value").eq("key", "whatsapp_number").maybeSingle(),
+        ]);
+        const shows = (showsRes.data as any[]) || [];
+        const upcoming = shows.some((s) => {
+          if (s.is_replay) return false;
+          const ts = getShowScheduleTimestamp(s);
+          return typeof ts === "number" && ts >= Date.now() - 6 * 60 * 60 * 1000; // tampilkan show yg masih hari ini
+        });
+        setHasUpcomingShow(upcoming);
+        const wa = (settingsRes.data as any)?.value || "";
+        setWaNumber(wa);
+      } catch {
+        setHasUpcomingShow(false);
+      }
+    })();
+  }, [isMultiDevice]);
 
   // Track local reset attempts (per token, daily window)
   const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
@@ -162,7 +191,6 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
         const newCount = resetCount + 1;
         setResetCount(newCount);
         try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
-        // Broadcast force-logout so the OTHER device immediately exits.
         try {
           const { data: tk } = await supabase.rpc("validate_token", { _code: tokenCode });
           const tid = (tk as any)?.id;
@@ -182,15 +210,80 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
     setResetting(false);
   };
 
+  // === MULTI-DEVICE TOKEN: tampilan "telah penuh" tanpa tombol reset ===
+  if (isMultiDevice) {
+    const waLink = waNumber
+      ? `https://wa.me/${waNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+          `Halo admin, token saya (${tokenCode}) sudah penuh. Mohon bantuan untuk reset.`
+        )}`
+      : "";
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-md rounded-3xl border border-border/60 bg-card/90 backdrop-blur-xl p-6 sm:p-7 shadow-2xl shadow-primary/5">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-destructive/20 to-destructive/5 border border-destructive/30">
+            <Lock className="h-9 w-9 text-destructive" strokeWidth={2.4} />
+          </div>
+
+          <h2 className="mb-2 text-center text-2xl font-bold text-foreground">Token Telah Penuh</h2>
+          <p className="mb-2 text-center text-sm leading-relaxed text-muted-foreground">
+            Kuota perangkat untuk token ini sudah tercapai
+            {typeof maxDevices === "number" ? ` (${maxDevices} perangkat)` : ""}.
+          </p>
+          <p className="mb-6 text-center text-sm leading-relaxed text-muted-foreground">
+            Silakan beli token baru di website kami untuk melanjutkan menonton.
+          </p>
+
+          <div className="space-y-2.5">
+            {hasUpcomingShow === null ? (
+              <div className="flex items-center justify-center py-2">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : hasUpcomingShow ? (
+              <button
+                onClick={() => navigate("/schedule")}
+                className="group relative w-full overflow-hidden rounded-2xl bg-primary px-6 py-3.5 font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+              >
+                <span className="relative z-10 inline-flex items-center justify-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Lihat Jadwal Show
+                </span>
+              </button>
+            ) : waLink ? (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[hsl(var(--success))] px-6 py-3.5 font-bold text-primary-foreground shadow-lg shadow-[hsl(var(--success))]/30 transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+              >
+                <MessageSquare className="h-4 w-4" />
+                Hubungi Admin via WhatsApp
+              </a>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground italic">
+                Belum ada jadwal show. Silakan cek website kami nanti.
+              </p>
+            )}
+
+            <button
+              onClick={() => navigate("/")}
+              className="w-full rounded-2xl border border-border bg-secondary/40 px-6 py-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground active:scale-[0.98]"
+            >
+              Kembali ke Beranda
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === SINGLE-DEVICE TOKEN: bisa self-reset (UI lama) ===
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-md rounded-3xl border border-border/60 bg-card/90 backdrop-blur-xl p-7 shadow-2xl shadow-primary/5">
-        {/* Lock icon */}
+      <div className="w-full max-w-md rounded-3xl border border-border/60 bg-card/90 backdrop-blur-xl p-6 sm:p-7 shadow-2xl shadow-primary/5">
         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 shadow-[0_0_30px_hsl(var(--primary)/0.25)]">
           <Lock className="h-9 w-9 text-primary" strokeWidth={2.4} />
         </div>
 
-        {/* Title + description */}
         <h2 className="mb-2 text-center text-2xl font-bold text-foreground">Link Sudah Digunakan</h2>
         <p className="mb-6 text-center text-sm leading-relaxed text-muted-foreground">
           Link ini sudah digunakan di perangkat lain.<br />
@@ -203,50 +296,41 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
           </div>
         ) : (
           <>
-            {canSelfReset ? (
-              <div className="rounded-2xl border border-border/60 bg-background/40 p-5 mb-3">
-                {/* Remaining attempts */}
-                <p className="text-center text-sm text-muted-foreground mb-3">
-                  Sisa kesempatan reset:{" "}
-                  <span className="font-bold text-primary">{remaining}x</span>{" "}
-                  <span className="text-xs">dari {MAX_RESET_ATTEMPTS}x</span>
-                </p>
+            <div className="rounded-2xl border border-border/60 bg-background/40 p-5 mb-3">
+              <p className="text-center text-sm text-muted-foreground mb-3">
+                Sisa kesempatan reset:{" "}
+                <span className="font-bold text-primary">{remaining}x</span>{" "}
+                <span className="text-xs">dari {MAX_RESET_ATTEMPTS}x</span>
+              </p>
 
-                {/* Progress bar dots */}
-                <div className="mb-5 flex items-center justify-center gap-2">
-                  {Array.from({ length: MAX_RESET_ATTEMPTS }).map((_, i) => {
-                    const filled = i < remaining;
-                    return (
-                      <span
-                        key={i}
-                        className={`h-2 w-12 rounded-full transition-all ${
-                          filled
-                            ? "bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.6)]"
-                            : "bg-muted"
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
+              <div className="mb-5 flex items-center justify-center gap-2">
+                {Array.from({ length: MAX_RESET_ATTEMPTS }).map((_, i) => {
+                  const filled = i < remaining;
+                  return (
+                    <span
+                      key={i}
+                      className={`h-2 w-12 rounded-full transition-all ${
+                        filled
+                          ? "bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.6)]"
+                          : "bg-muted"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
 
-                <button
-                  onClick={handleReset}
-                  disabled={resetting || remaining <= 0}
-                  className="group relative w-full overflow-hidden rounded-2xl bg-primary px-6 py-3.5 font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-                >
-                  <span className="relative z-10 inline-flex items-center justify-center gap-2">
-                    <RotateCcw className={`h-4 w-4 ${resetting ? "animate-spin" : ""}`} />
-                    {resetting ? "Mereset..." : "Reset ke Perangkat Ini"}
-                  </span>
-                  {/* Shine effect */}
-                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-                </button>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-border bg-secondary/30 p-4 text-center text-xs text-muted-foreground mb-3">
-                Token multi-device tidak bisa di-reset sendiri. Silakan hubungi admin untuk reset sesi.
-              </div>
-            )}
+              <button
+                onClick={handleReset}
+                disabled={resetting || remaining <= 0}
+                className="group relative w-full overflow-hidden rounded-2xl bg-primary px-6 py-3.5 font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              >
+                <span className="relative z-10 inline-flex items-center justify-center gap-2">
+                  <RotateCcw className={`h-4 w-4 ${resetting ? "animate-spin" : ""}`} />
+                  {resetting ? "Mereset..." : "Reset ke Perangkat Ini"}
+                </span>
+                <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              </button>
+            </div>
 
             {resetError && (
               <p className="mb-3 text-center text-sm text-destructive">{resetError}</p>
@@ -595,16 +679,17 @@ const LivePage = () => {
               return;
             }
             if (errorText === "device_limit") {
+              const isMulti = (tokenData?.max_devices ?? 1) > 1;
               consecutiveDeviceLimitErrors++;
-              // Auto-reset if within tolerance (covers refresh race conditions)
-              if (consecutiveDeviceLimitErrors <= MAX_DEVICE_LIMIT_TOLERANCE) {
+              // Single-device tokens: auto self-reset (covers refresh race conditions)
+              // Multi-device tokens: NEVER auto-reset — user harus beli ulang.
+              if (!isMulti && consecutiveDeviceLimitErrors <= MAX_DEVICE_LIMIT_TOLERANCE) {
                 console.warn(`[Session] device_limit hit ${consecutiveDeviceLimitErrors}/${MAX_DEVICE_LIMIT_TOLERANCE}, attempting self-reset...`);
                 try {
                   await supabase.rpc("self_reset_token_session" as any, { _token_code: tokenCode, _fingerprint: fpVal });
                 } catch {}
                 return;
               }
-              // Beyond tolerance, show error
               setError("device_limit");
               return;
             }
