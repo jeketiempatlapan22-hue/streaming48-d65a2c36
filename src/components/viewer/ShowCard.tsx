@@ -62,6 +62,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
+  const zoneTimes = formatScheduleAllZones(show.schedule_date, show.schedule_time);
+  const userZone = getUserZoneLabel();
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
