@@ -295,9 +295,94 @@ const RateLimitMonitor = () => {
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setManualIP(ip); setTab("blocked"); }}>
                           Blokir
                         </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {tab === "visitors" && (
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Eye className="h-4 w-4" /> IP Pengunjung Hari Ini
+              </CardTitle>
+              <Badge variant="outline" className="text-[10px]">
+                <Clock className="mr-1 h-2.5 w-2.5" /> Reset 00.00 WIB
+              </Badge>
+            </div>
+            <Input
+              placeholder="Cari IP / path..."
+              value={visitorSearch}
+              onChange={e => setVisitorSearch(e.target.value)}
+              className="h-8 text-xs mt-2"
+            />
+          </CardHeader>
+          <CardContent>
+            {visitors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada data pengunjung hari ini.</p>
+            ) : (
+              <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                {visitors
+                  .filter(v =>
+                    !visitorSearch ||
+                    v.ip_address.includes(visitorSearch) ||
+                    (v.path || "").toLowerCase().includes(visitorSearch.toLowerCase())
+                  )
+                  .map(v => {
+                    const isBlocked = blockedIPs.some(b => b.ip_address === v.ip_address && b.is_active);
+                    return (
+                      <div key={v.id} className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3 gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-sm font-medium text-foreground">{v.ip_address}</span>
+                            <Badge variant="outline" className="text-[10px]">{v.visit_count}x</Badge>
+                            {v.user_id && <Badge variant="secondary" className="text-[10px]">login</Badge>}
+                            {isBlocked && <Badge variant="destructive" className="text-[10px]">blocked</Badge>}
+                            {v.visit_count > 50 && !isBlocked && (
+                              <Badge className="text-[10px] bg-[hsl(var(--warning))]/20 text-[hsl(var(--warning))]">⚠️ banyak</Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                            {v.path || "/"} · {(v.user_agent || "").slice(0, 60)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Terakhir: {new Date(v.last_seen_at).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" })} WIB
+                          </p>
+                        </div>
+                        {!isBlocked && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs shrink-0"
+                            onClick={() => {
+                              setManualIP(v.ip_address);
+                              setManualReason(`Manual block dari IP Monitor (${v.visit_count} visits)`);
+                              setTab("blocked");
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                          >
+                            <Ban className="mr-1 h-3 w-3" /> Blokir
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default RateLimitMonitor;
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
