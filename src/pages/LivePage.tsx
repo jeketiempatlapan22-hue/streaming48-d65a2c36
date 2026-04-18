@@ -162,6 +162,17 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
         const newCount = resetCount + 1;
         setResetCount(newCount);
         try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
+        // Broadcast force-logout so the OTHER device immediately exits.
+        try {
+          const { data: tk } = await supabase.rpc("validate_token", { _code: tokenCode });
+          const tid = (tk as any)?.id;
+          if (tid) {
+            const ch = supabase.channel(`token-reset-${tid}`);
+            await ch.subscribe();
+            await ch.send({ type: "broadcast", event: "force_logout", payload: { source: "self" } });
+            setTimeout(() => supabase.removeChannel(ch), 1500);
+          }
+        } catch {}
         setResetSuccess(true);
         setTimeout(() => window.location.reload(), 900);
       } else {
