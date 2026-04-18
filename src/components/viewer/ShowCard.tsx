@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
-import { parseWIBDateTime, formatScheduleAllZones, getUserZoneLabel } from "@/lib/timeFormat";
+import { parseWIBDateTime, formatScheduleAllZones, getUserZoneLabel, isUserOutsideWIB, formatLocal } from "@/lib/timeFormat";
 
 interface ShowCardProps {
   show: Show;
