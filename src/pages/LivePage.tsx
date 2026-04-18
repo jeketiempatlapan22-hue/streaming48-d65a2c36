@@ -181,6 +181,9 @@ const LivePage = () => {
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
   const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
+  const [activeShowImage, setActiveShowImage] = useState<string | null>(null);
+  const [activeShowDate, setActiveShowDate] = useState<string | null>(null);
+  const [activeShowTime, setActiveShowTime] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
