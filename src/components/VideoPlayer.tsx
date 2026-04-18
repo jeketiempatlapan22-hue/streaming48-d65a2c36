@@ -986,8 +986,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   // ── DevTools detection: pause video + show warning overlay ──
+  // Conservative: only desktop, only when sustained, ignore zoom/DPR/sidebar/orientation noise.
   const [devToolsOpen, setDevToolsOpen] = useState(false);
   useEffect(() => {
+    // Skip entirely on mobile/touch devices and tablets — browser chrome (collapsing
+    // address bars, split view, virtual keyboards) routinely causes >200px size diffs
+    // that produce false positives for normal viewers.
+    const isTouch = typeof window !== "undefined" &&
+      ("ontouchstart" in window || (navigator as any).maxTouchPoints > 0);
+    const isSmallScreen = typeof window !== "undefined" && window.innerWidth < 1024;
+    if (isTouch || isSmallScreen) return;
+    // Skip in iframe/preview contexts
+    try { if (window.self !== window.top) return; } catch { return; }
+
     const pauseAll = () => {
       try {
         if (playlistType === "youtube") {
@@ -1002,30 +1013,28 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     };
 
-    // Use only window-size heuristic (debugger timing causes false pauses on slow devices/YT iframe).
-    // Require sustained detection (2 consecutive checks) to avoid false positives from window resizes,
-    // browser sidebars, or DPR changes.
-    const THRESHOLD = 200;
+    // Higher threshold + require BOTH dimensions to be off (devtools docked side OR bottom),
+    // and require 4 consecutive sustained hits (~6s) to filter resize/zoom noise.
+    const THRESHOLD = 280;
     let positiveHits = 0;
     const check = () => {
-      // Skip detection in iframe/preview context (Lovable preview, embed)
-      if (window.self !== window.top) return;
       if (window.outerWidth === 0) return;
+      // Account for browser zoom: at high zoom, outer-inner diff inflates
+      const dpr = window.devicePixelRatio || 1;
+      if (dpr > 2) return; // skip on high-DPI displays where heuristic is unreliable
 
       const widthDiff = window.outerWidth - window.innerWidth;
       const heightDiff = window.outerHeight - window.innerHeight;
+      // Require diff to be clearly larger than browser chrome (~120-180px typical)
       const open = widthDiff > THRESHOLD || heightDiff > THRESHOLD;
 
-      if (open) {
-        positiveHits++;
-      } else {
-        positiveHits = 0;
-      }
+      if (open) positiveHits++;
+      else positiveHits = Math.max(0, positiveHits - 1);
 
-      const confirmed = positiveHits >= 2;
+      const confirmed = positiveHits >= 4;
       setDevToolsOpen((prev) => {
         if (confirmed && !prev) pauseAll();
-        if (!open && prev) return false;
+        if (!open && positiveHits === 0 && prev) return false;
         return confirmed || prev;
       });
     };

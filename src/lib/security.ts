@@ -26,26 +26,12 @@ export function initSecurityGuard() {
     if ((e.ctrlKey || e.metaKey) && (e.key === "S" || e.key === "s")) { e.preventDefault(); return; }
   });
 
-  // Detect DevTools via debugger timing
-  let devtoolsOpen = false;
-  const checkDevTools = () => {
-    const start = performance.now();
-    // debugger statement causes pause if devtools are open
-    // Using Function constructor to avoid build-time removal
-    try {
-      const check = new Function("debugger");
-      check();
-    } catch {}
-    const duration = performance.now() - start;
-    if (duration > 100 && !devtoolsOpen) {
-      devtoolsOpen = true;
-      // Clear sensitive page content
-      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0a;color:#ef4444;font-family:sans-serif;text-align:center;padding:20px"><div><h1 style="font-size:2rem;margin-bottom:1rem">⛔ Akses Ditolak</h1><p style="color:#888">Developer tools terdeteksi. Halaman ini tidak dapat diakses.</p></div></div>';
-    }
-  };
-
-  // Run check periodically (every 2 seconds)
-  const interval = setInterval(checkDevTools, 2000);
+  // NOTE: Aggressive devtools detection (debugger timing / window-size diff) caused
+  // false positives for normal viewers on slow devices, mobile browsers with collapsing
+  // address bars, tablets with split view, and high-DPR screens. The VideoPlayer has its
+  // own conservative detector that pauses playback if devtools are truly opened.
+  // Here we keep only the keyboard/context-menu deterrents above — no auto-blocking.
+  const interval: ReturnType<typeof setInterval> | null = null;
 
   // Disable drag (prevents dragging images/elements to inspect)
   document.addEventListener("dragstart", (e) => e.preventDefault());
@@ -66,6 +52,6 @@ export function initSecurityGuard() {
   });
 
   return () => {
-    clearInterval(interval);
+    if (interval) clearInterval(interval);
   };
 }
