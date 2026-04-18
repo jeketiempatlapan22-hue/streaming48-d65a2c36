@@ -10,7 +10,7 @@ import SecurityAlert from "@/components/viewer/SecurityAlert";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import type { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
-import { Menu, X, MessageCircle, Home, Phone } from "lucide-react";
+import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
@@ -18,6 +18,7 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { parseWIBDateTime, formatDateWIB } from "@/lib/timeFormat";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
@@ -26,13 +27,33 @@ const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
 
+const MAX_RESET_ATTEMPTS = 3;
+const RESET_KEY_PREFIX = "rt48_reset_count_";
+
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
   const canSelfReset = (maxDevices ?? 1) <= 5;
 
+  // Track local reset attempts (per token, daily window)
+  const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
+  const [resetCount, setResetCount] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return 0;
+      const { count, day } = JSON.parse(raw);
+      const today = new Date().toDateString();
+      return day === today ? Number(count) || 0 : 0;
+    } catch { return 0; }
+  });
+  const remaining = Math.max(0, MAX_RESET_ATTEMPTS - resetCount);
+
   const handleReset = async () => {
+    if (remaining <= 0) {
+      setResetError("Batas reset harian tercapai. Coba lagi besok atau hubungi admin.");
+      return;
+    }
     setResetting(true);
     setResetError("");
     try {
@@ -40,8 +61,11 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
       const { data } = await supabase.rpc("self_reset_token_session" as any, { _token_code: tokenCode, _fingerprint: fp });
       const result = data as any;
       if (result?.success) {
+        const newCount = resetCount + 1;
+        setResetCount(newCount);
+        try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
         setResetSuccess(true);
-        setTimeout(() => window.location.reload(), 1000);
+        setTimeout(() => window.location.reload(), 900);
       } else {
         setResetError(result?.error || "Gagal reset sesi.");
       }
@@ -50,26 +74,82 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-2xl border border-destructive/30 bg-card p-8 text-center">
-        <h2 className="mb-2 text-xl font-bold text-destructive">Batas Perangkat Tercapai</h2>
-        <p className="mb-4 text-muted-foreground">Token sedang digunakan di perangkat lain.</p>
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md rounded-3xl border border-border/60 bg-card/90 backdrop-blur-xl p-7 shadow-2xl shadow-primary/5">
+        {/* Lock icon */}
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/30 shadow-[0_0_30px_hsl(var(--primary)/0.25)]">
+          <Lock className="h-9 w-9 text-primary" strokeWidth={2.4} />
+        </div>
+
+        {/* Title + description */}
+        <h2 className="mb-2 text-center text-2xl font-bold text-foreground">Link Sudah Digunakan</h2>
+        <p className="mb-6 text-center text-sm leading-relaxed text-muted-foreground">
+          Link ini sudah digunakan di perangkat lain.<br />
+          Silahkan reset link ini untuk menggunakan di perangkat ini.
+        </p>
+
         {resetSuccess ? (
-          <p className="text-sm font-medium text-[hsl(var(--success))]">✅ Sesi direset! Memuat ulang...</p>
+          <div className="rounded-2xl border border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/10 p-5 text-center">
+            <p className="text-sm font-semibold text-[hsl(var(--success))]">✅ Sesi direset! Memuat ulang...</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <>
             {canSelfReset ? (
-              <button onClick={handleReset} disabled={resetting} className="w-full rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-                {resetting ? "Mereset..." : "🔄 Reset Sesi (maks 2x/24jam)"}
-              </button>
+              <div className="rounded-2xl border border-border/60 bg-background/40 p-5 mb-3">
+                {/* Remaining attempts */}
+                <p className="text-center text-sm text-muted-foreground mb-3">
+                  Sisa kesempatan reset:{" "}
+                  <span className="font-bold text-primary">{remaining}x</span>{" "}
+                  <span className="text-xs">dari {MAX_RESET_ATTEMPTS}x</span>
+                </p>
+
+                {/* Progress bar dots */}
+                <div className="mb-5 flex items-center justify-center gap-2">
+                  {Array.from({ length: MAX_RESET_ATTEMPTS }).map((_, i) => {
+                    const filled = i < remaining;
+                    return (
+                      <span
+                        key={i}
+                        className={`h-2 w-12 rounded-full transition-all ${
+                          filled
+                            ? "bg-primary shadow-[0_0_10px_hsl(var(--primary)/0.6)]"
+                            : "bg-muted"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={handleReset}
+                  disabled={resetting || remaining <= 0}
+                  className="group relative w-full overflow-hidden rounded-2xl bg-primary px-6 py-3.5 font-bold text-primary-foreground shadow-lg shadow-primary/30 transition-all hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                >
+                  <span className="relative z-10 inline-flex items-center justify-center gap-2">
+                    <RotateCcw className={`h-4 w-4 ${resetting ? "animate-spin" : ""}`} />
+                    {resetting ? "Mereset..." : "Reset ke Perangkat Ini"}
+                  </span>
+                  {/* Shine effect */}
+                  <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                </button>
+              </div>
             ) : (
-              <div className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+              <div className="rounded-2xl border border-border bg-secondary/30 p-4 text-center text-xs text-muted-foreground mb-3">
                 Token multi-device tidak bisa di-reset sendiri. Silakan hubungi admin untuk reset sesi.
               </div>
             )}
-            {resetError && <p className="text-sm text-destructive">{resetError}</p>}
-            <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Ke Beranda</button>
-          </div>
+
+            {resetError && (
+              <p className="mb-3 text-center text-sm text-destructive">{resetError}</p>
+            )}
+
+            <button
+              onClick={() => navigate("/")}
+              className="w-full rounded-2xl border border-border bg-secondary/40 px-6 py-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary/70 hover:text-foreground active:scale-[0.98]"
+            >
+              Kembali ke Beranda
+            </button>
+          </>
         )}
       </div>
     </div>
@@ -93,7 +173,7 @@ const LivePage = () => {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [countdown, setCountdown] = useState("");
+  const [countdown, setCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [showMismatch, setShowMismatch] = useState(false);
@@ -102,6 +182,9 @@ const LivePage = () => {
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
   const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
+  const [activeShowImage, setActiveShowImage] = useState<string | null>(null);
+  const [activeShowDate, setActiveShowDate] = useState<string | null>(null);
+  const [activeShowTime, setActiveShowTime] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
@@ -294,6 +377,9 @@ const LivePage = () => {
         }
         setActiveShowTeam(activeShow?.team || null);
         setActiveShowTitle(activeShow?.title || null);
+        setActiveShowImage(activeShow?.background_image_url || null);
+        setActiveShowDate(activeShow?.schedule_date || null);
+        setActiveShowTime(activeShow?.schedule_time || null);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -450,6 +536,15 @@ const LivePage = () => {
         if (activeShow?.team !== undefined) {
           setActiveShowTeam(activeShow.team || null);
         }
+        if (activeShow?.background_image_url !== undefined) {
+          setActiveShowImage(activeShow.background_image_url || null);
+        }
+        if (activeShow?.schedule_date !== undefined) {
+          setActiveShowDate(activeShow.schedule_date || null);
+        }
+        if (activeShow?.schedule_time !== undefined) {
+          setActiveShowTime(activeShow.schedule_time || null);
+        }
       }
     } catch {}
   }, [syncPlaylists]);
@@ -505,11 +600,33 @@ const LivePage = () => {
   // No polling needed — saves ~60,000 req/hr at 1000 users
 
   useEffect(() => {
-    if (!nextShowTime || stream?.is_live) { setCountdown(""); return; }
-    const target = new Date(nextShowTime).getTime();
-    const update = () => { const d = target - Date.now(); if (d <= 0) { setCountdown(""); return; } setCountdown(`${Math.floor(d/3600000).toString().padStart(2,"0")}:${Math.floor((d%3600000)/60000).toString().padStart(2,"0")}:${Math.floor((d%60000)/1000).toString().padStart(2,"0")}`); };
-    update(); const i = setInterval(update, 1000); return () => clearInterval(i);
-  }, [nextShowTime, stream?.is_live]);
+    if (stream?.is_live) { setCountdown(null); return; }
+    // Priority: explicit nextShowTime > active show schedule (WIB)
+    let targetMs: number | null = null;
+    if (nextShowTime) {
+      const t = new Date(nextShowTime).getTime();
+      if (!isNaN(t)) targetMs = t;
+    }
+    if (targetMs == null && activeShowDate && activeShowTime) {
+      const wib = parseWIBDateTime(activeShowDate, activeShowTime);
+      if (wib != null) targetMs = wib;
+    }
+    if (targetMs == null) { setCountdown(null); return; }
+    const target = targetMs;
+    const update = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) { setCountdown(null); return; }
+      setCountdown({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+      });
+    };
+    update();
+    const i = setInterval(update, 1000);
+    return () => clearInterval(i);
+  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime]);
 
   useEffect(() => { const h = (e: MouseEvent) => { if ((e.target as HTMLElement).closest(".player-area")) e.preventDefault(); }; document.addEventListener("contextmenu", h); return () => document.removeEventListener("contextmenu", h); }, []);
 
@@ -719,9 +836,68 @@ const LivePage = () => {
               )}
             </div>
           ) : (
-            <div className="relative flex aspect-video w-full flex-col items-center justify-center bg-card">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden opacity-30"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div>
-              {countdown ? <div className="text-center"><p className="text-sm text-muted-foreground">Show dimulai dalam</p><p className="mt-2 font-mono text-4xl font-bold text-primary">{countdown}</p></div> : <div className="text-center"><p className="font-mono text-2xl font-bold text-destructive tracking-widest">STREAMING OFFLINE</p><p className="mt-2 text-sm text-muted-foreground">Tidak ada jadwal saat ini</p></div>}
+            <div className="relative aspect-video w-full overflow-hidden bg-card">
+              {/* Background image of active show with blur + dark overlay */}
+              {activeShowImage && (
+                <>
+                  <img
+                    src={activeShowImage}
+                    alt={activeShowTitle || "Show"}
+                    className="absolute inset-0 h-full w-full object-cover scale-110 blur-xl opacity-40"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/85" />
+                </>
+              )}
+              {/* Foreground content */}
+              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-6">
+                {countdown ? (
+                  <>
+                    <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-lg">
+                      Show Belum Dimulai
+                    </h3>
+                    {(activeShowDate || activeShowTime) && (
+                      <p className="mt-1.5 text-center text-xs sm:text-sm text-muted-foreground">
+                        Jadwal: {activeShowDate ? formatDateWIB(activeShowDate) : ""}
+                        {activeShowDate && activeShowTime ? " | " : ""}
+                        {activeShowTime ? `${activeShowTime} WIB` : ""}
+                      </p>
+                    )}
+                    {/* Countdown digital box */}
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-black/55 backdrop-blur-md border border-primary/25 px-4 py-2.5 shadow-[0_0_30px_hsl(var(--primary)/0.18)]">
+                      {[
+                        { v: countdown.d, l: "HARI" },
+                        { v: countdown.h, l: "JAM" },
+                        { v: countdown.m, l: "MENIT" },
+                        { v: countdown.s, l: "DETIK" },
+                      ].map((seg, idx, arr) => (
+                        <div key={seg.l} className="flex items-center gap-2">
+                          <div className="flex flex-col items-center min-w-[36px]">
+                            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-primary tabular-nums leading-none">
+                              {seg.v.toString().padStart(2, "0")}
+                            </span>
+                            <span className="mt-1 text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground">
+                              {seg.l}
+                            </span>
+                          </div>
+                          {idx < arr.length - 1 && (
+                            <span className="text-primary/60 font-bold text-xl pb-3.5">:</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center text-center">
+                    <div className="mb-4 h-16 w-16 rounded-full overflow-hidden opacity-30 ring-2 ring-border">
+                      <img src={logo} alt="RT48" className="h-full w-full object-cover" />
+                    </div>
+                    <p className="font-mono text-xl sm:text-2xl font-bold text-destructive tracking-widest">
+                      STREAMING OFFLINE
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">Tidak ada jadwal saat ini</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
