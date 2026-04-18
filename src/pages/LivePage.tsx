@@ -69,20 +69,24 @@ const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedu
 const resolveDisplayShow = (
   shows: any[] | undefined,
   activeShowId: string | null,
-  isLive: boolean
+  _isLive: boolean
 ) => {
   const list = (shows || []).filter((show) => !show?.is_replay);
-  const activeShow = activeShowId ? list.find((show) => show.id === activeShowId) || null : null;
+  // Admin's chosen active show ALWAYS wins — background, title, schedule must follow admin selection.
+  if (activeShowId) {
+    const adminPick = list.find((show) => show.id === activeShowId);
+    if (adminPick) return adminPick;
+  }
+  // Only fall back to upcoming schedule when admin hasn't picked a show.
   const scheduled = list
     .map((show) => ({ show, ts: getShowScheduleTimestamp(show) }))
     .filter((entry): entry is { show: any; ts: number } => typeof entry.ts === "number" && !Number.isNaN(entry.ts))
     .sort((a, b) => a.ts - b.ts);
-
-  if (isLive) {
-    return activeShow || scheduled.find((entry) => entry.ts <= Date.now() + 6 * 3600 * 1000)?.show || scheduled[0]?.show || null;
-  }
-
-  return scheduled.find((entry) => entry.ts >= Date.now())?.show || scheduled[scheduled.length - 1]?.show || activeShow || null;
+  return (
+    scheduled.find((entry) => entry.ts >= Date.now())?.show ||
+    scheduled[scheduled.length - 1]?.show ||
+    null
+  );
 };
 
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
