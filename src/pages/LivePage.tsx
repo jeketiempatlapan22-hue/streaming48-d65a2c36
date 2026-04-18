@@ -965,10 +965,11 @@ const LivePage = () => {
                     <img
                       src={bgUrl}
                       alt={activeShowTitle || "Show"}
-                      className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-60"
-                      style={{ filter: "blur(28px)" }}
+                      className="absolute inset-0 h-full w-full object-cover scale-110 opacity-85"
+                      style={{ filter: "blur(10px)" }}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/40 to-background/80" />
+                    {/* Lighter overlay so the show artwork colors stay visible */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/15 to-background/55" />
                   </>
                 ) : (
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10" />
