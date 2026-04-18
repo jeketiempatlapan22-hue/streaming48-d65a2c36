@@ -175,6 +175,14 @@ const TokenFactory = () => {
 
   const resetSessions = async (id: string) => {
     await supabase.from("token_sessions").delete().eq("token_id", id);
+    // Force-logout broadcast: any LivePage subscribed to `token-reset-${id}` will
+    // immediately see the "session terminated" screen instead of waiting 180s for polling.
+    try {
+      const ch = supabase.channel(`token-reset-${id}`);
+      await ch.subscribe();
+      await ch.send({ type: "broadcast", event: "force_logout", payload: { source: "admin" } });
+      setTimeout(() => supabase.removeChannel(ch), 1500);
+    } catch {}
     await fetchTokens();
     toast({ title: "Session direset" });
   };
