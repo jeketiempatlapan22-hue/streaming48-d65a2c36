@@ -42,12 +42,17 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
     const target = parseDateTime(dateStr, timeStr);
     if (!target) return;
 
+    // Patokan target = WIB. Tampilan countdown digeser ke wall-clock zona user
+    // sehingga user WITA melihat +1 jam, WIT +2 jam dari angka WIB.
+    const userOffsetMin = -new Date().getTimezoneOffset();
+    const zoneShiftMs = (userOffsetMin - 7 * 60) * 60 * 1000;
+
     const update = () => {
       const now = new Date();
-      const diff = target.getTime() - now.getTime();
+      const realDiff = target.getTime() - now.getTime();
 
-      if (diff <= 0) {
-        if (diff > -10800000) {
+      if (realDiff <= 0) {
+        if (realDiff > -10800000) {
           setIsLive(true);
           setIsPast(false);
         } else {
@@ -58,13 +63,21 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
         return;
       }
 
+      const displayDiff = realDiff + zoneShiftMs;
+      if (displayDiff <= 0) {
+        setIsLive(false);
+        setIsPast(false);
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+
       setIsLive(false);
       setIsPast(false);
       setTimeLeft({
-        days: Math.floor(diff / 86400000),
-        hours: Math.floor((diff % 86400000) / 3600000),
-        minutes: Math.floor((diff % 3600000) / 60000),
-        seconds: Math.floor((diff % 60000) / 1000),
+        days: Math.floor(displayDiff / 86400000),
+        hours: Math.floor((displayDiff % 86400000) / 3600000),
+        minutes: Math.floor((displayDiff % 3600000) / 60000),
+        seconds: Math.floor((displayDiff % 60000) / 1000),
       });
     };
 
