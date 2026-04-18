@@ -662,35 +662,44 @@ const LivePage = () => {
 
   useEffect(() => {
     if (stream?.is_live) { setCountdown(null); return; }
-    // Always treat target time as WIB (UTC+7), regardless of viewer's local zone.
-    // This ensures user WIB & WITA see the SAME remaining time (countdown is absolute).
-    let targetMs: number | null = null;
+    // Target time direference sebagai WIB wall-clock (UTC+7).
+    // Countdown ditampilkan dalam wall-clock zona LOKAL user — jadi user WITA
+    // (UTC+8) melihat angka 1 jam lebih besar dari user WIB, user WIT (UTC+9) 2 jam lebih besar.
+    let targetWibMs: number | null = null;
     if (nextShowTime) {
-      // datetime-local format: "YYYY-MM-DDTHH:mm" (no timezone) — interpret as WIB wall-clock
       const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if (m) {
         const [, y, mo, d, h, mi] = m;
-        // WIB = UTC+7, so subtract 7h from the wall-clock UTC value
-        targetMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
+        // Wall-clock WIB → UTC ms (subtract 7h)
+        targetWibMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
       } else {
         const t = new Date(nextShowTime).getTime();
-        if (!isNaN(t)) targetMs = t;
+        if (!isNaN(t)) targetWibMs = t;
       }
     }
-    if (targetMs == null && activeShowDate && activeShowTime) {
+    if (targetWibMs == null && activeShowDate && activeShowTime) {
       const wib = parseWIBDateTime(activeShowDate, activeShowTime);
-      if (wib != null) targetMs = wib;
+      if (wib != null) targetWibMs = wib;
     }
-    if (targetMs == null) { setCountdown(null); return; }
-    const target = targetMs;
+    if (targetWibMs == null) { setCountdown(null); return; }
+
+    // Offset zona user (menit) relatif terhadap UTC. WIB = +420.
+    // userOffsetMin - WIB(420) = selisih jam yang ditambahkan ke countdown.
+    const userOffsetMin = -new Date().getTimezoneOffset();
+    const zoneShiftMs = (userOffsetMin - 7 * 60) * 60 * 1000;
+    const target = targetWibMs;
+
     const update = () => {
-      const diff = target - Date.now();
-      if (diff <= 0) { setCountdown(null); return; }
+      const realDiff = target - Date.now();
+      if (realDiff <= 0) { setCountdown(null); return; }
+      // Tambah offset zona agar wall-clock countdown sesuai zona user.
+      const displayDiff = realDiff + zoneShiftMs;
+      if (displayDiff <= 0) { setCountdown(null); return; }
       setCountdown({
-        d: Math.floor(diff / 86400000),
-        h: Math.floor((diff % 86400000) / 3600000),
-        m: Math.floor((diff % 3600000) / 60000),
-        s: Math.floor((diff % 60000) / 1000),
+        d: Math.floor(displayDiff / 86400000),
+        h: Math.floor((displayDiff % 86400000) / 3600000),
+        m: Math.floor((displayDiff % 3600000) / 60000),
+        s: Math.floor((displayDiff % 60000) / 1000),
       });
     };
     update();
