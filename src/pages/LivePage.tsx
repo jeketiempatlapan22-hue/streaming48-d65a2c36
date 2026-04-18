@@ -376,6 +376,9 @@ const LivePage = () => {
         }
         setActiveShowTeam(activeShow?.team || null);
         setActiveShowTitle(activeShow?.title || null);
+        setActiveShowImage(activeShow?.background_image_url || null);
+        setActiveShowDate(activeShow?.schedule_date || null);
+        setActiveShowTime(activeShow?.schedule_time || null);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -531,6 +534,15 @@ const LivePage = () => {
         }
         if (activeShow?.team !== undefined) {
           setActiveShowTeam(activeShow.team || null);
+        }
+        if (activeShow?.background_image_url !== undefined) {
+          setActiveShowImage(activeShow.background_image_url || null);
+        }
+        if (activeShow?.schedule_date !== undefined) {
+          setActiveShowDate(activeShow.schedule_date || null);
+        }
+        if (activeShow?.schedule_time !== undefined) {
+          setActiveShowTime(activeShow.schedule_time || null);
         }
       }
     } catch {}
