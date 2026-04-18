@@ -672,43 +672,34 @@ const LivePage = () => {
 
   useEffect(() => {
     if (stream?.is_live) { setCountdown(null); return; }
-    // Target time direference sebagai WIB wall-clock (UTC+7).
-    // Countdown ditampilkan dalam wall-clock zona LOKAL user — jadi user WITA
-    // (UTC+8) melihat angka 1 jam lebih besar dari user WIB, user WIT (UTC+9) 2 jam lebih besar.
-    let targetWibMs: number | null = null;
+    // Target time = WIB wall-clock yang dikonversi ke UTC ms.
+    // Countdown menampilkan DURASI sampai event (sama untuk semua zona waktu user).
+    let targetUtcMs: number | null = null;
     const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime });
     if (scheduledShowMs != null) {
-      targetWibMs = scheduledShowMs;
+      targetUtcMs = scheduledShowMs;
     } else if (nextShowTime) {
       const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if (m) {
         const [, y, mo, d, h, mi] = m;
         // Wall-clock WIB → UTC ms (subtract 7h)
-        targetWibMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
+        targetUtcMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
       } else {
         const t = new Date(nextShowTime).getTime();
-        if (!isNaN(t)) targetWibMs = t;
+        if (!isNaN(t)) targetUtcMs = t;
       }
     }
-    if (targetWibMs == null) { setCountdown(null); return; }
+    if (targetUtcMs == null) { setCountdown(null); return; }
 
-    // Offset zona user (menit) relatif terhadap UTC. WIB = +420.
-    // userOffsetMin - WIB(420) = selisih jam yang ditambahkan ke countdown.
-    const userOffsetMin = -new Date().getTimezoneOffset();
-    const zoneShiftMs = (userOffsetMin - 7 * 60) * 60 * 1000;
-    const target = targetWibMs;
-
+    const target = targetUtcMs;
     const update = () => {
-      const realDiff = target - Date.now();
-      if (realDiff <= 0) { setCountdown(null); return; }
-      // Tambah offset zona agar wall-clock countdown sesuai zona user.
-      const displayDiff = realDiff + zoneShiftMs;
-      if (displayDiff <= 0) { setCountdown(null); return; }
+      const diff = target - Date.now();
+      if (diff <= 0) { setCountdown(null); return; }
       setCountdown({
-        d: Math.floor(displayDiff / 86400000),
-        h: Math.floor((displayDiff % 86400000) / 3600000),
-        m: Math.floor((displayDiff % 3600000) / 60000),
-        s: Math.floor((displayDiff % 60000) / 1000),
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
       });
     };
     update();
