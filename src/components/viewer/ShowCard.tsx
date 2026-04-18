@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
-import { parseWIBDateTime, formatScheduleAllZones, getUserZoneLabel, isUserOutsideWIB, formatLocal } from "@/lib/timeFormat";
+import { parseWIBDateTime, getUserZoneLabel, isUserOutsideWIB, formatLocal } from "@/lib/timeFormat";
 
 interface ShowCardProps {
   show: Show;
@@ -62,8 +62,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
 }, ref) => {
   const countdown = useCountdown(show.schedule_date, show.schedule_time);
-  const zoneTimes = formatScheduleAllZones(show.schedule_date, show.schedule_time);
   const userZone = getUserZoneLabel();
+  const scheduleTs = parseShowDateTime(show.schedule_date, show.schedule_time);
+  const outsideWIB = scheduleTs != null && isUserOutsideWIB();
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
@@ -177,24 +178,26 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3 text-primary/70 shrink-0" />
               <span className="font-semibold text-primary">
-                {(zoneTimes?.wib || show.schedule_time.replace(/\./g, ":"))}
-                <span className="ml-0.5 text-[9px] opacity-70 font-normal">WIB</span>
+                {outsideWIB
+                  ? formatLocal(scheduleTs!, { hour: "2-digit", minute: "2-digit" })
+                  : (scheduleTs != null
+                      ? formatLocal(scheduleTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)
+                      : show.schedule_time.replace(/\./g, ":"))}
+                <span className="ml-0.5 text-[9px] opacity-70 font-normal">{outsideWIB ? userZone : "WIB"}</span>
               </span>
             </div>
           )}
-          {(() => {
-            const ts = parseShowDateTime(show.schedule_date, show.schedule_time);
-            if (ts == null || !isUserOutsideWIB()) return null;
-            const localTime = formatLocal(ts, { hour: "2-digit", minute: "2-digit" });
-            return (
-              <div className="flex items-center gap-1 text-primary/90">
-                <span className="text-[10px]">🌐</span>
-                <span>
-                  Waktu Anda: <span className="font-semibold">{localTime} {userZone}</span>
+          {outsideWIB && scheduleTs != null && (
+            <div className="flex items-center gap-1 text-muted-foreground/80">
+              <span className="text-[10px]">🌐</span>
+              <span>
+                Jadwal asli:{" "}
+                <span className="font-semibold">
+                  {formatLocal(scheduleTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)} WIB
                 </span>
-              </div>
-            );
-          })()}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Price row */}
