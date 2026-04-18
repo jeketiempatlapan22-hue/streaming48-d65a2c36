@@ -836,9 +836,68 @@ const LivePage = () => {
               )}
             </div>
           ) : (
-            <div className="relative flex aspect-video w-full flex-col items-center justify-center bg-card">
-              <div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden opacity-30"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div>
-              {countdown ? <div className="text-center"><p className="text-sm text-muted-foreground">Show dimulai dalam</p><p className="mt-2 font-mono text-4xl font-bold text-primary">{countdown}</p></div> : <div className="text-center"><p className="font-mono text-2xl font-bold text-destructive tracking-widest">STREAMING OFFLINE</p><p className="mt-2 text-sm text-muted-foreground">Tidak ada jadwal saat ini</p></div>}
+            <div className="relative aspect-video w-full overflow-hidden bg-card">
+              {/* Background image of active show with blur + dark overlay */}
+              {activeShowImage && (
+                <>
+                  <img
+                    src={activeShowImage}
+                    alt={activeShowTitle || "Show"}
+                    className="absolute inset-0 h-full w-full object-cover scale-110 blur-xl opacity-40"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/50 to-background/85" />
+                </>
+              )}
+              {/* Foreground content */}
+              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-6">
+                {countdown ? (
+                  <>
+                    <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-lg">
+                      Show Belum Dimulai
+                    </h3>
+                    {(activeShowDate || activeShowTime) && (
+                      <p className="mt-1.5 text-center text-xs sm:text-sm text-muted-foreground">
+                        Jadwal: {activeShowDate ? formatDateWIB(activeShowDate) : ""}
+                        {activeShowDate && activeShowTime ? " | " : ""}
+                        {activeShowTime ? `${activeShowTime} WIB` : ""}
+                      </p>
+                    )}
+                    {/* Countdown digital box */}
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-black/55 backdrop-blur-md border border-primary/25 px-4 py-2.5 shadow-[0_0_30px_hsl(var(--primary)/0.18)]">
+                      {[
+                        { v: countdown.d, l: "HARI" },
+                        { v: countdown.h, l: "JAM" },
+                        { v: countdown.m, l: "MENIT" },
+                        { v: countdown.s, l: "DETIK" },
+                      ].map((seg, idx, arr) => (
+                        <div key={seg.l} className="flex items-center gap-2">
+                          <div className="flex flex-col items-center min-w-[36px]">
+                            <span className="font-mono text-2xl sm:text-3xl font-extrabold text-primary tabular-nums leading-none">
+                              {seg.v.toString().padStart(2, "0")}
+                            </span>
+                            <span className="mt-1 text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground">
+                              {seg.l}
+                            </span>
+                          </div>
+                          {idx < arr.length - 1 && (
+                            <span className="text-primary/60 font-bold text-xl pb-3.5">:</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center text-center">
+                    <div className="mb-4 h-16 w-16 rounded-full overflow-hidden opacity-30 ring-2 ring-border">
+                      <img src={logo} alt="RT48" className="h-full w-full object-cover" />
+                    </div>
+                    <p className="font-mono text-xl sm:text-2xl font-bold text-destructive tracking-widest">
+                      STREAMING OFFLINE
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">Tidak ada jadwal saat ini</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
