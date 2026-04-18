@@ -140,3 +140,28 @@ export function getUserZoneLabel(): string {
   const m = abs % 60;
   return `UTC${sign}${h}${m ? `:${String(m).padStart(2, "0")}` : ""}`;
 }
+
+/**
+ * Given a WIB date+time string (e.g. dateStr "1 maret 2024", timeStr "19:00"),
+ * return formatted times for WIB, WITA, and WIT zones.
+ * Useful for show schedule cards so viewers in any Indonesian zone know the start time.
+ */
+export function formatScheduleAllZones(
+  dateStr: string,
+  timeStr: string
+): { wib: string; wita: string; wit: string } | null {
+  const ts = parseWIBDateTime(dateStr, timeStr);
+  if (ts == null) return null;
+  const fmt = (tz: string) =>
+    new Date(ts).toLocaleTimeString("id-ID", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: tz,
+      hour12: false,
+    });
+  return {
+    wib: fmt("Asia/Jakarta"),
+    wita: fmt("Asia/Makassar"),
+    wit: fmt("Asia/Jayapura"),
+  };
+}
