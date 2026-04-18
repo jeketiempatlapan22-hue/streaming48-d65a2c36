@@ -982,6 +982,52 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     return () => document.removeEventListener("keydown", handler, true);
   }, []);
 
+  // ── DevTools detection: pause video + show warning overlay ──
+  const [devToolsOpen, setDevToolsOpen] = useState(false);
+  useEffect(() => {
+    const pauseAll = () => {
+      try {
+        if (playlistType === "youtube") {
+          if (ytReadyRef.current && ytPlayerRef.current) {
+            try { ytPlayerRef.current.pauseVideo(); } catch {}
+          } else {
+            ytIframeCommand("pauseVideo");
+          }
+        } else if (videoRef.current) {
+          videoRef.current.pause();
+        }
+      } catch {}
+    };
+
+    const THRESHOLD = 170;
+    const check = () => {
+      const widthDiff = window.outerWidth - window.innerWidth;
+      const heightDiff = window.outerHeight - window.innerHeight;
+      // Ignore false positives on mobile/zoomed (outerWidth=0 in some embeds)
+      const sizeOpen = window.outerWidth > 0 && (widthDiff > THRESHOLD || heightDiff > THRESHOLD);
+
+      // Timing-based detection via debugger statement
+      let timingOpen = false;
+      const start = performance.now();
+      try {
+        const fn = new Function("debugger");
+        fn();
+      } catch {}
+      const duration = performance.now() - start;
+      if (duration > 100) timingOpen = true;
+
+      const open = sizeOpen || timingOpen;
+      setDevToolsOpen((prev) => {
+        if (open && !prev) pauseAll();
+        return open;
+      });
+    };
+
+    check();
+    const id = setInterval(check, 1500);
+    return () => clearInterval(id);
+  }, [playlistType, ytIframeCommand]);
+
   // YouTube iframe URL — pakai youtube-nocookie.com (privacy-enhanced) + semua param anti-overlay
   const ytIframeUrl = playlistType === "youtube"
     ? `https://www.youtube-nocookie.com/embed/${extractVideoId(playlistUrl)}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&showinfo=0&cc_load_policy=0&origin=${encodeURIComponent(window.location.origin)}&enablejsapi=1`
