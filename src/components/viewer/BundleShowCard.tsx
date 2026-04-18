@@ -20,6 +20,8 @@ interface BundleShowCardProps {
 const BundleShowCard = forwardRef<HTMLDivElement, BundleShowCardProps>(
   ({ show, index, onBuy, onCoinBuy, redeemedToken }, ref) => {
     const durationDays = show.bundle_duration_days || 30;
+    const zoneTimes = formatScheduleAllZones(show.schedule_date, show.schedule_time);
+    const userZone = getUserZoneLabel();
 
     return (
       <motion.div
