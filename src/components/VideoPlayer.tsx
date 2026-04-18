@@ -1002,31 +1002,34 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     };
 
-    const THRESHOLD = 170;
+    // Use only window-size heuristic (debugger timing causes false pauses on slow devices/YT iframe).
+    // Require sustained detection (2 consecutive checks) to avoid false positives from window resizes,
+    // browser sidebars, or DPR changes.
+    const THRESHOLD = 200;
+    let positiveHits = 0;
     const check = () => {
+      // Skip detection in iframe/preview context (Lovable preview, embed)
+      if (window.self !== window.top) return;
+      if (window.outerWidth === 0) return;
+
       const widthDiff = window.outerWidth - window.innerWidth;
       const heightDiff = window.outerHeight - window.innerHeight;
-      // Ignore false positives on mobile/zoomed (outerWidth=0 in some embeds)
-      const sizeOpen = window.outerWidth > 0 && (widthDiff > THRESHOLD || heightDiff > THRESHOLD);
+      const open = widthDiff > THRESHOLD || heightDiff > THRESHOLD;
 
-      // Timing-based detection via debugger statement
-      let timingOpen = false;
-      const start = performance.now();
-      try {
-        const fn = new Function("debugger");
-        fn();
-      } catch {}
-      const duration = performance.now() - start;
-      if (duration > 100) timingOpen = true;
+      if (open) {
+        positiveHits++;
+      } else {
+        positiveHits = 0;
+      }
 
-      const open = sizeOpen || timingOpen;
+      const confirmed = positiveHits >= 2;
       setDevToolsOpen((prev) => {
-        if (open && !prev) pauseAll();
-        return open;
+        if (confirmed && !prev) pauseAll();
+        if (!open && prev) return false;
+        return confirmed || prev;
       });
     };
 
-    check();
     const id = setInterval(check, 1500);
     return () => clearInterval(id);
   }, [playlistType, ytIframeCommand]);
