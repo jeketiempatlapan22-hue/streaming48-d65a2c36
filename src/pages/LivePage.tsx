@@ -26,10 +26,11 @@ const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
 
-const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void }) => {
+const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
+  const canSelfReset = (maxDevices ?? 1) <= 5;
 
   const handleReset = async () => {
     setResetting(true);
@@ -57,9 +58,15 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
           <p className="text-sm font-medium text-[hsl(var(--success))]">✅ Sesi direset! Memuat ulang...</p>
         ) : (
           <div className="space-y-3">
-            <button onClick={handleReset} disabled={resetting} className="w-full rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {resetting ? "Mereset..." : "🔄 Reset Sesi (maks 2x/24jam)"}
-            </button>
+            {canSelfReset ? (
+              <button onClick={handleReset} disabled={resetting} className="w-full rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {resetting ? "Mereset..." : "🔄 Reset Sesi (maks 2x/24jam)"}
+              </button>
+            ) : (
+              <div className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+                Token multi-device tidak bisa di-reset sendiri. Silakan hubungi admin untuk reset sesi.
+              </div>
+            )}
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Ke Beranda</button>
           </div>
@@ -557,7 +564,7 @@ const LivePage = () => {
 
   if (showReplayBlocked) return (<div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="w-full max-w-md rounded-2xl border border-accent/30 bg-card p-8 text-center"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-accent/10"><span className="text-4xl">🎬</span></div><h2 className="mb-2 text-xl font-bold text-foreground">Show Telah Berakhir</h2><p className="text-sm text-muted-foreground mb-4">Show ini telah dijadikan replay. Akses streaming langsung tidak tersedia lagi.</p><p className="text-xs text-muted-foreground mb-6">Kamu bisa menonton replay dengan menukarkan koin di halaman utama.</p><button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🏠 Ke Beranda</button></div></div>);
 
-  if (error === "device_limit") return (<DeviceLimitScreen tokenCode={tokenCode} getFingerprint={getFingerprint} navigate={navigate} />);
+  if (error === "device_limit") return (<DeviceLimitScreen tokenCode={tokenCode} getFingerprint={getFingerprint} navigate={navigate} maxDevices={tokenData?.max_devices} />);
 
   if (error === "no_token") return (<div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><h2 className="mb-2 text-xl font-bold text-foreground">Akses Streaming</h2><p className="mb-6 text-muted-foreground">{purchaseMessage || "Beli token untuk mengakses streaming."}</p>{whatsappNumber && <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground">💬 Hubungi WhatsApp</a>}<div className="mt-4"><a href="/" className="text-sm text-primary hover:underline">← Kembali</a></div></div></div>);
 
