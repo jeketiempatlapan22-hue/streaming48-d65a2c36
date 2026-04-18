@@ -166,18 +166,33 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           <p className="text-[11px] font-medium text-muted-foreground">{show.category_member}</p>
         )}
 
-        {/* Meta row: date + time + price in one compact area */}
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        {/* Meta row: date + time per zone */}
+        <div className="space-y-1 text-[11px] text-muted-foreground">
           {show.schedule_date && (
-            <span className="flex items-center gap-1">
+            <div className="flex items-center gap-1">
               <Calendar className="h-3 w-3 text-primary/70" />{show.schedule_date}
-            </span>
+            </div>
           )}
-          {show.schedule_time && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3 text-primary/70" />{show.schedule_time}
-            </span>
-          )}
+          {show.schedule_time && zoneTimes ? (
+            <div className="flex items-start gap-1">
+              <Clock className="h-3 w-3 text-primary/70 mt-0.5 shrink-0" />
+              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                <span className={userZone === "WIB" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wib} <span className="text-[9px] opacity-70">WIB</span>
+                </span>
+                <span className={userZone === "WITA" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wita} <span className="text-[9px] opacity-70">WITA</span>
+                </span>
+                <span className={userZone === "WIT" ? "font-semibold text-primary" : ""}>
+                  {zoneTimes.wit} <span className="text-[9px] opacity-70">WIT</span>
+                </span>
+              </div>
+            </div>
+          ) : show.schedule_time ? (
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3 text-primary/70" />{show.schedule_time} <span className="text-[9px] opacity-70">WIB</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Price row */}
