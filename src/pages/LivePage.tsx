@@ -952,10 +952,15 @@ const LivePage = () => {
                     <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-lg">
                       Show Belum Dimulai
                     </h3>
+                    {activeShowTitle && (
+                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow">
+                        🎭 {activeShowTitle}
+                      </p>
+                    )}
                     {(activeShowDate || activeShowTime) && (
-                      <p className="mt-1.5 text-center text-xs sm:text-sm text-muted-foreground">
-                        Jadwal: {activeShowDate ? formatDateWIB(activeShowDate) : ""}
-                        {activeShowDate && activeShowTime ? " | " : ""}
+                      <p className="mt-1 text-center text-xs sm:text-sm text-muted-foreground">
+                        📅 {activeShowDate ? formatDateWIB(activeShowDate) : ""}
+                        {activeShowDate && activeShowTime ? " • 🕐 " : ""}
                         {activeShowTime ? `${activeShowTime} WIB` : ""}
                       </p>
                     )}
