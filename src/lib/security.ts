@@ -52,6 +52,6 @@ export function initSecurityGuard() {
   });
 
   return () => {
-    clearInterval(interval);
+    if (interval) clearInterval(interval);
   };
 }
