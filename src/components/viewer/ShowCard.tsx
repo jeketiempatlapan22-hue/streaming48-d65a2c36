@@ -305,7 +305,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                       <div className="rounded-lg border border-muted bg-muted/30 p-3 text-center space-y-1.5">
                         <p className="text-[10px] text-muted-foreground">⏳ Menunggu Live</p>
                         <p className="font-mono text-xl font-bold text-primary">{countdownText}</p>
-                        <p className="text-[9px] text-muted-foreground">{show.schedule_date} • {show.schedule_time}</p>
+                        <p className="text-[9px] text-muted-foreground">{show.schedule_date} • {show.schedule_time} WIB</p>
                       </div>
                     );
                   }
