@@ -631,9 +631,15 @@ const LivePage = () => {
     const ch = supabase.channel("live-combined-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
         if (p.new) {
+          // Auto-switch to live: update stream state immediately so player flips from countdown → video.
           setStream(p.new);
+          // Refresh playlists & active show metadata so the player picks up admin's latest config.
           refreshPlaylists();
         }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "playlists" }, () => {
+        // Admin added/edited/removed a playlist while live — pick it up immediately.
+        refreshPlaylists();
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, (p: any) => {
         if (p.new?.key === "player_animation") {
