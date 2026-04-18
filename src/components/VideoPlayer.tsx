@@ -94,10 +94,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, [decryptUrl]);
 
   // ── Helper: send postMessage to YT iframe ──
+  // Use "*" because the iframe may be hosted on either youtube.com (API) or youtube-nocookie.com (fallback)
   const ytIframeCommand = useCallback((func: string) => {
     const iframe = ytIframeRef.current;
     if (iframe?.contentWindow) {
-      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: "" }), YT_ORIGIN);
+      iframe.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: "" }), "*");
     }
   }, []);
 
@@ -776,8 +777,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     }
 
     // Listen for YT iframe postMessage state updates (works for both API and iframe fallback)
+    // Accept both youtube.com (API host) and youtube-nocookie.com (fallback host)
     const onYtMessage = (e: MessageEvent) => {
-      if (e.origin !== YT_ORIGIN || destroyed) return;
+      if (destroyed) return;
+      if (e.origin !== "https://www.youtube.com" && e.origin !== "https://www.youtube-nocookie.com") return;
       try {
         const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
         if (d?.event === "onStateChange" || d?.info?.playerState !== undefined) {
@@ -999,31 +1002,34 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } catch {}
     };
 
-    const THRESHOLD = 170;
+    // Use only window-size heuristic (debugger timing causes false pauses on slow devices/YT iframe).
+    // Require sustained detection (2 consecutive checks) to avoid false positives from window resizes,
+    // browser sidebars, or DPR changes.
+    const THRESHOLD = 200;
+    let positiveHits = 0;
     const check = () => {
+      // Skip detection in iframe/preview context (Lovable preview, embed)
+      if (window.self !== window.top) return;
+      if (window.outerWidth === 0) return;
+
       const widthDiff = window.outerWidth - window.innerWidth;
       const heightDiff = window.outerHeight - window.innerHeight;
-      // Ignore false positives on mobile/zoomed (outerWidth=0 in some embeds)
-      const sizeOpen = window.outerWidth > 0 && (widthDiff > THRESHOLD || heightDiff > THRESHOLD);
+      const open = widthDiff > THRESHOLD || heightDiff > THRESHOLD;
 
-      // Timing-based detection via debugger statement
-      let timingOpen = false;
-      const start = performance.now();
-      try {
-        const fn = new Function("debugger");
-        fn();
-      } catch {}
-      const duration = performance.now() - start;
-      if (duration > 100) timingOpen = true;
+      if (open) {
+        positiveHits++;
+      } else {
+        positiveHits = 0;
+      }
 
-      const open = sizeOpen || timingOpen;
+      const confirmed = positiveHits >= 2;
       setDevToolsOpen((prev) => {
-        if (open && !prev) pauseAll();
-        return open;
+        if (confirmed && !prev) pauseAll();
+        if (!open && prev) return false;
+        return confirmed || prev;
       });
     };
 
-    check();
     const id = setInterval(check, 1500);
     return () => clearInterval(id);
   }, [playlistType, ytIframeCommand]);
