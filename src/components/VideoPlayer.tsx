@@ -777,8 +777,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     }
 
     // Listen for YT iframe postMessage state updates (works for both API and iframe fallback)
+    // Accept both youtube.com (API host) and youtube-nocookie.com (fallback host)
     const onYtMessage = (e: MessageEvent) => {
-      if (e.origin !== YT_ORIGIN || destroyed) return;
+      if (destroyed) return;
+      if (e.origin !== "https://www.youtube.com" && e.origin !== "https://www.youtube-nocookie.com") return;
       try {
         const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
         if (d?.event === "onStateChange" || d?.info?.playerState !== undefined) {
