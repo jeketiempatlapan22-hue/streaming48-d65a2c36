@@ -1,122 +1,47 @@
 
 
-# Auto-Reset Token, Command Reset/Maketoken, Bundle Show, dan Multi-Device Token
+## Diagnosis
 
-## Ringkasan
-Implementasi 5 fitur: (1) auto-reset sesi token >3 hari setiap 24 jam, (2) command `/resettoken` sudah berfungsi — hanya verifikasi, (3) command `/maketoken` untuk token custom durasi, (4) kartu bundle show dengan tampilan berbeda dan multi-replay password, (5) token multi-device yang tidak bisa di-reset user.
+Dari screenshot: "Jadwal: 17 April 2026 | 19.00 WIB" muncul TANPA judul "Dream Bakudan" dan TANPA background. Ini berarti `activeShowTitle` & `activeShowImage` kosong → countdown jatuh ke fallback `next_show_time` (yang tersimpan di `site_settings` = 17 April, sisa dari pengaturan lama admin).
 
----
+**Root cause utama:** `fetchDisplayShow` mengandalkan `get_public_shows()` RPC + fallback select `shows`. Jika RPC timeout / show admin punya `is_active=false` / cache stale → resolved show jadi `null` → metadata aktif kosong → UI menampilkan `next_show_time` lama (17 April), tanpa background. Realtime subscription untuk `active_show_id` juga hanya memanggil `refreshPlaylists()` yang sama → loop kegagalan sama.
 
-## 1. Auto-Reset Sesi Token >3 Hari
+**Sekunder:** Tidak ada cara admin mengoverride background offline jika gambar show belum di-set.
 
-### Database Migration
-- Buat function `auto_reset_long_token_sessions()` yang menghapus `token_sessions` aktif dari token berusia >3 hari
-- Tambahkan ke cron job harian (jam 01:00 UTC)
+## Solusi (sesuai jawaban Anda)
 
-```sql
-CREATE OR REPLACE FUNCTION public.auto_reset_long_token_sessions()
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
-BEGIN
-  DELETE FROM public.token_sessions 
-  WHERE is_active = true 
-  AND token_id IN (
-    SELECT id FROM public.tokens 
-    WHERE status = 'active' 
-    AND created_at < now() - interval '3 days'
-  );
-END; $$;
-```
+1. **Satu pilihan saja** di LiveControl: dropdown "Show yang Akan Live / Sedang Live" dipakai untuk LIVE + COUNTDOWN + BACKGROUND offline secara konsisten.
+2. **Admin bisa upload background offline override** (opsional) — jika diisi, dipakai sebagai background blur saat offline; jika kosong, fallback ke `background_image_url` show terpilih; jika kosong juga, gradient.
+3. **Sumber data show aktif disederhanakan** — fetch langsung dari tabel `shows` by `active_show_id` (bukan via filter `get_public_shows`), agar admin bisa pilih show meski sementara `is_active=false`.
+4. **Buang prioritas `next_show_time`** — gunakan hanya sebagai fallback terakhir jika tidak ada show aktif sama sekali. Tampilkan label "Belum ada show aktif" jika kosong.
 
-- Cron: `SELECT cron.schedule('auto-reset-long-tokens', '0 1 * * *', 'SELECT public.auto_reset_long_token_sessions();');`
+## Perubahan File
 
----
+**`src/pages/LivePage.tsx`**
+- `fetchDisplayShow`: kalau `activeShowId` ada, **selalu** fetch langsung dari `shows` by id (lewati filter `is_replay`/`is_active`) — admin yang pilih, admin yang tahu.
+- Tambah state `offlineBackgroundOverride` dari `site_settings.key='offline_background_url'`.
+- Background offline pakai urutan: `offlineBackgroundOverride` → `activeShowImage` → gradient.
+- Realtime: tambah handler untuk key `offline_background_url` agar live-update.
+- Countdown `useEffect`: prioritas → `activeShowDate/Time` (selalu). `next_show_time` jadi fallback terakhir.
 
-## 2. Command `/resettoken` — Sudah Ada
-Command `/resettoken <4digit>` sudah bekerja via `handleTokenCmd` + `findTokenByInput`. Tidak perlu perubahan.
+**`src/components/admin/LiveControl.tsx`**
+- Section "Show yang Sedang Live" diperjelas: copy diubah jadi "Show yang sedang/akan live — countdown, jadwal, dan background otomatis ikut show ini."
+- Hapus section terpisah "Jadwal Show Berikutnya" (datetime-local) — atau ubah jadi opsional/legacy override label kecil. (Pilih: hapus, karena sudah ikut show.)
+- Tambah section baru "Background Player Offline (Opsional)" dengan upload gambar ke bucket `show-images` + tombol Hapus. Simpan URL ke `site_settings.key='offline_background_url'`.
+- Show selector tetap filter `!is_replay && !is_bundle` tapi **buang filter `is_active`** sehingga admin bisa pilih show yang baru dibuat / di-archive.
 
----
+**`src/main.tsx`**
+- Bump `CACHE_RESET_VERSION` ke `rt48-cache-reset-v9` untuk paksa SW lama bersih.
 
-## 3. Bundle Show
+## Catatan Migrasi
 
-### Database Migration
-Tambah kolom ke tabel `shows`:
-- `is_bundle boolean DEFAULT false`
-- `bundle_description text` — deskripsi show yang didapat
-- `bundle_duration_days integer DEFAULT 30` — durasi token bundle
-- `bundle_replay_passwords jsonb DEFAULT '[]'::jsonb` — array `[{"show_name":"...", "password":"..."}]`
-- `bundle_replay_info text` — info replay khusus
+Tidak butuh migration SQL baru — `site_settings` adalah key/value bebas, tinggal upsert key `offline_background_url`. Bucket `show-images` sudah ada (dipakai ShowManager).
 
-Update `get_public_shows` RPC untuk menyertakan kolom baru (kecuali `bundle_replay_passwords` yang di-null-kan untuk publik).
+## Verifikasi
 
-### Frontend
-- **`src/types/show.ts`** — Tambah field bundle ke interface Show
-- **`src/components/viewer/BundleShowCard.tsx`** (baru) — Kartu dengan border gradient emas, badge "📦 BUNDLE", deskripsi bundle, info durasi, tombol beli coin/QRIS
-- **`src/pages/Index.tsx`**, **`SchedulePage.tsx`**, **`ReplayPage.tsx`** — Filter `is_bundle` shows, render di section terpisah paling bawah
-- **`src/components/admin/ShowManager.tsx`** — Toggle bundle, field deskripsi, durasi, editor multi sandi replay (tambah/hapus baris)
-
-### Token & Pembelian
-- Update `redeem_coins_for_token` dan `confirm_regular_order`: jika show `is_bundle`, gunakan `bundle_duration_days` untuk `expires_at`
-- Notifikasi WhatsApp (`notify-coin-show-purchase`, `notify-subscription-order`): sertakan semua sandi replay dari `bundle_replay_passwords`
-- Dynamic QRIS tetap berfungsi (sudah ada)
-
----
-
-## 4. Command `/maketoken` — Token Custom Durasi
-
-### Format
-```
-/maketoken <show> <durasi> [sandi_replay]
-```
-
-Contoh: `/maketoken BundleA 30hari sandiABC`, `/maketoken BundleA 1minggu`
-
-### Logika
-- Parse: `Xhari`, `Xminggu`, `Xbulan` → konversi ke hari
-- Durasi >30 hari → wajib parameter sandi replay, ditampilkan di output
-- Durasi ≤7 hari → tanpa sandi, hanya link `replaytime.lovable.app`
-- Selalu buat token BARU (tidak menyalin existing)
-
-### WhatsApp Webhook
-- Tambah regex `/maketoken` di `processCommand`
-- Buat function `handleMakeTokenWa(supabase, showInput, durationStr, replayPassword)`
-- Max device default 1
-
----
-
-## 5. Token Multi-Device Custom + Proteksi Self-Reset
-
-### Command `/maketoken` upgrade
-Extend format: `/maketoken <show> <durasi> <max_device> [sandi_replay]`
-Contoh: `/maketoken BundleA 30hari 100 sandiABC`
-
-### Admin Panel — TokenFactory
-- Naikkan batas max device dari 10 menjadi 9999 (untuk token multi-user)
-- Tampilkan jumlah device di list token
-
-### Proteksi Self-Reset
-- Update `self_reset_token_session` RPC: **tolak reset** jika token memiliki `max_devices > 5` (multi-user token)
-- Ini mencegah satu user mereset sesi semua user lain
-- Admin tetap bisa reset via `/resettoken` atau dashboard
-
-### WhatsApp Command Update
-- Update `/createtoken` dan `/bulktoken` max device limit dari 10 → 9999
-- Update help text dengan command baru
-
----
-
-## File yang Diubah
-
-| File | Perubahan |
-|------|-----------|
-| **Migration SQL** | Kolom bundle di `shows`, function auto-reset, update `get_public_shows`, update `confirm_regular_order` & `redeem_coins_for_token`, update `self_reset_token_session`, cron job |
-| `src/types/show.ts` | Field bundle di interface |
-| `src/components/viewer/BundleShowCard.tsx` | **Baru** — kartu bundle |
-| `src/pages/Index.tsx` | Section bundle di bawah |
-| `src/pages/SchedulePage.tsx` | Section bundle di bawah |
-| `src/pages/ReplayPage.tsx` | Section bundle di bawah |
-| `src/components/admin/ShowManager.tsx` | UI bundle: toggle, deskripsi, durasi, multi sandi replay |
-| `src/components/admin/TokenFactory.tsx` | Naikkan max device limit |
-| `supabase/functions/whatsapp-webhook/index.ts` | Command `/maketoken`, update help, update max device limits |
-| `supabase/functions/notify-coin-show-purchase/index.ts` | Sertakan bundle replay passwords |
-| `supabase/functions/notify-subscription-order/index.ts` | Sertakan bundle replay passwords |
+Setelah implementasi, buka `/live?t=…` dengan token aktif dan konfirmasi:
+- Background = gambar Dream Bakudan (blur).
+- Judul = "Dream Bakudan".
+- Tanggal = 18 April 2026 (atau "Jadwal asli: 19:00 WIB" + zona lokal user).
+- Toggle live ON di admin → player otomatis switch ke video tanpa reload.
 
