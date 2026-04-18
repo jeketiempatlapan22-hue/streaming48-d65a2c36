@@ -26,10 +26,11 @@ const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
 
-const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void }) => {
+const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState(false);
+  const canSelfReset = (maxDevices ?? 1) <= 5;
 
   const handleReset = async () => {
     setResetting(true);
@@ -57,9 +58,15 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate }: { tokenCode:
           <p className="text-sm font-medium text-[hsl(var(--success))]">✅ Sesi direset! Memuat ulang...</p>
         ) : (
           <div className="space-y-3">
-            <button onClick={handleReset} disabled={resetting} className="w-full rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
-              {resetting ? "Mereset..." : "🔄 Reset Sesi (maks 2x/24jam)"}
-            </button>
+            {canSelfReset ? (
+              <button onClick={handleReset} disabled={resetting} className="w-full rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {resetting ? "Mereset..." : "🔄 Reset Sesi (maks 2x/24jam)"}
+              </button>
+            ) : (
+              <div className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">
+                Token multi-device tidak bisa di-reset sendiri. Silakan hubungi admin untuk reset sesi.
+              </div>
+            )}
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
             <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Ke Beranda</button>
           </div>
