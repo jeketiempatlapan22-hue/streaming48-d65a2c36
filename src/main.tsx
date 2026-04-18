@@ -3,7 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 import "./lib/installPrompt";
 
-const CACHE_RESET_VERSION = "rt48-cache-reset-v9";
+const CACHE_RESET_VERSION = "rt48-cache-reset-v10";
 
 async function resetLegacyServiceWorkerCache() {
   if (!("caches" in window)) return;
