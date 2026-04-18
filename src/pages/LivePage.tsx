@@ -61,6 +61,30 @@ const FlipNumber = ({ value }: { value: number }) => {
   );
 };
 
+const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedule_time?: string | null } | null) => {
+  if (!show?.schedule_date) return null;
+  return parseWIBDateTime(show.schedule_date, show.schedule_time || "23:59");
+};
+
+const resolveDisplayShow = (
+  shows: any[] | undefined,
+  activeShowId: string | null,
+  isLive: boolean
+) => {
+  const list = (shows || []).filter((show) => !show?.is_replay);
+  const activeShow = activeShowId ? list.find((show) => show.id === activeShowId) || null : null;
+  const scheduled = list
+    .map((show) => ({ show, ts: getShowScheduleTimestamp(show) }))
+    .filter((entry): entry is { show: any; ts: number } => typeof entry.ts === "number" && !Number.isNaN(entry.ts))
+    .sort((a, b) => a.ts - b.ts);
+
+  if (isLive) {
+    return activeShow || scheduled.find((entry) => entry.ts <= Date.now() + 6 * 3600 * 1000)?.show || scheduled[0]?.show || null;
+  }
+
+  return scheduled.find((entry) => entry.ts >= Date.now())?.show || scheduled[scheduled.length - 1]?.show || activeShow || null;
+};
+
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -250,6 +274,15 @@ const LivePage = () => {
   const effectiveType = (isDirectPlaylist || isProxyPlaylist) ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
   const effectiveHeadersRef = isProxyPlaylist ? proxyHeadersRef : undefined;
 
+  const applyActiveShowMetadata = useCallback((show: any | null) => {
+    setExternalShowId(show?.external_show_id || null);
+    setActiveShowTeam(show?.team || null);
+    setActiveShowTitle(show?.title || null);
+    setActiveShowImage(show?.background_image_url || null);
+    setActiveShowDate(show?.schedule_date || null);
+    setActiveShowTime(show?.schedule_time || null);
+  }, []);
+
   const runWithTimeoutRetry = async <T,>(
     request: () => Promise<{ data: T | null; error: any }>,
     timeoutMs: number,
@@ -399,34 +432,8 @@ const LivePage = () => {
           "Shows timeout"
         ).catch(() => null);
         const allShows = showRes?.data as any[] | undefined;
-        let activeShow = allShows?.find((s: any) => s.id === activeShowId);
-
-        // Fallback: if admin hasn't set active_show_id (or it doesn't match a show),
-        // pick the next upcoming non-replay show by schedule (today's show first).
-        if (!activeShow && allShows?.length) {
-          const now = Date.now();
-          const upcoming = allShows
-            .filter((s: any) => !s.is_replay && s.schedule_date)
-            .map((s: any) => ({
-              show: s,
-              ts: parseWIBDateTime(s.schedule_date, s.schedule_time || "23:59") ?? 0,
-            }))
-            .filter((x) => x.ts > 0)
-            .sort((a, b) => a.ts - b.ts);
-          // Prefer the next future show; if none, use the most recent one today
-          activeShow = upcoming.find((x) => x.ts >= now - 3 * 3600 * 1000)?.show || upcoming[0]?.show;
-        }
-
-        if (activeShow?.external_show_id) {
-          setExternalShowId(activeShow.external_show_id);
-        } else {
-          setExternalShowId(null);
-        }
-        setActiveShowTeam(activeShow?.team || null);
-        setActiveShowTitle(activeShow?.title || null);
-        setActiveShowImage(activeShow?.background_image_url || null);
-        setActiveShowDate(activeShow?.schedule_date || null);
-        setActiveShowTime(activeShow?.schedule_time || null);
+        const activeShow = resolveDisplayShow(allShows, activeShowId || null, Boolean(streamRes.status === "fulfilled" && streamRes.value.data?.[0]?.is_live));
+        applyActiveShowMetadata(activeShow);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -570,48 +577,22 @@ const LivePage = () => {
         syncPlaylists(playlistRes.value.data || []);
       }
       // Also refresh externalShowId so proxy player can reconnect
-      const showId = settingsRes.status === "fulfilled" ? settingsRes.value.data?.value : null;
+      const showId = settingsRes.status === "fulfilled" ? settingsRes.value.data?.value ?? null : null;
       const { data: showData } = await supabase.rpc("get_public_shows");
       const allShows = (showData as any[]) || [];
-      let activeShow = showId ? allShows.find((s: any) => s.id === showId) : null;
-
-      // Fallback: pick today's / next upcoming show if admin hasn't set one
-      if (!activeShow && allShows.length) {
-        const now = Date.now();
-        const upcoming = allShows
-          .filter((s: any) => !s.is_replay && s.schedule_date)
-          .map((s: any) => ({
-            show: s,
-            ts: parseWIBDateTime(s.schedule_date, s.schedule_time || "23:59") ?? 0,
-          }))
-          .filter((x) => x.ts > 0)
-          .sort((a, b) => a.ts - b.ts);
-        activeShow = upcoming.find((x) => x.ts >= now - 3 * 3600 * 1000)?.show || upcoming[0]?.show;
-      }
-
-      if (activeShow) {
-        if (activeShow.external_show_id) {
-          setExternalShowId(activeShow.external_show_id);
-        }
-        setActiveShowTitle(activeShow.title || null);
-        setActiveShowTeam(activeShow.team || null);
-        setActiveShowImage(activeShow.background_image_url || null);
-        setActiveShowDate(activeShow.schedule_date || null);
-        setActiveShowTime(activeShow.schedule_time || null);
-      }
+      const { data: streamData } = await (supabase.rpc as any)("get_stream_status");
+      const activeShow = resolveDisplayShow(allShows, showId, Boolean(streamData?.[0]?.is_live));
+      applyActiveShowMetadata(activeShow);
     } catch {}
-  }, [syncPlaylists]);
+  }, [applyActiveShowMetadata, syncPlaylists]);
 
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
     const ch = supabase.channel("live-combined-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, (p: any) => {
         if (p.new) {
-          const wasLive = stream?.is_live;
           setStream(p.new);
-          if (!wasLive && p.new.is_live) {
-            refreshPlaylists();
-          }
+          refreshPlaylists();
         }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, (p: any) => {
@@ -629,6 +610,9 @@ const LivePage = () => {
         if (p.new?.key === "playlist_version") {
           refreshPlaylists();
         }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "shows" }, () => {
+        refreshPlaylists();
       });
 
     // Only add show/token filters if we have token data
@@ -688,7 +672,10 @@ const LivePage = () => {
     // Countdown ditampilkan dalam wall-clock zona LOKAL user — jadi user WITA
     // (UTC+8) melihat angka 1 jam lebih besar dari user WIB, user WIT (UTC+9) 2 jam lebih besar.
     let targetWibMs: number | null = null;
-    if (nextShowTime) {
+    const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime });
+    if (scheduledShowMs != null) {
+      targetWibMs = scheduledShowMs;
+    } else if (nextShowTime) {
       const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
       if (m) {
         const [, y, mo, d, h, mi] = m;
@@ -698,10 +685,6 @@ const LivePage = () => {
         const t = new Date(nextShowTime).getTime();
         if (!isNaN(t)) targetWibMs = t;
       }
-    }
-    if (targetWibMs == null && activeShowDate && activeShowTime) {
-      const wib = parseWIBDateTime(activeShowDate, activeShowTime);
-      if (wib != null) targetWibMs = wib;
     }
     if (targetWibMs == null) { setCountdown(null); return; }
 
