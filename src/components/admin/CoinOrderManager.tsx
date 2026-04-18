@@ -141,16 +141,16 @@ const CoinOrderManager = () => {
 
       <div className="space-y-3">
         {filtered.map((order) => (
-          <div key={order.id} className={`rounded-xl border bg-card p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : "border-border"}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 flex-1">
+          <div key={order.id} className={`rounded-xl border bg-card p-3 sm:p-4 ${selectedIds.has(order.id) ? "border-primary bg-primary/5" : "border-border"}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
                 <input
                   type="checkbox"
                   checked={selectedIds.has(order.id)}
                   onChange={() => toggleSelect(order.id)}
-                  className="mt-1 rounded border-input cursor-pointer"
+                  className="mt-1 rounded border-input cursor-pointer shrink-0"
                 />
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Coins className="h-4 w-4 text-[hsl(var(--warning))]" />
                     <p className="font-semibold text-foreground">{order.coin_amount} Koin</p>
@@ -167,7 +167,7 @@ const CoinOrderManager = () => {
                   <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString("id-ID")}</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end sm:flex-nowrap">
                 {order.payment_proof_url && (
                   <button onClick={() => setPreviewImage(order.payment_proof_url)} className="flex items-center gap-1 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground hover:bg-secondary/80">
                     <Image className="h-3 w-3" /> Bukti
