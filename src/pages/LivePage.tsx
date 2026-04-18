@@ -89,6 +89,40 @@ const resolveDisplayShow = (
   );
 };
 
+const fetchDisplayShow = async (activeShowId: string | null, isLive: boolean) => {
+  const showRes = await withTimeout(
+    (async () => await supabase.rpc("get_public_shows"))(),
+    8_000,
+    "Shows timeout"
+  ).catch(() => null);
+
+  const allShows = showRes?.data as any[] | undefined;
+  const resolvedShow = resolveDisplayShow(allShows, activeShowId, isLive);
+
+  if (resolvedShow) {
+    return { activeShow: resolvedShow, allShows };
+  }
+
+  if (activeShowId) {
+    const showFallbackRes = await withTimeout(
+      (async () =>
+        await supabase
+          .from("shows")
+          .select("id, title, schedule_date, schedule_time, background_image_url, team, external_show_id, is_replay")
+          .eq("id", activeShowId)
+          .maybeSingle())(),
+      8_000,
+      "Active show timeout"
+    ).catch(() => null);
+
+    if (showFallbackRes?.data && !showFallbackRes.data.is_replay) {
+      return { activeShow: showFallbackRes.data, allShows };
+    }
+  }
+
+  return { activeShow: null, allShows };
+};
+
 const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: { tokenCode: string; getFingerprint: () => string; navigate: (path: string) => void; maxDevices?: number }) => {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -430,13 +464,10 @@ const LivePage = () => {
           });
         }
 
-        const showRes = await withTimeout(
-          (async () => await supabase.rpc("get_public_shows"))(),
-          8_000,
-          "Shows timeout"
-        ).catch(() => null);
-        const allShows = showRes?.data as any[] | undefined;
-        const activeShow = resolveDisplayShow(allShows, activeShowId || null, Boolean(streamRes.status === "fulfilled" && streamRes.value.data?.[0]?.is_live));
+        const { activeShow, allShows } = await fetchDisplayShow(
+          activeShowId || null,
+          Boolean(streamRes.status === "fulfilled" && streamRes.value.data?.[0]?.is_live)
+        );
         applyActiveShowMetadata(activeShow);
 
         const tokenShowFallbackRes =
@@ -582,10 +613,8 @@ const LivePage = () => {
       }
       // Also refresh externalShowId so proxy player can reconnect
       const showId = settingsRes.status === "fulfilled" ? settingsRes.value.data?.value ?? null : null;
-      const { data: showData } = await supabase.rpc("get_public_shows");
-      const allShows = (showData as any[]) || [];
       const { data: streamData } = await (supabase.rpc as any)("get_stream_status");
-      const activeShow = resolveDisplayShow(allShows, showId, Boolean(streamData?.[0]?.is_live));
+      const { activeShow } = await fetchDisplayShow(showId, Boolean(streamData?.[0]?.is_live));
       applyActiveShowMetadata(activeShow);
     } catch {}
   }, [applyActiveShowMetadata, syncPlaylists]);
