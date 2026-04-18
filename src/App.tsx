@@ -114,6 +114,28 @@ const MaintenanceGate = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+/** Tracks visitor IP once per browser session for the admin IP monitor. */
+const VisitorTracker = () => {
+  useEffect(() => {
+    const KEY = "rt48_ip_tracked_v1";
+    if (sessionStorage.getItem(KEY)) return;
+    sessionStorage.setItem(KEY, "1");
+
+    const send = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.functions.invoke("track-visitor-ip", {
+          body: { path: window.location.pathname, user_id: session?.user?.id || null },
+        });
+      } catch { /* silent */ }
+    };
+    // Defer slightly so it doesn't compete with first paint
+    const t = setTimeout(send, 1500);
+    return () => clearTimeout(t);
+  }, []);
+  return null;
+};
+
 const App = () => {
   return (
     <ErrorBoundary>
@@ -122,6 +144,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <VisitorTracker />
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
