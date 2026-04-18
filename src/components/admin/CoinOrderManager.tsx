@@ -189,9 +189,15 @@ const CoinOrderManager = () => {
         {filtered.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Tidak ada order</p>}
       </div>
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Bukti Pembayaran</DialogTitle><DialogDescription>Preview bukti transfer</DialogDescription></DialogHeader>
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bukti Pembayaran</DialogTitle>
+            <DialogDescription>Preview bukti transfer</DialogDescription>
+          </DialogHeader>
           {previewImage && <img src={previewImage} alt="Bukti" className="w-full rounded-lg" />}
+          <Button variant="outline" onClick={() => setPreviewImage(null)} className="w-full mt-2">
+            Tutup
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

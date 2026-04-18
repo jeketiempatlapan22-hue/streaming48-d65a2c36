@@ -898,9 +898,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
 
       {/* Preview bukti */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Bukti Pembayaran</DialogTitle><DialogDescription>Preview bukti transfer</DialogDescription></DialogHeader>
           {previewImage && <img src={previewImage} alt="Bukti" className="w-full rounded-lg" />}
+          <Button variant="outline" onClick={() => setPreviewImage(null)} className="w-full mt-2">
+            Tutup
+          </Button>
         </DialogContent>
       </Dialog>
 
