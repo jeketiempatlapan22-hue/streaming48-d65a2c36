@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, GripVertical, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown, Upload, ImageOff } from "lucide-react";
 import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
 import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
+import { compressImage } from "@/lib/imageCompressor";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
@@ -15,9 +16,11 @@ const LiveControl = () => {
   const [description, setDescription] = useState("");
   const [isLive, setIsLive] = useState(false);
   const [chatEnabled, setChatEnabled] = useState(true);
-  const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [saving, setSaving] = useState(false);
+  const [offlineBgUrl, setOfflineBgUrl] = useState("");
+  const [offlineBgUploading, setOfflineBgUploading] = useState(false);
+  const offlineBgInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Auto-schedule live state
@@ -61,13 +64,13 @@ const LiveControl = () => {
       if (showsRes.data) setShows(showsRes.data);
       if (settingsRes.data) {
         settingsRes.data.forEach((s: any) => {
-          if (s.key === "next_show_time") setNextShowTime(s.value);
           if (s.key === "player_animation") setPlayerAnimation(s.value as AnimationType);
           if (s.key === "active_show_id") setActiveShowId(s.value);
           if (s.key === "chat_enabled") setChatEnabled(s.value !== "false");
           if (s.key === "auto_live_enabled") setAutoLiveEnabled(s.value === "true");
           if (s.key === "auto_live_on_time") setAutoLiveOnTime(s.value);
           if (s.key === "auto_live_off_time") setAutoLiveOffTime(s.value);
+          if (s.key === "offline_background_url") setOfflineBgUrl(s.value || "");
         });
       }
     };
@@ -103,11 +106,37 @@ const LiveControl = () => {
     setSaving(false);
   };
 
-  const saveNextShowTime = async () => {
-    await supabase
+  const uploadOfflineBackground = async (file: File) => {
+    setOfflineBgUploading(true);
+    try {
+      const compressed = await compressImage(file, { maxWidth: 1920, maxHeight: 1080, quality: 0.85 });
+      const safeName = `offline-bg-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+      const { error: upErr } = await supabase.storage.from("show-images").upload(safeName, compressed, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("show-images").getPublicUrl(safeName);
+      const url = pub.publicUrl;
+      const { error: setErr } = await supabase
+        .from("site_settings")
+        .upsert({ key: "offline_background_url", value: url } as any, { onConflict: "key" });
+      if (setErr) throw setErr;
+      setOfflineBgUrl(url);
+      toast({ title: "🖼️ Background offline disimpan!" });
+    } catch (e: any) {
+      toast({ title: "Gagal upload", description: e?.message || "Coba lagi", variant: "destructive" });
+    }
+    setOfflineBgUploading(false);
+  };
+
+  const clearOfflineBackground = async () => {
+    const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "next_show_time", value: nextShowTime } as any, { onConflict: "key" });
-    toast({ title: "Jadwal show disimpan!" });
+      .upsert({ key: "offline_background_url", value: "" } as any, { onConflict: "key" });
+    if (error) {
+      toast({ title: "Gagal menghapus", variant: "destructive" });
+      return;
+    }
+    setOfflineBgUrl("");
+    toast({ title: "Background offline dihapus" });
   };
 
   const addPlaylist = async () => {
@@ -253,16 +282,20 @@ const LiveControl = () => {
         )}
       </div>
 
-      {/* Active Show Selector */}
-      <div className="space-y-3 rounded-xl border border-border bg-card p-6">
-        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang Live</h3>
-        <p className="text-xs text-muted-foreground">Pilih show yang sedang berlangsung. Token hanya bisa akses show yang sesuai.</p>
+      {/* Active Show Selector — controls LIVE access, COUNTDOWN, and OFFLINE BACKGROUND */}
+      <div className="space-y-3 rounded-xl border border-primary/40 bg-primary/5 p-6">
+        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang / Akan Live</h3>
+        <p className="text-xs text-muted-foreground">
+          Pilih satu show. <span className="font-semibold text-primary">Countdown, jadwal, dan background offline player otomatis ikut show ini.</span> Token hanya bisa akses show yang sesuai.
+        </p>
         <Select value={activeShowId} onValueChange={saveActiveShow}>
           <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
           <SelectContent>
-            {shows.filter(s => s.is_active && !s.is_replay && !s.is_bundle).map((show) => (
+            {shows.filter(s => !s.is_replay && !s.is_bundle).map((show) => (
               <SelectItem key={show.id} value={show.id}>
-                {show.title} {show.is_replay ? "(Replay)" : ""} {show.schedule_date ? `- ${show.schedule_date}` : ""}
+                {show.title}
+                {!show.is_active ? " (Nonaktif)" : ""}
+                {show.schedule_date ? ` - ${show.schedule_date}` : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -274,25 +307,42 @@ const LiveControl = () => {
         )}
       </div>
 
-      {/* Next Show Countdown */}
+      {/* Offline Player Background Override */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
-        <h3 className="text-sm font-semibold text-foreground">⏰ Jadwal Show Berikutnya</h3>
-        <p className="text-xs text-muted-foreground">Countdown akan tampil di player saat offline.</p>
-        <div className="flex gap-2">
-          <Input type="datetime-local" value={nextShowTime} onChange={(e) => setNextShowTime(e.target.value)} className="bg-background" />
-          <Button onClick={saveNextShowTime} size="sm">Simpan</Button>
-        </div>
-        {nextShowTime && (() => {
-          const m = nextShowTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-          if (!m) return null;
-          const [, y, mo, d, h, mi] = m;
-          const wibMs = Date.UTC(+y, +mo - 1, +d, +h, +mi, 0) - 7 * 3600 * 1000;
-          return (
-            <p className="text-xs text-muted-foreground">
-              Dijadwalkan (WIB): {new Date(wibMs).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Jakarta" })} WIB
-            </p>
-          );
-        })()}
+        <h3 className="text-sm font-semibold text-foreground">🖼️ Background Player Offline (Opsional)</h3>
+        <p className="text-xs text-muted-foreground">
+          Override gambar background blur saat player offline. Kalau kosong → pakai background show terpilih → fallback gradient.
+        </p>
+        {offlineBgUrl ? (
+          <div className="space-y-2">
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-secondary/30">
+              <img src={offlineBgUrl} alt="Offline background preview" className="h-full w-full object-cover" />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => offlineBgInputRef.current?.click()} disabled={offlineBgUploading}>
+                <Upload className="mr-1 h-4 w-4" /> Ganti
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearOfflineBackground} className="text-destructive hover:text-destructive">
+                <ImageOff className="mr-1 h-4 w-4" /> Hapus
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => offlineBgInputRef.current?.click()} disabled={offlineBgUploading}>
+            <Upload className="mr-1 h-4 w-4" /> {offlineBgUploading ? "Mengupload..." : "Upload Background"}
+          </Button>
+        )}
+        <input
+          ref={offlineBgInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) uploadOfflineBackground(f);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {/* Player Animation */}
