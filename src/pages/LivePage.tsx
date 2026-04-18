@@ -944,12 +944,22 @@ const LivePage = () => {
                         ? formatDateWIB(parsedTs)
                         : (activeShowDate || "");
                       const timeLabel = activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "";
+                      const showLocal = parsedTs != null && isUserOutsideWIB();
+                      const localTime = showLocal ? formatLocal(parsedTs!, { hour: "2-digit", minute: "2-digit" }) : "";
+                      const zoneLabel = showLocal ? getUserZoneLabel() : "";
                       return (
-                        <p className="mt-1 text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-                          📅 {dateLabel}
-                          {dateLabel && timeLabel ? " • 🕐 " : ""}
-                          {timeLabel}
-                        </p>
+                        <>
+                          <p className="mt-1 text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                            📅 {dateLabel}
+                            {dateLabel && timeLabel ? " • 🕐 " : ""}
+                            {timeLabel}
+                          </p>
+                          {showLocal && (
+                            <p className="mt-1 text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                              🌐 Waktu Anda: <span className="font-semibold">{localTime} {zoneLabel}</span>
+                            </p>
+                          )}
+                        </>
                       );
                     })()}
                     {/* Countdown digital box */}
