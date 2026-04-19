@@ -293,7 +293,7 @@ const ReplayPage = () => {
         {/* Button for users who already purchased */}
         <div className="mx-auto mb-6 max-w-md">
           <a
-            href="https://replaytime.lovable.app"
+            href={REPLAY_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3.5 text-sm font-bold text-primary transition-all hover:bg-primary/20 active:scale-[0.97]"
