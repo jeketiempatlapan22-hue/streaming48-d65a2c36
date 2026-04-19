@@ -43,32 +43,50 @@ const UserManager = () => {
   const [fetchError, setFetchError] = useState("");
 
   const [historyUser, setHistoryUser] = useState<UserProfile | null>(null);
+  const [activityUser, setActivityUser] = useState<UserProfile | null>(null);
+  const [activityData, setActivityData] = useState<any>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setFetchError("");
     try {
-      let allProfiles: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      while (true) {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, username, created_at")
-          .order("created_at", { ascending: false })
-          .range(from, from + batchSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allProfiles = allProfiles.concat(data);
-        if (data.length < batchSize) break;
-        from += batchSize;
-      }
+      // Fetch profiles + auth data (email) in parallel
+      const [profilesData, authUsersRes] = await Promise.all([
+        (async () => {
+          let allProfiles: any[] = [];
+          let from = 0;
+          const batchSize = 1000;
+          while (true) {
+            const { data, error } = await supabase
+              .from("profiles")
+              .select("id, username, created_at")
+              .order("created_at", { ascending: false })
+              .range(from, from + batchSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allProfiles = allProfiles.concat(data);
+            if (data.length < batchSize) break;
+            from += batchSize;
+          }
+          return allProfiles;
+        })(),
+        supabase.functions.invoke("admin-list-users").catch(() => ({ data: null, error: null })),
+      ]);
+
+      const allProfiles = profilesData;
+
+      // Build auth user map (email + last sign in)
+      const authMap: Record<string, { email: string | null; phone: string | null; last_sign_in_at: string | null }> = {};
+      const authUsers = (authUsersRes as any)?.data?.users || [];
+      authUsers.forEach((u: any) => {
+        authMap[u.id] = { email: u.email, phone: u.phone, last_sign_in_at: u.last_sign_in_at };
+      });
 
       const [balancesRes, ordersRes, tokensRes, phoneRes] = await Promise.allSettled([
         supabase.from("coin_balances").select("user_id, balance").limit(5000),
         supabase.from("coin_orders").select("user_id").limit(5000),
         supabase.from("tokens").select("user_id").limit(5000),
-        // Get phone numbers from various sources
         supabase.from("password_reset_requests").select("user_id, phone").not("phone", "eq", "").order("created_at", { ascending: false }).limit(5000),
       ]);
 
@@ -87,7 +105,6 @@ const UserManager = () => {
         tokensRes.value.data.forEach((t: any) => { if (t.user_id) tokenCountMap[t.user_id] = (tokenCountMap[t.user_id] || 0) + 1; });
       }
 
-      // Build phone map (most recent phone per user)
       const phoneMap: Record<string, string> = {};
       if (phoneRes.status === "fulfilled" && phoneRes.value.data) {
         phoneRes.value.data.forEach((r: any) => {
@@ -97,7 +114,6 @@ const UserManager = () => {
         });
       }
 
-      // Also try coin_orders and subscription_orders for phones
       const [coinPhoneRes, subPhoneRes] = await Promise.allSettled([
         supabase.from("coin_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
         supabase.from("subscription_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
@@ -113,15 +129,26 @@ const UserManager = () => {
         });
       }
 
-      const mapped: UserProfile[] = allProfiles.map((p: any) => ({
-        id: p.id,
-        username: p.username,
-        created_at: p.created_at,
-        balance: balanceMap[p.id] || 0,
-        order_count: orderCountMap[p.id] || 0,
-        token_count: tokenCountMap[p.id] || 0,
-        phone: phoneMap[p.id] || "",
-      }));
+      const mapped: UserProfile[] = allProfiles.map((p: any) => {
+        const auth = authMap[p.id];
+        // Derive phone from email if email is in @rt48.user format and no phone known
+        let phone = phoneMap[p.id] || "";
+        const email = auth?.email || "";
+        if (!phone && email.endsWith("@rt48.user")) {
+          phone = email.replace("@rt48.user", "");
+        }
+        return {
+          id: p.id,
+          username: p.username,
+          created_at: p.created_at,
+          balance: balanceMap[p.id] || 0,
+          order_count: orderCountMap[p.id] || 0,
+          token_count: tokenCountMap[p.id] || 0,
+          phone,
+          email: email.endsWith("@rt48.user") ? "" : email, // hide synthetic emails
+          last_sign_in_at: auth?.last_sign_in_at || null,
+        };
+      });
 
       setUsers(mapped);
     } catch (err: any) {
