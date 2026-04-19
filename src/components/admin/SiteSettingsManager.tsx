@@ -9,7 +9,7 @@ const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
   { key: "whatsapp_number", label: "Nomor WhatsApp Admin", placeholder: "6281234567890", type: "input" as const, hint: "Contoh: 6281234567890 (tanpa +)" },
   { key: "whatsapp_admin_numbers", label: "Nomor WhatsApp Bot (Whitelist)", placeholder: "6281234567890,6289876543210", type: "input" as const, hint: "Nomor yang boleh kirim command ke bot WhatsApp, pisahkan dengan koma" },
-  { key: "whatsapp_channel", label: "Link Saluran WhatsApp", placeholder: "https://whatsapp.com/channel/...", type: "input" as const },
+  { key: "whatsapp_channel", label: "Link Saluran WhatsApp", placeholder: "https://whatsapp.com/channel/...", type: "input" as const, hint: "Link saluran WhatsApp untuk live alternatif (ditampilkan di halaman Live jika diaktifkan)" },
   { key: "purchase_message", label: "Pesan untuk halaman tanpa token", placeholder: "Untuk pembelian token streaming...", type: "textarea" as const },
   { key: "subscription_info", label: "Informasi Langganan", placeholder: "Paket langganan kami meliputi...", type: "textarea" as const },
   { key: "announcement_text", label: "Teks Pengumuman", placeholder: "Pengumuman penting...", type: "textarea" as const },
@@ -211,6 +211,44 @@ const SiteSettingsManager = () => {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* WhatsApp Channel Button on Live Page */}
+      <div className="rounded-xl border-2 border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5 p-4">
+        <label className="mb-2 block text-sm font-bold text-foreground">📺 Tombol Saluran WhatsApp di Halaman Live</label>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Tampilkan tombol "Gabung Saluran WhatsApp" di halaman Live agar penonton bisa menonton live lainnya. Pastikan link saluran sudah diisi di atas.
+        </p>
+        <div className="flex gap-2">
+          {[{ value: "true", label: "✅ Aktif" }, { value: "false", label: "❌ Nonaktif" }].map((opt) => (
+            <button key={opt.value}
+              onClick={async () => {
+                setValues((p) => ({ ...p, whatsapp_channel_enabled: opt.value }));
+                const { error } = await supabase.from("site_settings").upsert(
+                  { key: "whatsapp_channel_enabled", value: opt.value },
+                  { onConflict: "key" }
+                );
+                if (error) {
+                  toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                } else {
+                  toast({ title: opt.value === "true" ? "📺 Tombol Saluran WhatsApp AKTIF" : "📺 Tombol Saluran WhatsApp NONAKTIF" });
+                }
+              }}
+              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
+                (values.whatsapp_channel_enabled || "false") === opt.value
+                  ? opt.value === "true"
+                    ? "bg-[hsl(var(--success))] text-primary-foreground ring-2 ring-[hsl(var(--success))]/50"
+                    : "bg-destructive text-destructive-foreground ring-2 ring-destructive/50"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}>{opt.label}</button>
+          ))}
+        </div>
+        {values.whatsapp_channel_enabled === "true" && !values.whatsapp_channel && (
+          <p className="mt-2 text-xs text-destructive">⚠️ Link Saluran WhatsApp belum diisi di atas — tombol tidak akan muncul.</p>
+        )}
+        {values.whatsapp_channel_enabled === "true" && values.whatsapp_channel && (
+          <p className="mt-2 text-xs text-[hsl(var(--success))]">✓ Tombol akan muncul di halaman Live</p>
+        )}
       </div>
 
       <div className="rounded-xl border-2 border-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5 p-4">

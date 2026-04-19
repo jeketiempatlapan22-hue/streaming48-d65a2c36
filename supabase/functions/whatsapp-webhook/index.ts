@@ -316,6 +316,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
+  const isClearChat = /^\/clearchat$/i.test(rawText);
+  const clearChatKeepMatch = rawText.match(/^\/clearchat\s+(\d+)$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -353,6 +355,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   if (tokenallMatch) return await handleTokenAllWa(supabase, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
   if (perpanjangMatch) return await handlePerpanjangWa(supabase, perpanjangMatch[1], perpanjangMatch[2].trim());
+  if (clearChatKeepMatch) return await handleClearChat(supabase, parseInt(clearChatKeepMatch[1], 10));
+  if (isClearChat) return await handleClearChat(supabase, 0);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
@@ -421,6 +425,8 @@ TOLAK_RESET <id> - Tolak reset password
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
 /setshortid #ID <nama> - Set custom ID untuk show
+/clearchat - Hapus SEMUA pesan live chat
+/clearchat <jumlah> - Sisakan N pesan terbaru (hapus sisanya)
 /help - Tampilkan daftar command
 
 📊 *Statistik & Analitik:*
@@ -2087,6 +2093,55 @@ async function handlePerpanjangWa(supabase: any, tokenSuffix: string, durationSt
     const expDate = newExpiry.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     return `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Diperpanjang!*\n━━━━━━━━━━━━━━━━━━\n\n🔑 Token: ${token.code}\n⏰ Ditambah: *${durationDays} hari*\n📅 Kedaluwarsa baru: ${expDate}\n━━━━━━━━━━━━━━━━━━`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
+async function handleClearChat(supabase: any, keepLast: number): Promise<string> {
+  try {
+    if (keepLast < 0 || keepLast > 1000) {
+      return '⚠️ Jumlah pesan yang disimpan harus antara 0 - 1000.';
+    }
+
+    if (keepLast === 0) {
+      // Hapus SEMUA pesan kecuali yang dipin
+      const { count: totalBefore } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_pinned', false);
+
+      const { error } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('is_pinned', false);
+
+      if (error) return `⚠️ Gagal menghapus chat: ${error.message}`;
+
+      return `━━━━━━━━━━━━━━━━━━\n🗑️ *Live Chat Dibersihkan*\n━━━━━━━━━━━━━━━━━━\n\n✅ ${totalBefore || 0} pesan dihapus\n📌 Pesan yang dipin tetap aman\n━━━━━━━━━━━━━━━━━━`;
+    }
+
+    // Sisakan N pesan terbaru (non-pinned)
+    const { data: keepRows, error: fetchErr } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('is_pinned', false)
+      .order('created_at', { ascending: false })
+      .limit(keepLast);
+
+    if (fetchErr) return `⚠️ Gagal mengambil pesan: ${fetchErr.message}`;
+
+    const keepIds = (keepRows || []).map((r: any) => r.id);
+
+    let query = supabase.from('chat_messages').delete().eq('is_pinned', false);
+    if (keepIds.length > 0) {
+      query = query.not('id', 'in', `(${keepIds.map((id: string) => `"${id}"`).join(',')})`);
+    }
+    const { error: delErr, count: deleted } = await query.select('*', { count: 'exact', head: true });
+
+    if (delErr) return `⚠️ Gagal menghapus chat: ${delErr.message}`;
+
+    return `━━━━━━━━━━━━━━━━━━\n🗑️ *Live Chat Dibersihkan*\n━━━━━━━━━━━━━━━━━━\n\n✅ ${deleted || 0} pesan dihapus\n💬 ${keepLast} pesan terbaru disimpan\n📌 Pesan yang dipin tetap aman\n━━━━━━━━━━━━━━━━━━`;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }

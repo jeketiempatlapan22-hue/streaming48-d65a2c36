@@ -367,6 +367,8 @@ const LivePage = () => {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [whatsappChannel, setWhatsappChannel] = useState("");
+  const [whatsappChannelEnabled, setWhatsappChannelEnabled] = useState(false);
   const [countdown, setCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
   const [nextShowTime, setNextShowTime] = useState("");
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
@@ -561,6 +563,8 @@ const LivePage = () => {
           settingsData.forEach((s: any) => {
             if (s.key === "next_show_time") setNextShowTime(s.value);
             if (s.key === "whatsapp_number") setWhatsappNumber(s.value);
+            if (s.key === "whatsapp_channel") setWhatsappChannel(s.value || "");
+            if (s.key === "whatsapp_channel_enabled") setWhatsappChannelEnabled(s.value === "true");
             if (s.key === "player_animation") setPlayerAnimation((s.value || "none") as AnimationType);
             if (s.key === "active_show_id") activeShowId = s.value;
             if (s.key === "offline_background_url") setOfflineBackgroundOverride(s.value || null);
@@ -1008,6 +1012,20 @@ const LivePage = () => {
                 </SheetTitle>
               </SheetHeader>
               <div className="px-6 pb-6 space-y-2">
+                {whatsappChannelEnabled && whatsappChannel && (
+                  <a
+                    href={whatsappChannel}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center gap-3 rounded-xl border border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/5 p-4 text-left transition hover:border-[hsl(var(--success))]/60 hover:bg-[hsl(var(--success))]/10"
+                  >
+                    <MessageCircle className="h-5 w-5 text-[hsl(var(--success))]" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Saluran WhatsApp</p>
+                      <p className="text-xs text-muted-foreground">Tonton live lainnya di saluran kami</p>
+                    </div>
+                  </a>
+                )}
                 {whatsappNumber && (
                   <a
                     href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin")}`}
