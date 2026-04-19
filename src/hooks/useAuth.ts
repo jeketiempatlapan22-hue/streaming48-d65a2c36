@@ -2,12 +2,10 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
-// In-memory session cache to avoid redundant getSession() calls
 let cachedUser: User | null = null;
 let cachedIsAdmin: boolean = false;
 let cacheReady = false;
 
-// Lightweight ban check — non-blocking, with timeout and graceful fallback
 async function checkBanSafe(userId: string): Promise<{ banned: boolean; reason: string }> {
   try {
     const result = await Promise.race([
@@ -24,7 +22,6 @@ async function checkBanSafe(userId: string): Promise<{ banned: boolean; reason: 
 
 async function checkAdminSafe(userId: string): Promise<boolean> {
   try {
-    // Race against a 6s timeout to prevent hanging
     const result = await Promise.race([
       Promise.resolve(supabase.rpc("has_role", { _user_id: userId, _role: "admin" })),
       new Promise<{ data: null; error: { message: string } }>((resolve) =>
@@ -33,8 +30,22 @@ async function checkAdminSafe(userId: string): Promise<boolean> {
     ]);
     return !!result.data;
   } catch {
-    return cachedIsAdmin; // preserve last known state on error
+    return cachedIsAdmin;
   }
+}
+
+/** Aggressively clear all auth-related localStorage entries to prevent stale-token relogin failures */
+function clearStaleAuth() {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.includes('supabase.auth') || k.startsWith('sb-') || k.includes('-auth-token'))) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {}
 }
 
 export const useAuth = () => {
@@ -49,7 +60,6 @@ export const useAuth = () => {
     let banChannel: any = null;
 
     const setupBanListener = (userId: string) => {
-      // Clean up previous listener
       if (banChannel) supabase.removeChannel(banChannel);
       banChannel = supabase.channel(`user-ban-${userId}`).on(
         "postgres_changes",
@@ -67,9 +77,13 @@ export const useAuth = () => {
       ).subscribe();
     };
 
-    // Set up listener FIRST (per Supabase best practice)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        // CRITICAL: handle TOKEN_REFRESH failure / SIGNED_OUT to clear stale data
+        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
+          clearStaleAuth();
+        }
+
         const currentUser = session?.user ?? null;
         cachedUser = currentUser;
         setUser(currentUser);
@@ -99,7 +113,6 @@ export const useAuth = () => {
       }
     );
 
-    // Only call getSession if cache is empty — with timeout
     if (!cacheReady) {
       Promise.race([
         supabase.auth.getSession(),
@@ -124,6 +137,8 @@ export const useAuth = () => {
         cacheReady = true;
         setLoading(false);
       }).catch(() => {
+        // If getSession itself fails (e.g., bad refresh token), clear it
+        clearStaleAuth();
         cacheReady = true;
         setLoading(false);
       });
@@ -136,7 +151,10 @@ export const useAuth = () => {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    clearStaleAuth();
     cachedUser = null;
     cachedIsAdmin = false;
     cacheReady = false;

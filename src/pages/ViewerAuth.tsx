@@ -255,7 +255,19 @@ const ViewerAuth = () => {
           toast.error("Koneksi bermasalah, coba lagi.");
         }
       } else {
-        // LOGIN
+        // LOGIN — clear any stale token first to prevent "Invalid credentials" loop after auto-logout
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+          // Also wipe leftover storage entries from prior sessions
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && (k.includes('supabase.auth') || k.startsWith('sb-') || k.includes('-auth-token'))) {
+              localStorage.removeItem(k);
+              i--; // index shifted
+            }
+          }
+        } catch {}
+
         const result = await authWithRetry(
           () => supabase.auth.signInWithPassword({ email: authEmail, password }),
           15_000,

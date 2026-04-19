@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone, Receipt } from "lucide-react";
+import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone, Receipt, Mail, Activity, Smartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -17,6 +17,8 @@ interface UserProfile {
   order_count: number;
   token_count: number;
   phone?: string;
+  email?: string;
+  last_sign_in_at?: string | null;
 }
 
 const APP_URL = "https://realtime48stream.my.id";
@@ -41,32 +43,50 @@ const UserManager = () => {
   const [fetchError, setFetchError] = useState("");
 
   const [historyUser, setHistoryUser] = useState<UserProfile | null>(null);
+  const [activityUser, setActivityUser] = useState<UserProfile | null>(null);
+  const [activityData, setActivityData] = useState<any>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setFetchError("");
     try {
-      let allProfiles: any[] = [];
-      let from = 0;
-      const batchSize = 1000;
-      while (true) {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, username, created_at")
-          .order("created_at", { ascending: false })
-          .range(from, from + batchSize - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allProfiles = allProfiles.concat(data);
-        if (data.length < batchSize) break;
-        from += batchSize;
-      }
+      // Fetch profiles + auth data (email) in parallel
+      const [profilesData, authUsersRes] = await Promise.all([
+        (async () => {
+          let allProfiles: any[] = [];
+          let from = 0;
+          const batchSize = 1000;
+          while (true) {
+            const { data, error } = await supabase
+              .from("profiles")
+              .select("id, username, created_at")
+              .order("created_at", { ascending: false })
+              .range(from, from + batchSize - 1);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allProfiles = allProfiles.concat(data);
+            if (data.length < batchSize) break;
+            from += batchSize;
+          }
+          return allProfiles;
+        })(),
+        supabase.functions.invoke("admin-list-users").catch(() => ({ data: null, error: null })),
+      ]);
+
+      const allProfiles = profilesData;
+
+      // Build auth user map (email + last sign in)
+      const authMap: Record<string, { email: string | null; phone: string | null; last_sign_in_at: string | null }> = {};
+      const authUsers = (authUsersRes as any)?.data?.users || [];
+      authUsers.forEach((u: any) => {
+        authMap[u.id] = { email: u.email, phone: u.phone, last_sign_in_at: u.last_sign_in_at };
+      });
 
       const [balancesRes, ordersRes, tokensRes, phoneRes] = await Promise.allSettled([
         supabase.from("coin_balances").select("user_id, balance").limit(5000),
         supabase.from("coin_orders").select("user_id").limit(5000),
         supabase.from("tokens").select("user_id").limit(5000),
-        // Get phone numbers from various sources
         supabase.from("password_reset_requests").select("user_id, phone").not("phone", "eq", "").order("created_at", { ascending: false }).limit(5000),
       ]);
 
@@ -85,7 +105,6 @@ const UserManager = () => {
         tokensRes.value.data.forEach((t: any) => { if (t.user_id) tokenCountMap[t.user_id] = (tokenCountMap[t.user_id] || 0) + 1; });
       }
 
-      // Build phone map (most recent phone per user)
       const phoneMap: Record<string, string> = {};
       if (phoneRes.status === "fulfilled" && phoneRes.value.data) {
         phoneRes.value.data.forEach((r: any) => {
@@ -95,7 +114,6 @@ const UserManager = () => {
         });
       }
 
-      // Also try coin_orders and subscription_orders for phones
       const [coinPhoneRes, subPhoneRes] = await Promise.allSettled([
         supabase.from("coin_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
         supabase.from("subscription_orders").select("user_id, phone").not("phone", "is", null).not("phone", "eq", "").order("created_at", { ascending: false }).limit(3000),
@@ -111,15 +129,26 @@ const UserManager = () => {
         });
       }
 
-      const mapped: UserProfile[] = allProfiles.map((p: any) => ({
-        id: p.id,
-        username: p.username,
-        created_at: p.created_at,
-        balance: balanceMap[p.id] || 0,
-        order_count: orderCountMap[p.id] || 0,
-        token_count: tokenCountMap[p.id] || 0,
-        phone: phoneMap[p.id] || "",
-      }));
+      const mapped: UserProfile[] = allProfiles.map((p: any) => {
+        const auth = authMap[p.id];
+        // Derive phone from email if email is in @rt48.user format and no phone known
+        let phone = phoneMap[p.id] || "";
+        const email = auth?.email || "";
+        if (!phone && email.endsWith("@rt48.user")) {
+          phone = email.replace("@rt48.user", "");
+        }
+        return {
+          id: p.id,
+          username: p.username,
+          created_at: p.created_at,
+          balance: balanceMap[p.id] || 0,
+          order_count: orderCountMap[p.id] || 0,
+          token_count: tokenCountMap[p.id] || 0,
+          phone,
+          email: email.endsWith("@rt48.user") ? "" : email, // hide synthetic emails
+          last_sign_in_at: auth?.last_sign_in_at || null,
+        };
+      });
 
       setUsers(mapped);
     } catch (err: any) {
@@ -286,19 +315,45 @@ const UserManager = () => {
     return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
   };
 
+  const loadActivity = async (u: UserProfile) => {
+    setActivityUser(u);
+    setActivityData(null);
+    setActivityLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-user-activity", {
+        body: { user_id: u.id },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || "Gagal memuat aktivitas");
+      } else {
+        setActivityData(data.activity);
+      }
+    } catch {
+      toast.error("Gagal memuat aktivitas");
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().replace(/\D/g, "") ? search.replace(/\s/g, "") : search.toLowerCase();
-    const isPhoneSearch = /^\d{4,}$/.test(q);
-    
+    const rawQ = search.trim();
+    const lowerQ = rawQ.toLowerCase();
+    const digitsQ = rawQ.replace(/\D/g, "");
+    const isPhoneSearch = digitsQ.length >= 4;
+
     return users
       .filter(u => {
-        if (!q) return true;
+        if (!rawQ) return true;
         if (isPhoneSearch) {
-          // Search by phone number
           const normalizedPhone = (u.phone || "").replace(/\D/g, "");
-          return normalizedPhone.includes(q) || (u.username || "").toLowerCase().includes(search.toLowerCase()) || u.id.toLowerCase().includes(search.toLowerCase());
+          if (normalizedPhone.includes(digitsQ)) return true;
         }
-        return (u.username || "").toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || (u.phone || "").includes(q);
+        return (
+          (u.username || "").toLowerCase().includes(lowerQ) ||
+          u.id.toLowerCase().includes(lowerQ) ||
+          (u.email || "").toLowerCase().includes(lowerQ) ||
+          (u.phone || "").includes(rawQ)
+        );
       })
       .sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1;
@@ -335,7 +390,7 @@ const UserManager = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username, ID, atau nomor HP..." className="pl-10 bg-background" />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username, email, nomor HP, atau ID..." className="pl-10 bg-background" />
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -374,9 +429,19 @@ const UserManager = () => {
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">{u.username || "—"}</p>
                       <p className="text-[10px] text-muted-foreground font-mono">{u.id.slice(0, 8)}...</p>
+                      {u.email && (
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 truncate max-w-[200px]">
+                          <Mail className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{u.email}</span>
+                        </p>
+                      )}
                       {u.phone && (
                         <p className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                           <Phone className="h-2.5 w-2.5" /> {u.phone}
+                        </p>
+                      )}
+                      {u.last_sign_in_at && (
+                        <p className="text-[10px] text-muted-foreground/70">
+                          Login: {new Date(u.last_sign_in_at).toLocaleDateString("id-ID")}
                         </p>
                       )}
                     </td>
@@ -396,21 +461,13 @@ const UserManager = () => {
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setResetUser(u); setNewPassword(""); setShowPassword(false); }}>
                           <KeyRound className="mr-1 h-3 w-3" /> Sandi
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setHistoryUser(u)}
-                        >
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setHistoryUser(u)}>
                           <Receipt className="mr-1 h-3 w-3" /> Riwayat
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => sendResetLink(u)}
-                          disabled={sendingResetLink === u.id}
-                        >
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => loadActivity(u)}>
+                          <Activity className="mr-1 h-3 w-3" /> Aktivitas
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => sendResetLink(u)} disabled={sendingResetLink === u.id}>
                           <Send className="mr-1 h-3 w-3" /> {sendingResetLink === u.id ? "..." : "Link"}
                         </Button>
                       </div>
@@ -530,6 +587,71 @@ const UserManager = () => {
             <Suspense fallback={<div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-14 skeleton rounded-lg" />)}</div>}>
               <UserTransactionHistory userId={historyUser.id} isAdmin />
             </Suspense>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Activity Dialog */}
+      <Dialog open={!!activityUser} onOpenChange={() => { setActivityUser(null); setActivityData(null); }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" /> Aktivitas User
+            </DialogTitle>
+            <DialogDescription>
+              {activityUser?.username || activityUser?.id.slice(0, 8)}
+            </DialogDescription>
+          </DialogHeader>
+          {activityLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-12 skeleton rounded-lg" />)}</div>
+          ) : activityData ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-border bg-card/50 p-3 space-y-1">
+                {activityData.email && <p className="text-xs"><Mail className="inline h-3 w-3 mr-1" /> {activityData.email}</p>}
+                {(activityUser?.phone || activityData.phone_from_auth) && <p className="text-xs"><Phone className="inline h-3 w-3 mr-1" /> {activityUser?.phone || activityData.phone_from_auth}</p>}
+                <p className="text-xs text-muted-foreground">Daftar: {activityData.created_at ? new Date(activityData.created_at).toLocaleString("id-ID") : "—"}</p>
+                <p className="text-xs text-muted-foreground">Login terakhir: {activityData.last_sign_in_at ? new Date(activityData.last_sign_in_at).toLocaleString("id-ID") : "Belum pernah"}</p>
+                <p className="text-xs text-muted-foreground">Email terverifikasi: {activityData.email_confirmed_at ? "✅ Ya" : "❌ Belum"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-border bg-card/50 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase">Token Aktif</p>
+                  <p className="text-lg font-bold text-primary">{activityData.token_count || 0}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card/50 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase"><Smartphone className="inline h-3 w-3" /> Sesi Device</p>
+                  <p className="text-lg font-bold text-primary">{activityData.device_session_count || 0}</p>
+                </div>
+              </div>
+              {activityData.tokens?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-1">Token Show ({activityData.tokens.length})</p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {activityData.tokens.slice(0, 10).map((t: any) => (
+                      <div key={t.id} className="rounded border border-border/50 bg-secondary/30 p-2 text-[11px]">
+                        <p className="font-mono">{t.code}</p>
+                        <p className="text-muted-foreground">Status: {t.status} · {new Date(t.created_at).toLocaleDateString("id-ID")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {activityData.reset_requests?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-1">Permintaan Reset Password ({activityData.reset_requests.length})</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {activityData.reset_requests.slice(0, 5).map((r: any) => (
+                      <div key={r.id} className="rounded border border-border/50 bg-secondary/30 p-2 text-[11px]">
+                        <p>Status: <span className="font-semibold">{r.status}</span></p>
+                        <p className="text-muted-foreground">{new Date(r.created_at).toLocaleString("id-ID")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data aktivitas</p>
           )}
         </DialogContent>
       </Dialog>
