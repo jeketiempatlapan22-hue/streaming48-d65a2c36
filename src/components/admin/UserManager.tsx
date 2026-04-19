@@ -473,7 +473,6 @@ const UserManager = () => {
                       </div>
                     </td>
                   </tr>
-                  </tr>
                 ))
               )}
             </tbody>
