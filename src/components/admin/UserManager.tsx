@@ -590,6 +590,71 @@ const UserManager = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Activity Dialog */}
+      <Dialog open={!!activityUser} onOpenChange={() => { setActivityUser(null); setActivityData(null); }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" /> Aktivitas User
+            </DialogTitle>
+            <DialogDescription>
+              {activityUser?.username || activityUser?.id.slice(0, 8)}
+            </DialogDescription>
+          </DialogHeader>
+          {activityLoading ? (
+            <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-12 skeleton rounded-lg" />)}</div>
+          ) : activityData ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-lg border border-border bg-card/50 p-3 space-y-1">
+                {activityData.email && <p className="text-xs"><Mail className="inline h-3 w-3 mr-1" /> {activityData.email}</p>}
+                {(activityUser?.phone || activityData.phone_from_auth) && <p className="text-xs"><Phone className="inline h-3 w-3 mr-1" /> {activityUser?.phone || activityData.phone_from_auth}</p>}
+                <p className="text-xs text-muted-foreground">Daftar: {activityData.created_at ? new Date(activityData.created_at).toLocaleString("id-ID") : "—"}</p>
+                <p className="text-xs text-muted-foreground">Login terakhir: {activityData.last_sign_in_at ? new Date(activityData.last_sign_in_at).toLocaleString("id-ID") : "Belum pernah"}</p>
+                <p className="text-xs text-muted-foreground">Email terverifikasi: {activityData.email_confirmed_at ? "✅ Ya" : "❌ Belum"}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-border bg-card/50 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase">Token Aktif</p>
+                  <p className="text-lg font-bold text-primary">{activityData.token_count || 0}</p>
+                </div>
+                <div className="rounded-lg border border-border bg-card/50 p-3 text-center">
+                  <p className="text-[10px] text-muted-foreground uppercase"><Smartphone className="inline h-3 w-3" /> Sesi Device</p>
+                  <p className="text-lg font-bold text-primary">{activityData.device_session_count || 0}</p>
+                </div>
+              </div>
+              {activityData.tokens?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-1">Token Show ({activityData.tokens.length})</p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {activityData.tokens.slice(0, 10).map((t: any) => (
+                      <div key={t.id} className="rounded border border-border/50 bg-secondary/30 p-2 text-[11px]">
+                        <p className="font-mono">{t.code}</p>
+                        <p className="text-muted-foreground">Status: {t.status} · {new Date(t.created_at).toLocaleDateString("id-ID")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {activityData.reset_requests?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold mb-1">Permintaan Reset Password ({activityData.reset_requests.length})</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {activityData.reset_requests.slice(0, 5).map((r: any) => (
+                      <div key={r.id} className="rounded border border-border/50 bg-secondary/30 p-2 text-[11px]">
+                        <p>Status: <span className="font-semibold">{r.status}</span></p>
+                        <p className="text-muted-foreground">{new Date(r.created_at).toLocaleString("id-ID")}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">Tidak ada data aktivitas</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
