@@ -13,8 +13,6 @@ import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
 import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
-import { REPLAY_URL, buildReplayUrl } from "@/lib/appConfig";
-import { openReplayWithAccess } from "@/lib/replayAccess";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
@@ -294,7 +292,7 @@ const ReplayPage = () => {
         {/* Button for users who already purchased */}
         <div className="mx-auto mb-6 max-w-md">
           <a
-            href={REPLAY_URL}
+            href="https://replaytime.lovable.app"
             target="_blank"
             rel="noopener noreferrer"
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary bg-primary/10 px-4 py-3.5 text-sm font-bold text-primary transition-all hover:bg-primary/20 active:scale-[0.97]"
@@ -363,25 +361,21 @@ const ReplayPage = () => {
                           <p className="font-mono text-lg font-bold text-primary">{replayPasswords[show.id]}</p>
                         </div>
                         <button
-                          onClick={async () => {
-                            toast({ title: "Membuka halaman replay (akses otomatis)..." });
-                            await openReplayWithAccess(show.id, replayPasswords[show.id]);
+                          onClick={() => {
+                            navigator.clipboard.writeText(replayPasswords[show.id]);
+                            toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
-                          <Play className="h-4 w-4" /> Tonton Replay
+                          <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <button
-                        onClick={async () => {
-                          toast({ title: "Membuka halaman replay (akses otomatis)..." });
-                          await openReplayWithAccess(show.id);
-                        }}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
-                      >
+                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
                         <Play className="h-4 w-4" /> Tonton Replay
-                      </button>
+                      </a>
                     ) : (
                       <button
                         onClick={() => openPurchase(show)}
@@ -620,16 +614,17 @@ const ReplayPage = () => {
               <Button
                 className="w-full gap-2"
                 variant="outline"
-                onClick={async () => {
-                  toast({ title: "Membuka halaman replay (akses otomatis)..." });
-                  if (purchaseShow) {
-                    await openReplayWithAccess(purchaseShow.id, replayResult.replay_password);
-                  }
-                  setPurchaseShow(null);
-                  setReplayResult(null);
+                onClick={() => {
+                  navigator.clipboard.writeText(replayResult.replay_password);
+                  toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                  setTimeout(() => {
+                    window.open("https://replaytime.lovable.app", "_blank");
+                    setPurchaseShow(null);
+                    setReplayResult(null);
+                  }, 500);
                 }}
               >
-                <Play className="h-4 w-4" /> Tonton Replay
+                <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
               </Button>
               <p className="text-xs text-muted-foreground">Sisa saldo: <span className="font-bold text-primary">{replayResult.remaining_balance} koin</span></p>
             </div>
@@ -654,14 +649,14 @@ const ReplayPage = () => {
                 className="w-full gap-2"
                 onClick={() => {
                   navigator.clipboard.writeText(replayModal.password);
-                  toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
+                  toast({ title: "Sandi disalin! Membuka halaman replay..." });
                   setTimeout(() => {
-                    window.open(buildReplayUrl(replayModal.password), "_blank");
+                    window.open("https://replaytime.lovable.app", "_blank");
                     setReplayModal(null);
-                  }, 300);
+                  }, 500);
                 }}
               >
-                <Play className="h-4 w-4" /> Tonton Replay
+                <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
               </Button>
             </div>
           )}
