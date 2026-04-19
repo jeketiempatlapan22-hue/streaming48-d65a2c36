@@ -2098,7 +2098,55 @@ async function handlePerpanjangWa(supabase: any, tokenSuffix: string, durationSt
   }
 }
 
-function jsonResponse(body: unknown, status = 200) {
+async function handleClearChat(supabase: any, keepLast: number): Promise<string> {
+  try {
+    if (keepLast < 0 || keepLast > 1000) {
+      return '⚠️ Jumlah pesan yang disimpan harus antara 0 - 1000.';
+    }
+
+    if (keepLast === 0) {
+      // Hapus SEMUA pesan kecuali yang dipin
+      const { count: totalBefore } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_pinned', false);
+
+      const { error } = await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('is_pinned', false);
+
+      if (error) return `⚠️ Gagal menghapus chat: ${error.message}`;
+
+      return `━━━━━━━━━━━━━━━━━━\n🗑️ *Live Chat Dibersihkan*\n━━━━━━━━━━━━━━━━━━\n\n✅ ${totalBefore || 0} pesan dihapus\n📌 Pesan yang dipin tetap aman\n━━━━━━━━━━━━━━━━━━`;
+    }
+
+    // Sisakan N pesan terbaru (non-pinned)
+    const { data: keepRows, error: fetchErr } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('is_pinned', false)
+      .order('created_at', { ascending: false })
+      .limit(keepLast);
+
+    if (fetchErr) return `⚠️ Gagal mengambil pesan: ${fetchErr.message}`;
+
+    const keepIds = (keepRows || []).map((r: any) => r.id);
+
+    let query = supabase.from('chat_messages').delete().eq('is_pinned', false);
+    if (keepIds.length > 0) {
+      query = query.not('id', 'in', `(${keepIds.map((id: string) => `"${id}"`).join(',')})`);
+    }
+    const { error: delErr, count: deleted } = await query.select('*', { count: 'exact', head: true });
+
+    if (delErr) return `⚠️ Gagal menghapus chat: ${delErr.message}`;
+
+    return `━━━━━━━━━━━━━━━━━━\n🗑️ *Live Chat Dibersihkan*\n━━━━━━━━━━━━━━━━━━\n\n✅ ${deleted || 0} pesan dihapus\n💬 ${keepLast} pesan terbaru disimpan\n📌 Pesan yang dipin tetap aman\n━━━━━━━━━━━━━━━━━━`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
+  }
+}
+
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
