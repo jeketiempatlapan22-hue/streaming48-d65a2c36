@@ -315,19 +315,45 @@ const UserManager = () => {
     return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
   };
 
+  const loadActivity = async (u: UserProfile) => {
+    setActivityUser(u);
+    setActivityData(null);
+    setActivityLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-user-activity", {
+        body: { user_id: u.id },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || "Gagal memuat aktivitas");
+      } else {
+        setActivityData(data.activity);
+      }
+    } catch {
+      toast.error("Gagal memuat aktivitas");
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().replace(/\D/g, "") ? search.replace(/\s/g, "") : search.toLowerCase();
-    const isPhoneSearch = /^\d{4,}$/.test(q);
-    
+    const rawQ = search.trim();
+    const lowerQ = rawQ.toLowerCase();
+    const digitsQ = rawQ.replace(/\D/g, "");
+    const isPhoneSearch = digitsQ.length >= 4;
+
     return users
       .filter(u => {
-        if (!q) return true;
+        if (!rawQ) return true;
         if (isPhoneSearch) {
-          // Search by phone number
           const normalizedPhone = (u.phone || "").replace(/\D/g, "");
-          return normalizedPhone.includes(q) || (u.username || "").toLowerCase().includes(search.toLowerCase()) || u.id.toLowerCase().includes(search.toLowerCase());
+          if (normalizedPhone.includes(digitsQ)) return true;
         }
-        return (u.username || "").toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || (u.phone || "").includes(q);
+        return (
+          (u.username || "").toLowerCase().includes(lowerQ) ||
+          u.id.toLowerCase().includes(lowerQ) ||
+          (u.email || "").toLowerCase().includes(lowerQ) ||
+          (u.phone || "").includes(rawQ)
+        );
       })
       .sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1;
