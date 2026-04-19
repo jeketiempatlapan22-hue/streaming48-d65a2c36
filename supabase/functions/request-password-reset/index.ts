@@ -1,11 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const APP_URL = "https://realtime48stream.my.id";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// In-memory rate limiter
 const rlMap = new Map<string, { count: number; resetAt: number }>();
 function edgeRL(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
@@ -32,6 +33,24 @@ function normalizePhone(raw: string | null | undefined) {
   return digits;
 }
 
+async function sendWhatsApp(target: string, message: string, token: string) {
+  try {
+    const response = await fetch("https://api.fonnte.com/send", {
+      method: "POST",
+      headers: { Authorization: token },
+      body: new URLSearchParams({ target, message }),
+    });
+    const text = await response.text();
+    let payload: Record<string, unknown> = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
+    const accepted = response.ok && payload.status !== false && payload.ok !== false && payload.success !== false;
+    if (!accepted) return { success: false, error: String(payload.reason || payload.message || payload.error || "WA send failed") };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: String(e?.message || "WA error") };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -39,9 +58,9 @@ Deno.serve(async (req) => {
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Check if IP is blocked
   const { data: ipBlocked } = await supabase.rpc("is_ip_blocked", { _ip: ip });
   if (ipBlocked === true) return ok({ success: false, error: 'Akses ditolak.' });
 
@@ -52,42 +71,31 @@ Deno.serve(async (req) => {
 
   try {
     const { identifier, phone } = await req.json();
-
-    if (!identifier || typeof identifier !== 'string') {
-      return ok({ success: false, error: 'Data tidak valid' });
-    }
+    if (!identifier || typeof identifier !== 'string') return ok({ success: false, error: 'Data tidak valid' });
 
     const normalizedPhone = normalizePhone(phone);
     const whatsappPhone = normalizedPhone || (identifier.endsWith('@rt48.user') ? normalizePhone(identifier.replace('@rt48.user', '')) : '');
+    if (!whatsappPhone) return ok({ success: false, error: 'Masukkan nomor WhatsApp aktif untuk menerima link reset.' });
 
-    if (!whatsappPhone) {
-      return ok({ success: false, error: 'Masukkan nomor WhatsApp aktif untuk menerima link reset.' });
-    }
-
-    // DB rate limit already checked above
-
-    // Persistent DB-level rate limit: 10 reset requests per hour per IP
     const { data: dbAllowed } = await supabase.rpc("check_rate_limit", {
       _key: "pw_request_ip:" + ip, _max_requests: 10, _window_seconds: 3600,
     });
-    if (dbAllowed === false) {
-      return ok({ success: false, error: 'Terlalu banyak permintaan. Tunggu sebentar.' });
-    }
+    if (dbAllowed === false) return ok({ success: false, error: 'Terlalu banyak permintaan. Tunggu sebentar.' });
 
-    // Prevent spam
+    // Anti-spam: max 1 active request per identifier per 5 min
     const { data: existingPending } = await supabase
       .from('password_reset_requests')
-      .select('id, created_at')
+      .select('id, created_at, status, secure_token')
       .eq('identifier', identifier)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'approved'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (existingPending) {
       const createdAt = new Date(existingPending.created_at).getTime();
-      if (Date.now() - createdAt < 30 * 60 * 1000) {
-        return ok({ success: false, error: 'Permintaan reset sudah dikirim. Tunggu admin menyetujui (max 30 menit).' });
+      if (Date.now() - createdAt < 5 * 60 * 1000) {
+        return ok({ success: true, info: 'Link reset sudah dikirim baru-baru ini. Cek WhatsApp kamu.' });
       }
     }
 
@@ -95,13 +103,7 @@ Deno.serve(async (req) => {
     const encodedEmail = encodeURIComponent(identifier.toLowerCase());
     const userLookupRes = await fetch(
       `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodedEmail}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_KEY}`,
-          'apikey': SERVICE_KEY,
-        },
-      }
+      { method: 'GET', headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY } }
     );
 
     let foundUser: any = null;
@@ -109,8 +111,6 @@ Deno.serve(async (req) => {
       const usersData = await userLookupRes.json();
       const allUsers = usersData.users || usersData || [];
       foundUser = allUsers.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase());
-    } else {
-      await userLookupRes.text();
     }
 
     if (!foundUser) {
@@ -124,18 +124,21 @@ Deno.serve(async (req) => {
       .eq('id', foundUser.id)
       .maybeSingle();
 
-    // Generate plaintext secure token
+    // Generate secure token
     const tokenBytes = new Uint8Array(32);
     crypto.getRandomValues(tokenBytes);
     const secureToken = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
+    // Insert as APPROVED so user gets link immediately
+    const nowIso = new Date().toISOString();
     const { error: insertErr } = await supabase
       .from('password_reset_requests')
       .insert({
         user_id: foundUser.id,
         identifier,
         phone: whatsappPhone,
-        status: 'pending',
+        status: 'approved',
+        processed_at: nowIso,
         secure_token: secureToken,
       });
 
@@ -144,32 +147,35 @@ Deno.serve(async (req) => {
       return ok({ success: false, error: 'Gagal membuat permintaan.' });
     }
 
-    const { data: newReq } = await supabase
-      .from('password_reset_requests')
-      .select('short_id')
-      .eq('user_id', foundUser.id)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    // Notify admin
-    const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/notify-password-reset`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          short_id: newReq?.short_id || 'unknown',
-          identifier,
-          username: profile?.username || (identifier.endsWith('@rt48.user') ? identifier.replace('@rt48.user', '') : identifier.split('@')[0]),
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to notify admin:', e);
+    // Send WhatsApp link directly
+    if (FONNTE_TOKEN) {
+      const resetLink = `${APP_URL}/reset-password?token=${secureToken}`;
+      const msg =
+        `🔑 *Reset Password RealTime48*\n\n` +
+        `Hi ${profile?.username || "user"}, kamu meminta reset password.\n\n` +
+        `Klik link berikut untuk membuat password baru:\n${resetLink}\n\n` +
+        `⏰ Link berlaku 2 jam.\n\n` +
+        `Jika kamu tidak meminta reset ini, abaikan pesan ini.`;
+      const waResult = await sendWhatsApp(whatsappPhone, msg, FONNTE_TOKEN);
+      if (!waResult.success) {
+        console.error("WA send failed:", waResult.error);
+        // Notify admin so they can resend manually
+        try {
+          const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
+          await fetch(`${SUPABASE_URL}/functions/v1/notify-password-reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+            body: JSON.stringify({
+              short_id: 'auto',
+              identifier,
+              username: profile?.username || identifier,
+            }),
+          });
+        } catch {}
+        return ok({ success: false, error: 'Gagal mengirim WhatsApp. Hubungi admin atau coba lagi nanti.' });
+      }
+    } else {
+      return ok({ success: false, error: 'Konfigurasi WhatsApp belum aktif. Hubungi admin.' });
     }
 
     return ok({ success: true });
