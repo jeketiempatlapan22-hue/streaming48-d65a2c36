@@ -601,7 +601,7 @@ const ShowManager = () => {
                   >
                     <Copy className="mr-1 h-3 w-3" /> Salin Password
                   </Button>
-                  <Button size="sm" className="flex-1 text-xs" onClick={() => window.open("https://replaytime.lovable.app", "_blank")}>
+                  <Button size="sm" className="flex-1 text-xs" onClick={() => window.open(buildReplayUrl(draft.access_password || ""), "_blank")}>
                     <ExternalLink className="mr-1 h-3 w-3" /> Tonton Replay
                   </Button>
                 </div>
