@@ -650,14 +650,14 @@ const ReplayPage = () => {
                 className="w-full gap-2"
                 onClick={() => {
                   navigator.clipboard.writeText(replayModal.password);
-                  toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                  toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    window.open(buildReplayUrl(replayModal.password), "_blank");
                     setReplayModal(null);
-                  }, 500);
+                  }, 300);
                 }}
               >
-                <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
+                <Play className="h-4 w-4" /> Tonton Replay
               </Button>
             </div>
           )}
