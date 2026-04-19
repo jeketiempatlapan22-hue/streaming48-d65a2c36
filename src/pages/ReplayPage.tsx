@@ -14,6 +14,7 @@ import TeamBadge from "@/components/viewer/TeamBadge";
 import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 import { REPLAY_URL, buildReplayUrl } from "@/lib/appConfig";
+import { openReplayWithAccess } from "@/lib/replayAccess";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
@@ -362,10 +363,9 @@ const ReplayPage = () => {
                           <p className="font-mono text-lg font-bold text-primary">{replayPasswords[show.id]}</p>
                         </div>
                         <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(replayPasswords[show.id]);
-                            toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
-                            setTimeout(() => { window.open(buildReplayUrl(replayPasswords[show.id]), "_blank"); }, 300);
+                          onClick={async () => {
+                            toast({ title: "Membuka halaman replay (akses otomatis)..." });
+                            await openReplayWithAccess(show.id, replayPasswords[show.id]);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
@@ -373,10 +373,15 @@ const ReplayPage = () => {
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a href={REPLAY_URL} target="_blank" rel="noopener noreferrer"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
+                      <button
+                        onClick={async () => {
+                          toast({ title: "Membuka halaman replay (akses otomatis)..." });
+                          await openReplayWithAccess(show.id);
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
+                      >
                         <Play className="h-4 w-4" /> Tonton Replay
-                      </a>
+                      </button>
                     ) : (
                       <button
                         onClick={() => openPurchase(show)}
@@ -615,14 +620,13 @@ const ReplayPage = () => {
               <Button
                 className="w-full gap-2"
                 variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(replayResult.replay_password);
-                  toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
-                  setTimeout(() => {
-                    window.open(buildReplayUrl(replayResult.replay_password), "_blank");
-                    setPurchaseShow(null);
-                    setReplayResult(null);
-                  }, 300);
+                onClick={async () => {
+                  toast({ title: "Membuka halaman replay (akses otomatis)..." });
+                  if (purchaseShow) {
+                    await openReplayWithAccess(purchaseShow.id, replayResult.replay_password);
+                  }
+                  setPurchaseShow(null);
+                  setReplayResult(null);
                 }}
               >
                 <Play className="h-4 w-4" /> Tonton Replay
