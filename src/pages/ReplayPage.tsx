@@ -13,6 +13,7 @@ import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
 import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
+import { REPLAY_URL, buildReplayUrl } from "@/lib/appConfig";
 
 const isShowPast4Hours = (show: Show) => {
   if (!show.schedule_date || !show.schedule_time) return false;
