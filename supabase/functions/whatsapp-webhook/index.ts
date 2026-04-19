@@ -2147,6 +2147,7 @@ async function handleClearChat(supabase: any, keepLast: number): Promise<string>
   }
 }
 
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
