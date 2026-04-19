@@ -425,6 +425,8 @@ TOLAK_RESET <id> - Tolak reset password
 📢 *Lainnya:*
 /broadcast <pesan> - Kirim notifikasi
 /setshortid #ID <nama> - Set custom ID untuk show
+/clearchat - Hapus SEMUA pesan live chat
+/clearchat <jumlah> - Sisakan N pesan terbaru (hapus sisanya)
 /help - Tampilkan daftar command
 
 📊 *Statistik & Analitik:*
