@@ -38,23 +38,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (row.used) {
-      return new Response(JSON.stringify({ success: false, error: "Token sudah digunakan" }), {
-        status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     if (new Date(row.expires_at).getTime() < Date.now()) {
       return new Response(JSON.stringify({ success: false, error: "Token kedaluwarsa" }), {
         status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Mark as used (single-use)
-    await adminClient
-      .from("replay_access_tokens")
-      .update({ used: true, used_at: new Date().toISOString() })
-      .eq("id", row.id);
+    // Multi-use: only mark first-use timestamp, do NOT block re-use while not expired
+    if (!row.used) {
+      await adminClient
+        .from("replay_access_tokens")
+        .update({ used: true, used_at: new Date().toISOString() })
+        .eq("id", row.id);
+    }
 
     return new Response(JSON.stringify({
       success: true,
