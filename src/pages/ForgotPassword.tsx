@@ -68,18 +68,17 @@ const ForgotPassword = () => {
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm text-center space-y-4">
           <CheckCircle2 className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
-          <h1 className="text-xl font-bold text-foreground">Permintaan Terkirim!</h1>
+          <h1 className="text-xl font-bold text-foreground">Link Reset Terkirim!</h1>
           <div className="rounded-xl border border-border bg-card p-5 space-y-3">
             <div className="flex items-center justify-center gap-2 text-primary">
               <MessageSquare className="h-5 w-5" />
-              <span className="font-semibold text-sm">Cek WhatsApp Kamu</span>
+              <span className="font-semibold text-sm">Cek WhatsApp Kamu Sekarang</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              Setelah admin menyetujui, link reset password akan dikirim ke nomor WhatsApp yang kamu masukkan.
-              Biasanya dalam beberapa menit.
+              Link reset password sudah dikirim ke WhatsApp kamu. Klik link di pesan untuk membuat password baru.
             </p>
             <p className="text-xs text-muted-foreground">
-              ⏰ Link berlaku 2 jam setelah disetujui.
+              ⏰ Link berlaku selama 2 jam. Jika tidak ada pesan dalam 1 menit, periksa nomor WA kamu dan coba lagi.
             </p>
           </div>
           <Button onClick={() => navigate("/auth")} variant="outline" className="w-full">
@@ -171,7 +170,7 @@ const ForgotPassword = () => {
           <div className="rounded-lg bg-secondary/50 border border-border p-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
               <MessageSquare className="inline h-3.5 w-3.5 mr-1 text-primary" />
-              Link reset password akan dikirim via <span className="font-semibold text-foreground">WhatsApp</span> setelah admin menyetujui permintaan kamu. Jika mencari akun dengan email, tetap isi nomor WhatsApp tujuan pengiriman link.
+              Link reset password akan <span className="font-semibold text-foreground">langsung dikirim ke WhatsApp kamu</span> tanpa perlu menunggu admin. Pastikan nomor WA aktif.
             </p>
           </div>
 
