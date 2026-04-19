@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, access_token: token, expires_in: 300 }), {
+    return new Response(JSON.stringify({ success: true, access_token: token, expires_in: 86400 }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
