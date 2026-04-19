@@ -620,14 +620,13 @@ const ReplayPage = () => {
               <Button
                 className="w-full gap-2"
                 variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(replayResult.replay_password);
-                  toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
-                  setTimeout(() => {
-                    window.open(buildReplayUrl(replayResult.replay_password), "_blank");
-                    setPurchaseShow(null);
-                    setReplayResult(null);
-                  }, 300);
+                onClick={async () => {
+                  toast({ title: "Membuka halaman replay (akses otomatis)..." });
+                  if (purchaseShow) {
+                    await openReplayWithAccess(purchaseShow.id, replayResult.replay_password);
+                  }
+                  setPurchaseShow(null);
+                  setReplayResult(null);
                 }}
               >
                 <Play className="h-4 w-4" /> Tonton Replay
