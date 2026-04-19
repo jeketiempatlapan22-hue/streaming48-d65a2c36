@@ -617,15 +617,15 @@ const ReplayPage = () => {
                 variant="outline"
                 onClick={() => {
                   navigator.clipboard.writeText(replayResult.replay_password);
-                  toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                  toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    window.open(buildReplayUrl(replayResult.replay_password), "_blank");
                     setPurchaseShow(null);
                     setReplayResult(null);
-                  }, 500);
+                  }, 300);
                 }}
               >
-                <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
+                <Play className="h-4 w-4" /> Tonton Replay
               </Button>
               <p className="text-xs text-muted-foreground">Sisa saldo: <span className="font-bold text-primary">{replayResult.remaining_balance} koin</span></p>
             </div>
