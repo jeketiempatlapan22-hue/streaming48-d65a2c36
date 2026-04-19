@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone, Receipt } from "lucide-react";
+import { Search, Users, Coins, Plus, Minus, RefreshCw, ChevronDown, ChevronUp, KeyRound, Eye, EyeOff, Send, Phone, Receipt, Mail, Activity, Smartphone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -17,6 +17,8 @@ interface UserProfile {
   order_count: number;
   token_count: number;
   phone?: string;
+  email?: string;
+  last_sign_in_at?: string | null;
 }
 
 const APP_URL = "https://realtime48stream.my.id";
