@@ -1,1 +1,4 @@
 project_id = "vksulznafekijsmalhbk"
+
+[functions.verify-replay-access]
+verify_jwt = false
