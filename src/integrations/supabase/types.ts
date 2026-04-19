@@ -659,6 +659,42 @@ export type Database = {
         }
         Relationships: []
       }
+      replay_access_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          password: string
+          show_id: string
+          token: string
+          used: boolean
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          password: string
+          show_id: string
+          token: string
+          used?: boolean
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          password?: string
+          show_id?: string
+          token?: string
+          used?: boolean
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       security_events: {
         Row: {
           created_at: string
@@ -1167,9 +1203,11 @@ export type Database = {
         Args: { _key: string; _max_requests: number; _window_seconds: number }
         Returns: boolean
       }
+      check_user_replay_access: { Args: { _show_id: string }; Returns: Json }
       claim_referral: { Args: { _code: string }; Returns: Json }
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      cleanup_replay_access_tokens: { Args: never; Returns: undefined }
       cleanup_stale_viewers: { Args: never; Returns: undefined }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
       confirm_membership_order: { Args: { _order_id: string }; Returns: Json }
