@@ -390,7 +390,7 @@ const UserManager = () => {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username, ID, atau nomor HP..." className="pl-10 bg-background" />
+        <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Cari username, email, nomor HP, atau ID..." className="pl-10 bg-background" />
       </div>
 
       <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -429,9 +429,19 @@ const UserManager = () => {
                     <td className="px-4 py-3">
                       <p className="font-medium text-foreground">{u.username || "—"}</p>
                       <p className="text-[10px] text-muted-foreground font-mono">{u.id.slice(0, 8)}...</p>
+                      {u.email && (
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-0.5 truncate max-w-[200px]">
+                          <Mail className="h-2.5 w-2.5 shrink-0" /> <span className="truncate">{u.email}</span>
+                        </p>
+                      )}
                       {u.phone && (
                         <p className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                           <Phone className="h-2.5 w-2.5" /> {u.phone}
+                        </p>
+                      )}
+                      {u.last_sign_in_at && (
+                        <p className="text-[10px] text-muted-foreground/70">
+                          Login: {new Date(u.last_sign_in_at).toLocaleDateString("id-ID")}
                         </p>
                       )}
                     </td>
@@ -451,25 +461,18 @@ const UserManager = () => {
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setResetUser(u); setNewPassword(""); setShowPassword(false); }}>
                           <KeyRound className="mr-1 h-3 w-3" /> Sandi
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setHistoryUser(u)}
-                        >
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setHistoryUser(u)}>
                           <Receipt className="mr-1 h-3 w-3" /> Riwayat
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => sendResetLink(u)}
-                          disabled={sendingResetLink === u.id}
-                        >
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => loadActivity(u)}>
+                          <Activity className="mr-1 h-3 w-3" /> Aktivitas
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => sendResetLink(u)} disabled={sendingResetLink === u.id}>
                           <Send className="mr-1 h-3 w-3" /> {sendingResetLink === u.id ? "..." : "Link"}
                         </Button>
                       </div>
                     </td>
+                  </tr>
                   </tr>
                 ))
               )}
