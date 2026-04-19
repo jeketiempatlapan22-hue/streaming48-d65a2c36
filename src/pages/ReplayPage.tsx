@@ -364,16 +364,16 @@ const ReplayPage = () => {
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(replayPasswords[show.id]);
-                            toast({ title: "Sandi disalin! Membuka halaman replay..." });
-                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
+                            toast({ title: "Membuka halaman replay (auto-isi sandi)..." });
+                            setTimeout(() => { window.open(buildReplayUrl(replayPasswords[show.id]), "_blank"); }, 300);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
-                          <Copy className="h-4 w-4" /> Salin Sandi & Tonton Replay
+                          <Play className="h-4 w-4" /> Tonton Replay
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
+                      <a href={REPLAY_URL} target="_blank" rel="noopener noreferrer"
                         className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
                         <Play className="h-4 w-4" /> Tonton Replay
                       </a>
