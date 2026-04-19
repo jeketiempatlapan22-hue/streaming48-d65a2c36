@@ -316,6 +316,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
+  const isClearChat = /^\/clearchat$/i.test(rawText);
+  const clearChatKeepMatch = rawText.match(/^\/clearchat\s+(\d+)$/i);
 
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
@@ -353,6 +355,8 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   if (maketokenMatch) return await handleMakeTokenWa(supabase, maketokenMatch[1].trim(), maketokenMatch[2].trim(), maketokenMatch[3] ? parseInt(maketokenMatch[3], 10) : 1, maketokenMatch[4]?.trim() || null);
   if (tokenallMatch) return await handleTokenAllWa(supabase, tokenallMatch[1].trim(), tokenallMatch[2] ? parseInt(tokenallMatch[2], 10) : 1);
   if (perpanjangMatch) return await handlePerpanjangWa(supabase, perpanjangMatch[1], perpanjangMatch[2].trim());
+  if (clearChatKeepMatch) return await handleClearChat(supabase, parseInt(clearChatKeepMatch[1], 10));
+  if (isClearChat) return await handleClearChat(supabase, 0);
   if (resetMatch) return await handlePasswordReset(supabase, resetMatch[1].toLowerCase(), 'approve');
   if (tolakResetMatch) return await handlePasswordReset(supabase, tolakResetMatch[1].toLowerCase(), 'reject');
   if (yaMatch) {
