@@ -51,6 +51,52 @@ const ResellerManager = () => {
   const [newPw, setNewPw] = useState("");
   const [resetConfirm, setResetConfirm] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+  const [testingPhone, setTestingPhone] = useState<string | null>(null);
+
+  /**
+   * Send a test WhatsApp message via the admin-gated `send-whatsapp` edge function
+   * to verify that the reseller's number is reachable through the bot. Surfaces
+   * success / failure toasts based on the webhook response.
+   */
+  const sendTestMessage = async (rawTarget: string, label?: string) => {
+    const target = normalizeWaPhone(rawTarget);
+    if (!isValidWaPhone(target)) {
+      toast({ title: "Nomor tidak valid", description: "Periksa format nomor sebelum mengirim tes.", variant: "destructive" });
+      return;
+    }
+    setTestingPhone(target);
+    const message =
+      `🤖 *Tes Koneksi Bot*\n\n` +
+      `Halo${label ? ` ${label}` : ""}, ini pesan uji dari admin RealTime48 untuk memastikan nomor WhatsApp ini terhubung dengan bot reseller.\n\n` +
+      `Jika kamu menerima pesan ini, kirim *${label ? "/" + (prefix || "X").toUpperCase() + "stats" : "/<prefix>stats"}* untuk mulai menggunakan command reseller.`;
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { target, message },
+      });
+      if (error) throw new Error(error.message);
+      const res = data as any;
+      if (res?.success) {
+        toast({
+          title: "✅ Pesan tes terkirim",
+          description: `Bot WhatsApp berhasil mengirim pesan ke +${target}. Periksa WhatsApp untuk konfirmasi.`,
+        });
+      } else {
+        toast({
+          title: "⚠️ Gagal mengirim",
+          description: res?.error || "Webhook menolak permintaan. Periksa token Fonnte dan status nomor.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "❌ Error koneksi bot",
+        description: err?.message || "Tidak dapat menghubungi edge function send-whatsapp.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingPhone(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
