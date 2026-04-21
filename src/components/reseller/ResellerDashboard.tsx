@@ -35,16 +35,27 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   const { toast } = useToast();
 
   const loadShows = useCallback(async () => {
-    const { data } = await supabase.rpc("reseller_get_active_shows", { _session_token: session.session_token });
-    const res = data as any;
-    if (res?.success) setShows(res.shows || []);
-    else if (res?.error) toast({ title: "Gagal memuat show", description: res.error, variant: "destructive" });
+    try {
+      const { data, error } = await supabase.rpc("reseller_get_active_shows", { _session_token: session.session_token });
+      if (error) {
+        toast({ title: "Gagal memuat show", description: error.message, variant: "destructive" });
+        return;
+      }
+      const res = data as any;
+      if (res?.success) setShows(res.shows || []);
+      else if (res?.error) toast({ title: "Gagal memuat show", description: res.error, variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Gagal memuat show", description: e?.message || "Network error", variant: "destructive" });
+    }
   }, [session.session_token, toast]);
 
   const loadTokens = useCallback(async () => {
-    const { data } = await supabase.rpc("reseller_list_my_tokens", { _session_token: session.session_token, _limit: 200 });
-    const res = data as any;
-    if (res?.success) setTokens(res.tokens || []);
+    try {
+      const { data, error } = await supabase.rpc("reseller_list_my_tokens", { _session_token: session.session_token, _limit: 200 });
+      if (error) return;
+      const res = data as any;
+      if (res?.success) setTokens(res.tokens || []);
+    } catch { /* noop */ }
   }, [session.session_token]);
 
   const refresh = useCallback(async () => {
@@ -98,10 +109,22 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
         toast({ title: "Gagal reset", description: res?.error || "Tidak diketahui", variant: "destructive" });
         return;
       }
-      // Broadcast force-logout to active devices on this token
+      // Broadcast force-logout to active devices on this token (wait for SUBSCRIBED before send)
       try {
-        const ch = supabase.channel(`token-reset-${resetTarget.id}`);
-        await ch.subscribe();
+        const ch = supabase.channel(`token-reset-${resetTarget.id}`, {
+          config: { broadcast: { ack: false, self: false } },
+        });
+        await new Promise<void>((resolve) => {
+          let done = false;
+          const timer = setTimeout(() => { if (!done) { done = true; resolve(); } }, 2500);
+          ch.subscribe((status) => {
+            if (status === "SUBSCRIBED" && !done) {
+              done = true;
+              clearTimeout(timer);
+              resolve();
+            }
+          });
+        });
         await ch.send({ type: "broadcast", event: "force_logout", payload: { token_id: resetTarget.id } });
         supabase.removeChannel(ch);
       } catch { /* noop */ }
@@ -110,6 +133,10 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
         description: `${res.deleted_count || 0} sesi dihapus untuk ${res.token_code}`,
       });
       setResetTarget(null);
+      // Refresh token list to reflect any state change
+      loadTokens();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Gagal reset sesi", variant: "destructive" });
     } finally {
       setResetting(false);
     }
