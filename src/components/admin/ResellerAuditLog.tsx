@@ -95,8 +95,8 @@ const ResellerAuditLog = () => {
   }), [entries]);
 
   const statusBadge = (s: string) => {
-    if (s === "success") return <Badge className="bg-green-500/15 text-green-500 border border-green-500/30"><CheckCircle2 className="h-3 w-3 mr-1" />Sukses</Badge>;
-    if (s === "rejected") return <Badge className="bg-amber-500/15 text-amber-500 border border-amber-500/30"><AlertTriangle className="h-3 w-3 mr-1" />Ditolak</Badge>;
+    if (s === "success") return <Badge className="bg-primary/15 text-primary border border-primary/30"><CheckCircle2 className="h-3 w-3 mr-1" />Sukses</Badge>;
+    if (s === "rejected") return <Badge className="bg-accent/15 text-accent-foreground border border-accent/30"><AlertTriangle className="h-3 w-3 mr-1" />Ditolak</Badge>;
     return <Badge className="bg-destructive/15 text-destructive border border-destructive/30"><XCircle className="h-3 w-3 mr-1" />Error</Badge>;
   };
 
@@ -123,8 +123,8 @@ const ResellerAuditLog = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: "Total", value: stats.total, color: "text-foreground" },
-          { label: "Sukses", value: stats.success, color: "text-green-500" },
-          { label: "Ditolak", value: stats.rejected, color: "text-amber-500" },
+          { label: "Sukses", value: stats.success, color: "text-primary" },
+          { label: "Ditolak", value: stats.rejected, color: "text-accent-foreground" },
           { label: "Error", value: stats.error, color: "text-destructive" },
         ].map((s) => (
           <div key={s.label} className="rounded-lg border border-border bg-card p-3">
@@ -169,7 +169,7 @@ const ResellerAuditLog = () => {
                   {statusBadge(e.status)}
                   {sourceBadge(e.source)}
                   {e.reseller_prefix && <Badge variant="secondary" className="font-mono">/{e.reseller_prefix.toUpperCase()}token</Badge>}
-                  {e.max_devices && e.max_devices > 1 && <Badge className="bg-orange-500/15 text-orange-500 border border-orange-500/30">{e.max_devices} device</Badge>}
+                  {e.max_devices && e.max_devices > 1 && <Badge className="bg-destructive/15 text-destructive border border-destructive/30">{e.max_devices} device</Badge>}
                 </div>
                 <div className="mt-2 text-sm">
                   <span className="font-medium">{e.reseller_name || "Unknown"}</span>
@@ -186,7 +186,7 @@ const ResellerAuditLog = () => {
                   </div>
                 )}
                 {e.rejection_reason && (
-                  <div className="mt-1 text-xs text-amber-500">
+                  <div className="mt-1 text-xs text-accent-foreground">
                     🚫 {REJECTION_LABELS[e.rejection_reason] || e.rejection_reason}
                   </div>
                 )}
