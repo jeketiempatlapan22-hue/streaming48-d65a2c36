@@ -189,6 +189,68 @@ const ResellerManager = () => {
     }
   };
 
+  /**
+   * Open edit dialog with current reseller data prefilled.
+   */
+  const openEdit = (r: any) => {
+    setEditReseller(r);
+    setEditName(r.name || "");
+    setEditPhone(r.phone || "");
+    setEditPrefix((r.prefix || "").toString());
+    setEditNotes(r.notes || "");
+  };
+
+  /**
+   * Persist edits (name, WA phone, command prefix, notes) to the reseller row.
+   * Admins have ALL access via RLS, so a direct update from client is safe.
+   */
+  const saveEdit = async () => {
+    if (!editReseller) return;
+    const trimmedName = editName.trim();
+    const normalized = normalizeWaPhone(editPhone);
+    const cleanPrefix = editPrefix.replace(/[^A-Za-z]/g, "").slice(0, 3);
+    if (!trimmedName) {
+      toast({ title: "Nama wajib diisi", variant: "destructive" });
+      return;
+    }
+    if (!isValidWaPhone(normalized)) {
+      toast({
+        title: "Nomor HP tidak valid",
+        description: "Pastikan diawali 08, 8, atau 62 dan minimal 10 digit.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!cleanPrefix) {
+      toast({ title: "Prefix command wajib diisi", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("resellers")
+      .update({
+        name: trimmedName,
+        phone: normalized,
+        wa_command_prefix: cleanPrefix.toUpperCase(),
+        notes: editNotes,
+      })
+      .eq("id", editReseller.reseller_id);
+    setSavingEdit(false);
+    if (error) {
+      const msg = /duplicate|unique/i.test(error.message)
+        ? "Nomor WA atau prefix sudah dipakai reseller lain."
+        : error.message;
+      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Reseller diperbarui",
+      description: `Data ${trimmedName} berhasil disimpan.`,
+    });
+    setEditReseller(null);
+    load();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
