@@ -154,7 +154,7 @@ const ResellerManager = () => {
         </h3>
         <div className="grid sm:grid-cols-2 gap-2">
           <Input placeholder="Nama reseller" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input placeholder="Nomor HP (08xx / 62xx)" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+          <Input placeholder="Nomor WA reseller (08xx / 62xx)" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
           <Input placeholder="Sandi (min 6 karakter)" type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
           <Input
             placeholder="Prefix command (1-3 huruf, contoh: W)"
