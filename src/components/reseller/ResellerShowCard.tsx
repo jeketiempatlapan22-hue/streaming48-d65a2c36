@@ -212,11 +212,38 @@ ${params.link}
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
               <CheckCircle2 className="h-3.5 w-3.5" /> Token berhasil dibuat
             </div>
+
             <div className="font-mono text-[11px] bg-background/60 p-2 rounded break-all">{lastToken.code}</div>
             <div className="font-mono text-[10px] text-muted-foreground bg-background/60 p-2 rounded break-all">{lastToken.link}</div>
-            <Button onClick={copyLink} variant="outline" size="sm" className="w-full">
-              <Copy className="h-3.5 w-3.5 mr-1" /> Salin Link
-            </Button>
+
+            {show.access_password && (
+              <div className="rounded-md border border-purple-500/20 bg-purple-500/5 p-2 space-y-1">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
+                  <Film className="h-3 w-3" /> Info Replay
+                </div>
+                <div className="text-[11px] text-foreground flex items-center gap-1.5">
+                  <KeyRound className="h-3 w-3 text-purple-400" />
+                  <span className="text-muted-foreground">Sandi:</span>
+                  <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground break-all">
+                  🔗 https://replaytime.lovable.app
+                </div>
+              </div>
+            )}
+
+            <pre className="text-[10px] text-foreground/90 bg-background/60 p-2 rounded whitespace-pre-wrap break-words font-sans leading-relaxed max-h-48 overflow-y-auto">
+{lastToken.message}
+            </pre>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={copyLink} variant="outline" size="sm">
+                <Copy className="h-3.5 w-3.5 mr-1" /> Salin Link
+              </Button>
+              <Button onClick={copyFullMessage} size="sm">
+                <Copy className="h-3.5 w-3.5 mr-1" /> Salin Pesan
+              </Button>
+            </div>
           </div>
         )}
       </div>
