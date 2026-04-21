@@ -43,11 +43,16 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     ? show.bundle_replay_passwords
     : [];
 
+  const isMembership = !!show.is_subscription;
+
   const generate = async () => {
     setGenerating(true);
     try {
       const md = Math.max(1, Math.min(10, parseInt(maxDevices) || 1));
-      const dd = Math.max(1, Math.min(90, parseInt(duration) || 7));
+      // Non-membership shows are forced to 1 day server-side; only membership uses custom duration
+      const dd = isMembership
+        ? Math.max(1, Math.min(90, parseInt(duration) || 7))
+        : 1;
       const { data, error } = await supabase.rpc("reseller_create_token", {
         _session_token: sessionToken,
         _show_id: show.id,
@@ -130,15 +135,22 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className={isMembership ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
           <div>
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Max Device</label>
             <Input type="number" min={1} max={10} value={maxDevices} onChange={(e) => setMaxDevices(e.target.value)} className="h-9" />
           </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Durasi (hari)</label>
-            <Input type="number" min={1} max={90} value={duration} onChange={(e) => setDuration(e.target.value)} className="h-9" />
-          </div>
+          {isMembership ? (
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Durasi (hari)</label>
+              <Input type="number" min={1} max={90} value={duration} onChange={(e) => setDuration(e.target.value)} className="h-9" />
+            </div>
+          ) : (
+            <div className="text-[10px] text-muted-foreground bg-muted/30 border border-border rounded-md px-2 py-1.5 flex items-center gap-1.5">
+              <Clock className="h-3 w-3" />
+              Durasi token: <span className="font-semibold text-foreground">1 hari</span> (otomatis)
+            </div>
+          )}
         </div>
 
         <Button onClick={generate} disabled={generating} className="w-full" size="sm">
