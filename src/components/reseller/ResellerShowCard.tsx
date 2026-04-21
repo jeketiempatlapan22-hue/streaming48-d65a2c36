@@ -63,15 +63,21 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
         })
       : "-";
 
+    const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" • ");
+    const scheduleLine = scheduleParts ? `\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
+
     let msg = `━━━━━━━━━━━━━━━━━━
 ✅ *Token Reseller Berhasil Dibuat!*
 ━━━━━━━━━━━━━━━━━━
 
-🎬 Show: *${show.title}*
+🎬 Show: *${show.title}*${scheduleLine}
 🔑 Token: ${params.code}
 📱 Max Device: *${params.maxDevices}*
 ⏰ Durasi: *${params.durationDays} hari*
 📅 Kedaluwarsa: ${expDate}
+
+ℹ️ *Catatan Masa Berlaku:*
+Token aktif mengikuti jadwal show. Masa berlaku dihitung dari *jadwal show + ${params.durationDays} hari*, bukan dari saat token dibuat. Jadi token tetap bisa dipakai saat show berlangsung meski dibuat lebih awal.
 
 📺 *Link Nonton:*
 ${params.link}
