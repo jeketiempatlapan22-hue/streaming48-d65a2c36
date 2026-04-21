@@ -382,6 +382,9 @@ const ResellerManager = () => {
                       ? <Loader2 className="h-4 w-4 animate-spin" />
                       : <Send className="h-4 w-4" />}
                   </Button>
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Edit reseller">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => setPwReseller(r)} title="Edit sandi">
                     <KeyRound className="h-4 w-4" />
                   </Button>
