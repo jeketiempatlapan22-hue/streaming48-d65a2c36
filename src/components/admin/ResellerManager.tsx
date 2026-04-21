@@ -300,6 +300,18 @@ const ResellerManager = () => {
                   <Button size="sm" variant="ghost" onClick={() => setDetail(r)} title="Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => sendTestMessage(r.phone, r.name)}
+                    disabled={testingPhone === normalizeWaPhone(r.phone)}
+                    title="Kirim pesan WA uji ke reseller"
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    {testingPhone === normalizeWaPhone(r.phone)
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => setPwReseller(r)} title="Edit sandi">
                     <KeyRound className="h-4 w-4" />
                   </Button>
