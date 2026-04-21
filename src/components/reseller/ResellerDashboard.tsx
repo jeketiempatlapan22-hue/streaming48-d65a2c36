@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Copy, RefreshCw, Search, MessageCircle, Hash, Ticket, Zap, BarChart3 } from "lucide-react";
+import { LogOut, Copy, RefreshCw, Search, MessageCircle, Hash, Ticket, Zap, BarChart3, CheckCircle2, Wallet } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,10 +27,11 @@ const LIVE_BASE = "https://realtime48stream.my.id/live";
 const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [shows, setShows] = useState<any[]>([]);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"shows" | "tokens">("shows");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked">("all");
+  const [tab, setTab] = useState<"shows" | "tokens" | "payments">("shows");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked" | "paid" | "unpaid">("all");
   const [resetTarget, setResetTarget] = useState<any | null>(null);
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
@@ -59,11 +60,20 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     } catch { /* noop */ }
   }, [session.session_token]);
 
+  const loadPayments = useCallback(async () => {
+    try {
+      const { data, error } = await (supabase.rpc as any)("reseller_list_my_payments", { _session_token: session.session_token, _limit: 200 });
+      if (error) return;
+      const res = data as any;
+      if (res?.success) setPayments(res.payments || []);
+    } catch { /* noop */ }
+  }, [session.session_token]);
+
   const refresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadShows(), loadTokens()]);
+    await Promise.all([loadShows(), loadTokens(), loadPayments()]);
     setLoading(false);
-  }, [loadShows, loadTokens]);
+  }, [loadShows, loadTokens, loadPayments]);
 
   useEffect(() => {
     refresh();
@@ -73,11 +83,25 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tokens", filter: `reseller_id=eq.${session.reseller_id}` },
-        () => { loadTokens(); }
+        () => { loadTokens(); loadPayments(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reseller_payments", filter: `reseller_id=eq.${session.reseller_id}` },
+        (payload: any) => {
+          loadPayments();
+          loadTokens();
+          if (payload.eventType === "INSERT") {
+            toast({
+              title: "✅ Pembayaran dikonfirmasi admin",
+              description: `Token ${payload.new?.token_code || ''} • ${payload.new?.show_title || 'Show'} ditandai LUNAS.`,
+            });
+          }
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [refresh, loadTokens, session.reseller_id]);
+  }, [refresh, loadTokens, loadPayments, session.reseller_id, toast]);
 
   const handleLogout = async () => {
     try { await supabase.rpc("reseller_logout", { _session_token: session.session_token }); } catch { /* noop */ }
@@ -165,6 +189,8 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "expired") return isExpired(t);
       if (statusFilter === "blocked") return t.status === "blocked";
+      if (statusFilter === "paid") return !!t.is_paid;
+      if (statusFilter === "unpaid") return !t.is_paid;
       // active
       return t.status === "active" && !isExpired(t);
     })
@@ -172,24 +198,36 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
     );
 
+  const filteredPayments = useMemo(() => {
+    if (!search) return payments;
+    const q = search.toLowerCase();
+    return payments.filter((p) =>
+      p.token_code?.toLowerCase().includes(q) ||
+      p.show_title?.toLowerCase().includes(q) ||
+      p.show_short_id?.toLowerCase().includes(q)
+    );
+  }, [payments, search]);
+
   const tokenCounts = useMemo(() => {
-    let active = 0, expired = 0, blocked = 0;
+    let active = 0, expired = 0, blocked = 0, paid = 0, unpaid = 0;
     for (const t of tokens) {
       if (t.status === "blocked") blocked++;
       else if (isExpired(t)) expired++;
       else if (t.status === "active") active++;
+      if (t.is_paid) paid++; else unpaid++;
     }
-    return { all: tokens.length, active, expired, blocked };
+    return { all: tokens.length, active, expired, blocked, paid, unpaid };
   }, [tokens]);
 
   // Aggregate per-show stats from local tokens (no extra request)
   const perShowStats = useMemo(() => {
-    const map = new Map<string, { show_id: string | null; show_title: string; total: number; active: number }>();
+    const map = new Map<string, { show_id: string | null; show_title: string; total: number; active: number; paid: number }>();
     for (const t of tokens) {
       const key = t.show_id || "_none";
-      const cur = map.get(key) || { show_id: t.show_id || null, show_title: t.show_title || "—", total: 0, active: 0 };
+      const cur = map.get(key) || { show_id: t.show_id || null, show_title: t.show_title || "—", total: 0, active: 0, paid: 0 };
       cur.total += 1;
       if (t.status === "active" && !isExpired(t)) cur.active += 1;
+      if (t.is_paid) cur.paid += 1;
       map.set(key, cur);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -236,6 +274,9 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
           <Button size="sm" variant={tab === "tokens" ? "default" : "outline"} onClick={() => setTab("tokens")} className="flex-1">
             <Ticket className="h-3.5 w-3.5 mr-1" /> Token ({tokens.length})
           </Button>
+          <Button size="sm" variant={tab === "payments" ? "default" : "outline"} onClick={() => setTab("payments")} className="flex-1">
+            <Wallet className="h-3.5 w-3.5 mr-1" /> Bayar ({payments.length})
+          </Button>
         </div>
         <div className="max-w-5xl mx-auto px-3 sm:px-4 pb-3 relative">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
@@ -272,9 +313,51 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               ))}
             </div>
           )
+        ) : tab === "payments" ? (
+          <>
+            <div className="mb-3 rounded-lg border border-border bg-card p-3 flex items-center gap-3 flex-wrap">
+              <Wallet className="h-4 w-4 text-emerald-400" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-foreground">Riwayat Pembayaran</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Total <span className="text-foreground font-bold">{payments.length}</span> token telah dikonfirmasi LUNAS oleh admin.
+                </p>
+              </div>
+            </div>
+            {filteredPayments.length === 0 ? (
+              <div className="text-center py-12 text-sm text-muted-foreground">
+                {payments.length === 0
+                  ? "Belum ada pembayaran yang dikonfirmasi admin."
+                  : `Tidak ada pembayaran cocok dengan "${search}".`}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredPayments.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center gap-3 flex-wrap">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{p.token_code}</code>
+                        {p.show_short_id && (
+                          <span className="text-[10px] font-mono text-muted-foreground">#{p.show_short_id}</span>
+                        )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">LUNAS</span>
+                      </div>
+                      <p className="text-[11px] text-foreground mt-0.5 truncate">{p.show_title || "—"}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Dibayar: {new Date(p.paid_at).toLocaleString("id-ID")}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => copyLink(p.token_code)}>
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Salin
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <>
-            {/* Per-show stats panel */}
             {perShowStats.length > 0 && (
               <div className="mb-4 rounded-xl border border-border bg-card p-3">
                 <div className="flex items-center gap-2 mb-2">
@@ -289,6 +372,8 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                         <span className="text-foreground font-bold">{s.total}</span> token
                         {" · "}
                         <span className="text-green-400 font-bold">{s.active}</span> aktif
+                        {" · "}
+                        <span className="text-emerald-400 font-bold">{s.paid}</span> ✅
                       </span>
                     </div>
                   ))}
@@ -296,13 +381,14 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               </div>
             )}
 
-            {/* Filter chips status token */}
             <div className="mb-3 flex gap-1.5 flex-wrap">
               {([
                 { key: "all", label: "Semua", count: tokenCounts.all },
                 { key: "active", label: "Aktif", count: tokenCounts.active },
                 { key: "expired", label: "Expired", count: tokenCounts.expired },
                 { key: "blocked", label: "Blokir", count: tokenCounts.blocked },
+                { key: "paid", label: "✅ Lunas", count: tokenCounts.paid },
+                { key: "unpaid", label: "Belum Bayar", count: tokenCounts.unpaid },
               ] as const).map((f) => (
                 <Button
                   key={f.key}
@@ -330,7 +416,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                   const expired = isExpired(t);
                   const blocked = t.status === "blocked";
                   return (
-                    <div key={t.id} className="rounded-lg border border-border bg-card p-3 flex items-center gap-3 flex-wrap">
+                    <div key={t.id} className={`rounded-lg border p-3 flex items-center gap-3 flex-wrap ${t.is_paid ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{t.code}</code>
@@ -340,6 +426,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Blokir</span>
                           ) : (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30">Aktif</span>
+                          )}
+                          {t.is_paid && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-0.5">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> LUNAS
+                            </span>
                           )}
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">

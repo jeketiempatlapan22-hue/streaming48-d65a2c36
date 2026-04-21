@@ -701,7 +701,18 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
   const isClearChat = /^\/clearchat$/i.test(rawText);
   const clearChatKeepMatch = rawText.match(/^\/clearchat\s+(\d+)$/i);
+  // Admin confirms reseller payment for a specific token: /{prefix}paid {short_id}
+  // Example: /Wpaid 01b  → mark token AB01 (or short '01b') of reseller with prefix 'W' as paid
+  const resellerPaidMatch = rawText.match(/^\/([A-Za-z]{1,3})paid\s+(\S+)(?:\s+(.+))?$/i);
 
+  if (resellerPaidMatch) {
+    return await handleAdminMarkResellerPaid(
+      supabase,
+      resellerPaidMatch[1],
+      resellerPaidMatch[2],
+      (resellerPaidMatch[3] || '').trim() || null,
+    );
+  }
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
   if (addCoinMatch) return await handleAddCoin(supabase, addCoinMatch[1], parseInt(addCoinMatch[2], 10), addCoinMatch[3] || null);
@@ -1576,6 +1587,65 @@ async function uploadQrToStorage(supabase: any, qrData: string, filename: string
     // Final fallback: direct QR server URL
     return `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(qrData)}`;
   }
+}
+
+// =========================================================
+// ADMIN: mark reseller payment for a token (by reseller prefix + short id)
+// Triggered by /{prefix}paid {short_id} from admin number.
+// Sends a confirmation WA to the reseller and returns admin reply.
+// =========================================================
+async function handleAdminMarkResellerPaid(
+  supabase: any,
+  prefix: string,
+  shortId: string,
+  note: string | null,
+): Promise<string> {
+  const upPrefix = prefix.toUpperCase();
+  // Find reseller by prefix
+  const { data: reseller, error: rErr } = await supabase
+    .from('resellers')
+    .select('id, name, phone, wa_command_prefix')
+    .ilike('wa_command_prefix', upPrefix)
+    .maybeSingle();
+  if (rErr) return `⚠️ Error mencari reseller: ${rErr.message}`;
+  if (!reseller) {
+    return `⚠️ Reseller dengan prefix */${upPrefix}* tidak ditemukan.\n\nPeriksa kembali prefix yang benar.`;
+  }
+
+  const { data, error } = await supabase.rpc('reseller_mark_paid_by_short', {
+    _reseller_phone: reseller.phone,
+    _token_short: shortId,
+    _admin_note: note || 'WA admin',
+  });
+  if (error) return `⚠️ Gagal mencatat pembayaran: ${error.message}`;
+  const res = data as any;
+  if (!res?.success) {
+    return `⚠️ ${res?.error || 'Gagal mencatat pembayaran'}\n\nFormat: /${upPrefix}paid <4 digit token>\nContoh: /${upPrefix}paid AB12`;
+  }
+
+  const paidAt = new Date(res.paid_at).toLocaleString('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+  // Notify the reseller (best-effort, non-blocking failures)
+  try {
+    const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+    if (FONNTE_TOKEN && reseller.phone) {
+      const waMsg = res.already_paid
+        ? `ℹ️ *Pembayaran sudah tercatat*\n\n🎬 Show: *${res.show_title || '-'}*\n🔑 Token: \`${res.token_code}\`\n📅 Tercatat: ${paidAt}\n\nLihat riwayat di dashboard reseller.`
+        : `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Dikonfirmasi*\n━━━━━━━━━━━━━━━━━━\n\nHalo *${reseller.name}*,\n\nAdmin telah mengonfirmasi bahwa pembayaran token berikut sudah *LUNAS* ✅\n\n🎬 Show: *${res.show_title || '-'}*\n🔑 Token: \`${res.token_code}\`\n📅 Tanggal: ${paidAt}\n\nTerima kasih! Riwayat pembayaran Anda dapat dilihat di dashboard reseller.\n🌐 realtime48stream.my.id/reseller`;
+      await sendFonnteMessage(FONNTE_TOKEN, reseller.phone, waMsg);
+    }
+  } catch (e) {
+    console.error('Failed to notify reseller of payment:', e);
+  }
+
+  if (res.already_paid) {
+    return `ℹ️ *Sudah tercatat sebelumnya*\n\n👤 ${reseller.name} (/${upPrefix})\n🎬 ${res.show_title || '-'}\n🔑 \`${res.token_code}\`\n📅 ${paidAt}`;
+  }
+
+  return `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Reseller Dikonfirmasi*\n━━━━━━━━━━━━━━━━━━\n\n👤 Reseller: *${reseller.name}* (/${upPrefix})\n📞 +${reseller.phone}\n🎬 Show: *${res.show_title || '-'}*\n🔑 Token: \`${res.token_code}\` (#${res.token_short})\n📅 Dikonfirmasi: ${paidAt}\n\n_Notifikasi otomatis terkirim ke reseller._`;
 }
 
 async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
