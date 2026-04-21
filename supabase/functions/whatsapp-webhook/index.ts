@@ -179,7 +179,92 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return { text: await handlePublicCheckOrder(supabase, cekMatch[1].trim()) };
   }
 
+  // ===== RESELLER COMMANDS (per-reseller dynamic prefix) =====
+  // Lookup reseller by sender phone
+  const { data: rData } = await supabase.rpc("get_reseller_by_phone", { _phone: senderPhone });
+  const reseller = (rData as any)?.found ? rData : null;
+
+  // /resellerhelp — show this reseller's commands
+  if (reseller && /^\/resellerhelp$/i.test(text)) {
+    return { text: handleResellerHelp(reseller) };
+  }
+
+  // Dynamic /<prefix>token <show> [days] [maxdevice]
+  if (reseller) {
+    const prefix = String(reseller.prefix || "").toUpperCase();
+    const re = new RegExp(`^\\/${prefix}token\\s+(.+?)(?:\\s+(\\d+)(?:hari)?)?(?:\\s+(\\d+))?\\s*$`, "i");
+    const m = text.match(re);
+    if (m) {
+      return { text: await handleResellerToken(supabase, reseller, m[1].trim(), m[2] ? parseInt(m[2], 10) : 7, m[3] ? parseInt(m[3], 10) : 1) };
+    }
+  }
+
   return null; // Not a public command
+}
+
+function handleResellerHelp(reseller: any): string {
+  const p = String(reseller.prefix || "").toUpperCase();
+  return `👋 *Halo ${reseller.name}!*
+
+🔑 *Command Reseller Anda:*
+
+/${p}token <nama show / #shortid> [hari] [maxdevice]
+
+📋 *Contoh:*
+• /${p}token #abc123
+• /${p}token #abc123 7 1
+• /${p}token Konser Spesial 30 2
+
+🌐 Dashboard: realtime48stream.my.id/reseller`;
+}
+
+async function handleResellerToken(supabase: any, reseller: any, showInput: string, days: number, maxDevices: number): Promise<string> {
+  try {
+    const { show, error, multiple } = await findShowByInput(supabase, showInput, true);
+    if (error) return `⚠️ ${error}`;
+    if (multiple) {
+      let msg = `⚠️ Ditemukan ${multiple.length} show, gunakan ID:\n\n`;
+      for (const s of multiple.slice(0, 8)) {
+        const sid = s.short_id || s.id.substring(0, 6);
+        msg += `• ${s.title} → #${sid}\n`;
+      }
+      return msg;
+    }
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
+
+    const { data, error: rpcErr } = await supabase.rpc("reseller_create_token_by_id", {
+      _reseller_id: reseller.id,
+      _show_id: show.id,
+      _max_devices: Math.max(1, Math.min(10, maxDevices)),
+      _duration_days: Math.max(1, Math.min(90, days)),
+    });
+    if (rpcErr) return `⚠️ ${rpcErr.message}`;
+    const res = data as any;
+    if (!res?.success) return `⚠️ ${res?.error || "Gagal membuat token"}`;
+
+    const link = `https://realtime48stream.my.id/live?t=${res.code}`;
+    const exp = new Date(res.expires_at).toLocaleString("id-ID");
+    let replay = "";
+    if (res.access_password) replay += `\n🔐 Password Replay: ${res.access_password}`;
+    if (Array.isArray(res.bundle_replay_passwords) && res.bundle_replay_passwords.length > 0) {
+      replay += `\n🔐 Replay tambahan: ${res.bundle_replay_passwords.map((p: any) => typeof p === "string" ? p : (p?.password || "")).filter(Boolean).join(", ")}`;
+    }
+    if (res.bundle_replay_info) replay += `\nℹ️ ${res.bundle_replay_info}`;
+
+    return `✅ *Token Reseller Dibuat!*
+
+🎬 Show: *${res.show_title}*
+🔑 Kode: \`${res.code}\`
+📱 Max Device: ${res.max_devices}
+⏰ Berlaku s/d: ${exp}
+
+📺 Link Nonton:
+${link}${replay}
+
+_Dibuat oleh: ${reseller.name} (/${String(reseller.prefix).toUpperCase()}token)_`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
+  }
 }
 
 function handlePublicMenu(): string {
