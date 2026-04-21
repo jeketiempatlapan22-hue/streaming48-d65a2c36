@@ -36,14 +36,60 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
   const [maxDevices, setMaxDevices] = useState("1");
   const [duration, setDuration] = useState("7");
   const [generating, setGenerating] = useState(false);
-  const [lastToken, setLastToken] = useState<{ code: string; link: string } | null>(null);
+  const [lastToken, setLastToken] = useState<{
+    code: string;
+    link: string;
+    message: string;
+  } | null>(null);
   const { toast } = useToast();
 
-  const replayPasswords = Array.isArray(show.bundle_replay_passwords)
-    ? show.bundle_replay_passwords
-    : [];
-
   const isMembership = !!show.is_subscription;
+
+  const buildShareMessage = (params: {
+    code: string;
+    link: string;
+    maxDevices: number;
+    durationDays: number;
+    expiresAt: string | null;
+  }) => {
+    const expDate = params.expiresAt
+      ? new Date(params.expiresAt).toLocaleString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-";
+
+    let msg = `━━━━━━━━━━━━━━━━━━
+✅ *Token Reseller Berhasil Dibuat!*
+━━━━━━━━━━━━━━━━━━
+
+🎬 Show: *${show.title}*
+🔑 Token: ${params.code}
+📱 Max Device: *${params.maxDevices}*
+⏰ Durasi: *${params.durationDays} hari*
+📅 Kedaluwarsa: ${expDate}
+
+📺 *Link Nonton:*
+${params.link}
+
+🔄 *Info Replay:*
+🔗 Link: https://replaytime.lovable.app`;
+
+    if (show.access_password) {
+      msg += `\n🔐 Sandi Replay: *${show.access_password}*`;
+    } else {
+      msg += `\nℹ️ Sandi replay belum diatur untuk show ini.`;
+    }
+
+    msg += `\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
+━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
+  };
 
   const generate = async () => {
     setGenerating(true);
@@ -66,7 +112,14 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
         return;
       }
       const link = `${LIVE_BASE}?t=${res.code}`;
-      setLastToken({ code: res.code, link });
+      const message = buildShareMessage({
+        code: res.code,
+        link,
+        maxDevices: md,
+        durationDays: dd,
+        expiresAt: res.expires_at ?? null,
+      });
+      setLastToken({ code: res.code, link, message });
       toast({ title: "Token dibuat!", description: res.code });
       onTokenCreated();
     } catch (e: any) {
@@ -81,6 +134,16 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     try {
       await navigator.clipboard.writeText(lastToken.link);
       toast({ title: "Tersalin!", description: "Link siap dibagikan" });
+    } catch {
+      toast({ title: "Gagal menyalin", variant: "destructive" });
+    }
+  };
+
+  const copyFullMessage = async () => {
+    if (!lastToken) return;
+    try {
+      await navigator.clipboard.writeText(lastToken.message);
+      toast({ title: "Pesan tersalin!", description: "Format lengkap siap dibagikan" });
     } catch {
       toast({ title: "Gagal menyalin", variant: "destructive" });
     }
