@@ -296,9 +296,33 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               </div>
             )}
 
+            {/* Filter chips status token */}
+            <div className="mb-3 flex gap-1.5 flex-wrap">
+              {([
+                { key: "all", label: "Semua", count: tokenCounts.all },
+                { key: "active", label: "Aktif", count: tokenCounts.active },
+                { key: "expired", label: "Expired", count: tokenCounts.expired },
+                { key: "blocked", label: "Blokir", count: tokenCounts.blocked },
+              ] as const).map((f) => (
+                <Button
+                  key={f.key}
+                  size="sm"
+                  variant={statusFilter === f.key ? "default" : "outline"}
+                  className="h-7 px-2.5 text-[11px]"
+                  onClick={() => setStatusFilter(f.key)}
+                >
+                  {f.label} <span className="ml-1 opacity-70">({f.count})</span>
+                </Button>
+              ))}
+            </div>
+
             {filteredTokens.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground">
-                Belum ada token. Buat token baru di tab Show.
+                {tokens.length === 0
+                  ? "Belum ada token. Buat token baru di tab Show."
+                  : search
+                    ? `Tidak ada token cocok dengan "${search}".`
+                    : "Tidak ada token pada filter ini."}
               </div>
             ) : (
               <div className="space-y-2">
@@ -326,16 +350,14 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                         <Button size="sm" variant="outline" onClick={() => copyLink(t.code)}>
                           <Copy className="h-3.5 w-3.5 mr-1" /> Salin
                         </Button>
-                        {!expired && !blocked && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setResetTarget(t)}
-                            title="Reset semua sesi aktif token ini"
-                          >
-                            <Zap className="h-3.5 w-3.5 mr-1" /> Reset
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setResetTarget(t)}
+                          title="Reset semua sesi aktif token ini"
+                        >
+                          <Zap className="h-3.5 w-3.5 mr-1" /> Reset
+                        </Button>
                       </div>
                     </div>
                   );
