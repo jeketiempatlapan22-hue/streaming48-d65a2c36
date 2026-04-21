@@ -618,11 +618,8 @@ const ResellerManager = () => {
                         <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
                           LUNAS
                         </span>
-                        <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                          {p.token_short}
-                        </code>
                         {p.show_short_id && (
-                          <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background border border-border text-muted-foreground">
+                          <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                             #{p.show_short_id}
                           </code>
                         )}
@@ -630,8 +627,10 @@ const ResellerManager = () => {
                           {p.paid_at ? new Date(p.paid_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}
                         </span>
                       </div>
-                      <p className="text-xs text-foreground truncate">{p.show_title || "(show dihapus)"}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono truncate">Token: {p.token_code}</p>
+                      <p className="text-xs font-bold text-foreground truncate">{p.show_title || "(show dihapus)"}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        🎟️ <span className="text-foreground font-bold">{p.token_count ?? 0}</span> token untuk show ini
+                      </p>
                       {p.notes && (
                         <p className="text-[10px] text-muted-foreground italic">Catatan: {p.notes}</p>
                       )}
