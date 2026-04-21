@@ -9,7 +9,28 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag } from "lucide-react";
+import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle } from "lucide-react";
+
+/**
+ * Normalize Indonesian phone numbers to the canonical "62xxxxxxxxxx" format
+ * used by the WhatsApp bot lookup (`get_reseller_by_phone`).
+ * - strip non-digits
+ * - "08xxx" → "628xxx"
+ * - "8xxx"  → "628xxx"
+ * - "+62xx" → "62xx" (handled by digit strip)
+ */
+const normalizeWaPhone = (raw: string): string => {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0")) return "62" + digits.slice(1);
+  if (digits.startsWith("8")) return "62" + digits;
+  return digits;
+};
+
+const isValidWaPhone = (normalized: string): boolean => {
+  // Indonesian mobile numbers normalized as 62 + (8XXXXXXXXX) → typically 11–15 digits
+  return /^62\d{8,13}$/.test(normalized);
+};
 
 const ResellerManager = () => {
   const [stats, setStats] = useState<any[]>([]);
