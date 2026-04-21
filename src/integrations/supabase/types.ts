@@ -695,6 +695,51 @@ export type Database = {
         }
         Relationships: []
       }
+      resellers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          password_hash: string
+          password_salt: string
+          phone: string
+          session_expires_at: string | null
+          session_token: string | null
+          updated_at: string
+          wa_command_prefix: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          password_hash: string
+          password_salt: string
+          phone: string
+          session_expires_at?: string | null
+          session_token?: string | null
+          updated_at?: string
+          wa_command_prefix: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          password_hash?: string
+          password_salt?: string
+          phone?: string
+          session_expires_at?: string | null
+          session_token?: string | null
+          updated_at?: string
+          wa_command_prefix?: string
+        }
+        Relationships: []
+      }
       security_events: {
         Row: {
           created_at: string
@@ -1080,6 +1125,7 @@ export type Database = {
           id: string
           is_public: boolean | null
           max_devices: number
+          reseller_id: string | null
           show_id: string | null
           status: string
           user_id: string | null
@@ -1092,6 +1138,7 @@ export type Database = {
           id?: string
           is_public?: boolean | null
           max_devices?: number
+          reseller_id?: string | null
           show_id?: string | null
           status?: string
           user_id?: string | null
@@ -1104,11 +1151,19 @@ export type Database = {
           id?: string
           is_public?: boolean | null
           max_devices?: number
+          reseller_id?: string | null
           show_id?: string | null
           status?: string
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tokens_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tokens_show_id_fkey"
             columns: ["show_id"]
@@ -1192,6 +1247,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_create_reseller: {
+        Args: {
+          _name: string
+          _notes?: string
+          _password: string
+          _phone: string
+          _prefix: string
+        }
+        Returns: Json
+      }
+      admin_reset_reseller_tokens: {
+        Args: { _reseller_id: string }
+        Returns: Json
+      }
+      admin_update_reseller_password: {
+        Args: { _new_password: string; _reseller_id: string }
+        Returns: Json
+      }
       auto_cleanup_chat: { Args: never; Returns: undefined }
       auto_reset_long_token_sessions: { Args: never; Returns: undefined }
       auto_unblock_expired_ips: { Args: never; Returns: undefined }
@@ -1290,6 +1363,7 @@ export type Database = {
         }
       }
       get_purchased_show_passwords: { Args: never; Returns: Json }
+      get_reseller_by_phone: { Args: { _phone: string }; Returns: Json }
       get_safe_playlists: {
         Args: never
         Returns: {
@@ -1329,6 +1403,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      hash_reseller_password: {
+        Args: { _password: string; _salt: string }
+        Returns: string
+      }
       hash_token: { Args: { _token: string }; Returns: string }
       is_ip_blocked: { Args: { _ip: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
@@ -1362,10 +1440,46 @@ export type Database = {
             Args: { _identifier: string; _new_password?: string }
             Returns: Json
           }
+      reseller_create_token: {
+        Args: {
+          _duration_days?: number
+          _max_devices?: number
+          _session_token: string
+          _show_id: string
+        }
+        Returns: Json
+      }
+      reseller_create_token_by_id: {
+        Args: {
+          _duration_days?: number
+          _max_devices?: number
+          _reseller_id: string
+          _show_id: string
+        }
+        Returns: Json
+      }
+      reseller_get_active_shows: {
+        Args: { _session_token: string }
+        Returns: Json
+      }
+      reseller_list_my_tokens: {
+        Args: { _limit?: number; _session_token: string }
+        Returns: Json
+      }
+      reseller_login: {
+        Args: { _password: string; _phone: string }
+        Returns: Json
+      }
+      reseller_logout: { Args: { _session_token: string }; Returns: Json }
+      reseller_stats: { Args: never; Returns: Json }
       reset_ip_visit_log_daily: { Args: never; Returns: undefined }
       self_reset_token_session: {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
+      }
+      validate_reseller_session: {
+        Args: { _session_token: string }
+        Returns: string
       }
       validate_token: { Args: { _code: string }; Returns: Json }
       viewer_heartbeat: { Args: { _key: string }; Returns: undefined }
