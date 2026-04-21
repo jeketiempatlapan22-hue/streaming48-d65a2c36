@@ -701,7 +701,18 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
   const isClearChat = /^\/clearchat$/i.test(rawText);
   const clearChatKeepMatch = rawText.match(/^\/clearchat\s+(\d+)$/i);
+  // Admin confirms reseller payment for a specific token: /{prefix}paid {short_id}
+  // Example: /Wpaid 01b  → mark token AB01 (or short '01b') of reseller with prefix 'W' as paid
+  const resellerPaidMatch = rawText.match(/^\/([A-Za-z]{1,3})paid\s+(\S+)(?:\s+(.+))?$/i);
 
+  if (resellerPaidMatch) {
+    return await handleAdminMarkResellerPaid(
+      supabase,
+      resellerPaidMatch[1],
+      resellerPaidMatch[2],
+      (resellerPaidMatch[3] || '').trim() || null,
+    );
+  }
   if (isHelp) return handleHelp();
   if (isStatus) return await handleStatus(supabase);
   if (addCoinMatch) return await handleAddCoin(supabase, addCoinMatch[1], parseInt(addCoinMatch[2], 10), addCoinMatch[3] || null);
