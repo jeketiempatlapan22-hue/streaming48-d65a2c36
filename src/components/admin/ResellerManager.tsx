@@ -164,10 +164,42 @@ const ResellerManager = () => {
           />
         </div>
         <Input placeholder="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+        {/* WA bot connection preview — admin must verify the number is the one connected to WhatsApp */}
+        {phone && (
+          <div className={`rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ${
+            phoneValid
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
+              : "border-amber-500/30 bg-amber-500/5 text-amber-300"
+          }`}>
+            {phoneValid ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+            <div className="min-w-0 flex-1">
+              {phoneValid ? (
+                <>
+                  <p className="font-semibold flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3" /> Nomor WA bot reseller
+                  </p>
+                  <p className="font-mono mt-0.5 text-foreground">+{normalizedPhone}</p>
+                  <p className="text-[10px] mt-1 opacity-80">
+                    Reseller harus chat ke bot WhatsApp dari nomor ini untuk menjalankan command <code className="font-mono">/{prefix.toUpperCase() || "X"}token</code>, <code className="font-mono">/{prefix.toUpperCase() || "X"}reset</code>, <code className="font-mono">/{prefix.toUpperCase() || "X"}stats</code>, dan <code className="font-mono">/{prefix.toUpperCase() || "X"}mytokens</code>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold">Nomor belum valid</p>
+                  <p className="text-[10px] mt-0.5 opacity-90">
+                    Format yang diterima: <span className="font-mono">08xxxxxxxxxx</span>, <span className="font-mono">8xxxxxxxxxx</span>, atau <span className="font-mono">62xxxxxxxxxx</span> (min 10 digit).
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="text-[11px] text-muted-foreground">
           Command bot WA: <code className="font-mono text-primary">/{prefix.toUpperCase() || "X"}token &lt;show&gt; [hari] [maxdevice]</code>
         </div>
-        <Button onClick={createReseller} disabled={creating} size="sm">
+        <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
           {creating ? "Membuat..." : "Buat Reseller"}
         </Button>
       </div>
