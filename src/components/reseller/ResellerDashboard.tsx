@@ -202,7 +202,6 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     if (!search) return payments;
     const q = search.toLowerCase();
     return payments.filter((p) =>
-      p.token_code?.toLowerCase().includes(q) ||
       p.show_title?.toLowerCase().includes(q) ||
       p.show_short_id?.toLowerCase().includes(q)
     );
