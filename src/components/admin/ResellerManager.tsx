@@ -584,6 +584,74 @@ const ResellerManager = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Payment history dialog */}
+      <Dialog open={!!paymentReseller} onOpenChange={(o) => !o && setPaymentReseller(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-emerald-400" />
+              Riwayat Pembayaran: {paymentReseller?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-[11px] text-muted-foreground">
+              Dicatat saat admin mengkonfirmasi via command bot WA <code className="font-mono text-primary">/{paymentReseller?.prefix}paid &lt;short_id&gt;</code>.
+              Riwayat akan otomatis terhapus jika token atau show terkait dihapus.
+            </div>
+            {loadingPayments ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-background/40 rounded animate-pulse" />)}
+              </div>
+            ) : payments.length === 0 ? (
+              <div className="rounded-lg border border-border bg-background/40 p-6 text-center text-xs text-muted-foreground">
+                Belum ada pembayaran yang dikonfirmasi untuk reseller ini.
+              </div>
+            ) : (
+              <>
+                <div className="text-xs text-foreground">
+                  Total: <span className="font-bold text-emerald-400">{payments.length}</span> pembayaran lunas
+                </div>
+                <div className="max-h-[55vh] overflow-y-auto divide-y divide-border rounded-lg border border-border">
+                  {payments.map((p: any) => (
+                    <div key={p.id} className="p-3 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          LUNAS
+                        </span>
+                        <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          {p.token_short}
+                        </code>
+                        {p.show_short_id && (
+                          <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background border border-border text-muted-foreground">
+                            #{p.show_short_id}
+                          </code>
+                        )}
+                        <span className="ml-auto text-[10px] text-muted-foreground">
+                          {p.paid_at ? new Date(p.paid_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground truncate">{p.show_title || "(show dihapus)"}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono truncate">Token: {p.token_code}</p>
+                      {p.notes && (
+                        <p className="text-[10px] text-muted-foreground italic">Catatan: {p.notes}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">Dikonfirmasi oleh: {p.paid_by_admin}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentReseller(null)}>Tutup</Button>
+            {paymentReseller && (
+              <Button onClick={() => openPaymentHistory(paymentReseller)} disabled={loadingPayments}>
+                {loadingPayments ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Memuat...</> : <><RefreshCw className="h-4 w-4 mr-1" /> Refresh</>}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
