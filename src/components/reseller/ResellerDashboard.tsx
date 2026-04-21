@@ -317,9 +317,9 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
             <div className="mb-3 rounded-lg border border-border bg-card p-3 flex items-center gap-3 flex-wrap">
               <Wallet className="h-4 w-4 text-emerald-400" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-foreground">Riwayat Pembayaran</p>
+                <p className="text-xs font-bold text-foreground">Riwayat Pembayaran Show</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Total <span className="text-foreground font-bold">{payments.length}</span> token telah dikonfirmasi LUNAS oleh admin.
+                  Total <span className="text-foreground font-bold">{payments.length}</span> show telah dikonfirmasi LUNAS oleh admin.
                 </p>
               </div>
             </div>
@@ -336,20 +336,18 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                     <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{p.token_code}</code>
+                        <p className="text-sm font-bold text-foreground truncate">{p.show_title || "—"}</p>
                         {p.show_short_id && (
-                          <span className="text-[10px] font-mono text-muted-foreground">#{p.show_short_id}</span>
+                          <code className="font-mono text-[10px] bg-background/60 px-1.5 py-0.5 rounded text-muted-foreground">
+                            #{p.show_short_id}
+                          </code>
                         )}
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">LUNAS</span>
                       </div>
-                      <p className="text-[11px] text-foreground mt-0.5 truncate">{p.show_title || "—"}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Dibayar: {new Date(p.paid_at).toLocaleString("id-ID")}
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        🎟️ {p.token_count ?? 0} token • Dibayar: {new Date(p.paid_at).toLocaleString("id-ID")}
                       </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => copyLink(p.token_code)}>
-                      <Copy className="h-3.5 w-3.5 mr-1" /> Salin
-                    </Button>
                   </div>
                 ))}
               </div>
