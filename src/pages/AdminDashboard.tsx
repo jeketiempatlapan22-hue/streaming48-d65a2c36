@@ -36,6 +36,7 @@ const PasswordResetManager = lazy(() => import("@/components/admin/PasswordReset
 const RateLimitMonitor = lazy(() => import("@/components/admin/RateLimitMonitor"));
 const MemberPhotoManager = lazy(() => import("@/components/admin/MemberPhotoManager"));
 const ResellerManager = lazy(() => import("@/components/admin/ResellerManager"));
+const ResellerAuditLog = lazy(() => import("@/components/admin/ResellerAuditLog"));
 
 /** Safe race: returns result or fallback after timeout */
 async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -205,6 +206,7 @@ const AdminDashboard = () => {
       case "rate-limits": return <RateLimitMonitor />;
       case "member-photos": return <MemberPhotoManager />;
       case "resellers": return <ResellerManager />;
+      case "reseller-audit": return <ResellerAuditLog />;
       default: return <LiveControl />;
     }
   };
