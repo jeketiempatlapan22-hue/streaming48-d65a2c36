@@ -62,20 +62,34 @@ const ResellerManager = () => {
 
   useEffect(() => { load(); }, []);
 
+  const normalizedPhone = normalizeWaPhone(phone);
+  const phoneValid = isValidWaPhone(normalizedPhone);
+
   const createReseller = async () => {
     if (!name || !phone || !password || !prefix) {
       toast({ title: "Lengkapi data", variant: "destructive" });
       return;
     }
+    if (!phoneValid) {
+      toast({
+        title: "Nomor HP tidak valid",
+        description: "Pastikan nomor diawali 08, 8, atau 62 dan minimal 10 digit. Nomor ini harus aktif di WhatsApp bot.",
+        variant: "destructive",
+      });
+      return;
+    }
     setCreating(true);
     const { data, error } = await supabase.rpc("admin_create_reseller", {
-      _name: name, _phone: phone, _password: password, _prefix: prefix, _notes: notes,
+      _name: name, _phone: normalizedPhone, _password: password, _prefix: prefix, _notes: notes,
     });
     setCreating(false);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     const res = data as any;
     if (!res?.success) { toast({ title: "Gagal", description: res?.error, variant: "destructive" }); return; }
-    toast({ title: "Reseller dibuat!", description: `${name} (/${res.prefix}token)` });
+    toast({
+      title: "Reseller dibuat!",
+      description: `${name} (/${res.prefix}token) — Nomor terhubung: +${res.phone}`,
+    });
     setName(""); setPhone(""); setPassword(""); setPrefix(""); setNotes("");
     load();
   };
