@@ -107,7 +107,13 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       }
       const res = data as any;
       if (!res?.success) {
-        toast({ title: "Gagal reset", description: res?.error || "Tidak diketahui", variant: "destructive" });
+        const msg = res?.error || "Tidak diketahui";
+        const isNotFound = /tidak ditemukan|bukan milik/i.test(msg);
+        toast({
+          title: isNotFound ? "Token tidak ditemukan" : "Gagal reset",
+          description: msg,
+          variant: "destructive",
+        });
         return;
       }
       // Broadcast force-logout to active devices on this token (wait for SUBSCRIBED before send)
