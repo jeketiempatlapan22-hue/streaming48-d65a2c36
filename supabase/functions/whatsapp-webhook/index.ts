@@ -299,17 +299,25 @@ function handleResellerHelp(reseller: any): string {
 
 🔑 *Command Reseller Anda:*
 
+▫️ Buat token baru:
 /${p}token <nama show / #shortid> [durasi] [maxdevice]
 
-📋 *Contoh:*
-• /${p}token #abc123
-• /${p}token #abc123 7hari
-• /${p}token #abc123 7hari 2
-• /${p}token #abc123 30 hari 1
-• /${p}token Konser Spesial 2minggu
-• /${p}token Konser Spesial 1bulan 3
+▫️ Reset sesi token (force-logout):
+/${p}reset <4 digit token>
 
-ℹ️ Default: 7 hari • Max device 1
+▫️ Statistik token Anda:
+/${p}stats
+
+▫️ Daftar 20 token terakhir:
+/${p}mytokens
+
+📋 *Contoh:*
+• /${p}token #abc123 7hari 2
+• /${p}token Konser Spesial 1bulan 3
+• /${p}reset AB12
+• /${p}stats
+
+ℹ️ Default token: 7 hari • Max device 1
 🌐 Dashboard: realtime48stream.my.id/reseller`;
 }
 
