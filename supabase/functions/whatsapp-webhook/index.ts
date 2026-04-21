@@ -418,6 +418,129 @@ ${link}
   }
 }
 
+// ===== Reseller management handlers (WhatsApp) =====
+async function handleResellerResetSession(supabase: any, reseller: any, input: string): Promise<string> {
+  const p = String(reseller.prefix || "").toUpperCase();
+  try {
+    const { data, error } = await supabase.rpc("reseller_reset_token_sessions_by_id", {
+      _reseller_id: reseller.id,
+      _input: input,
+    });
+    if (error) {
+      return `⚠️ Gagal reset sesi: ${error.message}`;
+    }
+    const res = data as any;
+    if (!res?.success) {
+      return `⚠️ ${res?.error || "Token tidak ditemukan atau bukan milik Anda."}\n\n💡 Ketik /${p}mytokens untuk lihat token Anda.`;
+    }
+
+    // Best-effort broadcast force-logout to active devices
+    try {
+      const ch = supabase.channel(`token-reset-${res.token_id}`);
+      await ch.subscribe();
+      await ch.send({ type: "broadcast", event: "force_logout", payload: { token_id: res.token_id } });
+      supabase.removeChannel(ch);
+    } catch { /* noop */ }
+
+    // Look up show title for nicer reply
+    let showTitle = "—";
+    try {
+      const { data: tok } = await supabase
+        .from("tokens")
+        .select("show_id")
+        .eq("id", res.token_id)
+        .maybeSingle();
+      if (tok?.show_id) {
+        const { data: s } = await supabase.from("shows").select("title").eq("id", tok.show_id).maybeSingle();
+        if (s?.title) showTitle = s.title;
+      }
+    } catch { /* noop */ }
+
+    return `━━━━━━━━━━━━━━━━━━
+✅ *Sesi Token Direset*
+━━━━━━━━━━━━━━━━━━
+
+🔑 Token: \`${res.token_code}\`
+🎬 Show: *${showTitle}*
+🚪 Sesi dihapus: *${res.deleted_count || 0}*
+
+ℹ️ Semua perangkat aktif sudah di-logout paksa.
+_Direset oleh: ${reseller.name} (/${p}reset)_
+━━━━━━━━━━━━━━━━━━`;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
+  }
+}
+
+async function handleResellerStats(supabase: any, reseller: any): Promise<string> {
+  const p = String(reseller.prefix || "").toUpperCase();
+  try {
+    const { data, error } = await supabase.rpc("reseller_my_stats_by_id", { _reseller_id: reseller.id });
+    if (error) return `⚠️ Gagal ambil statistik: ${error.message}`;
+    const res = data as any;
+    if (!res?.success) return `⚠️ ${res?.error || "Gagal ambil statistik."}`;
+
+    const perShow = Array.isArray(res.per_show) ? res.per_show : [];
+    let msg = `📊 *Statistik Token Anda*
+👤 ${reseller.name}
+
+📦 Total: *${res.total || 0}*
+🟢 Aktif: *${res.active || 0}*
+🔴 Expired: *${res.expired || 0}*
+⛔ Blokir: *${res.blocked || 0}*`;
+
+    if (perShow.length === 0) {
+      msg += `\n\n_Belum ada token per show._`;
+    } else {
+      msg += `\n\n📋 *Per Show:*`;
+      for (const s of perShow.slice(0, 15)) {
+        msg += `\n• ${s.show_title || "—"}: *${s.count || 0}* token (${s.active || 0} aktif)`;
+      }
+      if (perShow.length > 15) {
+        msg += `\n_+${perShow.length - 15} show lain..._`;
+      }
+    }
+
+    msg += `\n\nℹ️ /${p}mytokens untuk daftar token`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
+  }
+}
+
+async function handleResellerMyTokens(supabase: any, reseller: any): Promise<string> {
+  const p = String(reseller.prefix || "").toUpperCase();
+  try {
+    const { data, error } = await supabase.rpc("reseller_list_recent_tokens_by_id", {
+      _reseller_id: reseller.id,
+      _limit: 20,
+    });
+    if (error) return `⚠️ Gagal ambil daftar: ${error.message}`;
+    const res = data as any;
+    if (!res?.success) return `⚠️ ${res?.error || "Gagal ambil daftar token."}`;
+    const list = Array.isArray(res.tokens) ? res.tokens : [];
+    if (list.length === 0) {
+      return `📋 Anda belum memiliki token.\n\n💡 Buat token: /${p}token <show> [hari] [maxdevice]`;
+    }
+    let msg = `📋 *20 Token Terakhir*\n👤 ${reseller.name}\n`;
+    for (const t of list) {
+      const status = t.is_expired
+        ? "🔴 Expired"
+        : t.status === "blocked"
+          ? "⛔ Blokir"
+          : "🟢 Aktif";
+      const exp = t.expires_at
+        ? new Date(t.expires_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+        : "—";
+      msg += `\n• \`${t.last4}\` ${status}\n  ${t.show_title || "—"} • exp ${exp}`;
+    }
+    msg += `\n\nℹ️ Reset sesi: /${p}reset <4digit>`;
+    return msg;
+  } catch (e) {
+    return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
+  }
+}
+
 // Helper to log reseller audit events from edge function (parse errors, lookup failures)
 async function logResellerAudit(
   supabase: any,
