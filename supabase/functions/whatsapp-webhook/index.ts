@@ -358,16 +358,8 @@ ${link}
 
     if (res.access_password) {
       msg += `\n🔐 Sandi Replay: *${res.access_password}*`;
-    }
-    if (Array.isArray(res.bundle_replay_passwords) && res.bundle_replay_passwords.length > 0) {
-      const pwList = res.bundle_replay_passwords
-        .map((p: any) => (typeof p === "string" ? p : (p?.password || "")))
-        .filter(Boolean)
-        .join(", ");
-      if (pwList) msg += `\n🔐 Sandi Replay Tambahan: *${pwList}*`;
-    }
-    if (res.bundle_replay_info) {
-      msg += `\nℹ️ ${res.bundle_replay_info}`;
+    } else {
+      msg += `\nℹ️ Sandi replay belum diatur untuk show ini.`;
     }
 
     msg += `\n\n_Dibuat oleh: ${reseller.name} (/${prefixUp}token)_
