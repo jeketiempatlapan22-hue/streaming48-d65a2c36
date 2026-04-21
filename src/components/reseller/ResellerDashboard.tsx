@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { LogOut, Copy, RefreshCw, Search, MessageCircle, Hash, Ticket, Zap, BarChart3 } from "lucide-react";
+import { LogOut, Copy, RefreshCw, Search, MessageCircle, Hash, Ticket, Zap, BarChart3, CheckCircle2, Wallet } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,10 +27,11 @@ const LIVE_BASE = "https://realtime48stream.my.id/live";
 const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [shows, setShows] = useState<any[]>([]);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"shows" | "tokens">("shows");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked">("all");
+  const [tab, setTab] = useState<"shows" | "tokens" | "payments">("shows");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked" | "paid" | "unpaid">("all");
   const [resetTarget, setResetTarget] = useState<any | null>(null);
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
@@ -59,11 +60,20 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     } catch { /* noop */ }
   }, [session.session_token]);
 
+  const loadPayments = useCallback(async () => {
+    try {
+      const { data, error } = await (supabase.rpc as any)("reseller_list_my_payments", { _session_token: session.session_token, _limit: 200 });
+      if (error) return;
+      const res = data as any;
+      if (res?.success) setPayments(res.payments || []);
+    } catch { /* noop */ }
+  }, [session.session_token]);
+
   const refresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadShows(), loadTokens()]);
+    await Promise.all([loadShows(), loadTokens(), loadPayments()]);
     setLoading(false);
-  }, [loadShows, loadTokens]);
+  }, [loadShows, loadTokens, loadPayments]);
 
   useEffect(() => {
     refresh();
