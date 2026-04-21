@@ -695,6 +695,73 @@ export type Database = {
         }
         Relationships: []
       }
+      reseller_payments: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          paid_at: string
+          paid_by_admin: string
+          reseller_id: string
+          show_id: string | null
+          show_short_id: string | null
+          show_title: string | null
+          token_code: string
+          token_id: string
+          token_short: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          paid_by_admin?: string
+          reseller_id: string
+          show_id?: string | null
+          show_short_id?: string | null
+          show_title?: string | null
+          token_code: string
+          token_id: string
+          token_short: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          paid_by_admin?: string
+          reseller_id?: string
+          show_id?: string | null
+          show_short_id?: string | null
+          show_title?: string | null
+          token_code?: string
+          token_id?: string
+          token_short?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_payments_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_payments_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_payments_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: true
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reseller_token_audit: {
         Row: {
           created_at: string
@@ -1354,6 +1421,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_reseller_payments: {
+        Args: { _limit?: number; _reseller_id?: string }
+        Returns: Json
+      }
       admin_reset_reseller_tokens: {
         Args: { _reseller_id: string }
         Returns: Json
@@ -1570,6 +1641,10 @@ export type Database = {
         Args: { _session_token: string }
         Returns: Json
       }
+      reseller_list_my_payments: {
+        Args: { _limit?: number; _session_token: string }
+        Returns: Json
+      }
       reseller_list_my_tokens: {
         Args: { _limit?: number; _session_token: string }
         Returns: Json
@@ -1583,6 +1658,14 @@ export type Database = {
         Returns: Json
       }
       reseller_logout: { Args: { _session_token: string }; Returns: Json }
+      reseller_mark_paid_by_short: {
+        Args: {
+          _admin_note?: string
+          _reseller_phone: string
+          _token_short: string
+        }
+        Returns: Json
+      }
       reseller_my_stats: { Args: { _session_token: string }; Returns: Json }
       reseller_my_stats_by_id: { Args: { _reseller_id: string }; Returns: Json }
       reseller_reset_token_sessions: {
