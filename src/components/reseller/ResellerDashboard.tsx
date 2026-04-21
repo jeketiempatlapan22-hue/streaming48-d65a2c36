@@ -35,16 +35,27 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   const { toast } = useToast();
 
   const loadShows = useCallback(async () => {
-    const { data } = await supabase.rpc("reseller_get_active_shows", { _session_token: session.session_token });
-    const res = data as any;
-    if (res?.success) setShows(res.shows || []);
-    else if (res?.error) toast({ title: "Gagal memuat show", description: res.error, variant: "destructive" });
+    try {
+      const { data, error } = await supabase.rpc("reseller_get_active_shows", { _session_token: session.session_token });
+      if (error) {
+        toast({ title: "Gagal memuat show", description: error.message, variant: "destructive" });
+        return;
+      }
+      const res = data as any;
+      if (res?.success) setShows(res.shows || []);
+      else if (res?.error) toast({ title: "Gagal memuat show", description: res.error, variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Gagal memuat show", description: e?.message || "Network error", variant: "destructive" });
+    }
   }, [session.session_token, toast]);
 
   const loadTokens = useCallback(async () => {
-    const { data } = await supabase.rpc("reseller_list_my_tokens", { _session_token: session.session_token, _limit: 200 });
-    const res = data as any;
-    if (res?.success) setTokens(res.tokens || []);
+    try {
+      const { data, error } = await supabase.rpc("reseller_list_my_tokens", { _session_token: session.session_token, _limit: 200 });
+      if (error) return;
+      const res = data as any;
+      if (res?.success) setTokens(res.tokens || []);
+    } catch { /* noop */ }
   }, [session.session_token]);
 
   const refresh = useCallback(async () => {
