@@ -313,9 +313,51 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               ))}
             </div>
           )
+        ) : tab === "payments" ? (
+          <>
+            <div className="mb-3 rounded-lg border border-border bg-card p-3 flex items-center gap-3 flex-wrap">
+              <Wallet className="h-4 w-4 text-emerald-400" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-foreground">Riwayat Pembayaran</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Total <span className="text-foreground font-bold">{payments.length}</span> token telah dikonfirmasi LUNAS oleh admin.
+                </p>
+              </div>
+            </div>
+            {filteredPayments.length === 0 ? (
+              <div className="text-center py-12 text-sm text-muted-foreground">
+                {payments.length === 0
+                  ? "Belum ada pembayaran yang dikonfirmasi admin."
+                  : `Tidak ada pembayaran cocok dengan "${search}".`}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredPayments.map((p) => (
+                  <div key={p.id} className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 flex items-center gap-3 flex-wrap">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{p.token_code}</code>
+                        {p.show_short_id && (
+                          <span className="text-[10px] font-mono text-muted-foreground">#{p.show_short_id}</span>
+                        )}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">LUNAS</span>
+                      </div>
+                      <p className="text-[11px] text-foreground mt-0.5 truncate">{p.show_title || "—"}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Dibayar: {new Date(p.paid_at).toLocaleString("id-ID")}
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => copyLink(p.token_code)}>
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Salin
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <>
-            {/* Per-show stats panel */}
             {perShowStats.length > 0 && (
               <div className="mb-4 rounded-xl border border-border bg-card p-3">
                 <div className="flex items-center gap-2 mb-2">
@@ -330,6 +372,8 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                         <span className="text-foreground font-bold">{s.total}</span> token
                         {" · "}
                         <span className="text-green-400 font-bold">{s.active}</span> aktif
+                        {" · "}
+                        <span className="text-emerald-400 font-bold">{s.paid}</span> ✅
                       </span>
                     </div>
                   ))}
@@ -337,13 +381,14 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               </div>
             )}
 
-            {/* Filter chips status token */}
             <div className="mb-3 flex gap-1.5 flex-wrap">
               {([
                 { key: "all", label: "Semua", count: tokenCounts.all },
                 { key: "active", label: "Aktif", count: tokenCounts.active },
                 { key: "expired", label: "Expired", count: tokenCounts.expired },
                 { key: "blocked", label: "Blokir", count: tokenCounts.blocked },
+                { key: "paid", label: "✅ Lunas", count: tokenCounts.paid },
+                { key: "unpaid", label: "Belum Bayar", count: tokenCounts.unpaid },
               ] as const).map((f) => (
                 <Button
                   key={f.key}
@@ -371,7 +416,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                   const expired = isExpired(t);
                   const blocked = t.status === "blocked";
                   return (
-                    <div key={t.id} className="rounded-lg border border-border bg-card p-3 flex items-center gap-3 flex-wrap">
+                    <div key={t.id} className={`rounded-lg border p-3 flex items-center gap-3 flex-wrap ${t.is_paid ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{t.code}</code>
@@ -381,6 +426,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Blokir</span>
                           ) : (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/30">Aktif</span>
+                          )}
+                          {t.is_paid && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 inline-flex items-center gap-0.5">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> LUNAS
+                            </span>
                           )}
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
