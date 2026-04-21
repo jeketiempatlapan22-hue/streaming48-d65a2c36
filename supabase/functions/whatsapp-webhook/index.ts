@@ -236,7 +236,7 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
           supabase,
           reseller,
           parsed.showInput,
-          parsed.days ?? 7,
+          parsed.days ?? 1,
           parsed.maxDevices ?? 1,
         ),
       };
