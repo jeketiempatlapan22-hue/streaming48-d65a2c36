@@ -9,7 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle } from "lucide-react";
+import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle, Send, Loader2 } from "lucide-react";
 
 /**
  * Normalize Indonesian phone numbers to the canonical "62xxxxxxxxxx" format
@@ -51,6 +51,52 @@ const ResellerManager = () => {
   const [newPw, setNewPw] = useState("");
   const [resetConfirm, setResetConfirm] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+  const [testingPhone, setTestingPhone] = useState<string | null>(null);
+
+  /**
+   * Send a test WhatsApp message via the admin-gated `send-whatsapp` edge function
+   * to verify that the reseller's number is reachable through the bot. Surfaces
+   * success / failure toasts based on the webhook response.
+   */
+  const sendTestMessage = async (rawTarget: string, label?: string) => {
+    const target = normalizeWaPhone(rawTarget);
+    if (!isValidWaPhone(target)) {
+      toast({ title: "Nomor tidak valid", description: "Periksa format nomor sebelum mengirim tes.", variant: "destructive" });
+      return;
+    }
+    setTestingPhone(target);
+    const message =
+      `🤖 *Tes Koneksi Bot*\n\n` +
+      `Halo${label ? ` ${label}` : ""}, ini pesan uji dari admin RealTime48 untuk memastikan nomor WhatsApp ini terhubung dengan bot reseller.\n\n` +
+      `Jika kamu menerima pesan ini, kirim *${label ? "/" + (prefix || "X").toUpperCase() + "stats" : "/<prefix>stats"}* untuk mulai menggunakan command reseller.`;
+    try {
+      const { data, error } = await supabase.functions.invoke("send-whatsapp", {
+        body: { target, message },
+      });
+      if (error) throw new Error(error.message);
+      const res = data as any;
+      if (res?.success) {
+        toast({
+          title: "✅ Pesan tes terkirim",
+          description: `Bot WhatsApp berhasil mengirim pesan ke +${target}. Periksa WhatsApp untuk konfirmasi.`,
+        });
+      } else {
+        toast({
+          title: "⚠️ Gagal mengirim",
+          description: res?.error || "Webhook menolak permintaan. Periksa token Fonnte dan status nomor.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "❌ Error koneksi bot",
+        description: err?.message || "Tidak dapat menghubungi edge function send-whatsapp.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingPhone(null);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -199,9 +245,25 @@ const ResellerManager = () => {
         <div className="text-[11px] text-muted-foreground">
           Command bot WA: <code className="font-mono text-primary">/{prefix.toUpperCase() || "X"}token &lt;show&gt; [hari] [maxdevice]</code>
         </div>
-        <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
-          {creating ? "Membuat..." : "Buat Reseller"}
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
+            {creating ? "Membuat..." : "Buat Reseller"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!phoneValid || testingPhone === normalizedPhone}
+            onClick={() => sendTestMessage(phone, name)}
+            title="Kirim pesan WA uji ke nomor reseller"
+          >
+            {testingPhone === normalizedPhone ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Mengirim...</>
+            ) : (
+              <><Send className="h-4 w-4 mr-1" /> Test Bot</>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Stats table */}
@@ -237,6 +299,18 @@ const ResellerManager = () => {
                   <Switch checked={r.is_active} onCheckedChange={() => toggleActive(r.reseller_id, r.is_active)} />
                   <Button size="sm" variant="ghost" onClick={() => setDetail(r)} title="Detail">
                     <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => sendTestMessage(r.phone, r.name)}
+                    disabled={testingPhone === normalizeWaPhone(r.phone)}
+                    title="Kirim pesan WA uji ke reseller"
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    {testingPhone === normalizeWaPhone(r.phone)
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setPwReseller(r)} title="Edit sandi">
                     <KeyRound className="h-4 w-4" />
