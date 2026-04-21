@@ -71,6 +71,13 @@ Deno.serve(async (req) => {
     if (cleanTarget.startsWith('0')) cleanTarget = '62' + cleanTarget.slice(1);
     if (!cleanTarget.startsWith('62')) cleanTarget = '62' + cleanTarget;
 
+    const isTestMessage = typeof message === 'string' && message.includes('Tes Koneksi Bot');
+    if (isTestMessage && !edgeRL(`send_wa_test:${cleanTarget}`, 1, 30_000)) {
+      return new Response(JSON.stringify({ success: true, skipped: true, reason: 'duplicate test suppressed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const response = await fetch('https://api.fonnte.com/send', {
       method: 'POST',
       headers: { 'Authorization': FONNTE_TOKEN },

@@ -98,6 +98,14 @@ Deno.serve(async (req) => {
     // Normalize phone number
     const cleanSender = sender.replace(/[^0-9]/g, '');
     const rawText = message.trim();
+    const normalizedText = rawText.toLowerCase().replace(/\s+/g, ' ').trim();
+
+    // 0) Drop duplicate inbound payloads from the same sender for a short window.
+    // Some WhatsApp provider/webhook setups can redeliver or echo the same message
+    // multiple times, which would otherwise trigger repeated bot replies.
+    if (!edgeRL(`wa_inbound:${cleanSender}:${normalizedText.slice(0, 160)}`, 1, 120_000)) {
+      return jsonResponse({ ok: true, skipped: true, reason: 'duplicate inbound message' });
+    }
 
     // ========== ANTI-LOOP GUARDS ==========
     // 1) Skip messages echoed from the bot's own connected number (Fonnte may relay outgoing messages)
@@ -118,6 +126,9 @@ Deno.serve(async (req) => {
       'Tes Koneksi Bot',
       'realtime48-system-message',
       '⚠️ *Command tidak dikenali',
+      'Command Reseller Anda:',
+      'Sebagai reseller, Anda hanya dapat menggunakan command reseller berikut:',
+      'Tidak perlu membalas pesan ini.',
     ];
     if (SYSTEM_MARKERS.some(m => rawText.includes(m))) {
       return jsonResponse({ ok: true, skipped: true, reason: 'system message echo' });
@@ -148,6 +159,14 @@ Deno.serve(async (req) => {
     // If sender is a reseller and command did not match any reseller/public command,
     // reply with reseller help and STOP — do not fall through to admin commands.
     if (isReseller) {
+      if (!rawText.startsWith('/')) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'non-command reseller message' });
+      }
+
+      if (!edgeRL(`wa_reseller_unknown:${cleanSender}`, 1, 300_000)) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'reseller unknown command throttled' });
+      }
+
       const helpText = handleResellerHelp(rDataEarly);
       const unknownNotice = `⚠️ *Command tidak dikenali atau bukan command reseller.*\n\nSebagai reseller, Anda hanya dapat menggunakan command reseller berikut:\n\n${helpText}`;
       await sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice);
