@@ -208,6 +208,16 @@ ${params.link}
           )}
         </div>
 
+        <div className="text-[10px] text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-2 py-1.5 flex items-start gap-1.5">
+          <Calendar className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
+          <span>
+            Berlaku: <span className="font-semibold text-foreground">jadwal show + {isMembership ? `${Math.max(1, Math.min(90, parseInt(duration) || 7))} hari` : "1 hari"}</span>
+            {(show.schedule_date || show.schedule_time) && (
+              <> (mulai {[show.schedule_date, show.schedule_time].filter(Boolean).join(" • ")} WIB)</>
+            )}
+          </span>
+        </div>
+
         <Button onClick={generate} disabled={generating} className="w-full" size="sm">
           <Plus className="h-4 w-4 mr-1" />
           {generating ? "Membuat..." : "Buat Token Baru"}
