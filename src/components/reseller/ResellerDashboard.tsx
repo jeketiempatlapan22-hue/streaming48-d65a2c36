@@ -69,9 +69,12 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     }
   };
 
-  const filteredShows = shows.filter((s) =>
-    !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.short_id?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Reseller tidak boleh membuat token untuk show bundle
+  const filteredShows = shows
+    .filter((s) => !s.is_bundle)
+    .filter((s) =>
+      !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.short_id?.toLowerCase().includes(search.toLowerCase())
+    );
   const filteredTokens = tokens.filter((t) =>
     !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
   );
