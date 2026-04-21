@@ -93,8 +93,8 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
           loadTokens();
           if (payload.eventType === "INSERT") {
             toast({
-              title: "✅ Pembayaran dikonfirmasi admin",
-              description: `Token ${payload.new?.token_code || ''} • ${payload.new?.show_title || 'Show'} ditandai LUNAS.`,
+              title: "✅ Pembayaran show dikonfirmasi admin",
+              description: `${payload.new?.show_title || 'Show'}${payload.new?.show_short_id ? ` (#${payload.new.show_short_id})` : ''} ditandai LUNAS.`,
             });
           }
         }
