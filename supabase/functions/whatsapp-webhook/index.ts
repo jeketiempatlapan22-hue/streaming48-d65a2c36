@@ -99,6 +99,36 @@ Deno.serve(async (req) => {
     const cleanSender = sender.replace(/[^0-9]/g, '');
     const rawText = message.trim();
 
+    // ========== ANTI-LOOP GUARDS ==========
+    // 1) Skip messages echoed from the bot's own connected number (Fonnte may relay outgoing messages)
+    {
+      const { data: waSettingSelf } = await supabase
+        .from('site_settings')
+        .select('value')
+        .eq('key', 'whatsapp_number')
+        .maybeSingle();
+      const selfNumber = (waSettingSelf?.value || '').replace(/[^0-9]/g, '');
+      if (selfNumber && (cleanSender === selfNumber || cleanSender.endsWith(selfNumber) || selfNumber.endsWith(cleanSender))) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'self-echo from bot number' });
+      }
+    }
+
+    // 2) Skip messages that originate from our own test/system templates (prevents reflection loops)
+    const SYSTEM_MARKERS = [
+      'Tes Koneksi Bot',
+      'realtime48-system-message',
+      '⚠️ *Command tidak dikenali',
+    ];
+    if (SYSTEM_MARKERS.some(m => rawText.includes(m))) {
+      return jsonResponse({ ok: true, skipped: true, reason: 'system message echo' });
+    }
+
+    // 3) Per-sender reply rate limit — at most 3 bot replies per sender per 60s.
+    // Stops runaway loops even if a remote system auto-replies to our messages.
+    if (!edgeRL(`wa_reply:${cleanSender}`, 3, 60_000)) {
+      return jsonResponse({ ok: true, skipped: true, reason: 'sender reply rate limited' });
+    }
+
     // Detect reseller identity once — resellers are RESTRICTED to reseller commands only.
     // They must never be able to invoke admin commands (e.g. /pendapatan, /stats, /help)
     // even if their phone is also listed in the admin whitelist.
