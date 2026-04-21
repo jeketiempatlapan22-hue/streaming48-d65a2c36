@@ -695,6 +695,81 @@ export type Database = {
         }
         Relationships: []
       }
+      reseller_token_audit: {
+        Row: {
+          created_at: string
+          duration_days: number | null
+          id: string
+          max_devices: number | null
+          metadata: Json | null
+          rejection_reason: string | null
+          replay_info: Json | null
+          reseller_id: string | null
+          reseller_name: string | null
+          reseller_prefix: string | null
+          show_id: string | null
+          show_input: string | null
+          show_title: string | null
+          source: string
+          status: string
+          token_code: string | null
+          token_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          duration_days?: number | null
+          id?: string
+          max_devices?: number | null
+          metadata?: Json | null
+          rejection_reason?: string | null
+          replay_info?: Json | null
+          reseller_id?: string | null
+          reseller_name?: string | null
+          reseller_prefix?: string | null
+          show_id?: string | null
+          show_input?: string | null
+          show_title?: string | null
+          source?: string
+          status?: string
+          token_code?: string | null
+          token_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          duration_days?: number | null
+          id?: string
+          max_devices?: number | null
+          metadata?: Json | null
+          rejection_reason?: string | null
+          replay_info?: Json | null
+          reseller_id?: string | null
+          reseller_name?: string | null
+          reseller_prefix?: string | null
+          show_id?: string | null
+          show_input?: string | null
+          show_title?: string | null
+          source?: string
+          status?: string
+          token_code?: string | null
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_token_audit_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_token_audit_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resellers: {
         Row: {
           created_at: string
@@ -1410,6 +1485,17 @@ export type Database = {
       hash_token: { Args: { _token: string }; Returns: string }
       is_ip_blocked: { Args: { _ip: string }; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
+      log_reseller_audit: {
+        Args: {
+          _metadata?: Json
+          _rejection_reason?: string
+          _reseller_id: string
+          _show_input?: string
+          _source: string
+          _status: string
+        }
+        Returns: undefined
+      }
       parse_show_datetime: {
         Args: { _date: string; _time: string }
         Returns: string

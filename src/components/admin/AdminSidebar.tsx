@@ -26,6 +26,7 @@ const sections = [
   { id: "site", label: "Pengaturan", icon: Settings },
   { id: "moderators", label: "Akun Moderator", icon: UsersRound },
   { id: "resellers", label: "Reseller", icon: ShoppingBag },
+  { id: "reseller-audit", label: "Audit Token Reseller", icon: ScrollText },
   { id: "users", label: "Manajemen User", icon: UserCog },
   { id: "media", label: "Media Library", icon: Image },
   { id: "member-photos", label: "Foto Member", icon: UsersRound },

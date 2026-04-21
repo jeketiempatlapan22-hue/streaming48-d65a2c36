@@ -197,10 +197,12 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     if (headMatch) {
       const argsStr = (headMatch[1] || "").trim();
       if (!argsStr) {
+        await logResellerAudit(supabase, reseller.id, "whatsapp", "rejected", "parse_error", argsStr, { reason: "argumen_kosong", raw: text });
         return { text: handleResellerFormatError(reseller, "Argumen kosong") };
       }
       const parsed = parseResellerArgs(argsStr);
       if (!parsed.showInput) {
+        await logResellerAudit(supabase, reseller.id, "whatsapp", "rejected", "parse_error", argsStr, { reason: "show_tidak_terdeteksi", raw: text });
         return { text: handleResellerFormatError(reseller, "Show tidak terdeteksi") };
       }
       return {
@@ -308,8 +310,12 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
   const prefixUp = String(reseller.prefix).toUpperCase();
   try {
     const { show, error, multiple } = await findShowByInput(supabase, showInput, true);
-    if (error) return `⚠️ ${error}\n\n💡 Coba gunakan #shortid show, contoh: /${prefixUp}token #abc123`;
+    if (error) {
+      await logResellerAudit(supabase, reseller.id, "whatsapp", "rejected", "show_not_found", showInput, { error });
+      return `⚠️ ${error}\n\n💡 Coba gunakan #shortid show, contoh: /${prefixUp}token #abc123`;
+    }
     if (multiple) {
+      await logResellerAudit(supabase, reseller.id, "whatsapp", "rejected", "show_ambiguous", showInput, { matches: multiple.length });
       let msg = `⚠️ Ditemukan ${multiple.length} show, gunakan ID:\n\n`;
       for (const s of multiple.slice(0, 8)) {
         const sid = s.short_id || s.id.substring(0, 6);
@@ -319,7 +325,10 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       msg += `\n💡 Contoh: /${prefixUp}token #${firstSid}`;
       return msg;
     }
-    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.\n\n💡 Ketik *SHOW* untuk lihat daftar show aktif.`;
+    if (!show) {
+      await logResellerAudit(supabase, reseller.id, "whatsapp", "rejected", "show_not_found", showInput);
+      return `⚠️ Show "${showInput}" tidak ditemukan.\n\n💡 Ketik *SHOW* untuk lihat daftar show aktif.`;
+    }
 
     const safeDays = Math.max(1, Math.min(90, days));
     const safeMax = Math.max(1, Math.min(10, maxDevices));
@@ -330,7 +339,10 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       _max_devices: safeMax,
       _duration_days: safeDays,
     });
-    if (rpcErr) return `⚠️ ${rpcErr.message}`;
+    if (rpcErr) {
+      await logResellerAudit(supabase, reseller.id, "whatsapp", "error", "rpc_error", showInput, { error: rpcErr.message });
+      return `⚠️ ${rpcErr.message}`;
+    }
     const res = data as any;
     if (!res?.success) return `⚠️ ${res?.error || "Gagal membuat token"}`;
 
@@ -367,7 +379,32 @@ ${link}
 
     return msg;
   } catch (e) {
+    await logResellerAudit(supabase, reseller.id, "whatsapp", "error", "exception", showInput, { error: e instanceof Error ? e.message : String(e) });
     return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
+  }
+}
+
+// Helper to log reseller audit events from edge function (parse errors, lookup failures)
+async function logResellerAudit(
+  supabase: any,
+  resellerId: string | null,
+  source: string,
+  status: string,
+  rejectionReason: string | null,
+  showInput: string | null,
+  metadata: Record<string, any> = {},
+): Promise<void> {
+  try {
+    await supabase.rpc("log_reseller_audit", {
+      _reseller_id: resellerId,
+      _source: source,
+      _status: status,
+      _rejection_reason: rejectionReason,
+      _show_input: showInput,
+      _metadata: metadata,
+    });
+  } catch {
+    // Don't fail the main flow if audit logging fails
   }
 }
 
