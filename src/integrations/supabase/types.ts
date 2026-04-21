@@ -1322,6 +1322,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _reseller_find_token: {
+        Args: { _input: string; _reseller_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          duration_type: string | null
+          expires_at: string | null
+          id: string
+          is_public: boolean | null
+          max_devices: number
+          reseller_id: string | null
+          show_id: string | null
+          status: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tokens"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_create_reseller: {
         Args: {
           _name: string
@@ -1552,11 +1574,25 @@ export type Database = {
         Args: { _limit?: number; _session_token: string }
         Returns: Json
       }
+      reseller_list_recent_tokens_by_id: {
+        Args: { _limit?: number; _reseller_id: string }
+        Returns: Json
+      }
       reseller_login: {
         Args: { _password: string; _phone: string }
         Returns: Json
       }
       reseller_logout: { Args: { _session_token: string }; Returns: Json }
+      reseller_my_stats: { Args: { _session_token: string }; Returns: Json }
+      reseller_my_stats_by_id: { Args: { _reseller_id: string }; Returns: Json }
+      reseller_reset_token_sessions: {
+        Args: { _input: string; _session_token: string }
+        Returns: Json
+      }
+      reseller_reset_token_sessions_by_id: {
+        Args: { _input: string; _reseller_id: string }
+        Returns: Json
+      }
       reseller_stats: { Args: never; Returns: Json }
       reset_ip_visit_log_daily: { Args: never; Returns: undefined }
       self_reset_token_session: {
