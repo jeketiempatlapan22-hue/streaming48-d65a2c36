@@ -91,9 +91,12 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadShows(), loadTokens(), loadPayments()]);
+    const results = await Promise.all([loadShows(), loadTokens(), loadPayments()]);
     setLoading(false);
-  }, [loadShows, loadTokens, loadPayments]);
+    if (results.some(r => r?.invalid)) {
+      handleInvalidSession();
+    }
+  }, [loadShows, loadTokens, loadPayments, handleInvalidSession]);
 
   useEffect(() => {
     refresh();
