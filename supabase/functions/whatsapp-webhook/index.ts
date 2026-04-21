@@ -369,7 +369,10 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       return `⚠️ Show "${showInput}" tidak ditemukan.\n\n💡 Ketik *SHOW* untuk lihat daftar show aktif.`;
     }
 
-    const safeDays = Math.max(1, Math.min(90, days));
+    // Force 1-day duration for non-membership shows; only membership shows can use custom duration
+    const isMembership = !!show.is_subscription;
+    const requestedDays = Math.max(1, Math.min(90, days));
+    const safeDays = isMembership ? requestedDays : 1;
     const safeMax = Math.max(1, Math.min(10, maxDevices));
 
     const { data, error: rpcErr } = await supabase.rpc("reseller_create_token_by_id", {
@@ -391,15 +394,20 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
+    // Note: If user requested custom duration on a non-membership show, inform them
+    const durationNote = (!isMembership && days > 1)
+      ? `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`
+      : "";
+
     let msg = `━━━━━━━━━━━━━━━━━━
 ✅ *Token Reseller Berhasil Dibuat!*
 ━━━━━━━━━━━━━━━━━━
 
 🎬 Show: *${res.show_title}*
 🔑 Token: \`${res.code}\`
-📱 Max Device: *${res.max_devices}*
-⏰ Durasi: *${safeDays} hari*
-📅 Kedaluwarsa: ${expDate}
+📱 Max Device: *${safeMax}*
+⏰ Durasi: *${safeDays} hari*${isMembership ? " _(membership)_" : ""}
+📅 Kedaluwarsa: ${expDate}${durationNote}
 
 📺 *Link Nonton:*
 ${link}
