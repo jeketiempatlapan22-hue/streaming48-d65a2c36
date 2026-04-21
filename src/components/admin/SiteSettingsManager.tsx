@@ -196,7 +196,7 @@ const SiteSettingsManager = () => {
           ))}
         </div>
         {values.maintenance_mode === "true" && (
-          <p className="text-xs text-destructive font-semibold">⚠️ Website sedang ditutup untuk semua user. Admin masih bisa akses /admin</p>
+          <p className="text-xs text-destructive font-semibold">⚠️ Website sedang ditutup untuk semua user. Admin masih bisa akses /adpan</p>
         )}
         <div className="mt-3">
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Pesan Maintenance (opsional)</label>

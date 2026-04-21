@@ -33,7 +33,7 @@ const AdminLogin = () => {
           supabase.rpc("has_role", { _user_id: session.user.id, _role: "admin" }),
           new Promise<{ data: false }>((r) => setTimeout(() => r({ data: false }), 3000)),
         ]);
-        if (isAdmin) navigate("/admin/dashboard");
+        if (isAdmin) navigate("/adpanboard");
         else setCheckingSession(false);
       } catch {
         setCheckingSession(false);
@@ -87,7 +87,7 @@ const AdminLogin = () => {
 
           if ((sessionCheck.data as any)?.session?.user) {
             recordAuthMetric("login_success_late", ms, "admin");
-            navigate("/admin/dashboard");
+            navigate("/adpanboard");
             return;
           }
         }
@@ -125,7 +125,7 @@ const AdminLogin = () => {
       }
 
       if (isAdmin) {
-        navigate("/admin/dashboard");
+        navigate("/adpanboard");
         return;
       }
 
@@ -136,7 +136,7 @@ const AdminLogin = () => {
           title: "Verifikasi admin tertunda",
           description: "Session tersimpan. Kami arahkan ke dashboard.",
         });
-        navigate("/admin/dashboard");
+        navigate("/adpanboard");
         return;
       }
 

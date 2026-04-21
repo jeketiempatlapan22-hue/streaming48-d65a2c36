@@ -79,7 +79,7 @@ const AdminDashboard = () => {
             setLoading(false);
             return;
           }
-          navigate("/admin");
+          navigate("/adpan");
           return;
         }
 
@@ -132,7 +132,7 @@ const AdminDashboard = () => {
         // User is authenticated but not admin
         recordAuthMetric("role_check_fail", ms, "admin", "Not admin");
         await supabase.auth.signOut();
-        navigate("/admin");
+        navigate("/adpan");
       } catch {
         if (!cancelled) {
           setAuthError("Tidak bisa terhubung ke server saat ini.");
@@ -144,7 +144,7 @@ const AdminDashboard = () => {
     return () => { cancelled = true; };
   }, [navigate, authCheckNonce]);
 
-  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/adpan"); };
 
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -163,7 +163,7 @@ const AdminDashboard = () => {
           <Button className="flex-1" onClick={() => { setLoading(true); setAuthCheckNonce((n) => n + 1); }}>
             Coba lagi
           </Button>
-          <Button variant="outline" className="flex-1" onClick={() => navigate("/admin")}>
+          <Button variant="outline" className="flex-1" onClick={() => navigate("/adpan")}>
             Kembali
           </Button>
         </div>
