@@ -189,6 +189,8 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       if (statusFilter === "all") return true;
       if (statusFilter === "expired") return isExpired(t);
       if (statusFilter === "blocked") return t.status === "blocked";
+      if (statusFilter === "paid") return !!t.is_paid;
+      if (statusFilter === "unpaid") return !t.is_paid;
       // active
       return t.status === "active" && !isExpired(t);
     })
@@ -196,24 +198,36 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
     );
 
+  const filteredPayments = useMemo(() => {
+    if (!search) return payments;
+    const q = search.toLowerCase();
+    return payments.filter((p) =>
+      p.token_code?.toLowerCase().includes(q) ||
+      p.show_title?.toLowerCase().includes(q) ||
+      p.show_short_id?.toLowerCase().includes(q)
+    );
+  }, [payments, search]);
+
   const tokenCounts = useMemo(() => {
-    let active = 0, expired = 0, blocked = 0;
+    let active = 0, expired = 0, blocked = 0, paid = 0, unpaid = 0;
     for (const t of tokens) {
       if (t.status === "blocked") blocked++;
       else if (isExpired(t)) expired++;
       else if (t.status === "active") active++;
+      if (t.is_paid) paid++; else unpaid++;
     }
-    return { all: tokens.length, active, expired, blocked };
+    return { all: tokens.length, active, expired, blocked, paid, unpaid };
   }, [tokens]);
 
   // Aggregate per-show stats from local tokens (no extra request)
   const perShowStats = useMemo(() => {
-    const map = new Map<string, { show_id: string | null; show_title: string; total: number; active: number }>();
+    const map = new Map<string, { show_id: string | null; show_title: string; total: number; active: number; paid: number }>();
     for (const t of tokens) {
       const key = t.show_id || "_none";
-      const cur = map.get(key) || { show_id: t.show_id || null, show_title: t.show_title || "—", total: 0, active: 0 };
+      const cur = map.get(key) || { show_id: t.show_id || null, show_title: t.show_title || "—", total: 0, active: 0, paid: 0 };
       cur.total += 1;
       if (t.status === "active" && !isExpired(t)) cur.active += 1;
+      if (t.is_paid) cur.paid += 1;
       map.set(key, cur);
     }
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -259,6 +273,9 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
           </Button>
           <Button size="sm" variant={tab === "tokens" ? "default" : "outline"} onClick={() => setTab("tokens")} className="flex-1">
             <Ticket className="h-3.5 w-3.5 mr-1" /> Token ({tokens.length})
+          </Button>
+          <Button size="sm" variant={tab === "payments" ? "default" : "outline"} onClick={() => setTab("payments")} className="flex-1">
+            <Wallet className="h-3.5 w-3.5 mr-1" /> Bayar ({payments.length})
           </Button>
         </div>
         <div className="max-w-5xl mx-auto px-3 sm:px-4 pb-3 relative">
