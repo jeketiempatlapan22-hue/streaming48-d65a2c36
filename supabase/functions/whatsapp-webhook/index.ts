@@ -189,6 +189,32 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return { text: handleResellerHelp(reseller) };
   }
 
+  // Reseller management commands (reset / stats / mytokens)
+  if (reseller) {
+    const prefix = String(reseller.prefix || "").toUpperCase();
+
+    // /<prefix>reset <code-or-4digit>
+    const resetRe = new RegExp(`^\\/${prefix}reset\\b\\s*(\\S*)$`, "i");
+    const resetM = text.match(resetRe);
+    if (resetM) {
+      const input = (resetM[1] || "").trim();
+      if (!input) {
+        return { text: `⚠️ Format: /${prefix}reset <4 digit terakhir token>\n\nContoh: /${prefix}reset AB12\n\nKetik /${reseller.prefix}mytokens untuk lihat daftar token.` };
+      }
+      return { text: await handleResellerResetSession(supabase, reseller, input) };
+    }
+
+    // /<prefix>stats
+    if (new RegExp(`^\\/${prefix}stats$`, "i").test(text)) {
+      return { text: await handleResellerStats(supabase, reseller) };
+    }
+
+    // /<prefix>mytokens
+    if (new RegExp(`^\\/${prefix}mytokens$`, "i").test(text)) {
+      return { text: await handleResellerMyTokens(supabase, reseller) };
+    }
+  }
+
   // Dynamic /<prefix>token <show> [duration] [maxdevice] — flexible parsing
   if (reseller) {
     const prefix = String(reseller.prefix || "").toUpperCase();
