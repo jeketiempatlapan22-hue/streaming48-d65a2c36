@@ -28,7 +28,7 @@ const Login = () => {
         const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
         if (data) {
           toast.success("Berhasil login sebagai admin");
-          navigate("/admin");
+          navigate("/adpan");
         } else {
           await supabase.auth.signOut();
           toast.error("Anda bukan admin");
