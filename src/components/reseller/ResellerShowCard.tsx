@@ -114,30 +114,19 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
           )}
         </div>
 
-        {(show.access_password || replayPasswords.length > 0 || show.bundle_replay_info) && (
+        {show.access_password && (
           <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-2.5 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
               <Film className="h-3 w-3" /> Info Replay
             </div>
-            {show.access_password && (
-              <div className="text-[11px] text-foreground flex items-center gap-1.5">
-                <KeyRound className="h-3 w-3 text-purple-400" />
-                <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
-              </div>
-            )}
-            {replayPasswords.length > 0 && (
-              <div className="text-[11px] text-muted-foreground space-y-0.5">
-                {replayPasswords.map((p: any, i: number) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <KeyRound className="h-3 w-3 text-purple-400" />
-                    <span className="truncate">{typeof p === "string" ? p : p.password || JSON.stringify(p)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {show.bundle_replay_info && (
-              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap break-words">{show.bundle_replay_info}</p>
-            )}
+            <div className="text-[11px] text-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3 w-3 text-purple-400" />
+              <span className="text-muted-foreground">Sandi:</span>
+              <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground break-all">
+              🔗 https://replaytime.lovable.app
+            </div>
           </div>
         )}
 
