@@ -158,11 +158,29 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     .filter((s) =>
       !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.short_id?.toLowerCase().includes(search.toLowerCase())
     );
-  const filteredTokens = tokens.filter((t) =>
-    !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
-  );
-
   const isExpired = (t: any) => t.expires_at && new Date(t.expires_at).getTime() < Date.now();
+
+  const filteredTokens = tokens
+    .filter((t) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "expired") return isExpired(t);
+      if (statusFilter === "blocked") return t.status === "blocked";
+      // active
+      return t.status === "active" && !isExpired(t);
+    })
+    .filter((t) =>
+      !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
+    );
+
+  const tokenCounts = useMemo(() => {
+    let active = 0, expired = 0, blocked = 0;
+    for (const t of tokens) {
+      if (t.status === "blocked") blocked++;
+      else if (isExpired(t)) expired++;
+      else if (t.status === "active") active++;
+    }
+    return { all: tokens.length, active, expired, blocked };
+  }, [tokens]);
 
   // Aggregate per-show stats from local tokens (no extra request)
   const perShowStats = useMemo(() => {
