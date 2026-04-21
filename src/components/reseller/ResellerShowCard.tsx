@@ -36,14 +36,60 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
   const [maxDevices, setMaxDevices] = useState("1");
   const [duration, setDuration] = useState("7");
   const [generating, setGenerating] = useState(false);
-  const [lastToken, setLastToken] = useState<{ code: string; link: string } | null>(null);
+  const [lastToken, setLastToken] = useState<{
+    code: string;
+    link: string;
+    message: string;
+  } | null>(null);
   const { toast } = useToast();
 
-  const replayPasswords = Array.isArray(show.bundle_replay_passwords)
-    ? show.bundle_replay_passwords
-    : [];
-
   const isMembership = !!show.is_subscription;
+
+  const buildShareMessage = (params: {
+    code: string;
+    link: string;
+    maxDevices: number;
+    durationDays: number;
+    expiresAt: string | null;
+  }) => {
+    const expDate = params.expiresAt
+      ? new Date(params.expiresAt).toLocaleString("id-ID", {
+          timeZone: "Asia/Jakarta",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-";
+
+    let msg = `━━━━━━━━━━━━━━━━━━
+✅ *Token Reseller Berhasil Dibuat!*
+━━━━━━━━━━━━━━━━━━
+
+🎬 Show: *${show.title}*
+🔑 Token: ${params.code}
+📱 Max Device: *${params.maxDevices}*
+⏰ Durasi: *${params.durationDays} hari*
+📅 Kedaluwarsa: ${expDate}
+
+📺 *Link Nonton:*
+${params.link}
+
+🔄 *Info Replay:*
+🔗 Link: https://replaytime.lovable.app`;
+
+    if (show.access_password) {
+      msg += `\n🔐 Sandi Replay: *${show.access_password}*`;
+    } else {
+      msg += `\nℹ️ Sandi replay belum diatur untuk show ini.`;
+    }
+
+    msg += `\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
+━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
+  };
 
   const generate = async () => {
     setGenerating(true);
@@ -66,7 +112,14 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
         return;
       }
       const link = `${LIVE_BASE}?t=${res.code}`;
-      setLastToken({ code: res.code, link });
+      const message = buildShareMessage({
+        code: res.code,
+        link,
+        maxDevices: md,
+        durationDays: dd,
+        expiresAt: res.expires_at ?? null,
+      });
+      setLastToken({ code: res.code, link, message });
       toast({ title: "Token dibuat!", description: res.code });
       onTokenCreated();
     } catch (e: any) {
@@ -81,6 +134,16 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     try {
       await navigator.clipboard.writeText(lastToken.link);
       toast({ title: "Tersalin!", description: "Link siap dibagikan" });
+    } catch {
+      toast({ title: "Gagal menyalin", variant: "destructive" });
+    }
+  };
+
+  const copyFullMessage = async () => {
+    if (!lastToken) return;
+    try {
+      await navigator.clipboard.writeText(lastToken.message);
+      toast({ title: "Pesan tersalin!", description: "Format lengkap siap dibagikan" });
     } catch {
       toast({ title: "Gagal menyalin", variant: "destructive" });
     }
@@ -119,21 +182,7 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
           )}
         </div>
 
-        {show.access_password && (
-          <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-2.5 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
-              <Film className="h-3 w-3" /> Info Replay
-            </div>
-            <div className="text-[11px] text-foreground flex items-center gap-1.5">
-              <KeyRound className="h-3 w-3 text-purple-400" />
-              <span className="text-muted-foreground">Sandi:</span>
-              <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
-            </div>
-            <div className="text-[10px] text-muted-foreground break-all">
-              🔗 https://replaytime.lovable.app
-            </div>
-          </div>
-        )}
+
 
         <div className={isMembership ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
           <div>
@@ -163,11 +212,38 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
               <CheckCircle2 className="h-3.5 w-3.5" /> Token berhasil dibuat
             </div>
+
             <div className="font-mono text-[11px] bg-background/60 p-2 rounded break-all">{lastToken.code}</div>
             <div className="font-mono text-[10px] text-muted-foreground bg-background/60 p-2 rounded break-all">{lastToken.link}</div>
-            <Button onClick={copyLink} variant="outline" size="sm" className="w-full">
-              <Copy className="h-3.5 w-3.5 mr-1" /> Salin Link
-            </Button>
+
+            {show.access_password && (
+              <div className="rounded-md border border-purple-500/20 bg-purple-500/5 p-2 space-y-1">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
+                  <Film className="h-3 w-3" /> Info Replay
+                </div>
+                <div className="text-[11px] text-foreground flex items-center gap-1.5">
+                  <KeyRound className="h-3 w-3 text-purple-400" />
+                  <span className="text-muted-foreground">Sandi:</span>
+                  <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground break-all">
+                  🔗 https://replaytime.lovable.app
+                </div>
+              </div>
+            )}
+
+            <pre className="text-[10px] text-foreground/90 bg-background/60 p-2 rounded whitespace-pre-wrap break-words font-sans leading-relaxed max-h-48 overflow-y-auto">
+{lastToken.message}
+            </pre>
+
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={copyLink} variant="outline" size="sm">
+                <Copy className="h-3.5 w-3.5 mr-1" /> Salin Link
+              </Button>
+              <Button onClick={copyFullMessage} size="sm">
+                <Copy className="h-3.5 w-3.5 mr-1" /> Salin Pesan
+              </Button>
+            </div>
           </div>
         )}
       </div>
