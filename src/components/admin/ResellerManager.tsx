@@ -225,8 +225,12 @@ const ResellerManager = () => {
                     <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">/{r.prefix}token</code>
                     {!r.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Nonaktif</span>}
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                    {r.phone} • <span className="text-foreground font-semibold">{r.total_tokens}</span> token dibuat
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3 text-emerald-400 shrink-0" title="Nomor terhubung dengan bot WhatsApp" />
+                    <span className="font-mono">+{r.phone}</span>
+                    <span className="opacity-60">•</span>
+                    <span className="text-foreground font-semibold">{r.total_tokens}</span>
+                    <span>token dibuat</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
