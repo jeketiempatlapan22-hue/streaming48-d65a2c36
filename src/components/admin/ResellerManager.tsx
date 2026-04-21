@@ -9,7 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle, Send, Loader2 } from "lucide-react";
+import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle, Send, Loader2, Pencil } from "lucide-react";
 
 /**
  * Normalize Indonesian phone numbers to the canonical "62xxxxxxxxxx" format
@@ -52,6 +52,14 @@ const ResellerManager = () => {
   const [resetConfirm, setResetConfirm] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [testingPhone, setTestingPhone] = useState<string | null>(null);
+
+  // edit reseller dialog
+  const [editReseller, setEditReseller] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPrefix, setEditPrefix] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   /**
    * Send a test WhatsApp message via the admin-gated `send-whatsapp` edge function
@@ -179,6 +187,68 @@ const ResellerManager = () => {
         setPwReseller(null); setNewPw("");
       } else toast({ title: "Gagal", description: res?.error, variant: "destructive" });
     }
+  };
+
+  /**
+   * Open edit dialog with current reseller data prefilled.
+   */
+  const openEdit = (r: any) => {
+    setEditReseller(r);
+    setEditName(r.name || "");
+    setEditPhone(r.phone || "");
+    setEditPrefix((r.prefix || "").toString());
+    setEditNotes(r.notes || "");
+  };
+
+  /**
+   * Persist edits (name, WA phone, command prefix, notes) to the reseller row.
+   * Admins have ALL access via RLS, so a direct update from client is safe.
+   */
+  const saveEdit = async () => {
+    if (!editReseller) return;
+    const trimmedName = editName.trim();
+    const normalized = normalizeWaPhone(editPhone);
+    const cleanPrefix = editPrefix.replace(/[^A-Za-z]/g, "").slice(0, 3);
+    if (!trimmedName) {
+      toast({ title: "Nama wajib diisi", variant: "destructive" });
+      return;
+    }
+    if (!isValidWaPhone(normalized)) {
+      toast({
+        title: "Nomor HP tidak valid",
+        description: "Pastikan diawali 08, 8, atau 62 dan minimal 10 digit.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!cleanPrefix) {
+      toast({ title: "Prefix command wajib diisi", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    const { error } = await supabase
+      .from("resellers")
+      .update({
+        name: trimmedName,
+        phone: normalized,
+        wa_command_prefix: cleanPrefix.toUpperCase(),
+        notes: editNotes,
+      })
+      .eq("id", editReseller.reseller_id);
+    setSavingEdit(false);
+    if (error) {
+      const msg = /duplicate|unique/i.test(error.message)
+        ? "Nomor WA atau prefix sudah dipakai reseller lain."
+        : error.message;
+      toast({ title: "Gagal menyimpan", description: msg, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Reseller diperbarui",
+      description: `Data ${trimmedName} berhasil disimpan.`,
+    });
+    setEditReseller(null);
+    load();
   };
 
   return (
@@ -312,6 +382,9 @@ const ResellerManager = () => {
                       ? <Loader2 className="h-4 w-4 animate-spin" />
                       : <Send className="h-4 w-4" />}
                   </Button>
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="Edit reseller">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => setPwReseller(r)} title="Edit sandi">
                     <KeyRound className="h-4 w-4" />
                   </Button>
@@ -359,6 +432,80 @@ const ResellerManager = () => {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit reseller data */}
+      <Dialog open={!!editReseller} onOpenChange={(o) => !o && setEditReseller(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-primary" />
+              Edit Reseller{editReseller?.name ? `: ${editReseller.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Nama reseller</label>
+              <Input
+                placeholder="Nama reseller"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Nomor WA bot (08xx / 8xx / 62xx)</label>
+              <Input
+                placeholder="Nomor WA reseller"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                inputMode="tel"
+              />
+              {editPhone && (
+                <p className={`mt-1 text-[11px] flex items-center gap-1 ${
+                  isValidWaPhone(normalizeWaPhone(editPhone))
+                    ? "text-emerald-400"
+                    : "text-amber-400"
+                }`}>
+                  {isValidWaPhone(normalizeWaPhone(editPhone))
+                    ? <><CheckCircle2 className="h-3 w-3" /> Akan disimpan sebagai <span className="font-mono text-foreground">+{normalizeWaPhone(editPhone)}</span></>
+                    : <><AlertTriangle className="h-3 w-3" /> Format nomor belum valid</>}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Prefix command (1-3 huruf)</label>
+              <Input
+                placeholder="Mis. W"
+                value={editPrefix}
+                onChange={(e) => setEditPrefix(e.target.value.replace(/[^A-Za-z]/g, "").slice(0, 3))}
+                maxLength={3}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Command bot akan menjadi <code className="font-mono text-primary">/{editPrefix.toUpperCase() || "X"}token</code>, <code className="font-mono text-primary">/{editPrefix.toUpperCase() || "X"}stats</code>, dll.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Catatan (opsional)</label>
+              <Input
+                placeholder="Catatan internal"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300 flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>
+                Mengubah nomor WA atau prefix akan langsung berlaku untuk command bot. Pastikan nomor baru aktif di WhatsApp bot reseller.
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditReseller(null)} disabled={savingEdit}>Batal</Button>
+            <Button onClick={saveEdit} disabled={savingEdit}>
+              {savingEdit ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Menyimpan...</> : "Simpan Perubahan"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
