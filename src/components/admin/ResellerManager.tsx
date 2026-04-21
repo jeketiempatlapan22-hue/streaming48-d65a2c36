@@ -99,11 +99,20 @@ const ResellerManager = () => {
       toast({ title: "Nomor tidak valid", description: "Periksa format nomor sebelum mengirim tes.", variant: "destructive" });
       return;
     }
+    if (testingPhone) {
+      // Guard: prevent rapid duplicate clicks while a previous test is in flight
+      return;
+    }
     setTestingPhone(target);
+    // NOTE: Marker "Tes Koneksi Bot" is recognised by the webhook as a system
+    // message and ignored on echo, preventing infinite reply loops. Do NOT include
+    // any "/command" instructions in this body — if the message is reflected back
+    // by Fonnte or auto-replied by the recipient, those tokens could otherwise
+    // trigger the bot to respond again.
     const message =
       `🤖 *Tes Koneksi Bot*\n\n` +
-      `Halo${label ? ` ${label}` : ""}, ini pesan uji dari admin RealTime48 untuk memastikan nomor WhatsApp ini terhubung dengan bot reseller.\n\n` +
-      `Jika kamu menerima pesan ini, kirim *${label ? "/" + (prefix || "X").toUpperCase() + "stats" : "/<prefix>stats"}* untuk mulai menggunakan command reseller.`;
+      `Halo${label ? ` ${label}` : ""}, ini pesan uji satu kali dari admin RealTime48 untuk memastikan nomor WhatsApp ini terhubung dengan bot reseller.\n\n` +
+      `Jika kamu menerima pesan ini, koneksi bot ke nomormu sudah berhasil. Tidak perlu membalas pesan ini.`;
     try {
       const { data, error } = await supabase.functions.invoke("send-whatsapp", {
         body: { target, message },
