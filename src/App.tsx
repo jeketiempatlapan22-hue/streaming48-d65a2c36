@@ -22,6 +22,7 @@ const ViewerProfile = lazy(() => import("./pages/ViewerProfile"));
 const MembershipPage = lazy(() => import("./pages/MembershipPage"));
 const FaqPage = lazy(() => import("./pages/FaqPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
+const ResellerPage = lazy(() => import("./pages/ResellerPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -163,6 +164,7 @@ const App = () => {
                   <Route path="/membership" element={<MembershipPage />} />
                   <Route path="/faq" element={<FaqPage />} />
                   <Route path="/about" element={<AboutPage />} />
+                  <Route path="/reseller" element={<ResellerPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

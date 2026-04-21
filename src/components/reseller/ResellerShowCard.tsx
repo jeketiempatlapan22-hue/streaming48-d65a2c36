@@ -1,0 +1,177 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
+
+interface Show {
+  id: string;
+  title: string;
+  price?: string;
+  schedule_date?: string;
+  schedule_time?: string;
+  lineup?: string;
+  team?: string;
+  category?: string;
+  is_replay?: boolean;
+  is_subscription?: boolean;
+  is_bundle?: boolean;
+  access_password?: string;
+  bundle_replay_info?: string;
+  bundle_replay_passwords?: any;
+  background_image_url?: string;
+  short_id?: string;
+}
+
+interface Props {
+  show: Show;
+  sessionToken: string;
+  onTokenCreated: () => void;
+}
+
+const LIVE_BASE = "https://realtime48stream.my.id/live";
+
+const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
+  const [maxDevices, setMaxDevices] = useState("1");
+  const [duration, setDuration] = useState("7");
+  const [generating, setGenerating] = useState(false);
+  const [lastToken, setLastToken] = useState<{ code: string; link: string } | null>(null);
+  const { toast } = useToast();
+
+  const replayPasswords = Array.isArray(show.bundle_replay_passwords)
+    ? show.bundle_replay_passwords
+    : [];
+
+  const generate = async () => {
+    setGenerating(true);
+    try {
+      const md = Math.max(1, Math.min(10, parseInt(maxDevices) || 1));
+      const dd = Math.max(1, Math.min(90, parseInt(duration) || 7));
+      const { data, error } = await supabase.rpc("reseller_create_token", {
+        _session_token: sessionToken,
+        _show_id: show.id,
+        _max_devices: md,
+        _duration_days: dd,
+      });
+      if (error) throw error;
+      const res = data as any;
+      if (!res?.success) {
+        toast({ title: "Gagal", description: res?.error || "Tidak dapat membuat token", variant: "destructive" });
+        return;
+      }
+      const link = `${LIVE_BASE}?t=${res.code}`;
+      setLastToken({ code: res.code, link });
+      toast({ title: "Token dibuat!", description: res.code });
+      onTokenCreated();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Gagal", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (!lastToken) return;
+    try {
+      await navigator.clipboard.writeText(lastToken.link);
+      toast({ title: "Tersalin!", description: "Link siap dibagikan" });
+    } catch {
+      toast({ title: "Gagal menyalin", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {show.background_image_url && (
+        <div className="aspect-[16/7] w-full bg-muted overflow-hidden">
+          <img src={show.background_image_url} alt={show.title} className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      )}
+      <div className="p-4 space-y-3">
+        <div>
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <h3 className="font-bold text-foreground text-base leading-tight flex-1 min-w-0 break-words">
+              {show.title}
+            </h3>
+            <div className="flex gap-1 flex-wrap">
+              {show.is_replay && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/30">Replay</span>}
+              {show.is_subscription && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Member</span>}
+              {show.is_bundle && <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">Bundle</span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[11px] text-muted-foreground">
+            {show.schedule_date && (
+              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{show.schedule_date}</span>
+            )}
+            {show.schedule_time && (
+              <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{show.schedule_time}</span>
+            )}
+            {show.short_id && <span className="font-mono">#{show.short_id}</span>}
+          </div>
+          {show.lineup && (
+            <p className="mt-2 text-[11px] text-muted-foreground line-clamp-2">{show.lineup}</p>
+          )}
+        </div>
+
+        {(show.access_password || replayPasswords.length > 0 || show.bundle_replay_info) && (
+          <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-2.5 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
+              <Film className="h-3 w-3" /> Info Replay
+            </div>
+            {show.access_password && (
+              <div className="text-[11px] text-foreground flex items-center gap-1.5">
+                <KeyRound className="h-3 w-3 text-purple-400" />
+                <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
+              </div>
+            )}
+            {replayPasswords.length > 0 && (
+              <div className="text-[11px] text-muted-foreground space-y-0.5">
+                {replayPasswords.map((p: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <KeyRound className="h-3 w-3 text-purple-400" />
+                    <span className="truncate">{typeof p === "string" ? p : p.password || JSON.stringify(p)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {show.bundle_replay_info && (
+              <p className="text-[11px] text-muted-foreground whitespace-pre-wrap break-words">{show.bundle_replay_info}</p>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Max Device</label>
+            <Input type="number" min={1} max={10} value={maxDevices} onChange={(e) => setMaxDevices(e.target.value)} className="h-9" />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Durasi (hari)</label>
+            <Input type="number" min={1} max={90} value={duration} onChange={(e) => setDuration(e.target.value)} className="h-9" />
+          </div>
+        </div>
+
+        <Button onClick={generate} disabled={generating} className="w-full" size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          {generating ? "Membuat..." : "Buat Token Baru"}
+        </Button>
+
+        {lastToken && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5 space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-primary">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Token berhasil dibuat
+            </div>
+            <div className="font-mono text-[11px] bg-background/60 p-2 rounded break-all">{lastToken.code}</div>
+            <div className="font-mono text-[10px] text-muted-foreground bg-background/60 p-2 rounded break-all">{lastToken.link}</div>
+            <Button onClick={copyLink} variant="outline" size="sm" className="w-full">
+              <Copy className="h-3.5 w-3.5 mr-1" /> Salin Link
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ResellerShowCard;
