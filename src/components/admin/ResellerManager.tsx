@@ -61,6 +61,33 @@ const ResellerManager = () => {
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
 
+  // payment history dialog
+  const [paymentReseller, setPaymentReseller] = useState<any>(null);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+
+  /**
+   * Load all confirmed payments for a single reseller via the admin RPC.
+   * Each row contains token_short, token_code, show info, paid_at, notes.
+   */
+  const openPaymentHistory = async (r: any) => {
+    setPaymentReseller(r);
+    setPayments([]);
+    setLoadingPayments(true);
+    const { data, error } = await supabase.rpc("admin_list_reseller_payments", {
+      _reseller_id: r.reseller_id,
+      _limit: 200,
+    });
+    setLoadingPayments(false);
+    if (error) {
+      toast({ title: "Gagal memuat riwayat", description: error.message, variant: "destructive" });
+      return;
+    }
+    const res = data as any;
+    if (res?.success) setPayments(res.payments || []);
+    else toast({ title: "Gagal", description: res?.error || "Tidak dapat memuat riwayat pembayaran.", variant: "destructive" });
+  };
+
   /**
    * Send a test WhatsApp message via the admin-gated `send-whatsapp` edge function
    * to verify that the reseller's number is reachable through the bot. Surfaces
