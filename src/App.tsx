@@ -107,7 +107,7 @@ const MaintenanceGate = ({ children }: { children: React.ReactNode }) => {
   if (maintenance === null) return <PageLoader />;
 
   // Admin routes always pass through
-  const isAdminRoute = location.pathname.startsWith("/admin");
+  const isAdminRoute = location.pathname.startsWith("/adpan");
   if (maintenance && !isAdminRoute) {
     return <MaintenancePage message={maintenanceMsg} />;
   }
@@ -150,8 +150,8 @@ const App = () => {
               <Suspense fallback={<PageLoader />}>
                 <Routes>
                   <Route path="/" element={<Index />} />
-                  <Route path="/admin" element={<AdminLogin />} />
-                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="/adpan" element={<AdminLogin />} />
+                  <Route path="/adpanboard" element={<AdminDashboard />} />
                   <Route path="/auth" element={<ViewerAuth />} />
                   <Route path="/live" element={<LivePage />} />
                   <Route path="/coins" element={<CoinShop />} />
