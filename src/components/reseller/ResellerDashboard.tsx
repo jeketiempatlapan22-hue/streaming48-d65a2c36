@@ -30,6 +30,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"shows" | "tokens">("shows");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked">("all");
   const [resetTarget, setResetTarget] = useState<any | null>(null);
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
