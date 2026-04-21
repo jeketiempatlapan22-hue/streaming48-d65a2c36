@@ -300,6 +300,9 @@ function handleResellerHelp(reseller: any): string {
 🔑 *Command Reseller Anda:*
 
 ▫️ Buat token baru:
+/${p}token <nama show / #shortid> [maxdevice]
+
+▫️ Buat token membership (durasi custom):
 /${p}token <nama show / #shortid> [durasi] [maxdevice]
 
 ▫️ Reset sesi token (force-logout):
@@ -312,12 +315,14 @@ function handleResellerHelp(reseller: any): string {
 /${p}mytokens
 
 📋 *Contoh:*
-• /${p}token #abc123 7hari 2
-• /${p}token Konser Spesial 1bulan 3
+• /${p}token #abc123  → token 1 hari, 1 device
+• /${p}token #abc123 2  → token 1 hari, 2 device
+• /${p}token #membership 30hari 1  → token membership 30 hari
 • /${p}reset AB12
 • /${p}stats
 
-ℹ️ Default token: 7 hari • Max device 1
+ℹ️ Default: 1 hari • 1 device
+ℹ️ Durasi custom hanya berlaku untuk show membership
 🌐 Dashboard: realtime48stream.my.id/reseller`;
 }
 
@@ -326,17 +331,17 @@ function handleResellerFormatError(reseller: any, reason: string): string {
   return `⚠️ *Format command salah* (${reason})
 
 📋 *Format yang benar:*
-/${p}token <nama show / #shortid> [durasi] [maxdevice]
+/${p}token <nama show / #shortid> [maxdevice]
+/${p}token <nama show / #shortid> [durasi] [maxdevice]  (membership)
 
 ✅ *Contoh valid:*
 • /${p}token #abc123
-• /${p}token #abc123 7hari
-• /${p}token #abc123 7hari 2
-• /${p}token #abc123 30 hari 1
-• /${p}token Konser Spesial 2minggu
-• /${p}token Konser Spesial 1bulan 3
+• /${p}token #abc123 2
+• /${p}token Konser Spesial
+• /${p}token #membership 30hari 1
 
-ℹ️ Durasi default: 7 hari • Max device default: 1
+ℹ️ Default: 1 hari • 1 device
+ℹ️ Durasi custom hanya untuk show membership
 ℹ️ Ketik /resellerhelp untuk bantuan`;
 }
 
