@@ -189,17 +189,80 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
     return { text: handleResellerHelp(reseller) };
   }
 
-  // Dynamic /<prefix>token <show> [days] [maxdevice]
+  // Dynamic /<prefix>token <show> [duration] [maxdevice] — flexible parsing
   if (reseller) {
     const prefix = String(reseller.prefix || "").toUpperCase();
-    const re = new RegExp(`^\\/${prefix}token\\s+(.+?)(?:\\s+(\\d+)(?:hari)?)?(?:\\s+(\\d+))?\\s*$`, "i");
-    const m = text.match(re);
-    if (m) {
-      return { text: await handleResellerToken(supabase, reseller, m[1].trim(), m[2] ? parseInt(m[2], 10) : 7, m[3] ? parseInt(m[3], 10) : 1) };
+    const headRe = new RegExp(`^\\/${prefix}token\\b\\s*(.*)$`, "i");
+    const headMatch = text.match(headRe);
+    if (headMatch) {
+      const argsStr = (headMatch[1] || "").trim();
+      if (!argsStr) {
+        return { text: handleResellerFormatError(reseller, "Argumen kosong") };
+      }
+      const parsed = parseResellerArgs(argsStr);
+      if (!parsed.showInput) {
+        return { text: handleResellerFormatError(reseller, "Show tidak terdeteksi") };
+      }
+      return {
+        text: await handleResellerToken(
+          supabase,
+          reseller,
+          parsed.showInput,
+          parsed.days ?? 7,
+          parsed.maxDevices ?? 1,
+        ),
+      };
     }
   }
 
   return null; // Not a public command
+}
+
+// Flexible parser for reseller args. Accepts duration like "7hari", "7 hari", "2minggu",
+// "1bulan", "7d", "2w", "1m". Trailing standalone number (1-10) treated as max devices.
+// Order is flexible; whatever remains is the show input.
+function parseResellerArgs(argsStr: string): { showInput: string; days: number | null; maxDevices: number | null } {
+  let days: number | null = null;
+  let maxDevices: number | null = null;
+  let working = argsStr.replace(/\s+/g, " ").trim();
+
+  const durRe = /\b(\d+)\s*(hari|harian|hr|h|d|day|days|minggu|mgg|w|week|weeks|bulan|bln|mo|month|months)\b/i;
+  const durM = working.match(durRe);
+  if (durM) {
+    const n = parseInt(durM[1], 10);
+    const unit = durM[2].toLowerCase();
+    let mult = 1;
+    if (/^(minggu|mgg|w|week|weeks)$/.test(unit)) mult = 7;
+    else if (/^(bulan|bln|mo|month|months)$/.test(unit)) mult = 30;
+    days = n * mult;
+    working = (working.slice(0, durM.index!) + working.slice(durM.index! + durM[0].length)).replace(/\s+/g, " ").trim();
+  }
+
+  // Trailing standalone number (1-10) → max devices
+  const trailRe = /\s+(\d{1,2})\s*$/;
+  const trailM = working.match(trailRe);
+  if (trailM) {
+    const n = parseInt(trailM[1], 10);
+    if (n >= 1 && n <= 10) {
+      maxDevices = n;
+      working = working.slice(0, trailM.index!).trim();
+    }
+  }
+
+  // If duration still missing and a trailing bare number remains (1-90), treat as days
+  if (days === null) {
+    const bareNumRe = /\s+(\d{1,3})\s*$/;
+    const bm = working.match(bareNumRe);
+    if (bm) {
+      const n = parseInt(bm[1], 10);
+      if (n >= 1 && n <= 90) {
+        days = n;
+        working = working.slice(0, bm.index!).trim();
+      }
+    }
+  }
+
+  return { showInput: working.trim(), days, maxDevices };
 }
 
 function handleResellerHelp(reseller: any): string {
@@ -208,60 +271,109 @@ function handleResellerHelp(reseller: any): string {
 
 🔑 *Command Reseller Anda:*
 
-/${p}token <nama show / #shortid> [hari] [maxdevice]
+/${p}token <nama show / #shortid> [durasi] [maxdevice]
 
 📋 *Contoh:*
 • /${p}token #abc123
-• /${p}token #abc123 7 1
-• /${p}token Konser Spesial 30 2
+• /${p}token #abc123 7hari
+• /${p}token #abc123 7hari 2
+• /${p}token #abc123 30 hari 1
+• /${p}token Konser Spesial 2minggu
+• /${p}token Konser Spesial 1bulan 3
 
+ℹ️ Default: 7 hari • Max device 1
 🌐 Dashboard: realtime48stream.my.id/reseller`;
 }
 
+function handleResellerFormatError(reseller: any, reason: string): string {
+  const p = String(reseller.prefix || "").toUpperCase();
+  return `⚠️ *Format command salah* (${reason})
+
+📋 *Format yang benar:*
+/${p}token <nama show / #shortid> [durasi] [maxdevice]
+
+✅ *Contoh valid:*
+• /${p}token #abc123
+• /${p}token #abc123 7hari
+• /${p}token #abc123 7hari 2
+• /${p}token #abc123 30 hari 1
+• /${p}token Konser Spesial 2minggu
+• /${p}token Konser Spesial 1bulan 3
+
+ℹ️ Durasi default: 7 hari • Max device default: 1
+ℹ️ Ketik /resellerhelp untuk bantuan`;
+}
+
 async function handleResellerToken(supabase: any, reseller: any, showInput: string, days: number, maxDevices: number): Promise<string> {
+  const prefixUp = String(reseller.prefix).toUpperCase();
   try {
     const { show, error, multiple } = await findShowByInput(supabase, showInput, true);
-    if (error) return `⚠️ ${error}`;
+    if (error) return `⚠️ ${error}\n\n💡 Coba gunakan #shortid show, contoh: /${prefixUp}token #abc123`;
     if (multiple) {
       let msg = `⚠️ Ditemukan ${multiple.length} show, gunakan ID:\n\n`;
       for (const s of multiple.slice(0, 8)) {
         const sid = s.short_id || s.id.substring(0, 6);
         msg += `• ${s.title} → #${sid}\n`;
       }
+      const firstSid = multiple[0].short_id || multiple[0].id.substring(0, 6);
+      msg += `\n💡 Contoh: /${prefixUp}token #${firstSid}`;
       return msg;
     }
-    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
+    if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.\n\n💡 Ketik *SHOW* untuk lihat daftar show aktif.`;
+
+    const safeDays = Math.max(1, Math.min(90, days));
+    const safeMax = Math.max(1, Math.min(10, maxDevices));
 
     const { data, error: rpcErr } = await supabase.rpc("reseller_create_token_by_id", {
       _reseller_id: reseller.id,
       _show_id: show.id,
-      _max_devices: Math.max(1, Math.min(10, maxDevices)),
-      _duration_days: Math.max(1, Math.min(90, days)),
+      _max_devices: safeMax,
+      _duration_days: safeDays,
     });
     if (rpcErr) return `⚠️ ${rpcErr.message}`;
     const res = data as any;
     if (!res?.success) return `⚠️ ${res?.error || "Gagal membuat token"}`;
 
-    const link = `https://realtime48stream.my.id/live?t=${res.code}`;
-    const exp = new Date(res.expires_at).toLocaleString("id-ID");
-    let replay = "";
-    if (res.access_password) replay += `\n🔐 Password Replay: ${res.access_password}`;
-    if (Array.isArray(res.bundle_replay_passwords) && res.bundle_replay_passwords.length > 0) {
-      replay += `\n🔐 Replay tambahan: ${res.bundle_replay_passwords.map((p: any) => typeof p === "string" ? p : (p?.password || "")).filter(Boolean).join(", ")}`;
-    }
-    if (res.bundle_replay_info) replay += `\nℹ️ ${res.bundle_replay_info}`;
+    const link = `realtime48stream.my.id/live?t=${res.code}`;
+    const expDate = new Date(res.expires_at).toLocaleString("id-ID", {
+      timeZone: "Asia/Jakarta",
+      day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
+    });
 
-    return `✅ *Token Reseller Dibuat!*
+    let msg = `━━━━━━━━━━━━━━━━━━
+✅ *Token Reseller Berhasil Dibuat!*
+━━━━━━━━━━━━━━━━━━
 
 🎬 Show: *${res.show_title}*
-🔑 Kode: \`${res.code}\`
-📱 Max Device: ${res.max_devices}
-⏰ Berlaku s/d: ${exp}
+🔑 Token: \`${res.code}\`
+📱 Max Device: *${res.max_devices}*
+⏰ Durasi: *${safeDays} hari*
+📅 Kedaluwarsa: ${expDate}
 
-📺 Link Nonton:
-${link}${replay}
+📺 *Link Nonton:*
+${link}
 
-_Dibuat oleh: ${reseller.name} (/${String(reseller.prefix).toUpperCase()}token)_`;
+🔄 *Info Replay:*
+🔗 Link: https://replaytime.lovable.app`;
+
+    if (res.access_password) {
+      msg += `\n🔐 Sandi Replay: *${res.access_password}*`;
+    }
+    if (Array.isArray(res.bundle_replay_passwords) && res.bundle_replay_passwords.length > 0) {
+      const pwList = res.bundle_replay_passwords
+        .map((p: any) => (typeof p === "string" ? p : (p?.password || "")))
+        .filter(Boolean)
+        .join(", ");
+      if (pwList) msg += `\n🔐 Sandi Replay Tambahan: *${pwList}*`;
+    }
+    if (res.bundle_replay_info) {
+      msg += `\nℹ️ ${res.bundle_replay_info}`;
+    }
+
+    msg += `\n\n_Dibuat oleh: ${reseller.name} (/${prefixUp}token)_
+━━━━━━━━━━━━━━━━━━`;
+
+    return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : "Unknown"}`;
   }
