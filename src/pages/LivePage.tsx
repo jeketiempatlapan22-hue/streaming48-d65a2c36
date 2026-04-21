@@ -614,9 +614,9 @@ const LivePage = () => {
         });
 
         if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken && !isCustomToken) {
-          // Do not hard-block valid tokens when another show is currently active.
-          // Keep the info for UI/debugging, but still allow playback using the valid token.
-          setShowMismatch(false);
+          // HARD-BLOCK: Token milik show lain tidak boleh masuk ke show yang sedang live.
+          // Token reseller/regular hanya berlaku untuk show yang dibuat berdasarkan jadwalnya.
+          setShowMismatch(true);
           setMismatchShowTitle(JSON.stringify({
             tokenShowTitle: tokenShow?.title || "Show Lain",
             tokenShowDate: tokenShow?.schedule_date || "",
