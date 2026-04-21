@@ -53,6 +53,14 @@ const ResellerManager = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [testingPhone, setTestingPhone] = useState<string | null>(null);
 
+  // edit reseller dialog
+  const [editReseller, setEditReseller] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editPrefix, setEditPrefix] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   /**
    * Send a test WhatsApp message via the admin-gated `send-whatsapp` edge function
    * to verify that the reseller's number is reachable through the bot. Surfaces
