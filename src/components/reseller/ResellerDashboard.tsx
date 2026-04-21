@@ -135,9 +135,12 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
         await ch.send({ type: "broadcast", event: "force_logout", payload: { token_id: resetTarget.id } });
         supabase.removeChannel(ch);
       } catch { /* noop */ }
+      const deleted = res.deleted_count || 0;
       toast({
-        title: "Sesi direset",
-        description: `${res.deleted_count || 0} sesi dihapus untuk ${res.token_code}`,
+        title: deleted > 0 ? `✅ ${deleted} sesi berhasil dihapus` : "Tidak ada sesi aktif",
+        description: deleted > 0
+          ? `Token ${res.token_code} — perangkat aktif telah dikeluarkan paksa.`
+          : `Token ${res.token_code} tidak memiliki sesi aktif untuk dihapus.`,
       });
       setResetTarget(null);
       // Refresh token list to reflect any state change
