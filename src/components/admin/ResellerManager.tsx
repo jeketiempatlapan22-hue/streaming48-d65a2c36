@@ -9,7 +9,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle } from "lucide-react";
+import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle, Send, Loader2 } from "lucide-react";
 
 /**
  * Normalize Indonesian phone numbers to the canonical "62xxxxxxxxxx" format
