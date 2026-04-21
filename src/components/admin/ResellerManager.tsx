@@ -359,9 +359,9 @@ const ResellerManager = () => {
             type="button"
             variant="outline"
             size="sm"
-            disabled={!phoneValid || testingPhone === normalizedPhone}
+            disabled={!phoneValid || !!testingPhone}
             onClick={() => sendTestMessage(phone, name)}
-            title="Kirim pesan WA uji ke nomor reseller"
+            title={testingPhone ? "Sedang mengirim pesan tes lain..." : "Kirim pesan WA uji ke nomor reseller"}
           >
             {testingPhone === normalizedPhone ? (
               <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Mengirim...</>
@@ -413,9 +413,9 @@ const ResellerManager = () => {
                     size="sm"
                     variant="ghost"
                     onClick={() => sendTestMessage(r.phone, r.name)}
-                    disabled={testingPhone === normalizeWaPhone(r.phone)}
-                    title="Kirim pesan WA uji ke reseller"
-                    className="text-emerald-400 hover:text-emerald-300"
+                    disabled={!!testingPhone}
+                    title={testingPhone ? "Sedang mengirim pesan tes lain..." : "Kirim pesan WA uji ke reseller"}
+                    className="text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
                   >
                     {testingPhone === normalizeWaPhone(r.phone)
                       ? <Loader2 className="h-4 w-4 animate-spin" />
