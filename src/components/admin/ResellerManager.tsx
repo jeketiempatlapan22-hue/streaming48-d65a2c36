@@ -9,7 +9,28 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag } from "lucide-react";
+import { Plus, RefreshCw, KeyRound, Trash2, Eye, ShoppingBag, CheckCircle2, AlertTriangle, MessageCircle } from "lucide-react";
+
+/**
+ * Normalize Indonesian phone numbers to the canonical "62xxxxxxxxxx" format
+ * used by the WhatsApp bot lookup (`get_reseller_by_phone`).
+ * - strip non-digits
+ * - "08xxx" → "628xxx"
+ * - "8xxx"  → "628xxx"
+ * - "+62xx" → "62xx" (handled by digit strip)
+ */
+const normalizeWaPhone = (raw: string): string => {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0")) return "62" + digits.slice(1);
+  if (digits.startsWith("8")) return "62" + digits;
+  return digits;
+};
+
+const isValidWaPhone = (normalized: string): boolean => {
+  // Indonesian mobile numbers normalized as 62 + (8XXXXXXXXX) → typically 11–15 digits
+  return /^62\d{8,13}$/.test(normalized);
+};
 
 const ResellerManager = () => {
   const [stats, setStats] = useState<any[]>([]);
@@ -41,20 +62,34 @@ const ResellerManager = () => {
 
   useEffect(() => { load(); }, []);
 
+  const normalizedPhone = normalizeWaPhone(phone);
+  const phoneValid = isValidWaPhone(normalizedPhone);
+
   const createReseller = async () => {
     if (!name || !phone || !password || !prefix) {
       toast({ title: "Lengkapi data", variant: "destructive" });
       return;
     }
+    if (!phoneValid) {
+      toast({
+        title: "Nomor HP tidak valid",
+        description: "Pastikan nomor diawali 08, 8, atau 62 dan minimal 10 digit. Nomor ini harus aktif di WhatsApp bot.",
+        variant: "destructive",
+      });
+      return;
+    }
     setCreating(true);
     const { data, error } = await supabase.rpc("admin_create_reseller", {
-      _name: name, _phone: phone, _password: password, _prefix: prefix, _notes: notes,
+      _name: name, _phone: normalizedPhone, _password: password, _prefix: prefix, _notes: notes,
     });
     setCreating(false);
     if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
     const res = data as any;
     if (!res?.success) { toast({ title: "Gagal", description: res?.error, variant: "destructive" }); return; }
-    toast({ title: "Reseller dibuat!", description: `${name} (/${res.prefix}token)` });
+    toast({
+      title: "Reseller dibuat!",
+      description: `${name} (/${res.prefix}token) — Nomor terhubung: +${res.phone}`,
+    });
     setName(""); setPhone(""); setPassword(""); setPrefix(""); setNotes("");
     load();
   };
@@ -119,7 +154,7 @@ const ResellerManager = () => {
         </h3>
         <div className="grid sm:grid-cols-2 gap-2">
           <Input placeholder="Nama reseller" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input placeholder="Nomor HP (08xx / 62xx)" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+          <Input placeholder="Nomor WA reseller (08xx / 62xx)" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
           <Input placeholder="Sandi (min 6 karakter)" type="text" value={password} onChange={(e) => setPassword(e.target.value)} />
           <Input
             placeholder="Prefix command (1-3 huruf, contoh: W)"
@@ -129,10 +164,42 @@ const ResellerManager = () => {
           />
         </div>
         <Input placeholder="Catatan (opsional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+        {/* WA bot connection preview — admin must verify the number is the one connected to WhatsApp */}
+        {phone && (
+          <div className={`rounded-lg border px-3 py-2 text-xs flex items-start gap-2 ${
+            phoneValid
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300"
+              : "border-amber-500/30 bg-amber-500/5 text-amber-300"
+          }`}>
+            {phoneValid ? <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> : <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />}
+            <div className="min-w-0 flex-1">
+              {phoneValid ? (
+                <>
+                  <p className="font-semibold flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3" /> Nomor WA bot reseller
+                  </p>
+                  <p className="font-mono mt-0.5 text-foreground">+{normalizedPhone}</p>
+                  <p className="text-[10px] mt-1 opacity-80">
+                    Reseller harus chat ke bot WhatsApp dari nomor ini untuk menjalankan command <code className="font-mono">/{prefix.toUpperCase() || "X"}token</code>, <code className="font-mono">/{prefix.toUpperCase() || "X"}reset</code>, <code className="font-mono">/{prefix.toUpperCase() || "X"}stats</code>, dan <code className="font-mono">/{prefix.toUpperCase() || "X"}mytokens</code>.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold">Nomor belum valid</p>
+                  <p className="text-[10px] mt-0.5 opacity-90">
+                    Format yang diterima: <span className="font-mono">08xxxxxxxxxx</span>, <span className="font-mono">8xxxxxxxxxx</span>, atau <span className="font-mono">62xxxxxxxxxx</span> (min 10 digit).
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="text-[11px] text-muted-foreground">
           Command bot WA: <code className="font-mono text-primary">/{prefix.toUpperCase() || "X"}token &lt;show&gt; [hari] [maxdevice]</code>
         </div>
-        <Button onClick={createReseller} disabled={creating} size="sm">
+        <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
           {creating ? "Membuat..." : "Buat Reseller"}
         </Button>
       </div>
@@ -158,8 +225,12 @@ const ResellerManager = () => {
                     <code className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">/{r.prefix}token</code>
                     {!r.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">Nonaktif</span>}
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                    {r.phone} • <span className="text-foreground font-semibold">{r.total_tokens}</span> token dibuat
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate flex items-center gap-1" title="Nomor terhubung dengan bot WhatsApp">
+                    <MessageCircle className="h-3 w-3 text-emerald-400 shrink-0" />
+                    <span className="font-mono">+{r.phone}</span>
+                    <span className="opacity-60">•</span>
+                    <span className="text-foreground font-semibold">{r.total_tokens}</span>
+                    <span>token dibuat</span>
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
