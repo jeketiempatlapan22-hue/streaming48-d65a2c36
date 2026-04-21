@@ -236,7 +236,7 @@ async function processPublicCommand(supabase: any, rawText: string, senderPhone:
           supabase,
           reseller,
           parsed.showInput,
-          parsed.days ?? 7,
+          parsed.days ?? 1,
           parsed.maxDevices ?? 1,
         ),
       };
@@ -300,6 +300,9 @@ function handleResellerHelp(reseller: any): string {
 🔑 *Command Reseller Anda:*
 
 ▫️ Buat token baru:
+/${p}token <nama show / #shortid> [maxdevice]
+
+▫️ Buat token membership (durasi custom):
 /${p}token <nama show / #shortid> [durasi] [maxdevice]
 
 ▫️ Reset sesi token (force-logout):
@@ -312,12 +315,14 @@ function handleResellerHelp(reseller: any): string {
 /${p}mytokens
 
 📋 *Contoh:*
-• /${p}token #abc123 7hari 2
-• /${p}token Konser Spesial 1bulan 3
+• /${p}token #abc123  → token 1 hari, 1 device
+• /${p}token #abc123 2  → token 1 hari, 2 device
+• /${p}token #membership 30hari 1  → token membership 30 hari
 • /${p}reset AB12
 • /${p}stats
 
-ℹ️ Default token: 7 hari • Max device 1
+ℹ️ Default: 1 hari • 1 device
+ℹ️ Durasi custom hanya berlaku untuk show membership
 🌐 Dashboard: realtime48stream.my.id/reseller`;
 }
 
@@ -326,17 +331,17 @@ function handleResellerFormatError(reseller: any, reason: string): string {
   return `⚠️ *Format command salah* (${reason})
 
 📋 *Format yang benar:*
-/${p}token <nama show / #shortid> [durasi] [maxdevice]
+/${p}token <nama show / #shortid> [maxdevice]
+/${p}token <nama show / #shortid> [durasi] [maxdevice]  (membership)
 
 ✅ *Contoh valid:*
 • /${p}token #abc123
-• /${p}token #abc123 7hari
-• /${p}token #abc123 7hari 2
-• /${p}token #abc123 30 hari 1
-• /${p}token Konser Spesial 2minggu
-• /${p}token Konser Spesial 1bulan 3
+• /${p}token #abc123 2
+• /${p}token Konser Spesial
+• /${p}token #membership 30hari 1
 
-ℹ️ Durasi default: 7 hari • Max device default: 1
+ℹ️ Default: 1 hari • 1 device
+ℹ️ Durasi custom hanya untuk show membership
 ℹ️ Ketik /resellerhelp untuk bantuan`;
 }
 
@@ -364,7 +369,10 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       return `⚠️ Show "${showInput}" tidak ditemukan.\n\n💡 Ketik *SHOW* untuk lihat daftar show aktif.`;
     }
 
-    const safeDays = Math.max(1, Math.min(90, days));
+    // Force 1-day duration for non-membership shows; only membership shows can use custom duration
+    const isMembership = !!show.is_subscription;
+    const requestedDays = Math.max(1, Math.min(90, days));
+    const safeDays = isMembership ? requestedDays : 1;
     const safeMax = Math.max(1, Math.min(10, maxDevices));
 
     const { data, error: rpcErr } = await supabase.rpc("reseller_create_token_by_id", {
@@ -386,15 +394,20 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
+    // Note: If user requested custom duration on a non-membership show, inform them
+    const durationNote = (!isMembership && days > 1)
+      ? `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`
+      : "";
+
     let msg = `━━━━━━━━━━━━━━━━━━
 ✅ *Token Reseller Berhasil Dibuat!*
 ━━━━━━━━━━━━━━━━━━
 
 🎬 Show: *${res.show_title}*
 🔑 Token: \`${res.code}\`
-📱 Max Device: *${res.max_devices}*
-⏰ Durasi: *${safeDays} hari*
-📅 Kedaluwarsa: ${expDate}
+📱 Max Device: *${safeMax}*
+⏰ Durasi: *${safeDays} hari*${isMembership ? " _(membership)_" : ""}
+📅 Kedaluwarsa: ${expDate}${durationNote}
 
 📺 *Link Nonton:*
 ${link}
@@ -1022,7 +1035,7 @@ async function findShowByInput(supabase: any, input: string, activeOnly = true):
   // Fetch shows for matching
   const query = supabase
     .from('shows')
-    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, is_subscription, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
   if (activeOnly) query.eq('is_active', true);
   const { data: allShows } = await query;
 
