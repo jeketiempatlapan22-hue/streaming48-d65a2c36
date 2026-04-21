@@ -83,11 +83,25 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tokens", filter: `reseller_id=eq.${session.reseller_id}` },
-        () => { loadTokens(); }
+        () => { loadTokens(); loadPayments(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "reseller_payments", filter: `reseller_id=eq.${session.reseller_id}` },
+        (payload: any) => {
+          loadPayments();
+          loadTokens();
+          if (payload.eventType === "INSERT") {
+            toast({
+              title: "✅ Pembayaran dikonfirmasi admin",
+              description: `Token ${payload.new?.token_code || ''} • ${payload.new?.show_title || 'Show'} ditandai LUNAS.`,
+            });
+          }
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [refresh, loadTokens, session.reseller_id]);
+  }, [refresh, loadTokens, loadPayments, session.reseller_id, toast]);
 
   const handleLogout = async () => {
     try { await supabase.rpc("reseller_logout", { _session_token: session.session_token }); } catch { /* noop */ }
