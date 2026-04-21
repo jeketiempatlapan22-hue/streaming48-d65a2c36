@@ -99,6 +99,12 @@ Deno.serve(async (req) => {
     const cleanSender = sender.replace(/[^0-9]/g, '');
     const rawText = message.trim();
 
+    // Detect reseller identity once — resellers are RESTRICTED to reseller commands only.
+    // They must never be able to invoke admin commands (e.g. /pendapatan, /stats, /help)
+    // even if their phone is also listed in the admin whitelist.
+    const { data: rDataEarly } = await supabase.rpc("get_reseller_by_phone", { _phone: cleanSender });
+    const isReseller = !!(rDataEarly as any)?.found;
+
     // ========== PUBLIC COMMANDS (any sender) ==========
     const publicResponse = await processPublicCommand(supabase, rawText, cleanSender, FONNTE_TOKEN);
     if (publicResponse !== null) {
@@ -107,6 +113,15 @@ Deno.serve(async (req) => {
         : publicResponse;
       await sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage);
       return jsonResponse({ ok: true, processed: true, type: 'public' });
+    }
+
+    // If sender is a reseller and command did not match any reseller/public command,
+    // reply with reseller help and STOP — do not fall through to admin commands.
+    if (isReseller) {
+      const helpText = handleResellerHelp(rDataEarly);
+      const unknownNotice = `⚠️ *Command tidak dikenali atau bukan command reseller.*\n\nSebagai reseller, Anda hanya dapat menggunakan command reseller berikut:\n\n${helpText}`;
+      await sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice);
+      return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands' });
     }
 
     // ========== ADMIN COMMANDS (whitelisted senders only) ==========
