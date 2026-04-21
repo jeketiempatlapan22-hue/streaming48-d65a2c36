@@ -397,6 +397,9 @@ const ResellerManager = () => {
                   <Button size="sm" variant="ghost" onClick={() => setDetail(r)} title="Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
+                  <Button size="sm" variant="ghost" onClick={() => openPaymentHistory(r)} title="Riwayat pembayaran" className="text-emerald-400 hover:text-emerald-300">
+                    <Receipt className="h-4 w-4" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
