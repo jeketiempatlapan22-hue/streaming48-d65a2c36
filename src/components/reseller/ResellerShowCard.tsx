@@ -43,11 +43,16 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     ? show.bundle_replay_passwords
     : [];
 
+  const isMembership = !!show.is_subscription;
+
   const generate = async () => {
     setGenerating(true);
     try {
       const md = Math.max(1, Math.min(10, parseInt(maxDevices) || 1));
-      const dd = Math.max(1, Math.min(90, parseInt(duration) || 7));
+      // Non-membership shows are forced to 1 day server-side; only membership uses custom duration
+      const dd = isMembership
+        ? Math.max(1, Math.min(90, parseInt(duration) || 7))
+        : 1;
       const { data, error } = await supabase.rpc("reseller_create_token", {
         _session_token: sessionToken,
         _show_id: show.id,
