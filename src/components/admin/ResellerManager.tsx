@@ -435,6 +435,80 @@ const ResellerManager = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit reseller data */}
+      <Dialog open={!!editReseller} onOpenChange={(o) => !o && setEditReseller(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-primary" />
+              Edit Reseller{editReseller?.name ? `: ${editReseller.name}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Nama reseller</label>
+              <Input
+                placeholder="Nama reseller"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Nomor WA bot (08xx / 8xx / 62xx)</label>
+              <Input
+                placeholder="Nomor WA reseller"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                inputMode="tel"
+              />
+              {editPhone && (
+                <p className={`mt-1 text-[11px] flex items-center gap-1 ${
+                  isValidWaPhone(normalizeWaPhone(editPhone))
+                    ? "text-emerald-400"
+                    : "text-amber-400"
+                }`}>
+                  {isValidWaPhone(normalizeWaPhone(editPhone))
+                    ? <><CheckCircle2 className="h-3 w-3" /> Akan disimpan sebagai <span className="font-mono text-foreground">+{normalizeWaPhone(editPhone)}</span></>
+                    : <><AlertTriangle className="h-3 w-3" /> Format nomor belum valid</>}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Prefix command (1-3 huruf)</label>
+              <Input
+                placeholder="Mis. W"
+                value={editPrefix}
+                onChange={(e) => setEditPrefix(e.target.value.replace(/[^A-Za-z]/g, "").slice(0, 3))}
+                maxLength={3}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Command bot akan menjadi <code className="font-mono text-primary">/{editPrefix.toUpperCase() || "X"}token</code>, <code className="font-mono text-primary">/{editPrefix.toUpperCase() || "X"}stats</code>, dll.
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">Catatan (opsional)</label>
+              <Input
+                placeholder="Catatan internal"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-300 flex items-start gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>
+                Mengubah nomor WA atau prefix akan langsung berlaku untuk command bot. Pastikan nomor baru aktif di WhatsApp bot reseller.
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditReseller(null)} disabled={savingEdit}>Batal</Button>
+            <Button onClick={saveEdit} disabled={savingEdit}>
+              {savingEdit ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Menyimpan...</> : "Simpan Perubahan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit password */}
       <Dialog open={!!pwReseller} onOpenChange={(o) => !o && setPwReseller(null)}>
         <DialogContent>
