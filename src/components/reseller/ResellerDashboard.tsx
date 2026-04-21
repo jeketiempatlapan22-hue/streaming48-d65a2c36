@@ -36,37 +36,57 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
 
+  const isInvalidSession = (res: any) =>
+    res && res.success === false && typeof res.error === "string" &&
+    /sesi tidak valid|invalid session|session expired|kedaluwarsa/i.test(res.error);
+
+  const handleInvalidSession = useCallback(() => {
+    toast({
+      title: "Sesi berakhir",
+      description: "Sesi reseller Anda tidak valid lagi. Silakan login ulang.",
+      variant: "destructive",
+    });
+    onLogout();
+  }, [onLogout, toast]);
+
   const loadShows = useCallback(async () => {
     try {
       const { data, error } = await supabase.rpc("reseller_get_active_shows", { _session_token: session.session_token });
       if (error) {
         toast({ title: "Gagal memuat show", description: error.message, variant: "destructive" });
-        return;
+        return { invalid: false };
       }
       const res = data as any;
+      if (isInvalidSession(res)) return { invalid: true };
       if (res?.success) setShows(res.shows || []);
       else if (res?.error) toast({ title: "Gagal memuat show", description: res.error, variant: "destructive" });
+      return { invalid: false };
     } catch (e: any) {
       toast({ title: "Gagal memuat show", description: e?.message || "Network error", variant: "destructive" });
+      return { invalid: false };
     }
   }, [session.session_token, toast]);
 
   const loadTokens = useCallback(async () => {
     try {
       const { data, error } = await supabase.rpc("reseller_list_my_tokens", { _session_token: session.session_token, _limit: 200 });
-      if (error) return;
+      if (error) return { invalid: false };
       const res = data as any;
+      if (isInvalidSession(res)) return { invalid: true };
       if (res?.success) setTokens(res.tokens || []);
-    } catch { /* noop */ }
+      return { invalid: false };
+    } catch { return { invalid: false }; }
   }, [session.session_token]);
 
   const loadPayments = useCallback(async () => {
     try {
       const { data, error } = await (supabase.rpc as any)("reseller_list_my_payments", { _session_token: session.session_token, _limit: 200 });
-      if (error) return;
+      if (error) return { invalid: false };
       const res = data as any;
+      if (isInvalidSession(res)) return { invalid: true };
       if (res?.success) setPayments(res.payments || []);
-    } catch { /* noop */ }
+      return { invalid: false };
+    } catch { return { invalid: false }; }
   }, [session.session_token]);
 
   const refresh = useCallback(async () => {
