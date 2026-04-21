@@ -707,7 +707,7 @@ export type Database = {
           show_short_id: string | null
           show_title: string | null
           token_code: string
-          token_id: string
+          token_id: string | null
           token_short: string
         }
         Insert: {
@@ -721,7 +721,7 @@ export type Database = {
           show_short_id?: string | null
           show_title?: string | null
           token_code: string
-          token_id: string
+          token_id?: string | null
           token_short: string
         }
         Update: {
@@ -735,7 +735,7 @@ export type Database = {
           show_short_id?: string | null
           show_title?: string | null
           token_code?: string
-          token_id?: string
+          token_id?: string | null
           token_short?: string
         }
         Relationships: [
@@ -756,7 +756,7 @@ export type Database = {
           {
             foreignKeyName: "reseller_payments_token_id_fkey"
             columns: ["token_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "tokens"
             referencedColumns: ["id"]
           },
