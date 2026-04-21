@@ -30,6 +30,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"shows" | "tokens">("shows");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "blocked">("all");
   const [resetTarget, setResetTarget] = useState<any | null>(null);
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
@@ -106,7 +107,13 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
       }
       const res = data as any;
       if (!res?.success) {
-        toast({ title: "Gagal reset", description: res?.error || "Tidak diketahui", variant: "destructive" });
+        const msg = res?.error || "Tidak diketahui";
+        const isNotFound = /tidak ditemukan|bukan milik/i.test(msg);
+        toast({
+          title: isNotFound ? "Token tidak ditemukan" : "Gagal reset",
+          description: msg,
+          variant: "destructive",
+        });
         return;
       }
       // Broadcast force-logout to active devices on this token (wait for SUBSCRIBED before send)
@@ -128,9 +135,12 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
         await ch.send({ type: "broadcast", event: "force_logout", payload: { token_id: resetTarget.id } });
         supabase.removeChannel(ch);
       } catch { /* noop */ }
+      const deleted = res.deleted_count || 0;
       toast({
-        title: "Sesi direset",
-        description: `${res.deleted_count || 0} sesi dihapus untuk ${res.token_code}`,
+        title: deleted > 0 ? `✅ ${deleted} sesi berhasil dihapus` : "Tidak ada sesi aktif",
+        description: deleted > 0
+          ? `Token ${res.token_code} — perangkat aktif telah dikeluarkan paksa.`
+          : `Token ${res.token_code} tidak memiliki sesi aktif untuk dihapus.`,
       });
       setResetTarget(null);
       // Refresh token list to reflect any state change
@@ -148,11 +158,29 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     .filter((s) =>
       !search || s.title?.toLowerCase().includes(search.toLowerCase()) || s.short_id?.toLowerCase().includes(search.toLowerCase())
     );
-  const filteredTokens = tokens.filter((t) =>
-    !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
-  );
-
   const isExpired = (t: any) => t.expires_at && new Date(t.expires_at).getTime() < Date.now();
+
+  const filteredTokens = tokens
+    .filter((t) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "expired") return isExpired(t);
+      if (statusFilter === "blocked") return t.status === "blocked";
+      // active
+      return t.status === "active" && !isExpired(t);
+    })
+    .filter((t) =>
+      !search || t.code?.toLowerCase().includes(search.toLowerCase()) || t.show_title?.toLowerCase().includes(search.toLowerCase())
+    );
+
+  const tokenCounts = useMemo(() => {
+    let active = 0, expired = 0, blocked = 0;
+    for (const t of tokens) {
+      if (t.status === "blocked") blocked++;
+      else if (isExpired(t)) expired++;
+      else if (t.status === "active") active++;
+    }
+    return { all: tokens.length, active, expired, blocked };
+  }, [tokens]);
 
   // Aggregate per-show stats from local tokens (no extra request)
   const perShowStats = useMemo(() => {
@@ -268,9 +296,33 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
               </div>
             )}
 
+            {/* Filter chips status token */}
+            <div className="mb-3 flex gap-1.5 flex-wrap">
+              {([
+                { key: "all", label: "Semua", count: tokenCounts.all },
+                { key: "active", label: "Aktif", count: tokenCounts.active },
+                { key: "expired", label: "Expired", count: tokenCounts.expired },
+                { key: "blocked", label: "Blokir", count: tokenCounts.blocked },
+              ] as const).map((f) => (
+                <Button
+                  key={f.key}
+                  size="sm"
+                  variant={statusFilter === f.key ? "default" : "outline"}
+                  className="h-7 px-2.5 text-[11px]"
+                  onClick={() => setStatusFilter(f.key)}
+                >
+                  {f.label} <span className="ml-1 opacity-70">({f.count})</span>
+                </Button>
+              ))}
+            </div>
+
             {filteredTokens.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground">
-                Belum ada token. Buat token baru di tab Show.
+                {tokens.length === 0
+                  ? "Belum ada token. Buat token baru di tab Show."
+                  : search
+                    ? `Tidak ada token cocok dengan "${search}".`
+                    : "Tidak ada token pada filter ini."}
               </div>
             ) : (
               <div className="space-y-2">
@@ -298,16 +350,14 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                         <Button size="sm" variant="outline" onClick={() => copyLink(t.code)}>
                           <Copy className="h-3.5 w-3.5 mr-1" /> Salin
                         </Button>
-                        {!expired && !blocked && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setResetTarget(t)}
-                            title="Reset semua sesi aktif token ini"
-                          >
-                            <Zap className="h-3.5 w-3.5 mr-1" /> Reset
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setResetTarget(t)}
+                          title="Reset semua sesi aktif token ini"
+                        >
+                          <Zap className="h-3.5 w-3.5 mr-1" /> Reset
+                        </Button>
                       </div>
                     </div>
                   );
