@@ -245,9 +245,25 @@ const ResellerManager = () => {
         <div className="text-[11px] text-muted-foreground">
           Command bot WA: <code className="font-mono text-primary">/{prefix.toUpperCase() || "X"}token &lt;show&gt; [hari] [maxdevice]</code>
         </div>
-        <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
-          {creating ? "Membuat..." : "Buat Reseller"}
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={createReseller} disabled={creating || (!!phone && !phoneValid)} size="sm">
+            {creating ? "Membuat..." : "Buat Reseller"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!phoneValid || testingPhone === normalizedPhone}
+            onClick={() => sendTestMessage(phone, name)}
+            title="Kirim pesan WA uji ke nomor reseller"
+          >
+            {testingPhone === normalizedPhone ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Mengirim...</>
+            ) : (
+              <><Send className="h-4 w-4 mr-1" /> Test Bot</>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Stats table */}
