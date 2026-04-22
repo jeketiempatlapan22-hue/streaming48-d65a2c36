@@ -89,6 +89,17 @@ export default defineConfig(({ mode }) => ({
         scope: "/",
         // Re-use existing PWA window when user opens a token link instead of opening a new instance.
         launch_handler: { client_mode: ["focus-existing", "auto"] },
+        // Open in-scope links from other apps directly inside the installed PWA.
+        handle_links: "preferred",
+        // Treat these production domains as part of the same PWA scope so /live?t=... links
+        // tapped from WhatsApp/browser launch the installed app instead of a browser tab.
+        scope_extensions: [
+          { origin: "https://realtime48stream.my.id" },
+          { origin: "https://www.realtime48stream.my.id" },
+          { origin: "https://realtime48show.my.id" },
+          { origin: "https://www.realtime48show.my.id" },
+          { origin: "https://streaming48.lovable.app" },
+        ],
         icons: [
           { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any" },
