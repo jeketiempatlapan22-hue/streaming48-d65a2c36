@@ -52,46 +52,68 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
-    const expDate = params.expiresAt
-      ? new Date(params.expiresAt).toLocaleString("id-ID", {
+    // Format: "25 April 2026 pukul 19.00 WIB"
+    const formatExpiry = (iso: string | null) => {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      const datePart = d.toLocaleDateString("id-ID", {
+        timeZone: "Asia/Jakarta",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      });
+      const timePart = d
+        .toLocaleTimeString("id-ID", {
           timeZone: "Asia/Jakarta",
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         })
-      : "-";
+        .replace(":", ".");
+      return `${datePart} pukul ${timePart} WIB`;
+    };
+
+    const expDate = formatExpiry(params.expiresAt);
 
     const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" • ");
-    const scheduleLine = scheduleParts ? `\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
+    const scheduleLine = scheduleParts ? `\n\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
 
     let msg = `━━━━━━━━━━━━━━━━━━
+
 ✅ *Token Reseller Berhasil Dibuat!*
+
 ━━━━━━━━━━━━━━━━━━
 
+
+
 🎬 Show: *${show.title}*${scheduleLine}
+
 🔑 Token: ${params.code}
+
 📱 Max Device: *${params.maxDevices}*
+
 ⏰ Durasi: *${params.durationDays} hari*
+
 📅 Kedaluwarsa: ${expDate}
 
-ℹ️ *Catatan Masa Berlaku:*
-Token aktif mengikuti jadwal show. Masa berlaku dihitung dari *jadwal show + ${params.durationDays} hari*, bukan dari saat token dibuat. Jadi token tetap bisa dipakai saat show berlangsung meski dibuat lebih awal.
-
 📺 *Link Nonton:*
+
 ${params.link}
 
+
+
 🔄 *Info Replay:*
+
 🔗 Link: https://replaytime.lovable.app`;
 
     if (show.access_password) {
-      msg += `\n🔐 Sandi Replay: *${show.access_password}*`;
+      msg += `\n\n🔐 Sandi Replay: *${show.access_password}*`;
     } else {
-      msg += `\nℹ️ Sandi replay belum diatur untuk show ini.`;
+      msg += `\n\nℹ️ Sandi replay belum diatur untuk show ini.`;
     }
 
-    msg += `\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
+    msg += `\n\n\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
+
 ━━━━━━━━━━━━━━━━━━`;
 
     return msg;
