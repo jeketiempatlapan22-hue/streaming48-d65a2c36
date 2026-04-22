@@ -179,31 +179,11 @@ Deno.serve(async (req) => {
     }
 
     // ========== ADMIN COMMANDS (whitelisted senders only) ==========
-    // Check if sender is authorized (admin chat ID or whitelisted number)
-    const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID') || '';
-    const { data: whitelistSetting } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'whatsapp_admin_numbers')
-      .maybeSingle();
+    // Reuse pre-fetched whitelist + bot number to avoid extra DB calls.
+    const allowedNumbers = [...adminNumbers];
+    if (selfNumber) allowedNumbers.push(selfNumber);
 
-    const whitelistNumbers = (whitelistSetting?.value || '')
-      .split(',')
-      .map((n: string) => n.trim().replace(/[^0-9]/g, ''))
-      .filter(Boolean);
-
-    // Add the primary admin number from Fonnte (the connected number itself is always allowed)
-    const { data: waSetting } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'whatsapp_number')
-      .maybeSingle();
-    const primaryWaNumber = (waSetting?.value || '').replace(/[^0-9]/g, '');
-
-    const allowedNumbers = [...whitelistNumbers];
-    if (primaryWaNumber) allowedNumbers.push(primaryWaNumber);
-
-    const isAuthorized = allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
+    const isAuthorized = isAdminSender || allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
 
     if (!isAuthorized) {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
