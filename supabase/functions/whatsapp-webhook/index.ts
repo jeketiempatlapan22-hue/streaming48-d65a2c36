@@ -100,25 +100,23 @@ Deno.serve(async (req) => {
     const rawText = message.trim();
     const normalizedText = rawText.toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // 0) Drop duplicate inbound payloads from the same sender for a short window.
-    // Some WhatsApp provider/webhook setups can redeliver or echo the same message
-    // multiple times, which would otherwise trigger repeated bot replies.
-    if (!edgeRL(`wa_inbound:${cleanSender}:${normalizedText.slice(0, 160)}`, 1, 120_000)) {
-      return jsonResponse({ ok: true, skipped: true, reason: 'duplicate inbound message' });
-    }
+    // Pre-fetch admin whitelist + bot's own number so we can exempt admins/owner
+    // from anti-loop guards (they legitimately send many commands).
+    const [{ data: waSettingSelfPre }, { data: whitelistSettingPre }] = await Promise.all([
+      supabase.from('site_settings').select('value').eq('key', 'whatsapp_number').maybeSingle(),
+      supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle(),
+    ]);
+    const selfNumber = (waSettingSelfPre?.value || '').replace(/[^0-9]/g, '');
+    const adminNumbers = (whitelistSettingPre?.value || '')
+      .split(',')
+      .map((n: string) => n.trim().replace(/[^0-9]/g, ''))
+      .filter(Boolean);
+    const isAdminSender = adminNumbers.some((n: string) => cleanSender.endsWith(n) || n.endsWith(cleanSender));
 
     // ========== ANTI-LOOP GUARDS ==========
     // 1) Skip messages echoed from the bot's own connected number (Fonnte may relay outgoing messages)
-    {
-      const { data: waSettingSelf } = await supabase
-        .from('site_settings')
-        .select('value')
-        .eq('key', 'whatsapp_number')
-        .maybeSingle();
-      const selfNumber = (waSettingSelf?.value || '').replace(/[^0-9]/g, '');
-      if (selfNumber && (cleanSender === selfNumber || cleanSender.endsWith(selfNumber) || selfNumber.endsWith(cleanSender))) {
-        return jsonResponse({ ok: true, skipped: true, reason: 'self-echo from bot number' });
-      }
+    if (selfNumber && (cleanSender === selfNumber || cleanSender.endsWith(selfNumber) || selfNumber.endsWith(cleanSender))) {
+      return jsonResponse({ ok: true, skipped: true, reason: 'self-echo from bot number' });
     }
 
     // 2) Skip messages that originate from our own test/system templates (prevents reflection loops)
@@ -134,9 +132,16 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, skipped: true, reason: 'system message echo' });
     }
 
-    // 3) Per-sender reply rate limit — at most 3 bot replies per sender per 60s.
-    // Stops runaway loops even if a remote system auto-replies to our messages.
-    if (!edgeRL(`wa_reply:${cleanSender}`, 3, 60_000)) {
+    // 3) Duplicate inbound guard — only for NON-admin senders. Admins legitimately
+    // re-send the same command (e.g. /stats) multiple times.
+    if (!isAdminSender) {
+      if (!edgeRL(`wa_inbound:${cleanSender}:${normalizedText.slice(0, 160)}`, 1, 120_000)) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'duplicate inbound message' });
+      }
+    }
+
+    // 4) Per-sender reply rate limit — admins exempt; others limited to 3/60s.
+    if (!isAdminSender && !edgeRL(`wa_reply:${cleanSender}`, 3, 60_000)) {
       return jsonResponse({ ok: true, skipped: true, reason: 'sender reply rate limited' });
     }
 
@@ -174,31 +179,11 @@ Deno.serve(async (req) => {
     }
 
     // ========== ADMIN COMMANDS (whitelisted senders only) ==========
-    // Check if sender is authorized (admin chat ID or whitelisted number)
-    const ADMIN_CHAT_ID = Deno.env.get('ADMIN_TELEGRAM_CHAT_ID') || '';
-    const { data: whitelistSetting } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'whatsapp_admin_numbers')
-      .maybeSingle();
+    // Reuse pre-fetched whitelist + bot number to avoid extra DB calls.
+    const allowedNumbers = [...adminNumbers];
+    if (selfNumber) allowedNumbers.push(selfNumber);
 
-    const whitelistNumbers = (whitelistSetting?.value || '')
-      .split(',')
-      .map((n: string) => n.trim().replace(/[^0-9]/g, ''))
-      .filter(Boolean);
-
-    // Add the primary admin number from Fonnte (the connected number itself is always allowed)
-    const { data: waSetting } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'whatsapp_number')
-      .maybeSingle();
-    const primaryWaNumber = (waSetting?.value || '').replace(/[^0-9]/g, '');
-
-    const allowedNumbers = [...whitelistNumbers];
-    if (primaryWaNumber) allowedNumbers.push(primaryWaNumber);
-
-    const isAuthorized = allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
+    const isAuthorized = isAdminSender || allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
 
     if (!isAuthorized) {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
