@@ -171,7 +171,9 @@ Deno.serve(async (req) => {
       const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string' 
         ? { text: publicResponse, imageUrl: undefined } 
         : publicResponse;
-      await sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage);
+      // Fire-and-forget so Fonnte gets 200 OK immediately and the user sees the
+      // reply without the webhook holding the connection open.
+      runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage));
       return jsonResponse({ ok: true, processed: true, type: 'public' });
     }
 
@@ -188,7 +190,7 @@ Deno.serve(async (req) => {
 
       const helpText = handleResellerHelp(rDataEarly);
       const unknownNotice = `⚠️ *Command tidak dikenali atau bukan command reseller.*\n\nSebagai reseller, Anda hanya dapat menggunakan command reseller berikut:\n\n${helpText}`;
-      await sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice);
+      runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice));
       return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands' });
     }
 
@@ -203,19 +205,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
     }
 
-    const response = await processCommand(supabase, rawText);
-
-    if (response) {
+    // Run admin command + outbound notifications in the background so the webhook
+    // returns 200 immediately. Heavy commands (stats, pendapatan, etc.) no longer
+    // delay Fonnte's HTTP response, which makes the bot feel much faster.
+    runInBackground((async () => {
+      const response = await processCommand(supabase, rawText);
+      if (!response) return;
       await sendFonnteMessage(FONNTE_TOKEN, sender, response);
-      
-      // Cross-notify to Telegram (skip read-only commands)
       const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
       if (!readOnly.test(rawText.trim())) {
         await notifyTelegram(rawText, response);
       }
-    }
+    })());
 
-    return jsonResponse({ ok: true, processed: true });
+    return jsonResponse({ ok: true, accepted: true });
   } catch (e) {
     console.error('whatsapp-webhook error:', e);
     return jsonResponse({ error: e instanceof Error ? e.message : 'Unknown error' }, 500);
