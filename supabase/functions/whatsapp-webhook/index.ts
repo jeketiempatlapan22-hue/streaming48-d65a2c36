@@ -17,6 +17,20 @@ function edgeRL(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
+// Fire-and-forget background task helper. Uses EdgeRuntime.waitUntil when available
+// (Supabase Edge Runtime) so the worker stays alive until the promise settles, but
+// the HTTP response is sent immediately. Falls back to a detached promise.
+function runInBackground(promise: Promise<unknown>): void {
+  const safe = promise.catch((e) => console.error('background task error:', e));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt && typeof rt.waitUntil === 'function') {
+    try { rt.waitUntil(safe); return; } catch { /* ignore */ }
+  }
+  // Detached promise — runtime may terminate early but it's acceptable here.
+  void safe;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
