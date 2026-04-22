@@ -100,7 +100,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
       className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5"
     >
       {/* Compact image area */}
-      <div className="relative h-[260px] overflow-hidden">
+      <div className="relative h-[300px] overflow-hidden">
         {show.background_image_url ? (
           <img src={show.background_image_url} alt={show.title} loading="lazy" decoding="async"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
