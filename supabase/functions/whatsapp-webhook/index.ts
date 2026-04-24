@@ -52,9 +52,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
-  // FONNTE_TOKEN tidak lagi wajib — semua kirim WA via Twilio. Variabel tetap ada
-  // untuk backwards compatibility dengan tanda tangan helper sendFonnteMessage().
-  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN') || 'twilio';
+  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
+  if (!FONNTE_TOKEN) return jsonResponse({ error: 'FONNTE_API_TOKEN not configured' }, 500);
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
@@ -115,17 +114,13 @@ Deno.serve(async (req) => {
     const rawText = message.trim();
     const normalizedText = rawText.toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Pre-fetch admin whitelist. Bot's own WhatsApp number must come from the
-    // Twilio sender env var, NOT from site settings, because `whatsapp_number`
-    // is used in the UI as an admin contact number.
-    const { data: whitelistSettingPre } = await supabase
-      .from('site_settings')
-      .select('value')
-      .eq('key', 'whatsapp_admin_numbers')
-      .maybeSingle();
-    const selfNumber = (Deno.env.get('TWILIO_WHATSAPP_FROM') || '')
-      .replace(/^whatsapp:/i, '')
-      .replace(/[^0-9]/g, '');
+    // Pre-fetch admin whitelist + bot's own number so we can exempt admins/owner
+    // from anti-loop guards (they legitimately send many commands).
+    const [{ data: waSettingSelfPre }, { data: whitelistSettingPre }] = await Promise.all([
+      supabase.from('site_settings').select('value').eq('key', 'whatsapp_number').maybeSingle(),
+      supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle(),
+    ]);
+    const selfNumber = (waSettingSelfPre?.value || '').replace(/[^0-9]/g, '');
     const adminNumbers = (whitelistSettingPre?.value || '')
       .split(',')
       .map((n: string) => n.trim().replace(/[^0-9]/g, ''))
@@ -171,18 +166,13 @@ Deno.serve(async (req) => {
     const isReseller = !!(rDataEarly as any)?.found;
 
     // ========== PUBLIC COMMANDS (any sender) ==========
-    const syncReply = url.searchParams.get('reply_mode') === 'sync';
-
     const publicResponse = await processPublicCommand(supabase, rawText, cleanSender, FONNTE_TOKEN);
     if (publicResponse !== null) {
-      const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string'
-        ? { text: publicResponse, imageUrl: undefined }
+      const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string' 
+        ? { text: publicResponse, imageUrl: undefined } 
         : publicResponse;
-
-      if (syncReply) {
-        return jsonResponse({ ok: true, processed: true, type: 'public', reply: { text: respText, imageUrl: respImage } });
-      }
-
+      // Fire-and-forget so Fonnte gets 200 OK immediately and the user sees the
+      // reply without the webhook holding the connection open.
       runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage));
       return jsonResponse({ ok: true, processed: true, type: 'public' });
     }
@@ -200,30 +190,19 @@ Deno.serve(async (req) => {
 
       const helpText = handleResellerHelp(rDataEarly);
       const unknownNotice = `⚠️ *Command tidak dikenali atau bukan command reseller.*\n\nSebagai reseller, Anda hanya dapat menggunakan command reseller berikut:\n\n${helpText}`;
-      if (syncReply) {
-        return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands', reply: { text: unknownNotice } });
-      }
       runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice));
       return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands' });
     }
 
     // ========== ADMIN COMMANDS (whitelisted senders only) ==========
-    const isAuthorized = isAdminSender || adminNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
+    // Reuse pre-fetched whitelist + bot number to avoid extra DB calls.
+    const allowedNumbers = [...adminNumbers];
+    if (selfNumber) allowedNumbers.push(selfNumber);
+
+    const isAuthorized = isAdminSender || allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
 
     if (!isAuthorized) {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
-    }
-
-    if (syncReply) {
-      const response = await processCommand(supabase, rawText);
-      if (!response) {
-        return jsonResponse({ ok: true, skipped: true, reason: 'no admin response' });
-      }
-      const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
-      if (!readOnly.test(rawText.trim())) {
-        runInBackground(notifyTelegram(rawText, response));
-      }
-      return jsonResponse({ ok: true, accepted: true, reply: { text: response } });
     }
 
     // Run admin command + outbound notifications in the background so the webhook
@@ -1750,72 +1729,86 @@ async function handleAdminMarkResellerPaid(
   return `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Show Dikonfirmasi*\n━━━━━━━━━━━━━━━━━━\n\n👤 Reseller: *${reseller.name}* (/${upPrefix})\n📞 +${reseller.phone}\n🎬 Show: *${res.show_title || '-'}*\n🆔 ID Show: #${res.show_short_id || '-'}\n🎟️ Total Token: ${tokenCount}\n📅 Dikonfirmasi: ${paidAt}\n\n_Notifikasi otomatis terkirim ke reseller._`;
 }
 
-// NOTE: Function name kept as `sendFonnteMessage` for backwards compatibility with
-// internal callsites, but it now sends via Twilio WhatsApp API through the Lovable
-// connector gateway. The `_token` parameter is ignored.
-async function sendFonnteMessage(_token: string, target: string, message: string, imageUrl?: string) {
+async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
   let cleanPhone = target.replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
-  else if (cleanPhone.startsWith('8')) cleanPhone = '62' + cleanPhone;
-  else if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
+  if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
   if (!cleanPhone) return;
-
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
-  const TWILIO_FROM_RAW = Deno.env.get('TWILIO_WHATSAPP_FROM');
-
-  if (!LOVABLE_API_KEY || !TWILIO_API_KEY || !TWILIO_FROM_RAW) {
-    console.error('sendFonnteMessage: Twilio env vars missing', {
-      hasLovableKey: !!LOVABLE_API_KEY,
-      hasTwilioKey: !!TWILIO_API_KEY,
-      hasFrom: !!TWILIO_FROM_RAW,
-    });
-    return;
-  }
-
-  const fromWa = TWILIO_FROM_RAW.startsWith('whatsapp:')
-    ? TWILIO_FROM_RAW
-    : `whatsapp:+${TWILIO_FROM_RAW.replace(/[^0-9]/g, '')}`;
-  const toWa = `whatsapp:+${cleanPhone}`;
-
-  const params = new URLSearchParams({ To: toWa, From: fromWa, Body: message });
-  if (imageUrl) params.append('MediaUrl', imageUrl);
-
   try {
-    const res = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        'X-Connection-Api-Key': TWILIO_API_KEY,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params,
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.error('Twilio send failed', res.status, data);
-      // Fallback: try without media if MediaUrl rejected
-      if (imageUrl) {
-        const fallback = new URLSearchParams({
-          To: toWa,
-          From: fromWa,
-          Body: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
-        });
-        await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
+    if (imageUrl) {
+      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 120) });
+      
+      // Try sending with 'url' parameter first (for direct image URLs)
+      const imgRes = await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          target: cleanPhone,
+          message,
+          url: imageUrl,
+          type: 'image',
+        }),
+      });
+      const imgResText = await imgRes.text();
+      console.log('Fonnte image response:', imgRes.status, imgResText);
+      
+      // If image send failed, try with 'file' parameter as fallback
+      let parsed: any = {};
+      try { parsed = JSON.parse(imgResText); } catch {}
+      if (!imgRes.ok || parsed?.status === false) {
+        console.log('Fonnte image failed, retrying with file parameter...');
+        const retryRes = await fetch('https://api.fonnte.com/send', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            'X-Connection-Api-Key': TWILIO_API_KEY,
+            Authorization: token,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: fallback,
-        }).catch((e) => console.error('Twilio fallback failed:', e));
+          body: new URLSearchParams({
+            target: cleanPhone,
+            message,
+            file: imageUrl,
+            type: 'image',
+          }),
+        });
+        const retryText = await retryRes.text();
+        console.log('Fonnte file retry response:', retryRes.status, retryText);
+        
+        // If still failed, send text-only as last resort
+        let retryParsed: any = {};
+        try { retryParsed = JSON.parse(retryText); } catch {}
+        if (!retryRes.ok || retryParsed?.status === false) {
+          console.log('Image send failed completely, sending text-only with QRIS link');
+          await fetch('https://api.fonnte.com/send', {
+            method: 'POST',
+            headers: {
+              Authorization: token,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              target: cleanPhone,
+              message: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
+            }),
+          });
+        }
       }
     } else {
-      console.log('Twilio sent ok:', { to: toWa, sid: data?.sid, status: data?.status });
+      await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          target: cleanPhone,
+          message,
+        }),
+      });
     }
   } catch (e) {
-    console.error('sendFonnteMessage (Twilio) error:', e);
+    console.error('sendFonnteMessage error:', e);
   }
 }
 
