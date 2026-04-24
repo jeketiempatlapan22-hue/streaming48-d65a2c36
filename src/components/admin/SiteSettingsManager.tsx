@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2, CheckCircle2, XCircle, Send } from "lucide-react";
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
@@ -16,10 +17,79 @@ const settingsKeys = [
   
 ];
 
+type WebhookTestResult = {
+  ok: boolean;
+  status: number;
+  durationMs: number;
+  message: string;
+  bodyPreview?: string;
+};
+
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<WebhookTestResult | null>(null);
   const { toast } = useToast();
+
+  const runWebhookTest = async () => {
+    setTestingWebhook(true);
+    setWebhookResult(null);
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+      (projectId ? `https://${projectId}.supabase.co` : "");
+    const url = `${supabaseUrl}/functions/v1/twilio-webhook`;
+
+    const form = new URLSearchParams({
+      From: "whatsapp:+6281234567890",
+      Body: "MENU",
+      MessageSid: `TEST${Date.now()}`,
+    }).toString();
+
+    const start = performance.now();
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const text = await res.text();
+      const duration = Math.round(performance.now() - start);
+      const ok = res.status === 200;
+      setWebhookResult({
+        ok,
+        status: res.status,
+        durationMs: duration,
+        message: ok
+          ? `Server menerima request dan mengembalikan 200 dalam ${(duration / 1000).toFixed(2)} detik.`
+          : `Server mengembalikan status ${res.status} dalam ${(duration / 1000).toFixed(2)} detik.`,
+        bodyPreview: text.slice(0, 240),
+      });
+      toast({
+        title: ok ? "✅ Webhook OK" : "⚠️ Webhook gagal",
+        description: ok
+          ? `200 OK dalam ${duration} ms`
+          : `HTTP ${res.status} dalam ${duration} ms`,
+        variant: ok ? "default" : "destructive",
+      });
+    } catch (e) {
+      const duration = Math.round(performance.now() - start);
+      const message = e instanceof Error ? e.message : "Network error";
+      setWebhookResult({
+        ok: false,
+        status: 0,
+        durationMs: duration,
+        message: `Tidak bisa menghubungi endpoint (${message}).`,
+      });
+      toast({
+        title: "❌ Tidak bisa menghubungi webhook",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
