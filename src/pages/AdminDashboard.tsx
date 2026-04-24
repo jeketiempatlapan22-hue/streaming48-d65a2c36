@@ -37,6 +37,7 @@ const RateLimitMonitor = lazy(() => import("@/components/admin/RateLimitMonitor"
 const MemberPhotoManager = lazy(() => import("@/components/admin/MemberPhotoManager"));
 const ResellerManager = lazy(() => import("@/components/admin/ResellerManager"));
 const ResellerAuditLog = lazy(() => import("@/components/admin/ResellerAuditLog"));
+const ManualTokenGenerator = lazy(() => import("@/components/admin/ManualTokenGenerator"));
 
 /** Safe race: returns result or fallback after timeout */
 async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -175,6 +176,7 @@ const AdminDashboard = () => {
     switch (activeSection) {
       case "live": return <><AdminDashboardStats /><div className="mt-6"><LiveControl /></div></>;
       case "tokens": return <TokenFactory />;
+      case "manual-token": return <ManualTokenGenerator />;
       case "shows": return <ShowManager />;
       case "orders": return <SubscriptionOrderManager mode="membership" />;
       case "show-orders": return <SubscriptionOrderManager mode="regular" />;
