@@ -58,6 +58,9 @@ const SiteSettingsManager = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookResult, setWebhookResult] = useState<WebhookTestResult | null>(null);
+  const [resellers, setResellers] = useState<ResellerLite[]>([]);
+  const [commandRows, setCommandRows] = useState<CommandTestRow[]>([]);
+  const [runningCommands, setRunningCommands] = useState(false);
   const { toast } = useToast();
 
   const runWebhookTest = async () => {
@@ -128,8 +131,109 @@ const SiteSettingsManager = () => {
         setValues(v);
       }
     };
+    const fetchResellers = async () => {
+      const { data } = await supabase
+        .from("resellers")
+        .select("id, name, phone, wa_command_prefix")
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+        .limit(5);
+      if (data) setResellers(data as ResellerLite[]);
+    };
     fetchSettings();
+    fetchResellers();
   }, []);
+
+  const buildCommandRows = (): CommandTestRow[] => {
+    const rows: CommandTestRow[] = [];
+    const adminList = (values.whatsapp_admin_numbers || "")
+      .split(",")
+      .map((n) => n.trim().replace(/[^0-9]/g, ""))
+      .filter(Boolean);
+    const ownerNumber = (values.whatsapp_number || "").replace(/[^0-9]/g, "");
+
+    if (ownerNumber) {
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/help", status: "idle" });
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/menu", status: "idle" });
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/stats", status: "idle" });
+    }
+    adminList
+      .filter((n) => n !== ownerNumber)
+      .forEach((n, idx) => {
+        const lbl = `Admin #${idx + 1}`;
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/help", status: "idle" });
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/menu", status: "idle" });
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/stats", status: "idle" });
+      });
+    resellers.forEach((r) => {
+      const prefix = (r.wa_command_prefix || "").trim();
+      const stats = prefix ? `/${prefix}stats` : "/resellerhelp";
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: "/help", status: "idle" });
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: "/menu", status: "idle" });
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: stats, status: "idle" });
+    });
+    return rows;
+  };
+
+  const runCommandTests = async () => {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+      (projectId ? `https://${projectId}.supabase.co` : "");
+    const url = `${supabaseUrl}/functions/v1/twilio-webhook`;
+
+    const initial = buildCommandRows();
+    if (initial.length === 0) {
+      toast({
+        title: "Tidak ada nomor untuk diuji",
+        description: "Isi Nomor WhatsApp Admin / Whitelist atau aktifkan reseller terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCommandRows(initial.map((r) => ({ ...r, status: "running" })));
+    setRunningCommands(true);
+
+    const results: CommandTestRow[] = [];
+    for (const row of initial) {
+      const start = performance.now();
+      try {
+        const form = new URLSearchParams({
+          From: `whatsapp:+${row.phone}`,
+          Body: row.command,
+          MessageSid: `TESTCMD${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+        }).toString();
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form,
+        });
+        const text = await res.text();
+        const duration = Math.round(performance.now() - start);
+        const reply = extractTwimlMessage(text);
+
+        if (!res.ok) {
+          results.push({ ...row, status: "error", durationMs: duration, errorMessage: `HTTP ${res.status}`, reply: text.slice(0, 240) });
+        } else if (reply) {
+          results.push({ ...row, status: "ok", durationMs: duration, reply });
+        } else {
+          results.push({ ...row, status: "skipped", durationMs: duration, reason: "Tidak ada balasan (kemungkinan dikirim async / unauthorized)" });
+        }
+      } catch (e) {
+        const duration = Math.round(performance.now() - start);
+        results.push({ ...row, status: "error", durationMs: duration, errorMessage: e instanceof Error ? e.message : "Network error" });
+      }
+      setCommandRows([...results, ...initial.slice(results.length).map((r) => ({ ...r, status: "running" as const }))]);
+    }
+
+    const okCount = results.filter((r) => r.status === "ok").length;
+    const errCount = results.filter((r) => r.status === "error").length;
+    toast({
+      title: errCount === 0 ? "✅ Test selesai" : "⚠️ Ada error pada test",
+      description: `${okCount}/${results.length} command merespons. ${errCount > 0 ? `${errCount} gagal.` : ""}`,
+      variant: errCount === 0 ? "default" : "destructive",
+    });
+    setRunningCommands(false);
+  };
 
   const saveSetting = async (key: string) => {
     setSaving(key);
