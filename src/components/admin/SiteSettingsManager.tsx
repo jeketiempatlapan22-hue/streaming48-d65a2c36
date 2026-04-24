@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, Send } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Send, Terminal } from "lucide-react";
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
@@ -25,11 +25,42 @@ type WebhookTestResult = {
   bodyPreview?: string;
 };
 
+type CommandTestRow = {
+  label: string;
+  role: "admin" | "owner" | "reseller";
+  phone: string;
+  command: string;
+  status: "idle" | "running" | "ok" | "error" | "skipped";
+  durationMs?: number;
+  reply?: string;
+  reason?: string;
+  errorMessage?: string;
+};
+
+type ResellerLite = { id: string; name: string; phone: string; wa_command_prefix: string };
+
+function decodeXml(s: string) {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function extractTwimlMessage(xml: string): string | null {
+  const m = xml.match(/<Message[^>]*>([\s\S]*?)<\/Message>/i);
+  return m ? decodeXml(m[1].trim()) : null;
+}
+
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookResult, setWebhookResult] = useState<WebhookTestResult | null>(null);
+  const [resellers, setResellers] = useState<ResellerLite[]>([]);
+  const [commandRows, setCommandRows] = useState<CommandTestRow[]>([]);
+  const [runningCommands, setRunningCommands] = useState(false);
   const { toast } = useToast();
 
   const runWebhookTest = async () => {
@@ -100,8 +131,109 @@ const SiteSettingsManager = () => {
         setValues(v);
       }
     };
+    const fetchResellers = async () => {
+      const { data } = await supabase
+        .from("resellers")
+        .select("id, name, phone, wa_command_prefix")
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+        .limit(5);
+      if (data) setResellers(data as ResellerLite[]);
+    };
     fetchSettings();
+    fetchResellers();
   }, []);
+
+  const buildCommandRows = (): CommandTestRow[] => {
+    const rows: CommandTestRow[] = [];
+    const adminList = (values.whatsapp_admin_numbers || "")
+      .split(",")
+      .map((n) => n.trim().replace(/[^0-9]/g, ""))
+      .filter(Boolean);
+    const ownerNumber = (values.whatsapp_number || "").replace(/[^0-9]/g, "");
+
+    if (ownerNumber) {
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/help", status: "idle" });
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/menu", status: "idle" });
+      rows.push({ label: "Owner", role: "owner", phone: ownerNumber, command: "/stats", status: "idle" });
+    }
+    adminList
+      .filter((n) => n !== ownerNumber)
+      .forEach((n, idx) => {
+        const lbl = `Admin #${idx + 1}`;
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/help", status: "idle" });
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/menu", status: "idle" });
+        rows.push({ label: lbl, role: "admin", phone: n, command: "/stats", status: "idle" });
+      });
+    resellers.forEach((r) => {
+      const prefix = (r.wa_command_prefix || "").trim();
+      const stats = prefix ? `/${prefix}stats` : "/resellerhelp";
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: "/help", status: "idle" });
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: "/menu", status: "idle" });
+      rows.push({ label: `Reseller ${r.name}`, role: "reseller", phone: r.phone, command: stats, status: "idle" });
+    });
+    return rows;
+  };
+
+  const runCommandTests = async () => {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+      (projectId ? `https://${projectId}.supabase.co` : "");
+    const url = `${supabaseUrl}/functions/v1/twilio-webhook`;
+
+    const initial = buildCommandRows();
+    if (initial.length === 0) {
+      toast({
+        title: "Tidak ada nomor untuk diuji",
+        description: "Isi Nomor WhatsApp Admin / Whitelist atau aktifkan reseller terlebih dahulu.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCommandRows(initial.map((r) => ({ ...r, status: "running" })));
+    setRunningCommands(true);
+
+    const results: CommandTestRow[] = [];
+    for (const row of initial) {
+      const start = performance.now();
+      try {
+        const form = new URLSearchParams({
+          From: `whatsapp:+${row.phone}`,
+          Body: row.command,
+          MessageSid: `TESTCMD${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+        }).toString();
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: form,
+        });
+        const text = await res.text();
+        const duration = Math.round(performance.now() - start);
+        const reply = extractTwimlMessage(text);
+
+        if (!res.ok) {
+          results.push({ ...row, status: "error", durationMs: duration, errorMessage: `HTTP ${res.status}`, reply: text.slice(0, 240) });
+        } else if (reply) {
+          results.push({ ...row, status: "ok", durationMs: duration, reply });
+        } else {
+          results.push({ ...row, status: "skipped", durationMs: duration, reason: "Tidak ada balasan (kemungkinan dikirim async / unauthorized)" });
+        }
+      } catch (e) {
+        const duration = Math.round(performance.now() - start);
+        results.push({ ...row, status: "error", durationMs: duration, errorMessage: e instanceof Error ? e.message : "Network error" });
+      }
+      setCommandRows([...results, ...initial.slice(results.length).map((r) => ({ ...r, status: "running" as const }))]);
+    }
+
+    const okCount = results.filter((r) => r.status === "ok").length;
+    const errCount = results.filter((r) => r.status === "error").length;
+    toast({
+      title: errCount === 0 ? "✅ Test selesai" : "⚠️ Ada error pada test",
+      description: `${okCount}/${results.length} command merespons. ${errCount > 0 ? `${errCount} gagal.` : ""}`,
+      variant: errCount === 0 ? "default" : "destructive",
+    });
+    setRunningCommands(false);
+  };
 
   const saveSetting = async (key: string) => {
     setSaving(key);
@@ -173,6 +305,102 @@ const SiteSettingsManager = () => {
                 </pre>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Test Command Admin / Owner / Reseller */}
+      <div className="rounded-xl border-2 border-accent/40 bg-accent/5 p-4">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <label className="block text-sm font-bold text-foreground">🧪 Test Command Admin / Owner / Reseller</label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Mensimulasikan <code className="rounded bg-background px-1 py-0.5">/help</code>, <code className="rounded bg-background px-1 py-0.5">/menu</code>, dan <code className="rounded bg-background px-1 py-0.5">/stats</code> dari nomor admin, owner, dan reseller. Tampilkan reply yang dihasilkan bot.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={runCommandTests}
+            disabled={runningCommands}
+            className="shrink-0 gap-1"
+          >
+            {runningCommands ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Menguji...
+              </>
+            ) : (
+              <>
+                <Terminal className="h-3.5 w-3.5" />
+                Test Command
+              </>
+            )}
+          </Button>
+        </div>
+
+        {commandRows.length === 0 && !runningCommands && (
+          <p className="text-xs text-muted-foreground">
+            Klik <span className="font-semibold">Test Command</span> untuk menjalankan simulasi.
+          </p>
+        )}
+
+        {commandRows.length > 0 && (
+          <div className="space-y-2">
+            {commandRows.map((row, idx) => {
+              const tone =
+                row.status === "ok"
+                  ? "border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10"
+                  : row.status === "error"
+                    ? "border-destructive/40 bg-destructive/10"
+                    : row.status === "skipped"
+                      ? "border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10"
+                      : "border-border bg-background/40";
+              const Icon =
+                row.status === "ok" ? CheckCircle2 :
+                row.status === "error" ? XCircle :
+                row.status === "running" ? Loader2 :
+                row.status === "skipped" ? XCircle :
+                Terminal;
+              const iconClass =
+                row.status === "ok" ? "text-[hsl(var(--success))]" :
+                row.status === "error" ? "text-destructive" :
+                row.status === "running" ? "text-primary animate-spin" :
+                row.status === "skipped" ? "text-[hsl(var(--warning))]" :
+                "text-muted-foreground";
+              return (
+                <div key={`${row.phone}-${row.command}-${idx}`} className={`rounded-lg border p-3 text-xs ${tone}`}>
+                  <div className="flex items-start gap-2">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClass}`} />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                          {row.role}
+                        </span>
+                        <span className="font-semibold text-foreground">{row.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">{row.phone}</span>
+                        <span className="font-mono text-[10px] text-primary">{row.command}</span>
+                        {typeof row.durationMs === "number" && (
+                          <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                            {row.durationMs} ms
+                          </span>
+                        )}
+                      </div>
+                      {row.errorMessage && (
+                        <p className="text-destructive">❌ {row.errorMessage}</p>
+                      )}
+                      {row.reason && (
+                        <p className="text-muted-foreground">ℹ️ {row.reason}</p>
+                      )}
+                      {row.reply && (
+                        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-[10px] text-foreground">
+                          {row.reply}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
