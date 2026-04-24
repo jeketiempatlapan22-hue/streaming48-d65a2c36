@@ -52,8 +52,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
-  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
-  if (!FONNTE_TOKEN) return jsonResponse({ error: 'FONNTE_API_TOKEN not configured' }, 500);
+  // FONNTE_TOKEN tidak lagi wajib — semua kirim WA via Twilio. Variabel tetap ada
+  // untuk backwards compatibility dengan tanda tangan helper sendFonnteMessage().
+  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN') || 'twilio';
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
@@ -1729,86 +1730,72 @@ async function handleAdminMarkResellerPaid(
   return `━━━━━━━━━━━━━━━━━━\n✅ *Pembayaran Show Dikonfirmasi*\n━━━━━━━━━━━━━━━━━━\n\n👤 Reseller: *${reseller.name}* (/${upPrefix})\n📞 +${reseller.phone}\n🎬 Show: *${res.show_title || '-'}*\n🆔 ID Show: #${res.show_short_id || '-'}\n🎟️ Total Token: ${tokenCount}\n📅 Dikonfirmasi: ${paidAt}\n\n_Notifikasi otomatis terkirim ke reseller._`;
 }
 
-async function sendFonnteMessage(token: string, target: string, message: string, imageUrl?: string) {
+// NOTE: Function name kept as `sendFonnteMessage` for backwards compatibility with
+// internal callsites, but it now sends via Twilio WhatsApp API through the Lovable
+// connector gateway. The `_token` parameter is ignored.
+async function sendFonnteMessage(_token: string, target: string, message: string, imageUrl?: string) {
   let cleanPhone = target.replace(/[^0-9]/g, '');
   if (cleanPhone.startsWith('0')) cleanPhone = '62' + cleanPhone.slice(1);
-  if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
+  else if (cleanPhone.startsWith('8')) cleanPhone = '62' + cleanPhone;
+  else if (!cleanPhone.startsWith('62')) cleanPhone = '62' + cleanPhone;
   if (!cleanPhone) return;
+
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  const TWILIO_API_KEY = Deno.env.get('TWILIO_API_KEY');
+  const TWILIO_FROM_RAW = Deno.env.get('TWILIO_WHATSAPP_FROM');
+
+  if (!LOVABLE_API_KEY || !TWILIO_API_KEY || !TWILIO_FROM_RAW) {
+    console.error('sendFonnteMessage: Twilio env vars missing', {
+      hasLovableKey: !!LOVABLE_API_KEY,
+      hasTwilioKey: !!TWILIO_API_KEY,
+      hasFrom: !!TWILIO_FROM_RAW,
+    });
+    return;
+  }
+
+  const fromWa = TWILIO_FROM_RAW.startsWith('whatsapp:')
+    ? TWILIO_FROM_RAW
+    : `whatsapp:+${TWILIO_FROM_RAW.replace(/[^0-9]/g, '')}`;
+  const toWa = `whatsapp:+${cleanPhone}`;
+
+  const params = new URLSearchParams({ To: toWa, From: fromWa, Body: message });
+  if (imageUrl) params.append('MediaUrl', imageUrl);
+
   try {
-    if (imageUrl) {
-      console.log('sendFonnteMessage with image:', { target: cleanPhone, imageUrl: imageUrl.substring(0, 120) });
-      
-      // Try sending with 'url' parameter first (for direct image URLs)
-      const imgRes = await fetch('https://api.fonnte.com/send', {
-        method: 'POST',
-        headers: {
-          Authorization: token,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          target: cleanPhone,
-          message,
-          url: imageUrl,
-          type: 'image',
-        }),
-      });
-      const imgResText = await imgRes.text();
-      console.log('Fonnte image response:', imgRes.status, imgResText);
-      
-      // If image send failed, try with 'file' parameter as fallback
-      let parsed: any = {};
-      try { parsed = JSON.parse(imgResText); } catch {}
-      if (!imgRes.ok || parsed?.status === false) {
-        console.log('Fonnte image failed, retrying with file parameter...');
-        const retryRes = await fetch('https://api.fonnte.com/send', {
+    const res = await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'X-Connection-Api-Key': TWILIO_API_KEY,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('Twilio send failed', res.status, data);
+      // Fallback: try without media if MediaUrl rejected
+      if (imageUrl) {
+        const fallback = new URLSearchParams({
+          To: toWa,
+          From: fromWa,
+          Body: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
+        });
+        await fetch('https://connector-gateway.lovable.dev/twilio/Messages.json', {
           method: 'POST',
           headers: {
-            Authorization: token,
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            'X-Connection-Api-Key': TWILIO_API_KEY,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            target: cleanPhone,
-            message,
-            file: imageUrl,
-            type: 'image',
-          }),
-        });
-        const retryText = await retryRes.text();
-        console.log('Fonnte file retry response:', retryRes.status, retryText);
-        
-        // If still failed, send text-only as last resort
-        let retryParsed: any = {};
-        try { retryParsed = JSON.parse(retryText); } catch {}
-        if (!retryRes.ok || retryParsed?.status === false) {
-          console.log('Image send failed completely, sending text-only with QRIS link');
-          await fetch('https://api.fonnte.com/send', {
-            method: 'POST',
-            headers: {
-              Authorization: token,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-              target: cleanPhone,
-              message: message + `\n\n📱 *Link QRIS:*\n${imageUrl}`,
-            }),
-          });
-        }
+          body: fallback,
+        }).catch((e) => console.error('Twilio fallback failed:', e));
       }
     } else {
-      await fetch('https://api.fonnte.com/send', {
-        method: 'POST',
-        headers: {
-          Authorization: token,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          target: cleanPhone,
-          message,
-        }),
-      });
+      console.log('Twilio sent ok:', { to: toWa, sid: data?.sid, status: data?.status });
     }
   } catch (e) {
-    console.error('sendFonnteMessage error:', e);
+    console.error('sendFonnteMessage (Twilio) error:', e);
   }
 }
 
