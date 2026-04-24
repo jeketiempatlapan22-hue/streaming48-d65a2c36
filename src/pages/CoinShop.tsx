@@ -477,6 +477,23 @@ const CoinShop = () => {
                 ? "Koin telah ditambahkan ke akun Anda secara otomatis."
                 : "Koin akan ditambahkan setelah admin konfirmasi."}
             </p>
+            {waFallbackEnabled && adminWaNumber && dynamicPaid && selectedPkg && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-left">
+                <p className="text-xs text-foreground mb-2">
+                  💬 <span className="font-semibold">Cadangan:</span> Jika notifikasi WA otomatis belum masuk, kirim konfirmasi manual ke admin.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full border-blue-500/50 text-blue-500 hover:bg-blue-500/10"
+                  onClick={() => openWaFallback({
+                    type: "coin_package",
+                    details: `Paket: ${selectedPkg.name}\nJumlah Koin: ${selectedPkg.coin_amount}\nHarga: ${selectedPkg.price}\nNomor HP: ${buyerPhone}\nStatus: Sudah dibayar (Pak Kasir terkonfirmasi)`,
+                  })}
+                >
+                  📱 Kirim Konfirmasi via WA
+                </Button>
+              </div>
+            )}
             <Button className="w-full" onClick={() => { setSelectedPkg(null); setPurchaseStep("phone"); setDynamicPaid(false); }}>Tutup</Button>
           </div>
         </DialogContent>
