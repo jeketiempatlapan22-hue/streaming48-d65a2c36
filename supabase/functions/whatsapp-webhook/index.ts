@@ -115,13 +115,17 @@ Deno.serve(async (req) => {
     const rawText = message.trim();
     const normalizedText = rawText.toLowerCase().replace(/\s+/g, ' ').trim();
 
-    // Pre-fetch admin whitelist + bot's own number so we can exempt admins/owner
-    // from anti-loop guards (they legitimately send many commands).
-    const [{ data: waSettingSelfPre }, { data: whitelistSettingPre }] = await Promise.all([
-      supabase.from('site_settings').select('value').eq('key', 'whatsapp_number').maybeSingle(),
-      supabase.from('site_settings').select('value').eq('key', 'whatsapp_admin_numbers').maybeSingle(),
-    ]);
-    const selfNumber = (waSettingSelfPre?.value || '').replace(/[^0-9]/g, '');
+    // Pre-fetch admin whitelist. Bot's own WhatsApp number must come from the
+    // Twilio sender env var, NOT from site settings, because `whatsapp_number`
+    // is used in the UI as an admin contact number.
+    const { data: whitelistSettingPre } = await supabase
+      .from('site_settings')
+      .select('value')
+      .eq('key', 'whatsapp_admin_numbers')
+      .maybeSingle();
+    const selfNumber = (Deno.env.get('TWILIO_WHATSAPP_FROM') || '')
+      .replace(/^whatsapp:/i, '')
+      .replace(/[^0-9]/g, '');
     const adminNumbers = (whitelistSettingPre?.value || '')
       .split(',')
       .map((n: string) => n.trim().replace(/[^0-9]/g, ''))
@@ -204,11 +208,7 @@ Deno.serve(async (req) => {
     }
 
     // ========== ADMIN COMMANDS (whitelisted senders only) ==========
-    // Reuse pre-fetched whitelist + bot number to avoid extra DB calls.
-    const allowedNumbers = [...adminNumbers];
-    if (selfNumber) allowedNumbers.push(selfNumber);
-
-    const isAuthorized = isAdminSender || allowedNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
+    const isAuthorized = isAdminSender || adminNumbers.some(n => cleanSender.endsWith(n) || n.endsWith(cleanSender));
 
     if (!isAuthorized) {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
