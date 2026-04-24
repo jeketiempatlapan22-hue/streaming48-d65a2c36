@@ -40,6 +40,8 @@ const CoinShop = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [waFallbackEnabled, setWaFallbackEnabled] = useState(false);
+  const [adminWaNumber, setAdminWaNumber] = useState("");
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -73,13 +75,18 @@ const CoinShop = () => {
         if (cancelled) return;
         setUsername(profileRes?.data?.username || "User");
 
-        // Check if dynamic QRIS is enabled
-        const { data: settingsData } = await supabase
+        // Check site settings: dynamic QRIS + WA fallback + admin number
+        const { data: settingsRows } = await supabase
           .from("site_settings")
-          .select("value")
-          .eq("key", "use_dynamic_qris")
-          .maybeSingle();
-        if (settingsData?.value === "true") setUseDynamicQris(true);
+          .select("key,value")
+          .in("key", ["use_dynamic_qris", "wa_fallback_enabled", "whatsapp_number"]);
+        if (settingsRows) {
+          for (const r of settingsRows as any[]) {
+            if (r.key === "use_dynamic_qris" && r.value === "true") setUseDynamicQris(true);
+            if (r.key === "wa_fallback_enabled" && r.value === "true") setWaFallbackEnabled(true);
+            if (r.key === "whatsapp_number") setAdminWaNumber(r.value || "");
+          }
+        }
 
         await fetchData(session.user.id);
       } catch {
