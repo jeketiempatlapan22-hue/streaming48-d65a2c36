@@ -40,6 +40,8 @@ const CoinShop = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [waFallbackEnabled, setWaFallbackEnabled] = useState(false);
+  const [adminWaNumber, setAdminWaNumber] = useState("");
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -73,13 +75,18 @@ const CoinShop = () => {
         if (cancelled) return;
         setUsername(profileRes?.data?.username || "User");
 
-        // Check if dynamic QRIS is enabled
-        const { data: settingsData } = await supabase
+        // Check site settings: dynamic QRIS + WA fallback + admin number
+        const { data: settingsRows } = await supabase
           .from("site_settings")
-          .select("value")
-          .eq("key", "use_dynamic_qris")
-          .maybeSingle();
-        if (settingsData?.value === "true") setUseDynamicQris(true);
+          .select("key,value")
+          .in("key", ["use_dynamic_qris", "wa_fallback_enabled", "whatsapp_number"]);
+        if (settingsRows) {
+          for (const r of settingsRows as any[]) {
+            if (r.key === "use_dynamic_qris" && r.value === "true") setUseDynamicQris(true);
+            if (r.key === "wa_fallback_enabled" && r.value === "true") setWaFallbackEnabled(true);
+            if (r.key === "whatsapp_number") setAdminWaNumber(r.value || "");
+          }
+        }
 
         await fetchData(session.user.id);
       } catch {
@@ -284,6 +291,25 @@ const CoinShop = () => {
     toast({ title: "Link disalin!" });
   };
 
+  const openWaFallback = (info: { type: "coin_package" | "show_redeem"; details: string }) => {
+    if (!adminWaNumber) {
+      toast({ title: "Nomor admin belum disetel", variant: "destructive" });
+      return;
+    }
+    const cleanNum = adminWaNumber.replace(/[^0-9]/g, "");
+    const headline = info.type === "coin_package"
+      ? "Konfirmasi Pembelian Koin"
+      : "Konfirmasi Pembelian Show";
+    const text =
+      `Halo Admin RealTime48 👋\n\n` +
+      `Saya ingin konfirmasi *${headline}* berikut (cadangan jika notifikasi WA otomatis tidak terkirim):\n\n` +
+      `${info.details}\n\n` +
+      `Username: ${username || "-"}\n` +
+      `Mohon dicek & dibantu prosesnya. Terima kasih 🙏`;
+    const url = `https://wa.me/${cleanNum}?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-background"><img src={logo} alt="Loading" className="h-12 w-12 animate-pulse rounded-full" /></div>;
   if (isBanned) return <BannedScreen reason={banReason} onSignOut={signOut} />;
 
@@ -451,6 +477,23 @@ const CoinShop = () => {
                 ? "Koin telah ditambahkan ke akun Anda secara otomatis."
                 : "Koin akan ditambahkan setelah admin konfirmasi."}
             </p>
+            {waFallbackEnabled && adminWaNumber && dynamicPaid && selectedPkg && (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-left">
+                <p className="text-xs text-foreground mb-2">
+                  💬 <span className="font-semibold">Cadangan:</span> Jika notifikasi WA otomatis belum masuk, kirim konfirmasi manual ke admin.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full border-primary/50 text-primary hover:bg-primary/10"
+                  onClick={() => openWaFallback({
+                    type: "coin_package",
+                    details: `Paket: ${selectedPkg.name}\nJumlah Koin: ${selectedPkg.coin_amount}\nHarga: ${selectedPkg.price}\nNomor HP: ${buyerPhone}\nStatus: Sudah dibayar (Pak Kasir terkonfirmasi)`,
+                  })}
+                >
+                  📱 Kirim Konfirmasi via WA
+                </Button>
+              </div>
+            )}
             <Button className="w-full" onClick={() => { setSelectedPkg(null); setPurchaseStep("phone"); setDynamicPaid(false); }}>Tutup</Button>
           </div>
         </DialogContent>
@@ -486,6 +529,18 @@ const CoinShop = () => {
                 <Button className="flex-1 gap-2" variant="outline" onClick={() => copyToken(redeemResult.token_code)}><Copy className="h-4 w-4" /> Salin Link</Button>
                 <Button className="flex-1 gap-2" onClick={() => navigate(`/live?t=${redeemResult.token_code}`)}><Sparkles className="h-4 w-4" /> Tonton</Button>
               </div>
+              {waFallbackEnabled && adminWaNumber && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-2 border-primary/50 text-primary hover:bg-primary/10"
+                  onClick={() => openWaFallback({
+                    type: "show_redeem",
+                    details: `Token: ${redeemResult.token_code}${redeemResult.access_password ? `\nSandi Replay: ${redeemResult.access_password}` : ""}\nNomor HP: ${redeemPhone}\nStatus: Sudah ditukar dengan koin`,
+                  })}
+                >
+                  📱 Konfirmasi via WA (cadangan)
+                </Button>
+              )}
               <p className="text-xs text-muted-foreground">Sisa saldo: <span className="font-bold text-[hsl(var(--warning))]">{redeemResult.remaining_balance} koin</span></p>
             </div>
           )}
