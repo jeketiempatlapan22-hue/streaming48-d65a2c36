@@ -11,8 +11,21 @@ const corsHeaders = {
 
 const TWIML_EMPTY = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
-function twimlResponse(status = 200) {
-  return new Response(TWIML_EMPTY, {
+function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function twimlResponse(status = 200, message?: string) {
+  const body = message
+    ? `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(message)}</Message></Response>`
+    : TWIML_EMPTY;
+
+  return new Response(body, {
     status,
     headers: { ...corsHeaders, "Content-Type": "text/xml" },
   });
@@ -120,33 +133,35 @@ Deno.serve(async (req) => {
       return twimlResponse();
     }
 
-    const forwardUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}`;
+    const forwardUrl = `${SUPABASE_URL}/functions/v1/whatsapp-webhook?secret=${encodeURIComponent(WEBHOOK_SECRET)}&reply_mode=sync`;
     const forwardBody = new URLSearchParams({ sender, message: body }).toString();
 
-    // Fire-and-forget so Twilio gets fast TwiML response
-    const forwardPromise = fetch(forwardUrl, {
+    const forwardRes = await fetch(forwardUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        // Pass Supabase anon key so the function is reachable
         "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY") || ""}`,
         "apikey": Deno.env.get("SUPABASE_ANON_KEY") || "",
       },
       body: forwardBody,
-    }).then(async (r) => {
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        console.error("twilio-webhook: forward failed", r.status, text);
-      } else {
-        console.log("twilio-webhook: forwarded ok", { sender, msg: body.slice(0, 60) });
-      }
-    }).catch((e) => console.error("twilio-webhook: forward error", e));
+    });
 
-    // deno-lint-ignore no-explicit-any
-    const rt = (globalThis as any).EdgeRuntime;
-    if (rt && typeof rt.waitUntil === "function") {
-      try { rt.waitUntil(forwardPromise); } catch { /* ignore */ }
+    if (!forwardRes.ok) {
+      const text = await forwardRes.text().catch(() => "");
+      console.error("twilio-webhook: forward failed", forwardRes.status, text);
+      return twimlResponse();
     }
+
+    const result = await forwardRes.json().catch(() => null);
+    const replyText = typeof result?.reply?.text === "string" ? result.reply.text : "";
+
+    if (replyText) {
+      console.log("twilio-webhook: reply ready", { sender, msg: body.slice(0, 60) });
+      return twimlResponse(200, replyText);
+    }
+
+    console.log("twilio-webhook: no reply payload", { sender, msg: body.slice(0, 60) });
+    return twimlResponse();
 
     return twimlResponse();
   } catch (err) {
