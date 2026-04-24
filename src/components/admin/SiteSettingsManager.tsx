@@ -309,6 +309,102 @@ const SiteSettingsManager = () => {
         )}
       </div>
 
+      {/* Test Command Admin / Owner / Reseller */}
+      <div className="rounded-xl border-2 border-accent/40 bg-accent/5 p-4">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <div>
+            <label className="block text-sm font-bold text-foreground">🧪 Test Command Admin / Owner / Reseller</label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Mensimulasikan <code className="rounded bg-background px-1 py-0.5">/help</code>, <code className="rounded bg-background px-1 py-0.5">/menu</code>, dan <code className="rounded bg-background px-1 py-0.5">/stats</code> dari nomor admin, owner, dan reseller. Tampilkan reply yang dihasilkan bot.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={runCommandTests}
+            disabled={runningCommands}
+            className="shrink-0 gap-1"
+          >
+            {runningCommands ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Menguji...
+              </>
+            ) : (
+              <>
+                <Terminal className="h-3.5 w-3.5" />
+                Test Command
+              </>
+            )}
+          </Button>
+        </div>
+
+        {commandRows.length === 0 && !runningCommands && (
+          <p className="text-xs text-muted-foreground">
+            Klik <span className="font-semibold">Test Command</span> untuk menjalankan simulasi.
+          </p>
+        )}
+
+        {commandRows.length > 0 && (
+          <div className="space-y-2">
+            {commandRows.map((row, idx) => {
+              const tone =
+                row.status === "ok"
+                  ? "border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10"
+                  : row.status === "error"
+                    ? "border-destructive/40 bg-destructive/10"
+                    : row.status === "skipped"
+                      ? "border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10"
+                      : "border-border bg-background/40";
+              const Icon =
+                row.status === "ok" ? CheckCircle2 :
+                row.status === "error" ? XCircle :
+                row.status === "running" ? Loader2 :
+                row.status === "skipped" ? XCircle :
+                Terminal;
+              const iconClass =
+                row.status === "ok" ? "text-[hsl(var(--success))]" :
+                row.status === "error" ? "text-destructive" :
+                row.status === "running" ? "text-primary animate-spin" :
+                row.status === "skipped" ? "text-[hsl(var(--warning))]" :
+                "text-muted-foreground";
+              return (
+                <div key={`${row.phone}-${row.command}-${idx}`} className={`rounded-lg border p-3 text-xs ${tone}`}>
+                  <div className="flex items-start gap-2">
+                    <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconClass}`} />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded bg-background/70 px-1.5 py-0.5 font-mono text-[10px] uppercase text-muted-foreground">
+                          {row.role}
+                        </span>
+                        <span className="font-semibold text-foreground">{row.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">{row.phone}</span>
+                        <span className="font-mono text-[10px] text-primary">{row.command}</span>
+                        {typeof row.durationMs === "number" && (
+                          <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                            {row.durationMs} ms
+                          </span>
+                        )}
+                      </div>
+                      {row.errorMessage && (
+                        <p className="text-destructive">❌ {row.errorMessage}</p>
+                      )}
+                      {row.reason && (
+                        <p className="text-muted-foreground">ℹ️ {row.reason}</p>
+                      )}
+                      {row.reply && (
+                        <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-[10px] text-foreground">
+                          {row.reply}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {settingsKeys.map((s) => (
         <div key={s.key}>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">{s.label}</label>
