@@ -54,6 +54,12 @@ function parseIncomingTwilioParams(rawBody: string, contentType: string) {
   return paramsObj;
 }
 
+function paramsFromUrl(url: URL) {
+  const paramsObj: Record<string, string> = {};
+  for (const [k, v] of url.searchParams.entries()) paramsObj[k] = v;
+  return paramsObj;
+}
+
 // Validate Twilio webhook signature (HMAC-SHA1 of full URL + sorted POST params)
 async function validateTwilioSignature(
   authToken: string,
@@ -85,15 +91,23 @@ async function validateTwilioSignature(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return twimlResponse(405);
 
   try {
+    const url = new URL(req.url);
     const contentType = (req.headers.get("content-type") || "").toLowerCase();
-    const rawBody = await req.text();
-    const paramsObj = parseIncomingTwilioParams(rawBody, contentType);
+    const paramsObj = req.method === "GET"
+      ? paramsFromUrl(url)
+      : parseIncomingTwilioParams(await req.text(), contentType);
 
-    if (!contentType.includes("application/x-www-form-urlencoded")) {
+    if (req.method !== "POST" && req.method !== "GET") {
+      console.warn("twilio-webhook: unsupported method", req.method);
+      return twimlResponse(405);
+    }
+
+    if (req.method === "POST" && !contentType.includes("application/x-www-form-urlencoded")) {
       console.warn("twilio-webhook: unexpected content-type, attempting fallback parse:", contentType || "(empty)");
+    } else if (req.method === "GET") {
+      console.log("twilio-webhook: received GET request, using query params fallback");
     }
 
     // Verify signature (optional). Twilio signs the PUBLIC URL it called.
@@ -134,8 +148,8 @@ Deno.serve(async (req) => {
       console.log("twilio-webhook: TWILIO_AUTH_TOKEN not set, skipping signature check");
     }
 
-    const from = paramsObj["From"] || (paramsObj["WaId"] ? `whatsapp:+${String(paramsObj["WaId"]).replace(/[^0-9]/g, "")}` : "");
-    const body = paramsObj["Body"] || paramsObj["body"] || paramsObj["message"] || paramsObj["text"] || "";
+    const from = paramsObj["From"] || paramsObj["from"] || (paramsObj["WaId"] ? `whatsapp:+${String(paramsObj["WaId"]).replace(/[^0-9]/g, "")}` : "");
+    const body = paramsObj["Body"] || paramsObj["body"] || paramsObj["message"] || paramsObj["text"] || paramsObj["MessageBody"] || "";
     const messageSid = paramsObj["MessageSid"] || paramsObj["SmsMessageSid"] || "";
 
     if (!from || !body) {
