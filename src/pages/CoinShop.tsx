@@ -291,6 +291,25 @@ const CoinShop = () => {
     toast({ title: "Link disalin!" });
   };
 
+  const openWaFallback = (info: { type: "coin_package" | "show_redeem"; details: string }) => {
+    if (!adminWaNumber) {
+      toast({ title: "Nomor admin belum disetel", variant: "destructive" });
+      return;
+    }
+    const cleanNum = adminWaNumber.replace(/[^0-9]/g, "");
+    const headline = info.type === "coin_package"
+      ? "Konfirmasi Pembelian Koin"
+      : "Konfirmasi Pembelian Show";
+    const text =
+      `Halo Admin RealTime48 👋\n\n` +
+      `Saya ingin konfirmasi *${headline}* berikut (cadangan jika notifikasi WA otomatis tidak terkirim):\n\n` +
+      `${info.details}\n\n` +
+      `Username: ${username || "-"}\n` +
+      `Mohon dicek & dibantu prosesnya. Terima kasih 🙏`;
+    const url = `https://wa.me/${cleanNum}?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
   if (loading) return <div className="flex min-h-screen items-center justify-center bg-background"><img src={logo} alt="Loading" className="h-12 w-12 animate-pulse rounded-full" /></div>;
   if (isBanned) return <BannedScreen reason={banReason} onSignOut={signOut} />;
 
