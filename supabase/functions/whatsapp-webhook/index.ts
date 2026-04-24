@@ -52,8 +52,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
-  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
-  if (!FONNTE_TOKEN) return jsonResponse({ error: 'FONNTE_API_TOKEN not configured' }, 500);
+  // FONNTE_TOKEN tidak lagi wajib — semua kirim WA via Twilio. Variabel tetap ada
+  // untuk backwards compatibility dengan tanda tangan helper sendFonnteMessage().
+  const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN') || 'twilio';
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
