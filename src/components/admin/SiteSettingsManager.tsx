@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2, CheckCircle2, XCircle, Send } from "lucide-react";
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
@@ -16,10 +17,79 @@ const settingsKeys = [
   
 ];
 
+type WebhookTestResult = {
+  ok: boolean;
+  status: number;
+  durationMs: number;
+  message: string;
+  bodyPreview?: string;
+};
+
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookResult, setWebhookResult] = useState<WebhookTestResult | null>(null);
   const { toast } = useToast();
+
+  const runWebhookTest = async () => {
+    setTestingWebhook(true);
+    setWebhookResult(null);
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
+    const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+      (projectId ? `https://${projectId}.supabase.co` : "");
+    const url = `${supabaseUrl}/functions/v1/twilio-webhook`;
+
+    const form = new URLSearchParams({
+      From: "whatsapp:+6281234567890",
+      Body: "MENU",
+      MessageSid: `TEST${Date.now()}`,
+    }).toString();
+
+    const start = performance.now();
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const text = await res.text();
+      const duration = Math.round(performance.now() - start);
+      const ok = res.status === 200;
+      setWebhookResult({
+        ok,
+        status: res.status,
+        durationMs: duration,
+        message: ok
+          ? `Server menerima request dan mengembalikan 200 dalam ${(duration / 1000).toFixed(2)} detik.`
+          : `Server mengembalikan status ${res.status} dalam ${(duration / 1000).toFixed(2)} detik.`,
+        bodyPreview: text.slice(0, 240),
+      });
+      toast({
+        title: ok ? "✅ Webhook OK" : "⚠️ Webhook gagal",
+        description: ok
+          ? `200 OK dalam ${duration} ms`
+          : `HTTP ${res.status} dalam ${duration} ms`,
+        variant: ok ? "default" : "destructive",
+      });
+    } catch (e) {
+      const duration = Math.round(performance.now() - start);
+      const message = e instanceof Error ? e.message : "Network error";
+      setWebhookResult({
+        ok: false,
+        status: 0,
+        durationMs: duration,
+        message: `Tidak bisa menghubungi endpoint (${message}).`,
+      });
+      toast({
+        title: "❌ Tidak bisa menghubungi webhook",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -46,6 +116,67 @@ const SiteSettingsManager = () => {
   return (
     <div className="space-y-4 rounded-xl border border-border bg-card p-6">
       <h3 className="text-sm font-semibold text-foreground">🌐 Pengaturan Website</h3>
+
+      {/* Test Webhook Twilio */}
+      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <label className="block text-sm font-bold text-foreground">🤖 Test Webhook Twilio</label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Kirim request uji ke endpoint <code className="rounded bg-background px-1 py-0.5">twilio-webhook</code> dan periksa apakah server menerima serta mengembalikan 200 OK dalam hitungan detik.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={runWebhookTest}
+            disabled={testingWebhook}
+            className="shrink-0 gap-1"
+          >
+            {testingWebhook ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Menguji...
+              </>
+            ) : (
+              <>
+                <Send className="h-3.5 w-3.5" />
+                Test Webhook
+              </>
+            )}
+          </Button>
+        </div>
+        {webhookResult && (
+          <div
+            className={`mt-2 flex items-start gap-2 rounded-lg border p-3 text-xs ${
+              webhookResult.ok
+                ? "border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10 text-foreground"
+                : "border-destructive/40 bg-destructive/10 text-foreground"
+            }`}
+          >
+            {webhookResult.ok ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--success))]" />
+            ) : (
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+            )}
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="font-semibold">
+                {webhookResult.ok ? "✅ Webhook diterima" : "❌ Webhook gagal"}
+                {" — "}
+                <span className="font-mono">
+                  HTTP {webhookResult.status || "n/a"} · {(webhookResult.durationMs / 1000).toFixed(2)}s
+                </span>
+              </div>
+              <p className="text-muted-foreground">{webhookResult.message}</p>
+              {webhookResult.bodyPreview && (
+                <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 font-mono text-[10px] text-muted-foreground">
+                  {webhookResult.bodyPreview}
+                </pre>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {settingsKeys.map((s) => (
         <div key={s.key}>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">{s.label}</label>
