@@ -1337,6 +1337,20 @@ const Index = () => {
                   </a>
                 </Button>
               </div>
+              {settings.wa_fallback_enabled === "true" && settings.whatsapp_number && coinShowTarget && (
+                <Button
+                  className="w-full gap-2 bg-[hsl(var(--success))] text-primary-foreground hover:bg-[hsl(var(--success))]/90"
+                  onClick={() => {
+                    const purchaseType = coinShowTarget.is_bundle ? "Bundle" : coinShowTarget.is_replay ? "Replay" : (coinShowTarget.is_subscription ? "Membership" : "Regular");
+                    const replayLine = coinResult.replay_password ? `\n🔐 Sandi Replay: ${coinResult.replay_password}` : "";
+                    const accessLine = coinResult.access_password ? `\n🔐 Sandi Akses: ${coinResult.access_password}` : "";
+                    const msg = `📋 *Konfirmasi Pesanan Show (Koin)*\n\n🎭 Show: ${coinShowTarget.title}\n📦 Tipe: ${purchaseType}\n🎫 Token: ${coinResult.token_code}${replayLine}${accessLine}\n📱 HP: ${coinPhone}\n💰 Pembayaran: Tukar Koin (Berhasil)\n\nMohon konfirmasi pesanan saya. Terima kasih 🙏`;
+                    window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(msg)}`, '_blank');
+                  }}
+                >
+                  📱 Kirim Konfirmasi via WA
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>
