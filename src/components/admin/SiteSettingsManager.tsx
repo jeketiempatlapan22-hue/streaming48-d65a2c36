@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle2, XCircle, Send } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Send, Terminal } from "lucide-react";
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
@@ -24,6 +24,34 @@ type WebhookTestResult = {
   message: string;
   bodyPreview?: string;
 };
+
+type CommandTestRow = {
+  label: string;
+  role: "admin" | "owner" | "reseller";
+  phone: string;
+  command: string;
+  status: "idle" | "running" | "ok" | "error" | "skipped";
+  durationMs?: number;
+  reply?: string;
+  reason?: string;
+  errorMessage?: string;
+};
+
+type ResellerLite = { id: string; name: string; phone: string; wa_command_prefix: string };
+
+function decodeXml(s: string) {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function extractTwimlMessage(xml: string): string | null {
+  const m = xml.match(/<Message[^>]*>([\s\S]*?)<\/Message>/i);
+  return m ? decodeXml(m[1].trim()) : null;
+}
 
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
