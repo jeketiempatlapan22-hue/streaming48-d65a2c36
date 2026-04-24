@@ -167,13 +167,18 @@ Deno.serve(async (req) => {
     const isReseller = !!(rDataEarly as any)?.found;
 
     // ========== PUBLIC COMMANDS (any sender) ==========
+    const syncReply = url.searchParams.get('reply_mode') === 'sync';
+
     const publicResponse = await processPublicCommand(supabase, rawText, cleanSender, FONNTE_TOKEN);
     if (publicResponse !== null) {
-      const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string' 
-        ? { text: publicResponse, imageUrl: undefined } 
+      const { text: respText, imageUrl: respImage } = typeof publicResponse === 'string'
+        ? { text: publicResponse, imageUrl: undefined }
         : publicResponse;
-      // Fire-and-forget so Fonnte gets 200 OK immediately and the user sees the
-      // reply without the webhook holding the connection open.
+
+      if (syncReply) {
+        return jsonResponse({ ok: true, processed: true, type: 'public', reply: { text: respText, imageUrl: respImage } });
+      }
+
       runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, respText, respImage));
       return jsonResponse({ ok: true, processed: true, type: 'public' });
     }
@@ -191,6 +196,9 @@ Deno.serve(async (req) => {
 
       const helpText = handleResellerHelp(rDataEarly);
       const unknownNotice = `⚠️ *Command tidak dikenali atau bukan command reseller.*\n\nSebagai reseller, Anda hanya dapat menggunakan command reseller berikut:\n\n${helpText}`;
+      if (syncReply) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands', reply: { text: unknownNotice } });
+      }
       runInBackground(sendFonnteMessage(FONNTE_TOKEN, sender, unknownNotice));
       return jsonResponse({ ok: true, skipped: true, reason: 'reseller restricted to reseller commands' });
     }
