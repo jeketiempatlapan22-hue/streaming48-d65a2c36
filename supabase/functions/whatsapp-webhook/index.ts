@@ -214,6 +214,18 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true, skipped: true, reason: 'unauthorized sender' });
     }
 
+    if (syncReply) {
+      const response = await processCommand(supabase, rawText);
+      if (!response) {
+        return jsonResponse({ ok: true, skipped: true, reason: 'no admin response' });
+      }
+      const readOnly = /^\/(help|start|menu|status|balance|users|replay)$/i;
+      if (!readOnly.test(rawText.trim())) {
+        runInBackground(notifyTelegram(rawText, response));
+      }
+      return jsonResponse({ ok: true, accepted: true, reply: { text: response } });
+    }
+
     // Run admin command + outbound notifications in the background so the webhook
     // returns 200 immediately. Heavy commands (stats, pendapatan, etc.) no longer
     // delay Fonnte's HTTP response, which makes the bot feel much faster.
