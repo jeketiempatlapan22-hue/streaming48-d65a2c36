@@ -31,6 +31,29 @@ function twimlResponse(status = 200, message?: string) {
   });
 }
 
+function parseIncomingTwilioParams(rawBody: string, contentType: string) {
+  const paramsObj: Record<string, string> = {};
+
+  if (contentType.includes("application/x-www-form-urlencoded") || rawBody.includes("=")) {
+    const params = new URLSearchParams(rawBody);
+    for (const [k, v] of params) paramsObj[k] = v;
+    return paramsObj;
+  }
+
+  try {
+    const json = JSON.parse(rawBody);
+    if (json && typeof json === "object") {
+      for (const [k, v] of Object.entries(json)) {
+        paramsObj[k] = typeof v === "string" ? v : JSON.stringify(v);
+      }
+    }
+  } catch {
+    // ignore parse errors and return empty object below
+  }
+
+  return paramsObj;
+}
+
 // Validate Twilio webhook signature (HMAC-SHA1 of full URL + sorted POST params)
 async function validateTwilioSignature(
   authToken: string,
@@ -66,15 +89,12 @@ Deno.serve(async (req) => {
 
   try {
     const contentType = (req.headers.get("content-type") || "").toLowerCase();
-    if (!contentType.includes("application/x-www-form-urlencoded")) {
-      console.warn("twilio-webhook: unexpected content-type:", contentType);
-      return twimlResponse();
-    }
-
     const rawBody = await req.text();
-    const params = new URLSearchParams(rawBody);
-    const paramsObj: Record<string, string> = {};
-    for (const [k, v] of params) paramsObj[k] = v;
+    const paramsObj = parseIncomingTwilioParams(rawBody, contentType);
+
+    if (!contentType.includes("application/x-www-form-urlencoded")) {
+      console.warn("twilio-webhook: unexpected content-type, attempting fallback parse:", contentType || "(empty)");
+    }
 
     // Verify signature (optional). Twilio signs the PUBLIC URL it called.
     // In Supabase Edge Functions, req.url shows the internal `edge-runtime.supabase.com` host,
@@ -114,13 +134,26 @@ Deno.serve(async (req) => {
       console.log("twilio-webhook: TWILIO_AUTH_TOKEN not set, skipping signature check");
     }
 
-    const from = paramsObj["From"] || ""; // e.g. "whatsapp:+628123..."
-    const body = paramsObj["Body"] || "";
+    const from = paramsObj["From"] || (paramsObj["WaId"] ? `whatsapp:+${String(paramsObj["WaId"]).replace(/[^0-9]/g, "")}` : "");
+    const body = paramsObj["Body"] || paramsObj["body"] || paramsObj["message"] || paramsObj["text"] || "";
+    const messageSid = paramsObj["MessageSid"] || paramsObj["SmsMessageSid"] || "";
 
     if (!from || !body) {
-      console.log("twilio-webhook: missing From/Body, skipping");
+      console.log("twilio-webhook: missing From/Body, skipping", {
+        hasFrom: !!from,
+        hasBody: !!body,
+        contentType: contentType || "(empty)",
+        keys: Object.keys(paramsObj),
+      });
       return twimlResponse();
     }
+
+    console.log("twilio-webhook: inbound message", {
+      sender: from,
+      sid: messageSid,
+      contentType: contentType || "(empty)",
+      preview: body.slice(0, 60),
+    });
 
     // Strip "whatsapp:" prefix and "+" → keep digits only (matches whatsapp-webhook expectation)
     const sender = from.replace(/^whatsapp:/i, "").replace(/[^0-9]/g, "");
