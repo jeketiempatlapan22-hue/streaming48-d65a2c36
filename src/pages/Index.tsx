@@ -1393,6 +1393,7 @@ const Index = () => {
         </DialogContent>
       </Dialog>
       <InstallBanner />
+      <MobileBottomNav isLive={isStreamLive} />
     </div>
   );
 };
