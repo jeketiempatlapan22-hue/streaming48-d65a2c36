@@ -107,9 +107,10 @@ const MaintenanceGate = ({ children }: { children: React.ReactNode }) => {
   // Still loading
   if (maintenance === null) return <PageLoader />;
 
-  // Admin routes always pass through
+  // Admin routes always pass through; restream stays available for partners.
   const isAdminRoute = location.pathname.startsWith("/adpan");
-  if (maintenance && !isAdminRoute) {
+  const isRestreamRoute = location.pathname.startsWith("/restream");
+  if (maintenance && !isAdminRoute && !isRestreamRoute) {
     return <MaintenancePage message={maintenanceMsg} />;
   }
 
