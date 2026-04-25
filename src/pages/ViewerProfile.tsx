@@ -463,7 +463,7 @@ const ViewerProfile = () => {
           </Button>
         </motion.div>
       </div>
-      <MobileBottomNav />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
     </div>
   );
 };

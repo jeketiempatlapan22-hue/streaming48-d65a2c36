@@ -683,7 +683,7 @@ const ReplayPage = () => {
           </div>
         </DialogContent>
       </Dialog>
-      <MobileBottomNav />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
     </div>
   );
 };

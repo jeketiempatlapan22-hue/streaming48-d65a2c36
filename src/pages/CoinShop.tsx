@@ -554,7 +554,7 @@ const CoinShop = () => {
           )}
         </DialogContent>
       </Dialog>
-      <MobileBottomNav />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
     </div>
   );
 };
