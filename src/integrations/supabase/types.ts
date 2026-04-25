@@ -403,6 +403,27 @@ export type Database = {
         }
         Relationships: []
       }
+      live_quiz_state: {
+        Row: {
+          active_quiz_id: string | null
+          ends_at: string | null
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          active_quiz_id?: string | null
+          ends_at?: string | null
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          active_quiz_id?: string | null
+          ends_at?: string | null
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       live_quizzes: {
         Row: {
           answers: string[]
@@ -1577,6 +1598,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      admin_award_quiz_winner: {
+        Args: {
+          _message_id?: string
+          _quiz_id: string
+          _user_id: string
+          _username: string
+        }
+        Returns: Json
+      }
       admin_create_reseller: {
         Args: {
           _name: string
@@ -1791,6 +1821,7 @@ export type Database = {
       }
       redeem_coins_for_replay: { Args: { _show_id: string }; Returns: Json }
       redeem_coins_for_token: { Args: { _show_id: string }; Returns: Json }
+      refresh_live_quiz_state: { Args: never; Returns: undefined }
       release_token_session: {
         Args: { _fingerprint: string; _token_code: string }
         Returns: undefined
