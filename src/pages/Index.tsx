@@ -530,9 +530,15 @@ const Index = () => {
                 <span className="text-xs font-semibold">Beli Koin</span>
               </button>
             )}
+            <UserAvatarDropdown
+              isLoggedIn={!!coinUser}
+              username={coinUsername}
+              coinBalance={coinBalance}
+              onLoginClick={() => setLoginPopup(true)}
+            />
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
-                <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]">
+                <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]" aria-label="Buka menu">
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
