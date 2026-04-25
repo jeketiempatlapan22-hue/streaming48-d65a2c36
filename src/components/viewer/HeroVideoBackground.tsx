@@ -170,8 +170,9 @@ const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroun
     }
 
     if (kind === "dash") {
-      // Lazy import dashjs — hanya bila benar-benar dipakai
-      import(/* @vite-ignore */ "dashjs").then((mod: any) => {
+      // Lazy import dashjs — hanya bila benar-benar dipakai (paket opsional, tidak di-bundle)
+      const dashModuleName = "dashjs";
+      import(/* @vite-ignore */ dashModuleName).then((mod: any) => {
         if (disposed) return;
         const dashjs = mod.default || mod;
         try {
