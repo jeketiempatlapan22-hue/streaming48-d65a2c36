@@ -483,6 +483,7 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          is_restream: boolean
           sort_order: number
           title: string
           type: string
@@ -492,6 +493,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_restream?: boolean
           sort_order?: number
           title: string
           type?: string
@@ -501,6 +503,7 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          is_restream?: boolean
           sort_order?: number
           title?: string
           type?: string
@@ -882,6 +885,36 @@ export type Database = {
           session_token?: string | null
           updated_at?: string
           wa_command_prefix?: string
+        }
+        Relationships: []
+      }
+      restream_codes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          last_used_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          last_used_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          last_used_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1535,6 +1568,16 @@ export type Database = {
       }
       get_purchased_show_passwords: { Args: never; Returns: Json }
       get_reseller_by_phone: { Args: { _phone: string }; Returns: Json }
+      get_restream_playlists: {
+        Args: { _code: string }
+        Returns: {
+          id: string
+          sort_order: number
+          title: string
+          type: string
+          url: string
+        }[]
+      }
       get_safe_playlists: {
         Args: never
         Returns: {
@@ -1685,10 +1728,12 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
       }
+      touch_restream_code_usage: { Args: { _code: string }; Returns: undefined }
       validate_reseller_session: {
         Args: { _session_token: string }
         Returns: string
       }
+      validate_restream_code: { Args: { _code: string }; Returns: Json }
       validate_token: { Args: { _code: string }; Returns: Json }
       viewer_heartbeat: { Args: { _key: string }; Returns: undefined }
       viewer_leave: { Args: { _key: string }; Returns: undefined }
