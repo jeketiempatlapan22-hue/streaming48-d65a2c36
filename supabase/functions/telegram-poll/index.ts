@@ -1063,7 +1063,7 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
     .from('coin_transactions').select('user_id')
     .eq('reference_id', showId)
     .in('type', ['redeem', 'replay_redeem']);
-  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))];
+  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))] as string[];
 
   // 3. Get phone from coin_orders for coin buyers
   if (coinUserIds.length > 0) {
@@ -1361,7 +1361,7 @@ async function handleMsgMembersCommand(supabase: any, botToken: string, chatId: 
       return;
     }
 
-    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))];
+    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))] as string[];
     if (phones.length === 0) {
       await sendTelegramMessage(botToken, chatId, '⚠️ Tidak ada nomor HP member yang tersedia\\.');
       return;
@@ -1821,7 +1821,7 @@ async function handleBanlistCommand(supabase: any, botToken: string, chatId: str
     if (!bans || bans.length === 0) { await sendTelegramMessage(botToken, chatId, '✅ Tidak ada user yang diblokir\\.'); return; }
     const userIds = bans.map((b: any) => b.user_id);
     const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
-    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
+    const profileMap = new Map<string, string>((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
     let msg = `🚫 *DAFTAR USER DIBLOKIR \\(${bans.length}\\)*\n\n`;
     for (const b of bans) {
       const name = profileMap.get(b.user_id) || 'Unknown';
@@ -1843,7 +1843,7 @@ async function handleSuspiciousCommand(supabase: any, botToken: string, chatId: 
     if (!logs || logs.length === 0) { await sendTelegramMessage(botToken, chatId, '✅ Tidak ada aktivitas mencurigakan\\.'); return; }
     const userIds = [...new Set(logs.map((l: any) => l.user_id).filter(Boolean))];
     const { data: profiles } = await supabase.from('profiles').select('id, username').in('id', userIds);
-    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
+    const profileMap = new Map<string, string>((profiles || []).map((p: any) => [p.id, p.username || 'Unknown']));
     const sevEmoji: Record<string, string> = { low: '🟡', medium: '🟠', high: '🔴', critical: '🚨' };
     let msg = `⚠️ *AKTIVITAS MENCURIGAKAN \\(${logs.length}\\)*\n\n`;
     for (const l of logs) {
