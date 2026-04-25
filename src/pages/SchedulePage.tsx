@@ -55,6 +55,21 @@ const SchedulePage = () => {
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
+  // Scroll ke show tertentu jika URL berisi hash #show-<id> (mis. dari toast bottom nav)
+  useEffect(() => {
+    if (loading) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith("#show-")) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    // Tunggu render selesai sebelum scroll
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-primary", "rounded-2xl");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary", "rounded-2xl"), 2400);
+    });
+  }, [loading]);
+
   // Poll dynamic QRIS payment status
   useEffect(() => {
     if (!dynamicOrderId || dynamicPaid) return;
