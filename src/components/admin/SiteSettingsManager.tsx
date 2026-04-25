@@ -338,7 +338,7 @@ const SiteSettingsManager = () => {
               value={values.hero_video_url || ""}
               onChange={(e) => setValues((p) => ({ ...p, hero_video_url: e.target.value }))}
               className="bg-background"
-              placeholder="https://cdn.example.com/hero.mp4"
+              placeholder="https://cdn.example.com/hero.m3u8"
             />
             <Button size="sm" onClick={() => saveSetting("hero_video_url")} disabled={saving === "hero_video_url"}>
               Simpan
