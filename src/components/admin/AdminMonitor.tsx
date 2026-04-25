@@ -187,8 +187,8 @@ const AdminMonitor = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-foreground">📺 Monitor & Poll</h2>
-          <p className="text-sm text-muted-foreground">Preview player admin, chat, dan pantau viewer secara realtime.</p>
+          <h2 className="text-xl font-bold text-foreground">📺 Monitor, Poll & Quiz</h2>
+          <p className="text-sm text-muted-foreground">Preview player, chat, poll, dan quiz live secara realtime dalam satu halaman.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LiveViewerCount isLive={stream?.is_live || false} readOnly />
