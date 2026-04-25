@@ -547,6 +547,7 @@ const CoinShop = () => {
           )}
         </DialogContent>
       </Dialog>
+      <MobileBottomNav />
     </div>
   );
 };
