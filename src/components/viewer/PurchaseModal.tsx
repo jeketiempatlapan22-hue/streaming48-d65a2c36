@@ -38,21 +38,28 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
   useEffect(() => {
     const create = async () => {
       setLoading(true);
+      // Hard client-side timeout (15s) so the spinner never hangs forever
+      const hardTimeout = setTimeout(() => {
+        toast.error("QRIS lambat dimuat. Silakan coba lagi.");
+        setLoading(false);
+      }, 15000);
       try {
         const priceNum = parseInt(show.price.replace(/[^\d]/g, "")) || 0;
-        if (priceNum <= 0) { toast.error("Harga tidak valid"); setLoading(false); return; }
+        if (priceNum <= 0) { toast.error("Harga tidak valid"); clearTimeout(hardTimeout); setLoading(false); return; }
 
         const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
           body: { show_id: show.id, amount: priceNum, phone, order_type: show.is_subscription ? "membership" : "regular" },
         });
+        clearTimeout(hardTimeout);
         if (error || !data?.success) {
-          toast.error(data?.error || "Gagal membuat QRIS");
+          toast.error(data?.error || error?.message || "Gagal membuat QRIS");
           setLoading(false);
           return;
         }
         setQrString(data.qr_string);
         setOrderId(data.order_id);
       } catch (err: any) {
+        clearTimeout(hardTimeout);
         toast.error("Gagal membuat QRIS: " + (err?.message || "Coba lagi"));
       }
       setLoading(false);
