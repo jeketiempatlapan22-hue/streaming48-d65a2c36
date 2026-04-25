@@ -434,6 +434,57 @@ const SiteSettingsManager = () => {
             Video otomatis muted, loop, mulai dari kualitas ringan, dan berhenti saat tidak terlihat.
           </p>
         </div>
+        {/* Upload langsung — otomatis jadi URL publik */}
+        <div className="rounded-lg border border-dashed border-primary/40 bg-background/50 p-3 space-y-2">
+          <label className="block text-xs font-semibold text-foreground">📤 Upload Video (otomatis jadi URL)</label>
+          <p className="text-[11px] text-muted-foreground">
+            MP4 / WebM / MOV, maksimal <strong>10 MB</strong>. Setelah upload, URL terisi otomatis dan video lama (jika ada) akan dihapus.
+          </p>
+          <input
+            ref={videoFileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleVideoUpload(f);
+            }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => videoFileInputRef.current?.click()}
+              disabled={uploadingVideo}
+            >
+              {uploadingVideo ? (
+                <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Mengupload {uploadProgress}%</>
+              ) : (
+                <><Upload className="mr-1 h-4 w-4" /> Pilih File Video</>
+              )}
+            </Button>
+            {values.hero_video_url && extractStoragePath(values.hero_video_url) && (
+              <Button
+                size="sm"
+                variant="destructive"
+                type="button"
+                onClick={handleRemoveUploadedVideo}
+                disabled={uploadingVideo}
+              >
+                <Trash2 className="mr-1 h-4 w-4" /> Hapus Video
+              </Button>
+            )}
+          </div>
+          {uploadingVideo && (
+            <div className="h-1 w-full overflow-hidden rounded bg-secondary">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Video (.mp4 / .webm / .m3u8 / .mpd)</label>
           <div className="flex gap-2">
@@ -441,12 +492,19 @@ const SiteSettingsManager = () => {
               value={values.hero_video_url || ""}
               onChange={(e) => setValues((p) => ({ ...p, hero_video_url: e.target.value }))}
               className="bg-background"
-              placeholder="https://cdn.example.com/hero.m3u8"
+              placeholder="https://cdn.example.com/hero.m3u8 — atau upload di atas"
             />
             <Button size="sm" onClick={() => saveSetting("hero_video_url")} disabled={saving === "hero_video_url"}>
               Simpan
             </Button>
           </div>
+          {values.hero_video_url && (
+            <p className="mt-1 truncate text-[10px] text-muted-foreground">
+              {extractStoragePath(values.hero_video_url)
+                ? "📦 Tersimpan di Lovable Cloud Storage"
+                : "🌐 URL eksternal"}
+            </p>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Poster (opsional, gambar fallback saat video belum dimuat)</label>
