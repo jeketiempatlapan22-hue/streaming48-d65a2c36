@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Shield, Coins, Menu, User, Home, Calendar, Film, Settings, Crown, Info, MessageCircle, Download, LogIn } from "lucide-react";
+import { useProfileAvatar } from "@/hooks/useProfileAvatar";
 
 import { supabase } from "@/integrations/supabase/client";
 import logo from "@/assets/logo.png";
