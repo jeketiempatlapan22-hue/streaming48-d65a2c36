@@ -3,22 +3,51 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Megaphone, X } from "lucide-react";
 
+interface Broadcast {
+  id: string;
+  title: string;
+  message: string;
+  expires_at: string | null;
+}
+
+const isExpired = (b: Broadcast | null) =>
+  !!b?.expires_at && new Date(b.expires_at).getTime() <= Date.now();
+
 const ViewerBroadcast = () => {
-  const [notification, setNotification] = useState<{ id: string; title: string; message: string } | null>(null);
+  const [notification, setNotification] = useState<Broadcast | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    let auto: number | undefined;
+
+    const scheduleAutoExpire = (b: Broadcast) => {
+      if (auto) { clearTimeout(auto); auto = undefined; }
+      if (!b.expires_at) return;
+      const ms = new Date(b.expires_at).getTime() - Date.now();
+      if (ms <= 0) {
+        setNotification(null);
+        return;
+      }
+      auto = window.setTimeout(() => {
+        setNotification((curr) => (curr && curr.id === b.id ? null : curr));
+      }, Math.min(ms, 2_147_000_000)); // cap to setTimeout max
+    };
+
     // Delay broadcast fetch to reduce initial DB load
     const timer = setTimeout(async () => {
+      const nowIso = new Date().toISOString();
       const { data } = await supabase
         .from("admin_notifications")
-        .select("*")
+        .select("id, title, message, expires_at")
         .eq("type", "broadcast")
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (data && !dismissed.has(data.id)) {
-        setNotification(data);
+        const b = data as Broadcast;
+        setNotification(b);
+        scheduleAutoExpire(b);
       }
     }, 1000);
 
@@ -26,9 +55,12 @@ const ViewerBroadcast = () => {
     const ch = supabase
       .channel("viewer-broadcasts")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "admin_notifications" }, (payload: any) => {
-        if (payload.new?.type === "broadcast" && !dismissed.has(payload.new.id)) {
-          setNotification(payload.new);
-        }
+        if (payload.new?.type !== "broadcast") return;
+        const b = payload.new as Broadcast;
+        if (isExpired(b)) return;
+        if (dismissed.has(b.id)) return;
+        setNotification(b);
+        scheduleAutoExpire(b);
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "admin_notifications" }, (payload: any) => {
         // When admin deletes a broadcast, hide it immediately if currently shown
@@ -36,7 +68,11 @@ const ViewerBroadcast = () => {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(ch); clearTimeout(timer); };
+    return () => {
+      supabase.removeChannel(ch);
+      clearTimeout(timer);
+      if (auto) clearTimeout(auto);
+    };
   }, [dismissed]);
 
   const handleDismiss = () => {
@@ -45,6 +81,11 @@ const ViewerBroadcast = () => {
     }
     setNotification(null);
   };
+
+  // Defensive: if somehow the notification has expired between renders, hide it
+  if (notification && isExpired(notification)) {
+    return null;
+  }
 
   return (
     <AnimatePresence>
