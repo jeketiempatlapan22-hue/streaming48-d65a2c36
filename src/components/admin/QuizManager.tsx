@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Trophy, Coins, Clock, Loader2, Square, Plus, X, Wand2 } from "lucide-react";
+import { Sparkles, Trophy, Coins, Clock, Loader2, Square, Plus, Wand2, Check, MessageSquare } from "lucide-react";
 
 interface Quiz {
   id: string;
@@ -31,10 +31,21 @@ interface Quiz {
 interface Winner {
   id: string;
   quiz_id: string;
+  user_id: string;
   username: string;
   rank: number;
   coins_awarded: number;
   answered_at: string;
+}
+
+interface ChatRow {
+  id: string;
+  user_id: string | null;
+  username: string;
+  message: string;
+  is_admin: boolean;
+  is_deleted: boolean;
+  created_at: string;
 }
 
 interface AIQuestion {
@@ -42,7 +53,7 @@ interface AIQuestion {
   answers: string[];
 }
 
-const THEMES = ["Umum", "JKT48", "Musik", "Anime", "Trivia", "Olahraga", "Sejarah", "Sains"];
+const THEMES = ["JKT48", "Umum", "Musik", "Anime", "Trivia", "Olahraga", "Sejarah", "Sains"];
 
 const QuizManager = () => {
   const { toast } = useToast();
@@ -50,20 +61,25 @@ const QuizManager = () => {
   const [history, setHistory] = useState<Quiz[]>([]);
   const [activeWinners, setActiveWinners] = useState<Winner[]>([]);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [recentChats, setRecentChats] = useState<ChatRow[]>([]);
+  const [awarding, setAwarding] = useState<string | null>(null);
 
   // Form state
-  const [source, setSource] = useState<"manual" | "ai">("manual");
+  const [source, setSource] = useState<"manual" | "ai">("ai");
   const [question, setQuestion] = useState("");
   const [answersText, setAnswersText] = useState("");
   const [maxWinners, setMaxWinners] = useState(3);
   const [coinReward, setCoinReward] = useState(50);
   const [duration, setDuration] = useState(60);
-  const [theme, setTheme] = useState("Umum");
+  const [theme, setTheme] = useState("JKT48");
   const [difficulty, setDifficulty] = useState<"mudah" | "sedang" | "sulit">("sedang");
+  const [aiCount, setAiCount] = useState(10);
   const [customPrompt, setCustomPrompt] = useState("");
   const [aiQuestions, setAIQuestions] = useState<AIQuestion[]>([]);
   const [generating, setGenerating] = useState(false);
   const [starting, setStarting] = useState(false);
+
+  const activeQuizIdRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     const { data: actives } = await supabase
@@ -74,12 +90,14 @@ const QuizManager = () => {
       .limit(1);
     const a = (actives?.[0] as Quiz) || null;
     setActiveQuiz(a);
+    activeQuizIdRef.current = a?.id || null;
     if (a) {
       const { data: w } = await supabase
         .from("quiz_winners").select("*").eq("quiz_id", a.id).order("rank");
       setActiveWinners((w as Winner[]) || []);
     } else {
       setActiveWinners([]);
+      setRecentChats([]);
     }
     const { data: hist } = await supabase
       .from("live_quizzes")
@@ -90,20 +108,22 @@ const QuizManager = () => {
     setHistory((hist as Quiz[]) || []);
   }, []);
 
+  // Realtime subscriptions
   useEffect(() => {
     refresh();
     const ch = supabase
       .channel("quiz-admin")
       .on("postgres_changes", { event: "*", schema: "public", table: "live_quizzes" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quiz_winners" }, refresh)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "quiz_winners" }, refresh)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [refresh]);
 
-  // Tick countdown + auto-end
+  // Tick countdown + auto-end + fast winners poll while active
   useEffect(() => {
+    if (!activeQuiz) { setSecondsLeft(0); return; }
     const tick = async () => {
-      if (!activeQuiz?.ends_at) { setSecondsLeft(0); return; }
+      if (!activeQuiz?.ends_at) return;
       const ms = new Date(activeQuiz.ends_at).getTime() - Date.now();
       const s = Math.max(0, Math.ceil(ms / 1000));
       setSecondsLeft(s);
@@ -113,8 +133,27 @@ const QuizManager = () => {
       }
     };
     tick();
-    const t = window.setInterval(tick, 1000);
-    return () => window.clearInterval(t);
+    const tCountdown = window.setInterval(tick, 1000);
+
+    // Polling cepat winners + chat saat quiz aktif (1.5s)
+    const fastPoll = window.setInterval(async () => {
+      const qid = activeQuizIdRef.current;
+      if (!qid) return;
+      const [winnersRes, chatsRes] = await Promise.all([
+        supabase.from("quiz_winners").select("*").eq("quiz_id", qid).order("rank"),
+        supabase
+          .from("chat_messages")
+          .select("id, user_id, username, message, is_admin, is_deleted, created_at")
+          .eq("is_deleted", false)
+          .gte("created_at", activeQuiz.started_at || new Date().toISOString())
+          .order("created_at", { ascending: false })
+          .limit(40),
+      ]);
+      if (winnersRes.data) setActiveWinners(winnersRes.data as Winner[]);
+      if (chatsRes.data) setRecentChats(chatsRes.data as ChatRow[]);
+    }, 1500);
+
+    return () => { window.clearInterval(tCountdown); window.clearInterval(fastPoll); };
   }, [activeQuiz, refresh]);
 
   const handleGenerate = async () => {
@@ -122,7 +161,7 @@ const QuizManager = () => {
     setAIQuestions([]);
     try {
       const { data, error } = await supabase.functions.invoke("quiz-generate", {
-        body: { theme, difficulty, count: 3, custom_prompt: customPrompt },
+        body: { theme, difficulty, count: aiCount, custom_prompt: customPrompt },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -172,7 +211,6 @@ const QuizManager = () => {
         created_by: session?.user?.id,
       });
       if (error) throw error;
-      // Reset form
       setQuestion(""); setAnswersText(""); setAIQuestions([]);
       toast({ title: "Quiz dimulai!", description: `Berjalan ${duration} detik.` });
       refresh();
@@ -197,20 +235,48 @@ const QuizManager = () => {
     }
   };
 
+  const handleManualAward = async (chat: ChatRow) => {
+    if (!activeQuiz || !chat.user_id) {
+      toast({ variant: "destructive", title: "Tidak bisa", description: "User tidak terdeteksi." });
+      return;
+    }
+    setAwarding(chat.id);
+    try {
+      const { data, error } = await supabase.rpc("admin_award_quiz_winner", {
+        _quiz_id: activeQuiz.id,
+        _user_id: chat.user_id,
+        _username: chat.username,
+        _message_id: chat.id,
+      });
+      if (error) throw error;
+      const result = data as any;
+      if (result?.error) throw new Error(result.error);
+      toast({ title: "Pemenang ditambahkan!", description: `${chat.username} dapat ${result.coins} koin (rank #${result.rank})` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Gagal", description: e.message });
+    } finally {
+      setAwarding(null);
+    }
+  };
+
+  // Hitung kandidat: chat user (bukan admin) yang belum jadi pemenang
+  const winnerUserIds = new Set(activeWinners.map((w) => w.user_id));
+  const candidateChats = recentChats.filter(
+    (c) => !c.is_admin && c.user_id && !winnerUserIds.has(c.user_id)
+  );
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-black flex items-center gap-2"><Trophy className="h-6 w-6 text-yellow-400" /> Live Quiz</h2>
-        <p className="text-sm text-muted-foreground mt-1">Buat quiz live dengan hadiah koin otomatis untuk pemenang.</p>
+        <p className="text-sm text-muted-foreground mt-1">Buat quiz live dengan hadiah koin otomatis. Admin juga bisa nilai jawaban manual.</p>
       </div>
 
       {/* Active quiz panel */}
       {activeQuiz && (
         <Card className="border-primary/40 bg-primary/5 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <Badge className="bg-green-500/20 text-green-400 border-green-500/40">
-              ● QUIZ AKTIF
-            </Badge>
+            <Badge className="bg-green-500/20 text-green-400 border-green-500/40">● QUIZ AKTIF</Badge>
             <div className="flex gap-2 text-xs">
               <Badge variant="outline"><Coins className="h-3 w-3 mr-1" />{activeQuiz.coin_reward} koin</Badge>
               <Badge variant="outline"><Trophy className="h-3 w-3 mr-1" />{activeWinners.length}/{activeQuiz.max_winners}</Badge>
@@ -235,6 +301,44 @@ const QuizManager = () => {
               </div>
             </div>
           )}
+
+          {/* Panel jawaban masuk - admin manual approve */}
+          <div className="rounded-lg border border-border bg-background/50 p-2 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
+                <MessageSquare className="h-3 w-3" /> Jawaban masuk (live)
+              </div>
+              <span className="text-[10px] text-muted-foreground">{candidateChats.length} kandidat</span>
+            </div>
+            <div className="max-h-56 overflow-y-auto space-y-1">
+              {candidateChats.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground italic px-1">Menunggu jawaban...</p>
+              ) : (
+                candidateChats.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-2 rounded border border-border/60 bg-card px-2 py-1 text-xs">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-cyan-400 truncate">{c.username}</span>
+                        <span className="text-[9px] text-muted-foreground">{new Date(c.created_at).toLocaleTimeString("id-ID")}</span>
+                      </div>
+                      <div className="text-foreground/80 truncate">{c.message}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 shrink-0 border-yellow-500/40 hover:bg-yellow-500/10 hover:text-yellow-400"
+                      disabled={awarding === c.id || activeWinners.length >= activeQuiz.max_winners}
+                      onClick={() => handleManualAward(c)}
+                    >
+                      {awarding === c.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3 mr-1" />Benar</>}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">Klik "Benar" untuk memberi koin manual ke user yang dianggap menjawab benar.</p>
+          </div>
+
           <Button variant="destructive" size="sm" onClick={handleEndEarly}>
             <Square className="h-3 w-3 mr-1" /> Akhiri Quiz
           </Button>
@@ -247,12 +351,12 @@ const QuizManager = () => {
           <h3 className="font-bold">Buat Quiz Baru</h3>
           <Tabs value={source} onValueChange={(v) => setSource(v as any)}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manual"><Plus className="h-4 w-4 mr-1" />Manual</TabsTrigger>
               <TabsTrigger value="ai"><Sparkles className="h-4 w-4 mr-1" />AI Generate</TabsTrigger>
+              <TabsTrigger value="manual"><Plus className="h-4 w-4 mr-1" />Manual</TabsTrigger>
             </TabsList>
 
             <TabsContent value="ai" className="space-y-3 mt-4">
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <Label className="text-xs">Tema</Label>
                   <Select value={theme} onValueChange={setTheme}>
@@ -263,13 +367,24 @@ const QuizManager = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Tingkat Kesulitan</Label>
+                  <Label className="text-xs">Kesulitan</Label>
                   <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="mudah">Mudah</SelectItem>
                       <SelectItem value="sedang">Sedang</SelectItem>
                       <SelectItem value="sulit">Sulit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Jumlah</Label>
+                  <Select value={String(aiCount)} onValueChange={(v) => setAiCount(+v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 soal</SelectItem>
+                      <SelectItem value="10">10 soal</SelectItem>
+                      <SelectItem value="15">15 soal</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -285,15 +400,15 @@ const QuizManager = () => {
               </div>
               <Button onClick={handleGenerate} disabled={generating} className="w-full">
                 {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
-                Generate Pertanyaan AI
+                Generate {aiCount} Pertanyaan AI
               </Button>
 
               {aiQuestions.length > 0 && (
-                <div className="space-y-2 mt-2">
-                  <div className="text-xs font-bold">Pilih salah satu:</div>
+                <div className="space-y-2 mt-2 max-h-72 overflow-y-auto pr-1">
+                  <div className="text-xs font-bold sticky top-0 bg-card py-1">Pilih salah satu ({aiQuestions.length}):</div>
                   {aiQuestions.map((q, i) => (
-                    <div key={i} className="rounded-lg border p-2 space-y-1 hover:border-primary cursor-pointer" onClick={() => useAIQuestion(q)}>
-                      <div className="text-sm font-medium">{q.question}</div>
+                    <div key={i} className="rounded-lg border p-2 space-y-1 hover:border-primary cursor-pointer transition-colors" onClick={() => useAIQuestion(q)}>
+                      <div className="text-sm font-medium">{i + 1}. {q.question}</div>
                       <div className="text-xs text-muted-foreground">Jawaban: {q.answers.join(", ")}</div>
                       <Button size="sm" variant="outline" className="h-6 text-[10px]">Gunakan</Button>
                     </div>
@@ -364,7 +479,7 @@ const QuizManager = () => {
         {history.length === 0 ? (
           <p className="text-sm text-muted-foreground">Belum ada quiz selesai.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
             {history.map((q) => (
               <div key={q.id} className="rounded-lg border p-3 text-sm space-y-1">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
