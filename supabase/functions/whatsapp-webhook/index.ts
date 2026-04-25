@@ -1450,7 +1450,7 @@ async function collectShowBuyerPhones(supabase: any, showId: string): Promise<st
     .from('coin_transactions').select('user_id')
     .eq('reference_id', showId)
     .in('type', ['redeem', 'replay_redeem']);
-  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))];
+  const coinUserIds = [...new Set((coinTxns || []).map((t: any) => t.user_id))] as string[];
 
   // 3. Get phone from coin_orders for coin buyers
   if (coinUserIds.length > 0) {
@@ -1879,7 +1879,7 @@ async function handleMsgMembers(supabase: any, message: string): Promise<string>
 
     if (!orders || orders.length === 0) return '⚠️ Tidak ada member untuk dikirimi pesan.';
 
-    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))];
+    const phones = [...new Set(orders.map((o: any) => o.phone).filter(Boolean))] as string[];
     if (phones.length === 0) return '⚠️ Tidak ada nomor HP member yang tersedia.';
 
     const FONNTE_TOKEN = Deno.env.get('FONNTE_API_TOKEN');
