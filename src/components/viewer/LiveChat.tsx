@@ -28,7 +28,31 @@ interface ChatMessage {
   is_deleted: boolean;
   token_id: string | null;
   created_at: string;
+  ai_tag?: string | null;
+  ai_tag_confidence?: number | null;
 }
+
+const TAG_META: Record<string, { label: string; emoji: string; cls: string }> = {
+  question: { label: "TANYA", emoji: "❓", cls: "border-yellow-400/50 bg-yellow-400/10 text-yellow-400" },
+  support: { label: "SUPPORT", emoji: "💚", cls: "border-green-400/50 bg-green-400/10 text-green-400" },
+  spam: { label: "SPAM", emoji: "🚫", cls: "border-orange-400/50 bg-orange-400/10 text-orange-400" },
+  toxic: { label: "TOXIC", emoji: "⚠️", cls: "border-red-500/60 bg-red-500/10 text-red-400" },
+};
+
+const AITagBadge = ({ tag, confidence }: { tag?: string | null; confidence?: number | null }) => {
+  if (!tag || tag === "normal") return null;
+  if (typeof confidence === "number" && confidence < 0.6) return null;
+  const meta = TAG_META[tag];
+  if (!meta) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded border px-1 py-0.5 text-[8px] font-black tracking-wider ${meta.cls}`}
+      title={`AI: ${tag} (${Math.round((confidence || 0) * 100)}%)`}
+    >
+      {meta.emoji}{meta.label}
+    </span>
+  );
+};
 
 const AdminBadge = () => (
   <span className="inline-flex items-center gap-0.5 rounded-md bg-gradient-to-r from-yellow-500/20 via-amber-400/20 to-yellow-600/20 border border-yellow-500/40 px-1.5 py-0.5 text-[9px] font-black tracking-wider text-yellow-400 shadow-[0_0_6px_hsl(45,100%,50%,0.2)]">
