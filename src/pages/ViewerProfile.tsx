@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
+import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -455,6 +456,7 @@ const ViewerProfile = () => {
           </Button>
         </motion.div>
       </div>
+      <MobileBottomNav />
     </div>
   );
 };
