@@ -20,6 +20,7 @@ interface CoinPackage { id: string; name: string; coin_amount: number; price: st
 
 const CoinShop = () => {
   const { isBanned, banReason, signOut } = useProtectedAuth();
+  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState("");
   const [balance, setBalance] = useState(0);

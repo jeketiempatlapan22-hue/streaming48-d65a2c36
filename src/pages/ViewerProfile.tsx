@@ -20,6 +20,7 @@ const UserTransactionHistory = lazy(() => import("@/components/viewer/UserTransa
 
 const ViewerProfile = () => {
   const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
+  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
   const [username, setUsername] = useState("");
   const [originalUsername, setOriginalUsername] = useState("");
   const [balance, setBalance] = useState(0);
