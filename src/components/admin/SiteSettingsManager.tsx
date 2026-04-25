@@ -1,9 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Upload, Loader2, Trash2 } from "lucide-react";
+
+const HERO_VIDEO_BUCKET = "hero-videos";
+const HERO_VIDEO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const HERO_VIDEO_ALLOWED = ["video/mp4", "video/webm", "video/quicktime"];
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
