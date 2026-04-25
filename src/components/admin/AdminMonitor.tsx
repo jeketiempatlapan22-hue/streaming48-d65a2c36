@@ -4,7 +4,9 @@ const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 import LiveChat from "@/components/viewer/LiveChat";
 import ChatModeratorManager from "@/components/admin/ChatModeratorManager";
 import PollManager from "@/components/admin/PollManager";
+import QuizManager from "@/components/admin/QuizManager";
 import LivePoll from "@/components/viewer/LivePoll";
+import LiveQuizSlot from "@/components/viewer/LiveQuizSlot";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useAdminSignedStreamUrl } from "@/hooks/useAdminSignedStreamUrl";
@@ -185,8 +187,8 @@ const AdminMonitor = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-foreground">📺 Monitor & Poll</h2>
-          <p className="text-sm text-muted-foreground">Preview player admin, chat, dan pantau viewer secara realtime.</p>
+          <h2 className="text-xl font-bold text-foreground">📺 Monitor, Poll & Quiz</h2>
+          <p className="text-sm text-muted-foreground">Preview player, chat, poll, dan quiz live secara realtime dalam satu halaman.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <LiveViewerCount isLive={stream?.is_live || false} readOnly />
@@ -291,6 +293,27 @@ const AdminMonitor = () => {
           <div className="rounded-xl border border-border bg-card p-2">
             <LivePoll voterId="admin-preview" />
             <p className="mt-2 text-center text-xs text-muted-foreground italic">Preview poll aktif saat ini</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <h3 className="text-lg font-bold text-foreground">🏆 Live Quiz</h3>
+            <p className="text-xs text-muted-foreground">Atur pertanyaan, lihat preview viewer, dan pantau jawaban masuk secara langsung.</p>
+          </div>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
+          <div className="min-w-0">
+            <QuizManager />
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preview Quiz (tampilan user)</h4>
+            <div className="rounded-xl border border-border bg-background/40 p-2 min-h-[200px]">
+              <LiveQuizSlot />
+              <p className="mt-2 text-center text-[10px] text-muted-foreground italic">Sinkron realtime dengan quiz aktif. Pemenang akan otomatis tampil di sini.</p>
+            </div>
           </div>
         </div>
       </div>
