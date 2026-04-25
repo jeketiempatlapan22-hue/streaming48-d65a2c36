@@ -300,23 +300,22 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   const accessOpens = showStart ? showStart - 2 * 60 * 60 * 1000 : null;
                   const isTooEarly = accessOpens ? Date.now() < accessOpens : false;
 
-                  if (isTooEarly && showStart) {
-                    const countdownText = countdown
-                      ? countdown.d > 0
-                        ? `${countdown.d}h ${countdown.h}j ${countdown.m}m`
-                        : `${countdown.h.toString().padStart(2,"0")}:${countdown.m.toString().padStart(2,"0")}:${countdown.s.toString().padStart(2,"0")}`
-                      : "";
-                    return (
-                      <div className="rounded-lg border border-muted bg-muted/30 p-3 text-center space-y-1.5">
-                        <p className="text-[10px] text-muted-foreground">⏳ Menunggu Live</p>
-                        <p className="font-mono text-xl font-bold text-primary">{countdownText}</p>
-                        <p className="text-[9px] text-muted-foreground">{show.schedule_date} • {show.schedule_time} WIB</p>
-                      </div>
-                    );
-                  }
+                  const countdownText = countdown && !countdown.live
+                    ? countdown.d > 0
+                      ? `${countdown.d}h ${countdown.h}j ${countdown.m}m`
+                      : `${countdown.h.toString().padStart(2,"0")}:${countdown.m.toString().padStart(2,"0")}:${countdown.s.toString().padStart(2,"0")}`
+                    : "";
 
                   return (
                     <>
+                      {isTooEarly && showStart && countdownText && (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center space-y-0.5">
+                          <p className="text-[9px] text-muted-foreground flex items-center justify-center gap-1">
+                            <Timer className="h-2.5 w-2.5 text-primary animate-pulse" /> Show dimulai dalam
+                          </p>
+                          <p className="font-mono text-base font-bold text-primary tabular-nums">{countdownText}</p>
+                        </div>
+                      )}
                       <a
                         href={`/live?t=${redeemedToken}`}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90"
