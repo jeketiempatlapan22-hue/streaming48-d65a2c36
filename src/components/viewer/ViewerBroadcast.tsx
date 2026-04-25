@@ -22,13 +22,17 @@ const ViewerBroadcast = () => {
       }
     }, 1000);
 
-    // Listen for new broadcasts in real-time
+    // Listen for new broadcasts AND deletions in real-time
     const ch = supabase
       .channel("viewer-broadcasts")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "admin_notifications" }, (payload: any) => {
         if (payload.new?.type === "broadcast" && !dismissed.has(payload.new.id)) {
           setNotification(payload.new);
         }
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "admin_notifications" }, (payload: any) => {
+        // When admin deletes a broadcast, hide it immediately if currently shown
+        setNotification((curr) => (curr && payload.old?.id === curr.id ? null : curr));
       })
       .subscribe();
 
