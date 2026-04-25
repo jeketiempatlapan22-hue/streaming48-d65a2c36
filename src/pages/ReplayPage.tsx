@@ -681,6 +681,7 @@ const ReplayPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <MobileBottomNav />
     </div>
   );
 };
