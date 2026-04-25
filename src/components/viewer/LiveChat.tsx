@@ -191,6 +191,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   // Track whether user is scrolled to bottom (so we don't yank them down)
   const isAtBottomRef = useRef(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const { activeQuiz, checkAttemptStatus } = useLiveQuiz();
 
   const isChatMod = chatModUsernames.has(username);
 
