@@ -23,6 +23,7 @@ const MembershipPage = lazy(() => import("./pages/MembershipPage"));
 const FaqPage = lazy(() => import("./pages/FaqPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const ResellerPage = lazy(() => import("./pages/ResellerPage"));
+const RestreamPage = lazy(() => import("./pages/RestreamPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -106,9 +107,10 @@ const MaintenanceGate = ({ children }: { children: React.ReactNode }) => {
   // Still loading
   if (maintenance === null) return <PageLoader />;
 
-  // Admin routes always pass through
+  // Admin routes always pass through; restream stays available for partners.
   const isAdminRoute = location.pathname.startsWith("/adpan");
-  if (maintenance && !isAdminRoute) {
+  const isRestreamRoute = location.pathname.startsWith("/restream");
+  if (maintenance && !isAdminRoute && !isRestreamRoute) {
     return <MaintenancePage message={maintenanceMsg} />;
   }
 
@@ -165,6 +167,7 @@ const App = () => {
                   <Route path="/faq" element={<FaqPage />} />
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/reseller" element={<ResellerPage />} />
+                  <Route path="/restream" element={<RestreamPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

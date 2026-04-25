@@ -582,7 +582,7 @@ Deno.serve(async (req) => {
     // ===== MODE: generate (POST) =====
     if (req.method === "POST" && (!mode || mode === "generate")) {
       const body = await req.json();
-      const { token_code, playlist_id, fingerprint, admin_preview } = body;
+      const { token_code, playlist_id, fingerprint, admin_preview, restream_code } = body;
 
       // Strict rate limit: 30 generate requests per minute per IP
       // Each viewer refreshes every ~12 min, so 30/min supports ~360 viewers per IP
@@ -623,6 +623,60 @@ Deno.serve(async (req) => {
           );
         }
         // Admin is verified — skip token validation, proceed to playlist lookup below
+      } else if (restream_code) {
+        // --- RESTREAM CODE MODE ---
+        // Public restream page: validated by a code from restream_codes table.
+        // Playlist must have is_restream = true to be playable via this path.
+        if (!playlist_id) {
+          return new Response(
+            JSON.stringify({ error: "Missing playlist_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (typeof restream_code !== "string" || restream_code.length === 0 || restream_code.length > 200) {
+          trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: "Invalid restream code" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playlist_id)) {
+          trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: "Invalid playlist ID" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const supabaseRs = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+        // 1) Validate restream code via SECURITY DEFINER RPC
+        const { data: rsValidation, error: rsErr } = await supabaseRs.rpc("validate_restream_code", { _code: restream_code });
+        if (rsErr || !(rsValidation as any)?.valid) {
+          trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: "Kode restream tidak valid atau dinonaktifkan" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // 2) Playlist must be flagged is_restream = true
+        const { data: rsPlaylist } = await supabaseRs
+          .from("playlists")
+          .select("id, is_restream, is_active")
+          .eq("id", playlist_id)
+          .maybeSingle();
+        if (!rsPlaylist || !(rsPlaylist as any).is_restream || !(rsPlaylist as any).is_active) {
+          return new Response(
+            JSON.stringify({ error: "Playlist ini tidak tersedia di halaman restream" }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // 3) Bump usage timestamp (best-effort, don't block playback on failure)
+        try { await supabaseRs.rpc("touch_restream_code_usage", { _code: restream_code }); } catch { /* silent */ }
+
+        // Restream is verified — proceed to playlist lookup below
       } else {
         // --- NORMAL VIEWER MODE ---
         if (!token_code || !playlist_id) {
