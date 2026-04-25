@@ -71,8 +71,8 @@ Deno.serve(async (req) => {
               results.errors.push(`coin ${order.id}: ${delErr.message}`);
             }
           }
-        } catch (e) {
-          results.errors.push(`coin ${order.id}: ${e.message}`);
+        } catch (e: any) {
+          results.errors.push(`coin ${order.id}: ${e?.message ?? String(e)}`);
         }
       }
     }
@@ -99,8 +99,8 @@ Deno.serve(async (req) => {
               results.errors.push(`sub ${order.id}: ${delErr.message}`);
             }
           }
-        } catch (e) {
-          results.errors.push(`sub ${order.id}: ${e.message}`);
+        } catch (e: any) {
+          results.errors.push(`sub ${order.id}: ${e?.message ?? String(e)}`);
         }
       }
     }
@@ -110,8 +110,8 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true, ...results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
+  } catch (error: any) {
+    return new Response(JSON.stringify({ success: false, error: error?.message ?? String(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
