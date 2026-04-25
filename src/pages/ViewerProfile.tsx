@@ -177,6 +177,69 @@ const ViewerProfile = () => {
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-[hsl(var(--success))]">{tokens.filter(t => t.status === "active").length}</p><p className="text-[10px] text-muted-foreground">Token Aktif</p></div>
         </motion.div>
 
+        {/* Token Live Aktif — quick-access list of all live tokens with show name */}
+        {(() => {
+          const liveTokens = tokens.filter((t: any) => {
+            if (t.status !== "active") return false;
+            if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return false;
+            return true;
+          });
+          if (liveTokens.length === 0) return null;
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 }}
+              className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/5 p-4 space-y-3"
+            >
+              <div className="flex items-center gap-2">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                <h3 className="text-xs font-bold text-foreground">Akses Live Aktif ({liveTokens.length})</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground -mt-1">
+                Token yang Anda miliki — klik <span className="text-primary font-semibold">Tonton Live</span> untuk masuk ke ruang siaran.
+              </p>
+              <div className="space-y-2">
+                {liveTokens.map((t: any) => {
+                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const showTitle = (t.show_id && showTitles[t.show_id]) || "Show";
+                  return (
+                    <div key={`live-${t.id}`} className="rounded-lg bg-background/60 border border-border/50 p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-foreground truncate">{showTitle}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">{t.code}</p>
+                        </div>
+                        <span className="shrink-0 rounded bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] text-[10px] font-bold px-2 py-0.5">
+                          Aktif
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-8 gap-1.5 text-xs"
+                          onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2"
+                          onClick={() => copyText(liveLink)}
+                          title="Salin link"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          );
+        })()}
+
         {/* Membership/Bundle Duration Card */}
         {(() => {
           const membershipTokens = tokens.filter((t: any) => {
