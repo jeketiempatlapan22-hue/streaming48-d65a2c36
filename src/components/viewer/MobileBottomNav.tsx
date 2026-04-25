@@ -61,6 +61,7 @@ const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = nu
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
+  const { isLoggedIn, avatarUrl, username } = useProfileAvatar();
 
   if (loading) return <MobileBottomNavSkeleton />;
 
