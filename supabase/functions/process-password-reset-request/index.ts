@@ -45,7 +45,7 @@ function normalizePhone(raw: string | null | undefined) {
 }
 
 async function pickRecentPhone(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   table: "password_reset_requests" | "coin_orders" | "subscription_orders",
   userId: string,
 ) {
@@ -67,7 +67,7 @@ async function pickRecentPhone(
 }
 
 async function resolvePhone(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   request: { user_id: string; phone: string | null; identifier: string },
 ) {
   const immediateCandidates = [
