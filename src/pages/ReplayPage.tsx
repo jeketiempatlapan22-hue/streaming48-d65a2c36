@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
+import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import { useToast } from "@/hooks/use-toast";
