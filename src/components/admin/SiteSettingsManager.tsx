@@ -24,7 +24,105 @@ const settingsKeys = [
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
+
+  const saveValueImmediate = async (key: string, value: string) => {
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ key, value }, { onConflict: "key" });
+    if (error) throw error;
+  };
+
+  const extractStoragePath = (publicUrl: string): string | null => {
+    // .../storage/v1/object/public/hero-videos/<path>
+    const marker = `/storage/v1/object/public/${HERO_VIDEO_BUCKET}/`;
+    const idx = publicUrl.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(publicUrl.slice(idx + marker.length));
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    if (!HERO_VIDEO_ALLOWED.includes(file.type)) {
+      toast({
+        title: "Format tidak didukung",
+        description: "Gunakan MP4, WebM, atau MOV.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > HERO_VIDEO_MAX_BYTES) {
+      toast({
+        title: "Ukuran terlalu besar",
+        description: `Maksimal 10 MB. File Anda ${(file.size / 1024 / 1024).toFixed(1)} MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingVideo(true);
+    setUploadProgress(10);
+    try {
+      // Hapus video lama jika berasal dari bucket ini agar tidak menumpuk storage
+      const previous = values.hero_video_url || "";
+      const previousPath = previous ? extractStoragePath(previous) : null;
+
+      const ext = file.name.split(".").pop()?.toLowerCase() || "mp4";
+      const path = `hero/${Date.now()}.${ext}`;
+
+      setUploadProgress(30);
+      const { error: upErr } = await supabase.storage
+        .from(HERO_VIDEO_BUCKET)
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+          upsert: false,
+        });
+      if (upErr) throw upErr;
+
+      setUploadProgress(70);
+      const { data: pub } = supabase.storage.from(HERO_VIDEO_BUCKET).getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      await saveValueImmediate("hero_video_url", publicUrl);
+      setValues((p) => ({ ...p, hero_video_url: publicUrl }));
+
+      // Best-effort cleanup file lama
+      if (previousPath) {
+        supabase.storage.from(HERO_VIDEO_BUCKET).remove([previousPath]).catch(() => {});
+      }
+
+      setUploadProgress(100);
+      toast({ title: "🎬 Video berhasil diupload", description: "URL otomatis tersimpan." });
+    } catch (e: any) {
+      toast({
+        title: "Upload gagal",
+        description: e?.message || "Coba lagi atau gunakan URL eksternal.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingVideo(false);
+      setTimeout(() => setUploadProgress(0), 800);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveUploadedVideo = async () => {
+    const current = values.hero_video_url || "";
+    const path = extractStoragePath(current);
+    try {
+      if (path) {
+        await supabase.storage.from(HERO_VIDEO_BUCKET).remove([path]);
+      }
+      await saveValueImmediate("hero_video_url", "");
+      setValues((p) => ({ ...p, hero_video_url: "" }));
+      toast({ title: "Video dihapus" });
+    } catch (e: any) {
+      toast({ title: "Gagal menghapus", description: e?.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
