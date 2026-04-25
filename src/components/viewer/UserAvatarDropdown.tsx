@@ -237,9 +237,9 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
             aria-label="Menu pengguna"
           >
             {avatarUrl ? (
-              <img src={avatarUrl} alt={username || "User"} className="h-full w-full object-cover" />
+              <img src={avatarUrl} alt={displayUsername || "User"} className="h-full w-full object-cover" />
             ) : (
-              <span className="text-xs font-bold">{getInitial(username)}</span>
+              <span className="text-xs font-bold">{getInitial(displayUsername)}</span>
             )}
           </button>
         </DropdownMenuTrigger>
@@ -247,13 +247,13 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
           <DropdownMenuLabel className="flex items-center gap-2.5 py-2.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden border border-primary/30 bg-primary/10 shrink-0">
               {avatarUrl ? (
-                <img src={avatarUrl} alt={username || "User"} className="h-full w-full object-cover" />
+                <img src={avatarUrl} alt={displayUsername || "User"} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-sm font-bold text-primary">{getInitial(username)}</span>
+                <span className="text-sm font-bold text-primary">{getInitial(displayUsername)}</span>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{username || "User"}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{displayUsername || "User"}</p>
               <div className="flex items-center gap-1 mt-0.5">
                 <Coins className="h-3 w-3 text-[hsl(var(--warning))]" />
                 <span className="text-[11px] font-bold text-[hsl(var(--warning))]">{coinBalance} Koin</span>
