@@ -98,5 +98,36 @@ export const useLiveQuiz = () => {
     };
   }, []);
 
-  return { activeQuiz, winners, refresh: loadActive };
+  const checkAttemptStatus = async (quizId: string) => {
+    const { data, error } = await supabase.rpc("get_quiz_attempt_status", { _quiz_id: quizId } as any);
+    if (error) return null;
+    return data as {
+      can_submit: boolean;
+      reason?: string;
+      reset_at?: string;
+      reset_in_ms?: number;
+      recent_attempts?: number;
+      cooldown_max?: number;
+      total_attempts?: number;
+      hard_limit?: number;
+      winner_count?: number;
+      max_winners?: number;
+      remaining_total?: number;
+      remaining_window?: number;
+    } | null;
+  };
+
+  return { activeQuiz, winners, refresh: loadActive, checkAttemptStatus };
+};
+
+// Helper normalisasi sama seperti di DB (lower + strip non-alphanum)
+export const normalizeAnswer = (s: string) =>
+  (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+// Cek apakah pesan terlihat seperti jawaban quiz aktif
+export const isLikelyQuizAnswer = (message: string, quiz: ActiveQuiz | null) => {
+  if (!quiz) return false;
+  const norm = normalizeAnswer(message);
+  if (!norm || norm.length > 60) return false;
+  return quiz.answers.some((a) => normalizeAnswer(a) === norm);
 };
