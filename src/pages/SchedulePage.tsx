@@ -613,7 +613,11 @@ const SchedulePage = () => {
           </div>
         </DialogContent>
       </Dialog>
-      <MobileBottomNav isLive={isStreamLive} loading={loading} />
+      <MobileBottomNav
+        isLive={isStreamLive}
+        loading={loading}
+        liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+      />
     </div>
   );
 };

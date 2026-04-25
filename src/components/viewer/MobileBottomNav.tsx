@@ -1,10 +1,13 @@
 import { Home, Tv, PlayCircle, Coins, User } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 
 interface MobileBottomNavProps {
   isLive?: boolean;
   loading?: boolean;
+  /** Token valid milik user untuk show yang sedang live (jika ada) */
+  liveAccessToken?: string | null;
 }
 
 /**
@@ -37,20 +40,47 @@ export const MobileBottomNavSkeleton = () => {
   );
 };
 
-const items = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  match: (p: string) => boolean;
+  highlight?: "live";
+};
+
+const items: NavItem[] = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" },
-  { href: "/live", label: "Live", icon: Tv, match: (p: string) => p.startsWith("/live"), highlight: "live" as const },
+  { href: "/live", label: "Live", icon: Tv, match: (p: string) => p.startsWith("/live"), highlight: "live" },
   { href: "/replay", label: "Replay", icon: PlayCircle, match: (p: string) => p.startsWith("/replay") },
   { href: "/coins", label: "Koin", icon: Coins, match: (p: string) => p.startsWith("/coins") },
   { href: "/profile", label: "Profil", icon: User, match: (p: string) => p.startsWith("/profile") },
 ];
 
-const MobileBottomNav = ({ isLive = false, loading = false }: MobileBottomNavProps) => {
+const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = null }: MobileBottomNavProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const path = location.pathname;
 
   if (loading) return <MobileBottomNavSkeleton />;
 
+  const handleLiveClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    if (!isLive) {
+      toast.info("Belum ada show yang sedang live", {
+        description: "Cek jadwal show terbaru di halaman utama.",
+      });
+      navigate("/");
+      return;
+    }
+    if (!liveAccessToken) {
+      toast.error("Akses ditolak", {
+        description: "Kamu belum membeli show yang sedang live. Silakan beli terlebih dahulu.",
+      });
+      navigate("/");
+      return;
+    }
+    navigate(`/live?t=${encodeURIComponent(liveAccessToken)}`);
+  };
 
   return (
     <>
@@ -65,15 +95,27 @@ const MobileBottomNav = ({ isLive = false, loading = false }: MobileBottomNavPro
           {items.map((item) => {
             const active = item.match(path);
             const Icon = item.icon;
-            const showLiveDot = item.highlight === "live" && isLive;
+            const isLiveItem = item.highlight === "live";
+            const showLiveDot = isLiveItem && isLive;
+            const hasLiveAccess = isLiveItem && isLive && !!liveAccessToken;
             return (
               <li key={item.href}>
                 <a
                   href={item.href}
+                  onClick={isLiveItem ? handleLiveClick : undefined}
                   className={`relative flex flex-col items-center justify-center gap-0.5 py-2 transition-all active:scale-95 ${
                     active ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   }`}
                   aria-current={active ? "page" : undefined}
+                  aria-label={
+                    isLiveItem
+                      ? isLive
+                        ? hasLiveAccess
+                          ? "Tonton live sekarang"
+                          : "Live sedang berlangsung — beli akses dulu"
+                        : "Live (tidak ada show aktif)"
+                      : item.label
+                  }
                 >
                   {active && (
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />

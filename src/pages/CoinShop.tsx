@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
+import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { useNavigate } from "react-router-dom";
 import { compressImage } from "@/lib/imageCompressor";
 import logo from "@/assets/logo.png";
@@ -19,6 +20,7 @@ interface CoinPackage { id: string; name: string; coin_amount: number; price: st
 
 const CoinShop = () => {
   const { isBanned, banReason, signOut } = useProtectedAuth();
+  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
   const [user, setUser] = useState<any>(null);
   const [username, setUsername] = useState("");
   const [balance, setBalance] = useState(0);
@@ -552,7 +554,7 @@ const CoinShop = () => {
           )}
         </DialogContent>
       </Dialog>
-      <MobileBottomNav />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
+import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,7 @@ const isShowPastSchedule = (show: Show) => {
 
 const ReplayPage = () => {
   const { toast } = useToast();
+  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
   const [shows, setShows] = useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -681,7 +683,7 @@ const ReplayPage = () => {
           </div>
         </DialogContent>
       </Dialog>
-      <MobileBottomNav />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
     </div>
   );
 };
