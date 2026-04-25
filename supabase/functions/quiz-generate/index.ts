@@ -30,15 +30,21 @@ Deno.serve(async (req) => {
     if (!isAdmin) return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const body = await req.json();
-    const theme = String(body.theme || "Umum").slice(0, 80);
+    const theme = String(body.theme || "JKT48").slice(0, 80);
     const difficulty = ["mudah", "sedang", "sulit"].includes(body.difficulty) ? body.difficulty : "sedang";
-    const count = Math.max(1, Math.min(5, Number(body.count) || 3));
+    // Naikkan batas dari 5 ke 15 agar admin punya banyak pilihan
+    const count = Math.max(1, Math.min(15, Number(body.count) || 10));
     const customPrompt = body.custom_prompt ? String(body.custom_prompt).slice(0, 300) : "";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) return new Response(JSON.stringify({ error: "missing key" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const sys = `Anda adalah generator pertanyaan quiz live streaming dalam Bahasa Indonesia. Buat pertanyaan singkat (maks 120 karakter) dengan jawaban SATU KATA atau frasa pendek (maks 30 karakter) yang mudah diketik di chat. Berikan beberapa variasi jawaban yang valid (misal singkatan, sinonim, alternatif penulisan). Tema: ${theme}. Tingkat kesulitan: ${difficulty}. ${customPrompt ? `Instruksi tambahan: ${customPrompt}` : ""}`;
+    const isJKT48 = /jkt\s*48/i.test(theme);
+    const jkt48Hint = isJKT48
+      ? `Fokus pada JKT48 (idol grup Indonesia): nama member aktif & alumni, lagu/single (contoh: River, Heavy Rotation, Refrain Penuh Harapan, Rapsodi, Indahnya Senyum Manismu Itu, Pajama Drive, Saikou Kayo), generasi (Gen 1-13), kapten/wakil kapten, theater Senayan City, single ke berapa, MV, formasi senbatsu, sister group (AKB48/SNH48/BNK48/MNL48), kepanjangan JKT48, tahun debut (2011), oshi, handshake, sousenkyo, graduation, dll. Gunakan trivia BERAGAM agar tidak monoton dan menarik untuk fans.`
+      : "";
+
+    const sys = `Anda adalah generator pertanyaan quiz live streaming Bahasa Indonesia. Buat pertanyaan SINGKAT (maks 120 karakter) dengan jawaban SATU KATA atau frasa pendek (maks 30 karakter) yang mudah diketik di chat. Berikan 2-5 variasi jawaban valid (singkatan, sinonim, alternatif penulisan, dengan/tanpa kapital). Tema: ${theme}. Tingkat kesulitan: ${difficulty}. ${jkt48Hint} ${customPrompt ? `Instruksi tambahan: ${customPrompt}` : ""} Hindari pertanyaan dengan jawaban panjang/kalimat. Jangan ulangi tipe pertanyaan yang sama, variasikan: trivia, tebak lagu, tebak member, tebak tahun, tebak kepanjangan, dll.`;
 
     const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
