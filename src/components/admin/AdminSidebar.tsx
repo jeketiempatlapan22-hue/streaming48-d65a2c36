@@ -24,6 +24,7 @@ const sections = [
   { id: "health", label: "System Health", icon: Activity },
   { id: "logs", label: "Live Logs", icon: ScrollText },
   { id: "monitor", label: "Monitor & Poll", icon: Monitor },
+  { id: "restream", label: "Halaman Restream", icon: Tv2 },
   { id: "site", label: "Pengaturan", icon: Settings },
   { id: "moderators", label: "Akun Moderator", icon: UsersRound },
   { id: "resellers", label: "Reseller", icon: ShoppingBag },
