@@ -627,6 +627,35 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempts: {
+        Row: {
+          attempted_at: string
+          id: string
+          quiz_id: string
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          id?: string
+          quiz_id: string
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          id?: string
+          quiz_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "live_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quiz_winners: {
         Row: {
           answered_at: string
