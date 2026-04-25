@@ -38,6 +38,7 @@ const MemberPhotoManager = lazy(() => import("@/components/admin/MemberPhotoMana
 const ResellerManager = lazy(() => import("@/components/admin/ResellerManager"));
 const ResellerAuditLog = lazy(() => import("@/components/admin/ResellerAuditLog"));
 const ManualTokenGenerator = lazy(() => import("@/components/admin/ManualTokenGenerator"));
+const RestreamManager = lazy(() => import("@/components/admin/RestreamManager"));
 
 /** Safe race: returns result or fallback after timeout */
 async function raceTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
@@ -187,6 +188,7 @@ const AdminDashboard = () => {
       case "health": return <SystemHealthCheck />;
       case "logs": return <AdminLiveLogs />;
       case "monitor": return <AdminMonitor />;
+      case "restream": return <RestreamManager />;
       case "site": return (
         <div className="space-y-6">
           <SiteSettingsManager />
