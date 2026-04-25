@@ -24,6 +24,7 @@ const ViewerProfile = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [subOrders, setSubOrders] = useState<any[]>([]);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [showTitles, setShowTitles] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "stats">("history");
