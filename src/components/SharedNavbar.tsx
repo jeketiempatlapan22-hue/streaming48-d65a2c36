@@ -155,10 +155,18 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
 
                 <ScrollArea className="flex-1 px-6 pb-6">
                   {coinUser ? (
-                    <div className="mt-2 rounded-xl border border-border bg-background p-4">
+                    <a
+                      href="/profile"
+                      onClick={() => setSheetOpen(false)}
+                      className="mt-2 block rounded-xl border border-border bg-background p-4 transition hover:border-primary/40 hover:bg-primary/5"
+                    >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          <User className="h-5 w-5 text-primary" />
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 border-primary/30 bg-gradient-to-br from-primary/20 to-accent/20 shrink-0">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={coinUsername || "User"} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-base font-bold text-primary">{userInitial}</span>
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-foreground">{coinUsername || "User"}</p>
@@ -167,7 +175,9 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                             <span className="text-xs font-bold text-[hsl(var(--warning))]">{coinBalance} Koin</span>
                           </div>
                         </div>
+                        <span className="text-[10px] font-semibold text-primary">Lihat Profil →</span>
                       </div>
+                    </a>
                       <div className="mt-3 flex gap-2">
                         <a href="/coins" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-2 text-xs font-semibold text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning))]/20 transition">
                           <Coins className="h-3.5 w-3.5" /> Coin Shop
