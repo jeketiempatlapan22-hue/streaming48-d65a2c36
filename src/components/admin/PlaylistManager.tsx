@@ -165,6 +165,17 @@ const PlaylistManager = () => {
                     toast({ title: checked ? `✅ ${p.title} diaktifkan` : `⏸️ ${p.title} dinonaktifkan` });
                   }}
                 />
+                <div className="flex flex-col items-center gap-0.5">
+                  <Switch
+                    checked={!!p.is_restream}
+                    onCheckedChange={async (checked) => {
+                      await supabase.from("playlists").update({ is_restream: checked }).eq("id", p.id);
+                      await fetchPlaylists();
+                      toast({ title: checked ? `📺 ${p.title} masuk halaman restream` : `🚫 ${p.title} keluar dari restream` });
+                    }}
+                  />
+                  <span className="text-[9px] text-muted-foreground uppercase tracking-wide">Restream</span>
+                </div>
                 <Button variant="ghost" size="icon" onClick={() => startEdit(p)}><Pencil className="h-4 w-4 text-muted-foreground" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => deletePlaylist(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div>
