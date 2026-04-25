@@ -102,7 +102,6 @@ const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroun
         loop
         playsInline
         preload="metadata"
-        // @ts-expect-error - non-standard but harmless on iOS
         disablePictureInPicture
         controls={false}
         poster={poster}
