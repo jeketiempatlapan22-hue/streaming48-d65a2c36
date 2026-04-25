@@ -115,6 +115,8 @@ export type Database = {
       }
       chat_messages: {
         Row: {
+          ai_tag: string | null
+          ai_tag_confidence: number | null
           created_at: string
           id: string
           is_admin: boolean
@@ -126,6 +128,8 @@ export type Database = {
           username: string
         }
         Insert: {
+          ai_tag?: string | null
+          ai_tag_confidence?: number | null
           created_at?: string
           id?: string
           is_admin?: boolean
@@ -137,6 +141,8 @@ export type Database = {
           username: string
         }
         Update: {
+          ai_tag?: string | null
+          ai_tag_confidence?: number | null
           created_at?: string
           id?: string
           is_admin?: boolean
@@ -397,6 +403,60 @@ export type Database = {
         }
         Relationships: []
       }
+      live_quizzes: {
+        Row: {
+          answers: string[]
+          coin_reward: number
+          created_at: string
+          created_by: string | null
+          difficulty: string | null
+          duration_seconds: number
+          ended_at: string | null
+          ends_at: string | null
+          id: string
+          max_winners: number
+          question: string
+          source: string
+          started_at: string | null
+          status: string
+          theme: string | null
+        }
+        Insert: {
+          answers?: string[]
+          coin_reward?: number
+          created_at?: string
+          created_by?: string | null
+          difficulty?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          ends_at?: string | null
+          id?: string
+          max_winners?: number
+          question: string
+          source?: string
+          started_at?: string | null
+          status?: string
+          theme?: string | null
+        }
+        Update: {
+          answers?: string[]
+          coin_reward?: number
+          created_at?: string
+          created_by?: string | null
+          difficulty?: string | null
+          duration_seconds?: number
+          ended_at?: string | null
+          ends_at?: string | null
+          id?: string
+          max_winners?: number
+          question?: string
+          source?: string
+          started_at?: string | null
+          status?: string
+          theme?: string | null
+        }
+        Relationships: []
+      }
       member_photos: {
         Row: {
           created_at: string
@@ -566,6 +626,47 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      quiz_winners: {
+        Row: {
+          answered_at: string
+          coins_awarded: number
+          id: string
+          message_id: string | null
+          quiz_id: string
+          rank: number
+          user_id: string
+          username: string
+        }
+        Insert: {
+          answered_at?: string
+          coins_awarded: number
+          id?: string
+          message_id?: string | null
+          quiz_id: string
+          rank: number
+          user_id: string
+          username: string
+        }
+        Update: {
+          answered_at?: string
+          coins_awarded?: number
+          id?: string
+          message_id?: string | null
+          quiz_id?: string
+          rank?: number
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_winners_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "live_quizzes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rate_limit_violations: {
         Row: {
@@ -1472,6 +1573,10 @@ export type Database = {
       auto_cleanup_chat: { Args: never; Returns: undefined }
       auto_reset_long_token_sessions: { Args: never; Returns: undefined }
       auto_unblock_expired_ips: { Args: never; Returns: undefined }
+      award_quiz_coins: {
+        Args: { _amount: number; _quiz_id: string; _user_id: string }
+        Returns: undefined
+      }
       change_poll_vote: {
         Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
         Returns: undefined
@@ -1503,6 +1608,7 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string; _user_agent: string }
         Returns: Json
       }
+      end_expired_quizzes: { Args: never; Returns: number }
       get_ban_info: { Args: { _user_id: string }; Returns: Json }
       get_chat_messages: {
         Args: { _limit?: number }
@@ -1635,6 +1741,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      normalize_answer: { Args: { t: string }; Returns: string }
       parse_show_datetime: {
         Args: { _date: string; _time: string }
         Returns: string
