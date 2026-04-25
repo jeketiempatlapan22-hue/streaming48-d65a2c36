@@ -40,9 +40,17 @@ export const MobileBottomNavSkeleton = () => {
   );
 };
 
-const items = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof Home;
+  match: (p: string) => boolean;
+  highlight?: "live";
+};
+
+const items: NavItem[] = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" },
-  { href: "/live", label: "Live", icon: Tv, match: (p: string) => p.startsWith("/live"), highlight: "live" as const },
+  { href: "/live", label: "Live", icon: Tv, match: (p: string) => p.startsWith("/live"), highlight: "live" },
   { href: "/replay", label: "Replay", icon: PlayCircle, match: (p: string) => p.startsWith("/replay") },
   { href: "/coins", label: "Koin", icon: Coins, match: (p: string) => p.startsWith("/coins") },
   { href: "/profile", label: "Profil", icon: User, match: (p: string) => p.startsWith("/profile") },
