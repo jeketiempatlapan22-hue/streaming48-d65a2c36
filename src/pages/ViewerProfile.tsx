@@ -149,7 +149,12 @@ const ViewerProfile = () => {
     return <span className={`text-xs font-bold px-2 py-0.5 rounded ${map[status] || "bg-muted text-muted-foreground"}`}>{label[status] || status}</span>;
   };
 
-  if (loading) return <ProfileSkeleton />;
+  if (loading) return (
+    <>
+      <ProfileSkeleton />
+      <MobileBottomNav loading />
+    </>
+  );
   if (isBanned) return <BannedScreen reason={banReason} onSignOut={authSignOut} />;
 
   return (

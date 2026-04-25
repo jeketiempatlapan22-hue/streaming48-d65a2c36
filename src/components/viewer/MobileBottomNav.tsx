@@ -1,9 +1,41 @@
 import { Home, Tv, PlayCircle, Coins, User } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface MobileBottomNavProps {
   isLive?: boolean;
+  loading?: boolean;
 }
+
+/**
+ * Skeleton/placeholder version of MobileBottomNav.
+ * Memiliki dimensi & struktur identik dengan bar asli sehingga tidak
+ * menimbulkan layout shift ketika halaman masih loading.
+ */
+export const MobileBottomNavSkeleton = () => {
+  return (
+    <>
+      <div className="h-16 md:hidden" aria-hidden="true" />
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-border/60 bg-background/95 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.3)]"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        aria-label="Memuat navigasi"
+        aria-busy="true"
+      >
+        <ul className="grid grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <li key={i}>
+              <div className="flex flex-col items-center justify-center gap-1 py-2">
+                <Skeleton className="h-5 w-5 rounded-md" />
+                <Skeleton className="h-2 w-8 rounded-sm" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </>
+  );
+};
 
 const items = [
   { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" },
@@ -13,9 +45,12 @@ const items = [
   { href: "/profile", label: "Profil", icon: User, match: (p: string) => p.startsWith("/profile") },
 ];
 
-const MobileBottomNav = ({ isLive = false }: MobileBottomNavProps) => {
+const MobileBottomNav = ({ isLive = false, loading = false }: MobileBottomNavProps) => {
   const location = useLocation();
   const path = location.pathname;
+
+  if (loading) return <MobileBottomNavSkeleton />;
+
 
   return (
     <>
