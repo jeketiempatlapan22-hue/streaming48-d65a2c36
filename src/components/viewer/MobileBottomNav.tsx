@@ -45,9 +45,12 @@ const items = [
   { href: "/profile", label: "Profil", icon: User, match: (p: string) => p.startsWith("/profile") },
 ];
 
-const MobileBottomNav = ({ isLive = false }: MobileBottomNavProps) => {
+const MobileBottomNav = ({ isLive = false, loading = false }: MobileBottomNavProps) => {
   const location = useLocation();
   const path = location.pathname;
+
+  if (loading) return <MobileBottomNavSkeleton />;
+
 
   return (
     <>
