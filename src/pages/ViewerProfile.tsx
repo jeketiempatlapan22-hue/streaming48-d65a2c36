@@ -388,12 +388,17 @@ const ViewerProfile = () => {
               <div className="space-y-2">
                 {tokens.map((t) => {
                   const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const showTitle = (t.show_id && showTitles[t.show_id]) || null;
+                  const isLiveActive = t.status === "active" && (!t.expires_at || new Date(t.expires_at).getTime() > Date.now());
                   return (
                     <div key={t.id} className="rounded-lg bg-background/50 p-3 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
+                          {showTitle && (
+                            <p className="text-xs font-bold text-foreground truncate">{showTitle}</p>
+                          )}
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-mono font-medium text-foreground truncate">{t.code}</p>
+                            <p className="text-[11px] font-mono font-medium text-muted-foreground truncate">{t.code}</p>
                             <button onClick={() => copyText(t.code)} className="text-muted-foreground hover:text-primary active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
                           </div>
                           <p className="text-[10px] text-muted-foreground">
@@ -402,12 +407,21 @@ const ViewerProfile = () => {
                         </div>
                         {statusBadge(t.status)}
                       </div>
-                      {t.status === "active" && (
-                        <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2.5 py-1.5">
-                          <Key className="h-3 w-3 text-primary shrink-0" />
-                          <p className="text-[10px] text-primary font-medium truncate flex-1">{liveLink}</p>
-                          <button onClick={() => copyText(liveLink)} className="text-primary hover:text-primary/80 active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
-                        </div>
+                      {isLiveActive && (
+                        <>
+                          <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2.5 py-1.5">
+                            <Key className="h-3 w-3 text-primary shrink-0" />
+                            <p className="text-[10px] text-primary font-medium truncate flex-1">{liveLink}</p>
+                            <button onClick={() => copyText(liveLink)} className="text-primary hover:text-primary/80 active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 gap-1.5 text-xs"
+                            onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
+                          </Button>
+                        </>
                       )}
                     </div>
                   );
