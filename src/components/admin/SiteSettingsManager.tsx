@@ -1,9 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Upload, Loader2, Trash2 } from "lucide-react";
+
+const HERO_VIDEO_BUCKET = "hero-videos";
+const HERO_VIDEO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const HERO_VIDEO_ALLOWED = ["video/mp4", "video/webm", "video/quicktime"];
 
 const settingsKeys = [
   { key: "site_title", label: "Judul Website", placeholder: "RealTime48 Streaming", type: "input" as const },
@@ -19,7 +24,105 @@ const settingsKeys = [
 const SiteSettingsManager = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
+
+  const saveValueImmediate = async (key: string, value: string) => {
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ key, value }, { onConflict: "key" });
+    if (error) throw error;
+  };
+
+  const extractStoragePath = (publicUrl: string): string | null => {
+    // .../storage/v1/object/public/hero-videos/<path>
+    const marker = `/storage/v1/object/public/${HERO_VIDEO_BUCKET}/`;
+    const idx = publicUrl.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(publicUrl.slice(idx + marker.length));
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    if (!HERO_VIDEO_ALLOWED.includes(file.type)) {
+      toast({
+        title: "Format tidak didukung",
+        description: "Gunakan MP4, WebM, atau MOV.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (file.size > HERO_VIDEO_MAX_BYTES) {
+      toast({
+        title: "Ukuran terlalu besar",
+        description: `Maksimal 10 MB. File Anda ${(file.size / 1024 / 1024).toFixed(1)} MB.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingVideo(true);
+    setUploadProgress(10);
+    try {
+      // Hapus video lama jika berasal dari bucket ini agar tidak menumpuk storage
+      const previous = values.hero_video_url || "";
+      const previousPath = previous ? extractStoragePath(previous) : null;
+
+      const ext = file.name.split(".").pop()?.toLowerCase() || "mp4";
+      const path = `hero/${Date.now()}.${ext}`;
+
+      setUploadProgress(30);
+      const { error: upErr } = await supabase.storage
+        .from(HERO_VIDEO_BUCKET)
+        .upload(path, file, {
+          cacheControl: "31536000",
+          contentType: file.type,
+          upsert: false,
+        });
+      if (upErr) throw upErr;
+
+      setUploadProgress(70);
+      const { data: pub } = supabase.storage.from(HERO_VIDEO_BUCKET).getPublicUrl(path);
+      const publicUrl = pub.publicUrl;
+
+      await saveValueImmediate("hero_video_url", publicUrl);
+      setValues((p) => ({ ...p, hero_video_url: publicUrl }));
+
+      // Best-effort cleanup file lama
+      if (previousPath) {
+        supabase.storage.from(HERO_VIDEO_BUCKET).remove([previousPath]).catch(() => {});
+      }
+
+      setUploadProgress(100);
+      toast({ title: "🎬 Video berhasil diupload", description: "URL otomatis tersimpan." });
+    } catch (e: any) {
+      toast({
+        title: "Upload gagal",
+        description: e?.message || "Coba lagi atau gunakan URL eksternal.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingVideo(false);
+      setTimeout(() => setUploadProgress(0), 800);
+      if (videoFileInputRef.current) videoFileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveUploadedVideo = async () => {
+    const current = values.hero_video_url || "";
+    const path = extractStoragePath(current);
+    try {
+      if (path) {
+        await supabase.storage.from(HERO_VIDEO_BUCKET).remove([path]);
+      }
+      await saveValueImmediate("hero_video_url", "");
+      setValues((p) => ({ ...p, hero_video_url: "" }));
+      toast({ title: "Video dihapus" });
+    } catch (e: any) {
+      toast({ title: "Gagal menghapus", description: e?.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -331,6 +434,57 @@ const SiteSettingsManager = () => {
             Video otomatis muted, loop, mulai dari kualitas ringan, dan berhenti saat tidak terlihat.
           </p>
         </div>
+        {/* Upload langsung — otomatis jadi URL publik */}
+        <div className="rounded-lg border border-dashed border-primary/40 bg-background/50 p-3 space-y-2">
+          <label className="block text-xs font-semibold text-foreground">📤 Upload Video (otomatis jadi URL)</label>
+          <p className="text-[11px] text-muted-foreground">
+            MP4 / WebM / MOV, maksimal <strong>10 MB</strong>. Setelah upload, URL terisi otomatis dan video lama (jika ada) akan dihapus.
+          </p>
+          <input
+            ref={videoFileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleVideoUpload(f);
+            }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              type="button"
+              onClick={() => videoFileInputRef.current?.click()}
+              disabled={uploadingVideo}
+            >
+              {uploadingVideo ? (
+                <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Mengupload {uploadProgress}%</>
+              ) : (
+                <><Upload className="mr-1 h-4 w-4" /> Pilih File Video</>
+              )}
+            </Button>
+            {values.hero_video_url && extractStoragePath(values.hero_video_url) && (
+              <Button
+                size="sm"
+                variant="destructive"
+                type="button"
+                onClick={handleRemoveUploadedVideo}
+                disabled={uploadingVideo}
+              >
+                <Trash2 className="mr-1 h-4 w-4" /> Hapus Video
+              </Button>
+            )}
+          </div>
+          {uploadingVideo && (
+            <div className="h-1 w-full overflow-hidden rounded bg-secondary">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Video (.mp4 / .webm / .m3u8 / .mpd)</label>
           <div className="flex gap-2">
@@ -338,12 +492,19 @@ const SiteSettingsManager = () => {
               value={values.hero_video_url || ""}
               onChange={(e) => setValues((p) => ({ ...p, hero_video_url: e.target.value }))}
               className="bg-background"
-              placeholder="https://cdn.example.com/hero.m3u8"
+              placeholder="https://cdn.example.com/hero.m3u8 — atau upload di atas"
             />
             <Button size="sm" onClick={() => saveSetting("hero_video_url")} disabled={saving === "hero_video_url"}>
               Simpan
             </Button>
           </div>
+          {values.hero_video_url && (
+            <p className="mt-1 truncate text-[10px] text-muted-foreground">
+              {extractStoragePath(values.hero_video_url)
+                ? "📦 Tersimpan di Lovable Cloud Storage"
+                : "🌐 URL eksternal"}
+            </p>
+          )}
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Poster (opsional, gambar fallback saat video belum dimuat)</label>
