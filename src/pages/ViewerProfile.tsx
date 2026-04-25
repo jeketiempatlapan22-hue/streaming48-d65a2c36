@@ -57,7 +57,27 @@ const ViewerProfile = () => {
         setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
         setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
-        setTokens(tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : []);
+        const tokenRows = tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : [];
+        setTokens(tokenRows);
+
+        // Resolve show titles for tokens (RLS on shows is admin-only, so use the
+        // public RPC if available; fall back gracefully if any title cannot be
+        // resolved — token row remains usable without a title).
+        const showIds = Array.from(
+          new Set((tokenRows as any[]).map((t) => t.show_id).filter(Boolean))
+        ) as string[];
+        if (showIds.length > 0) {
+          try {
+            const { data: rows } = await (supabase as any).rpc("get_shows_public");
+            const map: Record<string, string> = {};
+            (rows || []).forEach((s: any) => {
+              if (s?.id && showIds.includes(s.id)) map[s.id] = s.title;
+            });
+            setShowTitles(map);
+          } catch {
+            setShowTitles({});
+          }
+        }
       } catch {
         toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
@@ -65,6 +85,32 @@ const ViewerProfile = () => {
       }
     };
     loadData();
+
+    // Realtime: when admin deletes a token belonging to this user, drop it from
+    // the profile UI immediately so the user can't see/use stale links.
+    const ch = supabase
+      .channel(`profile-tokens-${authUser.id}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tokens" },
+        (payload: any) => {
+          const oldId = payload.old?.id;
+          if (!oldId) return;
+          setTokens((prev) => prev.filter((t) => t.id !== oldId));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tokens", filter: `user_id=eq.${authUser.id}` },
+        (payload: any) => {
+          const updated = payload.new;
+          if (!updated?.id) return;
+          setTokens((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
   }, [authUser, authLoading, navigate]);
 
   const handleSave = async () => {
