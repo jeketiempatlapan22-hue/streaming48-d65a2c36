@@ -114,7 +114,7 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
       // Upload new avatar if any
       if (pendingFile) {
         setUploading(true);
-        const compressed = await compressImage(pendingFile, 512, 0.85);
+        const compressed = await compressImage(pendingFile, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
         const ext = (compressed.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
         const path = `${user.id}/avatar-${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage
