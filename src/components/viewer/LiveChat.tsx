@@ -104,6 +104,7 @@ const ChatMessageItem = memo(({ msg, isAdmin, isChatMod, chatModUsernames, curre
           </button>
           {msg.is_admin && <AdminBadge />}
           {!msg.is_admin && isMsgFromMod && <ModeratorBadge />}
+          {canModerate && <AITagBadge tag={msg.ai_tag} confidence={msg.ai_tag_confidence} />}
           <span className="text-[10px] text-muted-foreground/60">{formatTime(msg.created_at)}</span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed break-words">
