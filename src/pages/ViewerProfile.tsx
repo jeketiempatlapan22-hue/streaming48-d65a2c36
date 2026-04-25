@@ -68,7 +68,7 @@ const ViewerProfile = () => {
         ) as string[];
         if (showIds.length > 0) {
           try {
-            const { data: rows } = await (supabase as any).rpc("get_shows_public");
+            const { data: rows } = await (supabase as any).rpc("get_public_shows");
             const map: Record<string, string> = {};
             (rows || []).forEach((s: any) => {
               if (s?.id && showIds.includes(s.id)) map[s.id] = s.title;
