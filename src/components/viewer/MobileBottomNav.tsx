@@ -98,12 +98,15 @@ const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = nu
             const active = item.match(path);
             const Icon = item.icon;
             const isLiveItem = item.highlight === "live";
+            const isProfileItem = item.href === "/profile";
             const showLiveDot = isLiveItem && isLive;
             const hasLiveAccess = isLiveItem && isLive && !!liveAccessToken;
+            const profileHref = isProfileItem ? (isLoggedIn ? "/profile" : "/auth") : item.href;
+            const initial = (username || "U").trim().charAt(0).toUpperCase();
             return (
               <li key={item.href}>
                 <a
-                  href={item.href}
+                  href={isProfileItem ? profileHref : item.href}
                   onClick={isLiveItem ? handleLiveClick : undefined}
                   className={`relative flex flex-col items-center justify-center gap-0.5 py-2 transition-all active:scale-95 ${
                     active ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -116,17 +119,35 @@ const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = nu
                           ? "Tonton live sekarang"
                           : "Live sedang berlangsung — beli akses dulu"
                         : "Live (tidak ada show aktif)"
-                      : item.label
+                      : isProfileItem
+                        ? isLoggedIn
+                          ? `Profil ${username || "saya"}`
+                          : "Login / Daftar"
+                        : item.label
                   }
                 >
                   {active && (
                     <span className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
                   )}
                   <div className="relative">
-                    <Icon
-                      className={`h-5 w-5 transition-transform ${active ? "scale-110" : ""}`}
-                      strokeWidth={active ? 2.5 : 2}
-                    />
+                    {isProfileItem && isLoggedIn ? (
+                      <span
+                        className={`flex h-6 w-6 items-center justify-center overflow-hidden rounded-full border bg-gradient-to-br from-primary/30 to-accent/30 transition-all ${
+                          active ? "border-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]" : "border-border"
+                        }`}
+                      >
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt={username || "User"} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-[10px] font-bold text-foreground">{initial}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <Icon
+                        className={`h-5 w-5 transition-transform ${active ? "scale-110" : ""}`}
+                        strokeWidth={active ? 2.5 : 2}
+                      />
+                    )}
                     {showLiveDot && (
                       <span className="absolute -top-1 -right-1 flex h-2 w-2">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
@@ -135,7 +156,7 @@ const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = nu
                     )}
                   </div>
                   <span className={`text-[10px] leading-none ${active ? "font-bold" : "font-medium"}`}>
-                    {item.label}
+                    {isProfileItem && isLoggedIn ? "Saya" : item.label}
                   </span>
                 </a>
               </li>
