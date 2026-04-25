@@ -144,7 +144,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         </div>
 
         {/* Countdown - bottom of image */}
-        {showCountdown && countdown && !countdown.live && !show.is_replay && (
+        {showCountdown && countdown && !countdown.live && !show.is_replay && redeemedToken && (
           <div className="absolute bottom-1.5 left-2">
             <div className="flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1">
               <Timer className="h-2.5 w-2.5 text-primary animate-pulse shrink-0" />
