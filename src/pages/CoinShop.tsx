@@ -181,9 +181,17 @@ const CoinShop = () => {
     setDynamicLoading(true);
     setPurchaseStep("qris");
 
+    // Hard client-side timeout (15s) so spinner never hangs forever
+    const hardTimeout = setTimeout(() => {
+      toast({ title: "QRIS lambat dimuat", description: "Silakan coba lagi.", variant: "destructive" });
+      setPurchaseStep("phone");
+      setDynamicLoading(false);
+    }, 15000);
+
     try {
       const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, "")) || 0;
       if (priceNum <= 0) {
+        clearTimeout(hardTimeout);
         toast({ title: "Harga tidak valid", variant: "destructive" });
         setDynamicLoading(false);
         return;
@@ -198,9 +206,10 @@ const CoinShop = () => {
           package_id: selectedPkg.id,
         },
       });
+      clearTimeout(hardTimeout);
 
       if (error || !data?.success) {
-        toast({ title: data?.error || "Gagal membuat QRIS", variant: "destructive" });
+        toast({ title: data?.error || error?.message || "Gagal membuat QRIS", variant: "destructive" });
         setPurchaseStep("phone");
         setDynamicLoading(false);
         return;
@@ -209,6 +218,7 @@ const CoinShop = () => {
       setDynamicQrString(data.qr_string);
       setDynamicOrderId(data.order_id);
     } catch (err: any) {
+      clearTimeout(hardTimeout);
       toast({ title: "Gagal membuat QRIS", description: err?.message, variant: "destructive" });
       setPurchaseStep("phone");
     }
