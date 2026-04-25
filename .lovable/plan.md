@@ -1,108 +1,134 @@
 
+# Plan: AI Auto-Tag Chat + Quiz Game dengan Hadiah Koin
 
-## Reset Sesi Token Reseller + Command Statistik WhatsApp
-
-Menambah kemampuan reseller untuk reset sesi token miliknya (web & WhatsApp), command stats per-reseller via WA, dan memastikan isolasi data antar reseller serta sinkronisasi hapus.
-
----
-
-### 1. Database — RPC Baru
-
-**`reseller_reset_token_sessions(_session_token, _token_code_or_4digit)`** (web)
-- Validasi sesi reseller via `validate_reseller_session`
-- Cari token milik reseller ini saja (`WHERE reseller_id = _me AND (code = _input OR right(code, 4) = upper(_input))`)
-- Jika tidak ditemukan → reject + audit `rejection_reason = 'token_not_owned'`
-- DELETE dari `token_sessions WHERE token_id = _token.id`
-- Insert audit `status = 'success'`, `metadata = { action: 'reset_session', token_code }`
-- Return `{ success, deleted_count, token_code }`
-
-**`reseller_reset_token_sessions_by_id(_reseller_id, _input)`** (WhatsApp — same logic, uses reseller_id setelah lookup phone)
-
-**`reseller_my_stats(_session_token)`** (web — opsional untuk dashboard)
-- Return `{ total, active, expired, blocked, per_show: [{show_id, show_title, count}] }` HANYA token milik reseller ini
-
-**`reseller_my_stats_by_id(_reseller_id)`** (WhatsApp version)
-
-**Penting (isolasi data)**: setiap RPC reseller WAJIB filter `reseller_id = _me`. Tidak ada query lintas reseller. Hapus token oleh admin sudah otomatis menghapus baris di `tokens` → realtime channel di dashboard reseller (`reseller_id=eq.{me}`) langsung sync.
-
-**Sinkronisasi hapus admin → reseller**: tambahkan trigger `BEFORE DELETE ON tokens` yang juga `DELETE FROM token_sessions WHERE token_id = OLD.id` (jika belum ada CASCADE) untuk pastikan tidak ada sesi yatim.
+Dua fitur baru untuk meningkatkan engagement live chat: (1) **AI Auto-Tag** untuk klasifikasi pesan otomatis, dan (2) **Quiz Game** dengan pertanyaan dari AI atau manual, dengan hadiah koin otomatis ke pemenang.
 
 ---
 
-### 2. Halaman Reseller — Tombol Reset Sesi
+## Fitur 1: AI Auto-Tag Chat
 
-`src/components/reseller/ResellerDashboard.tsx` di tab "Token":
-- Tambah tombol **Reset Sesi** (ikon `RefreshCw`) per token aktif (sebelahnya tombol Salin)
-- Konfirmasi dialog ringan → panggil `reseller_reset_token_sessions(session_token, token.code)`
-- Toast: "X sesi direset" / error message dari RPC
-- Broadcast force-logout: setelah sukses, kirim ke channel `token-reset-${token_id}` (sama seperti TokenFactory) supaya device aktif di-kick
+Setiap pesan chat otomatis ditandai oleh AI dengan label: `question` (pertanyaan ke admin/host), `support` (dukungan/cheer), `spam` (promosi/iklan/link berbahaya), `toxic` (kasar/SARA), atau `normal`. Tag ditampilkan sebagai badge kecil di samping pesan, hanya terlihat oleh **admin & moderator**.
 
-Tambah panel statistik per-show kecil di tab "Token":
-- Group `tokens` lokal by `show_id` → tampilkan list "Show X: 12 token (8 aktif)"
-- Tidak butuh request baru, gunakan data `loadTokens` yang sudah dipanggil
+**Manfaat:**
+- Admin cepat melihat pertanyaan penting (badge ❓ kuning)
+- Spam/toxic otomatis di-highlight (badge merah) → moderator klik 1x untuk hapus
+- Filter chat: tampilkan hanya pesan ber-tag tertentu
 
----
+**Tampilan badge (admin only):**
+```
+[username] [❓ TANYA] Halo kak kapan show mulai?
+[username] [🚫 SPAM] beli followers murah klik...
+[username] Mantap banget!  ← normal, tanpa badge
+```
 
-### 3. WhatsApp — Command Reseller Baru
-
-Di `processPublicCommand` dalam `whatsapp-webhook/index.ts`, setelah blok `/${prefix}token`:
-
-**`/${prefix}reset <4digit>`** — reset sesi token milik reseller
-- Regex: `^\/${prefix}reset\s+(\S+)$`
-- Panggil `reseller_reset_token_sessions_by_id(reseller.id, code)`
-- Jika token bukan milik reseller → balasan: "⚠️ Token tidak ditemukan atau bukan milik Anda" + audit
-- Sukses → balasan format ala admin reset:
-  ```
-  ━━━━━━━━━━━━━━━━━━
-  ✅ Sesi Token Direset
-  Token: RSL-W-AB12CD
-  Show: <show_title>
-  Sesi dihapus: N
-  ━━━━━━━━━━━━━━━━━━
-  ```
-- Broadcast force-logout via Supabase Realtime ke channel `token-reset-${token_id}` (panggil dari edge function dengan service role)
-
-**`/${prefix}stats`** — statistik token reseller ini saja
-- Panggil `reseller_my_stats_by_id(reseller.id)`
-- Balasan:
-  ```
-  📊 Statistik Token Anda (${reseller.name})
-  Total: 45 | Aktif: 30 | Expired: 12 | Blokir: 3
-  
-  📋 Per Show:
-  • JKT48 Show A: 18 token
-  • JKT48 Show B: 12 token
-  • ...
-  ```
-
-**`/${prefix}mytokens`** — list 20 token terakhir reseller (kode 4 digit, show, status, expires)
-- Untuk memudahkan reseller pilih token mana yang mau di-reset
-
-Update `handleResellerHelp` untuk include 3 command baru.
-
-**Isolasi**: tiap command lookup reseller dari `senderPhone` lewat `get_reseller_by_phone`, lalu RPC strictly filter by `reseller_id`. Reseller A tidak bisa reset/lihat token Reseller B walau tahu kodenya.
+**Pengaturan (di Site Settings admin):**
+- Toggle on/off auto-tag
+- Threshold confidence (default 0.7) untuk menampilkan badge
 
 ---
 
-### 4. Sinkronisasi Hapus Admin → Reseller (sudah berjalan, dipastikan)
+## Fitur 2: Live Quiz Game
 
-- `TokenFactory.tsx` `deleteTokens()` → `DELETE FROM tokens` → CASCADE/trigger hapus `token_sessions`
-- Halaman reseller subscribe `postgres_changes DELETE` di `tokens filter reseller_id=eq.{me}` → row hilang real-time
-- `admin_reset_reseller_tokens` (sudah ada) → admin tetap bisa wipe semua token reseller dari `ResellerManager`
+Admin bisa membuat **sesi quiz** kapan saja saat live. Pertanyaan bisa di-generate AI (dengan tema yang dipilih admin) atau ditulis manual. Pemenang pertama yang menjawab benar di chat mendapat koin otomatis.
+
+### Alur Admin
+
+**Tab baru: "Live Quiz" di sidebar admin**
+
+1. **Buat Quiz baru:**
+   - **Sumber pertanyaan:**
+     - 🤖 **AI Generate** → admin pilih tema (Umum / JKT48 / Musik / Anime / Trivia / custom prompt) + tingkat kesulitan (mudah/sedang/sulit) → AI generate 1 atau lebih pertanyaan dengan jawaban
+     - ✍️ **Manual** → admin tulis pertanyaan + jawaban (bisa multi jawaban valid: "jakarta, jkt, dki")
+   - **Setting hadiah:**
+     - Jumlah pemenang (1-10)
+     - Koin per pemenang (mis. 50 koin)
+     - Durasi quiz (default 60 detik, bisa 30/60/120/300s)
+   - Preview pertanyaan & jawaban → klik "Mulai Quiz"
+
+2. **Saat quiz aktif:**
+   - Banner quiz muncul di atas chat untuk semua viewer
+   - Countdown timer berjalan
+   - Sistem otomatis cek setiap pesan chat baru — jika cocok dengan jawaban (case-insensitive, fuzzy match), user masuk daftar pemenang sampai kuota terpenuhi
+   - Admin lihat panel real-time: daftar pemenang yang sudah masuk + sisa kuota
+   - Admin bisa **End Early** atau biarkan timer habis
+
+3. **Setelah quiz selesai:**
+   - Sistem otomatis kreditkan koin ke balance pemenang (insert ke `coin_transactions` + update `coin_balances`)
+   - Banner "🏆 Pemenang Quiz" tampil di chat: "Selamat @user1, @user2 mendapat 50 koin!"
+   - Histori quiz tersimpan untuk dilihat ulang
+
+### Alur Viewer
+
+- Banner quiz neon di atas chat: pertanyaan + countdown + hadiah
+- Viewer ketik jawaban di chat seperti biasa (atau tombol khusus "Jawab Quiz" untuk submit privat — opsional, default chat publik)
+- Jika menang, toast "🎉 Selamat! Kamu menang 50 koin" + koin masuk balance
+- Viewer non-login (token-only) tidak bisa menang (hanya user terdaftar dapat koin)
 
 ---
 
-### Detail Teknis
+## Perubahan Database
 
-**File baru/edit**:
-- Migration SQL: 4 RPC baru + (opsional) trigger cleanup `token_sessions`
-- `src/components/reseller/ResellerDashboard.tsx` — tombol Reset Sesi + panel stats per-show
-- `supabase/functions/whatsapp-webhook/index.ts` — handler `/Wreset`, `/Wstats`, `/Wmytokens` + update help text
+**3 tabel baru + kolom tambahan:**
 
-**Audit**: setiap aksi reset (web & WA) tercatat di `reseller_token_audit` dengan `status=success/rejected`, `metadata.action='reset_session'`, dan `token_code`. Admin bisa lihat di menu "Audit Reseller".
+1. **`chat_messages`** — tambah kolom:
+   - `ai_tag text` (nullable): question/support/spam/toxic/normal
+   - `ai_tag_confidence numeric` (nullable, 0-1)
 
-**Keamanan**:
-- RPC reseller WAJIB validasi `session_token` (web) atau filter strict `reseller_id` (WA setelah phone lookup)
-- Rate limit reset: max 30/jam per reseller via `check_rate_limit('reseller_reset_' || id, 30, 3600)`
-- Tidak ada path RPC yang membiarkan reseller akses token milik orang lain (filter di WHERE clause, bukan post-filter di app)
+2. **`live_quizzes`** — sesi quiz:
+   - `id, created_at, created_by, status` (draft/active/ended/cancelled)
+   - `source` (ai/manual), `question text, answers text[]` (multi jawaban valid)
+   - `theme text, difficulty text` (untuk AI)
+   - `max_winners int, coin_reward int, duration_seconds int`
+   - `started_at, ends_at, ended_at`
+
+3. **`quiz_winners`** — pemenang per quiz:
+   - `id, quiz_id, user_id, username, message_id, answered_at, coins_awarded int, rank int`
+   - Unique `(quiz_id, user_id)` agar 1 user 1 menang per quiz
+
+**RLS:** admin manage all; viewer SELECT quiz aktif + winner mereka sendiri; INSERT winner hanya via edge function (service role).
+
+---
+
+## Edge Functions Baru (4)
+
+1. **`ai-tag-chat`** — dipanggil dari trigger DB (atau worker) untuk tag setiap pesan baru. Pakai Lovable AI (`google/gemini-3-flash-preview`) dengan tool calling structured output. Update `chat_messages.ai_tag` & confidence.
+
+2. **`quiz-generate`** — admin only. Input: `{ theme, difficulty, count }`. Output: array `{ question, answers[] }`. Pakai Lovable AI + tool calling. Admin bisa accept/edit hasil.
+
+3. **`quiz-start`** — admin only. Input: `{ question, answers[], max_winners, coin_reward, duration_seconds, source }`. Buat row `live_quizzes` status active, broadcast realtime.
+
+4. **`quiz-check-answer`** — dipanggil otomatis dari DB trigger atau realtime listener saat ada pesan baru. Cek apakah quiz aktif & jawaban cocok. Insert winner jika cocok & belum penuh. Saat winner masuk → kredit koin (transaksi atomik via RPC `award_quiz_coins`). Saat quiz berakhir (timer/manual/penuh) → set status ended, post pesan pemenang ke chat.
+
+   Implementasi efisien: alih-alih trigger DB pemanggil edge function (mahal), pakai **client-side realtime listener** di komponen LiveChat yang juga berjalan di session admin/moderator → dia memanggil edge function ketika quiz aktif. Lebih sederhana: edge function `quiz-tick` dipanggil tiap pesan via subscribe loop pada admin.
+
+   **Pendekatan final yang dipilih**: pakai **Postgres function `submit_quiz_answer`** yang dipanggil otomatis lewat trigger `AFTER INSERT ON chat_messages` — semua logic match jawaban + insert winner + kredit koin terjadi di DB (cepat & atomik). Edge function hanya untuk AI tagging & generate.
+
+---
+
+## Perubahan File
+
+**Baru:**
+- `supabase/functions/ai-tag-chat/index.ts`
+- `supabase/functions/quiz-generate/index.ts`
+- `src/components/admin/QuizManager.tsx` — UI buat quiz, lihat aktif, histori
+- `src/components/viewer/LiveQuizBanner.tsx` — banner quiz untuk viewer
+- `src/hooks/useLiveQuiz.ts` — hook subscribe quiz aktif
+
+**Diubah:**
+- `src/components/viewer/LiveChat.tsx` — tampilkan badge AI tag (admin/mod only), trigger `ai-tag-chat` setelah kirim pesan
+- `src/components/admin/AdminSidebar.tsx` — tambah menu "Live Quiz" (icon Sparkles/Trophy)
+- `src/pages/AdminDashboard.tsx` — register section `quiz` → `<QuizManager />`
+- `src/pages/Index.tsx` — render `<LiveQuizBanner />` di atas chat saat live
+- Migration: tambah kolom `chat_messages.ai_tag/ai_tag_confidence`, buat tabel `live_quizzes` + `quiz_winners`, buat function `submit_quiz_answer` + trigger, buat function `award_quiz_coins`
+
+---
+
+## Catatan Teknis
+
+- **AI provider:** Lovable AI Gateway (sudah ada `LOVABLE_API_KEY`), model default `google/gemini-3-flash-preview` (cepat & murah untuk klasifikasi).
+- **Auto-tag performa:** debounce/batch — tag pesan dipanggil async tanpa blocking kirim chat. Pesan tetap tampil instant, badge muncul beberapa detik kemudian via realtime UPDATE.
+- **Hemat token:** auto-tag hanya jalan saat `chat_enabled=true` AND ada show live. Bisa di-disable total via setting.
+- **Match jawaban:** normalisasi (lowercase, trim, hapus tanda baca), exact match terhadap salah satu `answers[]`. Tidak pakai fuzzy untuk hindari false positive.
+- **Anti-cheat:** user hanya bisa menang 1x per quiz; pesan dikirim setelah `started_at` baru valid; user dengan role admin/moderator tidak bisa menang.
+- **Hadiah koin:** function `award_quiz_coins(user_id, amount, quiz_id)` — atomik insert ke `coin_transactions` (type='quiz_reward') + UPDATE `coin_balances`.
 

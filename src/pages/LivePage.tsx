@@ -27,6 +27,8 @@ const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
 const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
+const LiveQuizBanner = lazy(() => import("@/components/viewer/LiveQuizBanner"));
+const LiveQuizSlot = lazy(() => import("@/components/viewer/LiveQuizSlot"));
 
 const MAX_RESET_ATTEMPTS = 3;
 const RESET_KEY_PREFIX = "rt48_reset_count_";
@@ -1236,6 +1238,9 @@ const LivePage = () => {
             <LivePoll voterId={tokenData?.id || username || "anon"} />
           </Suspense>
         </div>
+        <Suspense fallback={null}>
+          <LiveQuizSlot currentUserId={null} />
+        </Suspense>
         <div className="flex-1 min-h-0">
           <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
             <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
