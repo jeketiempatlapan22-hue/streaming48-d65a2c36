@@ -456,6 +456,7 @@ const ViewerProfile = () => {
           </Button>
         </motion.div>
       </div>
+      <MobileBottomNav />
     </div>
   );
 };
