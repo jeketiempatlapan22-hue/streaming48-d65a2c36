@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { withTimeout } from "@/lib/queryCache";
-import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil, Award, Crown, Receipt } from "lucide-react";
+import { ArrowLeft, Coins, Save, User, History, BarChart3, Shield, Ticket, Key, Copy, LogOut, Phone, Pencil, Award, Crown, Receipt, PlayCircle, ExternalLink } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
@@ -24,6 +24,7 @@ const ViewerProfile = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [subOrders, setSubOrders] = useState<any[]>([]);
   const [tokens, setTokens] = useState<any[]>([]);
+  const [showTitles, setShowTitles] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "stats">("history");
@@ -56,7 +57,27 @@ const ViewerProfile = () => {
         setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
         setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
-        setTokens(tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : []);
+        const tokenRows = tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : [];
+        setTokens(tokenRows);
+
+        // Resolve show titles for tokens (RLS on shows is admin-only, so use the
+        // public RPC if available; fall back gracefully if any title cannot be
+        // resolved — token row remains usable without a title).
+        const showIds = Array.from(
+          new Set((tokenRows as any[]).map((t) => t.show_id).filter(Boolean))
+        ) as string[];
+        if (showIds.length > 0) {
+          try {
+            const { data: rows } = await (supabase as any).rpc("get_public_shows");
+            const map: Record<string, string> = {};
+            (rows || []).forEach((s: any) => {
+              if (s?.id && showIds.includes(s.id)) map[s.id] = s.title;
+            });
+            setShowTitles(map);
+          } catch {
+            setShowTitles({});
+          }
+        }
       } catch {
         toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
@@ -64,6 +85,32 @@ const ViewerProfile = () => {
       }
     };
     loadData();
+
+    // Realtime: when admin deletes a token belonging to this user, drop it from
+    // the profile UI immediately so the user can't see/use stale links.
+    const ch = supabase
+      .channel(`profile-tokens-${authUser.id}`)
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "tokens" },
+        (payload: any) => {
+          const oldId = payload.old?.id;
+          if (!oldId) return;
+          setTokens((prev) => prev.filter((t) => t.id !== oldId));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "tokens", filter: `user_id=eq.${authUser.id}` },
+        (payload: any) => {
+          const updated = payload.new;
+          if (!updated?.id) return;
+          setTokens((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(ch); };
   }, [authUser, authLoading, navigate]);
 
   const handleSave = async () => {
@@ -129,6 +176,69 @@ const ViewerProfile = () => {
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-primary">{orders.length}</p><p className="text-[10px] text-muted-foreground">Order Koin</p></div>
           <div className="rounded-xl border border-border bg-card p-3 text-center"><p className="text-lg font-bold text-[hsl(var(--success))]">{tokens.filter(t => t.status === "active").length}</p><p className="text-[10px] text-muted-foreground">Token Aktif</p></div>
         </motion.div>
+
+        {/* Token Live Aktif — quick-access list of all live tokens with show name */}
+        {(() => {
+          const liveTokens = tokens.filter((t: any) => {
+            if (t.status !== "active") return false;
+            if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return false;
+            return true;
+          });
+          if (liveTokens.length === 0) return null;
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 }}
+              className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/5 p-4 space-y-3"
+            >
+              <div className="flex items-center gap-2">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                <h3 className="text-xs font-bold text-foreground">Akses Live Aktif ({liveTokens.length})</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground -mt-1">
+                Token yang Anda miliki — klik <span className="text-primary font-semibold">Tonton Live</span> untuk masuk ke ruang siaran.
+              </p>
+              <div className="space-y-2">
+                {liveTokens.map((t: any) => {
+                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const showTitle = (t.show_id && showTitles[t.show_id]) || "Show";
+                  return (
+                    <div key={`live-${t.id}`} className="rounded-lg bg-background/60 border border-border/50 p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-foreground truncate">{showTitle}</p>
+                          <p className="text-[10px] text-muted-foreground font-mono truncate">{t.code}</p>
+                        </div>
+                        <span className="shrink-0 rounded bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] text-[10px] font-bold px-2 py-0.5">
+                          Aktif
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 h-8 gap-1.5 text-xs"
+                          onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2"
+                          onClick={() => copyText(liveLink)}
+                          title="Salin link"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Membership/Bundle Duration Card */}
         {(() => {
@@ -278,12 +388,17 @@ const ViewerProfile = () => {
               <div className="space-y-2">
                 {tokens.map((t) => {
                   const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const showTitle = (t.show_id && showTitles[t.show_id]) || null;
+                  const isLiveActive = t.status === "active" && (!t.expires_at || new Date(t.expires_at).getTime() > Date.now());
                   return (
                     <div key={t.id} className="rounded-lg bg-background/50 p-3 space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
+                          {showTitle && (
+                            <p className="text-xs font-bold text-foreground truncate">{showTitle}</p>
+                          )}
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-mono font-medium text-foreground truncate">{t.code}</p>
+                            <p className="text-[11px] font-mono font-medium text-muted-foreground truncate">{t.code}</p>
                             <button onClick={() => copyText(t.code)} className="text-muted-foreground hover:text-primary active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
                           </div>
                           <p className="text-[10px] text-muted-foreground">
@@ -292,12 +407,21 @@ const ViewerProfile = () => {
                         </div>
                         {statusBadge(t.status)}
                       </div>
-                      {t.status === "active" && (
-                        <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2.5 py-1.5">
-                          <Key className="h-3 w-3 text-primary shrink-0" />
-                          <p className="text-[10px] text-primary font-medium truncate flex-1">{liveLink}</p>
-                          <button onClick={() => copyText(liveLink)} className="text-primary hover:text-primary/80 active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
-                        </div>
+                      {isLiveActive && (
+                        <>
+                          <div className="flex items-center gap-1.5 rounded-md bg-primary/5 border border-primary/20 px-2.5 py-1.5">
+                            <Key className="h-3 w-3 text-primary shrink-0" />
+                            <p className="text-[10px] text-primary font-medium truncate flex-1">{liveLink}</p>
+                            <button onClick={() => copyText(liveLink)} className="text-primary hover:text-primary/80 active:scale-[0.95] shrink-0"><Copy className="h-3 w-3" /></button>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 gap-1.5 text-xs"
+                            onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
+                          </Button>
+                        </>
                       )}
                     </div>
                   );

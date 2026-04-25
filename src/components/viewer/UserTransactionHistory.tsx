@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { motion } from "framer-motion";
-import { History, Coins, Ticket, ShoppingBag, ArrowDown, ArrowUp, Filter } from "lucide-react";
+import { History, Coins, Ticket, ShoppingBag, ArrowDown, ArrowUp, Filter, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Tx {
@@ -9,7 +9,9 @@ interface Tx {
   kind: "coin_in" | "coin_out" | "order_show" | "membership";
   amount?: number;
   title: string;
+  subtitle?: string;
   status?: string;
+  paymentMethod?: string;
   created_at: string;
 }
 
@@ -35,6 +37,15 @@ const formatWIB = (iso: string) =>
     hour: "2-digit", minute: "2-digit",
   }) + " WIB";
 
+const prettyPaymentMethod = (m?: string) => {
+  if (!m) return undefined;
+  const lower = m.toLowerCase();
+  if (lower === "qris") return "QRIS";
+  if (lower === "coin" || lower === "coins") return "Koin";
+  if (lower === "manual") return "Manual";
+  return m.charAt(0).toUpperCase() + m.slice(1);
+};
+
 interface Props {
   userId: string;
   /** When true, query as admin (RLS allows full access). */
@@ -51,7 +62,7 @@ const UserTransactionHistory = ({ userId, isAdmin = false }: Props) => {
     const load = async () => {
       setLoading(true);
       try {
-        const [coinTxRes, ordersRes] = await Promise.allSettled([
+        const [coinTxRes, ordersRes, coinOrdersRes] = await Promise.allSettled([
           supabase
             .from("coin_transactions")
             .select("id, amount, type, description, created_at, reference_id")
@@ -64,42 +75,69 @@ const UserTransactionHistory = ({ userId, isAdmin = false }: Props) => {
             .eq("user_id", userId)
             .order("created_at", { ascending: false })
             .limit(100),
+          supabase
+            .from("coin_orders")
+            .select("id, status, coin_amount, price, created_at, package_id")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(100),
         ]);
 
         const coinTx = coinTxRes.status === "fulfilled" ? coinTxRes.value.data || [] : [];
         const orders = ordersRes.status === "fulfilled" ? ordersRes.value.data || [] : [];
+        const coinOrders = coinOrdersRes.status === "fulfilled" ? coinOrdersRes.value.data || [] : [];
 
-        // Resolve show titles
+        // Resolve show titles via the public RPC (RLS on shows is admin-only).
         const showIds = Array.from(new Set(orders.map((o: any) => o.show_id).filter(Boolean)));
         let showMap: Record<string, { title: string; is_subscription: boolean }> = {};
         if (showIds.length) {
-          const { data: showsData } = await supabase
-            .from("shows")
-            .select("id, title, is_subscription")
-            .in("id", showIds);
-          (showsData || []).forEach((s: any) => {
-            showMap[s.id] = { title: s.title, is_subscription: s.is_subscription };
-          });
+          try {
+            const { data: showsData } = await (supabase as any).rpc("get_public_shows");
+            (showsData || []).forEach((s: any) => {
+              if (s?.id && showIds.includes(s.id)) {
+                showMap[s.id] = { title: s.title, is_subscription: !!s.is_subscription };
+              }
+            });
+          } catch { /* leave empty */ }
         }
 
         const merged: Tx[] = [
-          ...coinTx.map((t: any): Tx => ({
-            id: `c-${t.id}`,
-            kind: t.amount > 0 ? "coin_in" : "coin_out",
-            amount: t.amount,
-            title: t.description || (t.amount > 0 ? "Koin masuk" : "Koin keluar"),
-            created_at: t.created_at,
-          })),
+          ...coinTx.map((t: any): Tx => {
+            const isIn = t.amount > 0;
+            // Better default labels
+            let title = t.description || (isIn ? "Penambahan koin" : "Penggunaan koin");
+            return {
+              id: `c-${t.id}`,
+              kind: isIn ? "coin_in" : "coin_out",
+              amount: t.amount,
+              title,
+              subtitle: `${Math.abs(t.amount).toLocaleString("id-ID")} koin`,
+              created_at: t.created_at,
+            };
+          }),
           ...orders.map((o: any): Tx => {
             const sh = showMap[o.show_id];
+            const isMembership = sh?.is_subscription;
             return {
               id: `o-${o.id}`,
-              kind: sh?.is_subscription ? "membership" : "order_show",
+              kind: isMembership ? "membership" : "order_show",
               title: sh?.title || "Show",
+              subtitle: isMembership ? "Akses Membership" : "Tiket Live",
               status: o.status,
+              paymentMethod: prettyPaymentMethod(o.payment_method),
               created_at: o.created_at,
             };
           }),
+          ...coinOrders.map((o: any): Tx => ({
+            id: `co-${o.id}`,
+            kind: "coin_in",
+            amount: o.coin_amount,
+            title: `Pembelian ${o.coin_amount?.toLocaleString("id-ID") || 0} Koin`,
+            subtitle: o.price ? `Total: ${o.price}` : undefined,
+            status: o.status,
+            paymentMethod: "QRIS",
+            created_at: o.created_at,
+          })),
         ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         if (mounted) setItems(merged);
@@ -157,28 +195,36 @@ const UserTransactionHistory = ({ userId, isAdmin = false }: Props) => {
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                className="glass rounded-lg p-3 flex items-center gap-3"
+                className="glass rounded-lg p-3 flex items-start gap-3"
               >
                 <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${meta.bg}`}>
                   <Icon className={`h-4 w-4 ${meta.color}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-foreground truncate">{tx.title}</p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {formatWIB(tx.created_at)}
+                  {tx.subtitle && (
+                    <p className="text-[10px] text-muted-foreground truncate">{tx.subtitle}</p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                    <p className="text-[10px] text-muted-foreground">{formatWIB(tx.created_at)}</p>
+                    {tx.paymentMethod && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                        <CreditCard className="h-2.5 w-2.5" /> {tx.paymentMethod}
+                      </span>
+                    )}
                     {tx.status && (
-                      <span className={`ml-2 px-1.5 py-0.5 rounded text-[9px] ${
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
                         tx.status === "confirmed" ? "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]" :
                         tx.status === "pending" ? "bg-[hsl(var(--warning))]/15 text-[hsl(var(--warning))]" :
                         "bg-destructive/15 text-destructive"
                       }`}>
-                        {tx.status}
+                        {tx.status === "confirmed" ? "Dikonfirmasi" : tx.status === "pending" ? "Menunggu" : tx.status}
                       </span>
                     )}
-                  </p>
+                  </div>
                 </div>
                 {tx.amount !== undefined && (
-                  <div className={`flex items-center gap-1 text-xs font-bold ${meta.color}`}>
+                  <div className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap ${meta.color}`}>
                     <Coins className="h-3 w-3" />
                     {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString("id-ID")}
                   </div>
