@@ -178,15 +178,6 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
                         <span className="text-[10px] font-semibold text-primary">Lihat Profil →</span>
                       </div>
                     </a>
-                      <div className="mt-3 flex gap-2">
-                        <a href="/coins" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))]/10 px-3 py-2 text-xs font-semibold text-[hsl(var(--warning))] hover:bg-[hsl(var(--warning))]/20 transition">
-                          <Coins className="h-3.5 w-3.5" /> Coin Shop
-                        </a>
-                        <a href="/profile" className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition">
-                          <User className="h-3.5 w-3.5" /> Profil
-                        </a>
-                      </div>
-                    </div>
                   ) : (
                     <div className="mt-2 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
                       <div className="flex items-center gap-3">
