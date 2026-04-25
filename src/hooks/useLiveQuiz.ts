@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface ActiveQuiz {
   id: string;
@@ -27,6 +28,18 @@ export const useLiveQuiz = () => {
   const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
   const [winners, setWinners] = useState<QuizWinnerRow[]>([]);
   const activeIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const announcedWinRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      currentUserIdRef.current = data.user?.id || null;
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      currentUserIdRef.current = session?.user?.id || null;
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const loadWinners = async (quizId: string) => {
     const { data: w } = await supabase
@@ -34,7 +47,20 @@ export const useLiveQuiz = () => {
       .select("id, quiz_id, user_id, username, rank, coins_awarded, answered_at")
       .eq("quiz_id", quizId)
       .order("rank", { ascending: true });
-    setWinners((w as QuizWinnerRow[]) || []);
+    const list = (w as QuizWinnerRow[]) || [];
+    setWinners(list);
+
+    // Announce win for current user (only once per win)
+    const uid = currentUserIdRef.current;
+    if (uid) {
+      const myWin = list.find((x) => x.user_id === uid);
+      if (myWin && !announcedWinRef.current.has(myWin.id)) {
+        announcedWinRef.current.add(myWin.id);
+        toast.success(`Selamat! Kamu menang 🏆 (peringkat #${myWin.rank})`, {
+          description: `+${myWin.coins_awarded} koin sudah masuk ke saldo kamu.`,
+        });
+      }
+    }
   };
 
   const loadActive = async () => {
@@ -98,5 +124,36 @@ export const useLiveQuiz = () => {
     };
   }, []);
 
-  return { activeQuiz, winners, refresh: loadActive };
+  const checkAttemptStatus = async (quizId: string) => {
+    const { data, error } = await supabase.rpc("get_quiz_attempt_status", { _quiz_id: quizId } as any);
+    if (error) return null;
+    return data as {
+      can_submit: boolean;
+      reason?: string;
+      reset_at?: string;
+      reset_in_ms?: number;
+      recent_attempts?: number;
+      cooldown_max?: number;
+      total_attempts?: number;
+      hard_limit?: number;
+      winner_count?: number;
+      max_winners?: number;
+      remaining_total?: number;
+      remaining_window?: number;
+    } | null;
+  };
+
+  return { activeQuiz, winners, refresh: loadActive, checkAttemptStatus };
+};
+
+// Helper normalisasi sama seperti di DB (lower + strip non-alphanum)
+export const normalizeAnswer = (s: string) =>
+  (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+// Cek apakah pesan terlihat seperti jawaban quiz aktif
+export const isLikelyQuizAnswer = (message: string, quiz: ActiveQuiz | null) => {
+  if (!quiz) return false;
+  const norm = normalizeAnswer(message);
+  if (!norm || norm.length > 60) return false;
+  return quiz.answers.some((a) => normalizeAnswer(a) === norm);
 };

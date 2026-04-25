@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX, Reply } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 import { formatTimeWIB, getUserZoneLabel, isUserOutsideWIB } from "@/lib/timeFormat";
+import { useLiveQuiz, isLikelyQuizAnswer } from "@/hooks/useLiveQuiz";
+import { toast } from "sonner";
 
 
 interface LiveChatProps {
@@ -189,6 +191,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   // Track whether user is scrolled to bottom (so we don't yank them down)
   const isAtBottomRef = useRef(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const { activeQuiz, checkAttemptStatus } = useLiveQuiz();
 
   const isChatMod = chatModUsernames.has(username);
 
@@ -410,8 +413,42 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     if (!newMessage.trim() || !username) return;
     const now = Date.now();
     if (now - lastSentRef.current < 3000) return; // 3s cooldown
-    lastSentRef.current = now;
     const trimmed = newMessage.trim().slice(0, 200); // 200 char limit
+
+    // Pre-check quiz attempt status when message looks like an answer to active quiz
+    if (!isAdmin && currentUserId && activeQuiz && isLikelyQuizAnswer(trimmed, activeQuiz)) {
+      const status = await checkAttemptStatus(activeQuiz.id);
+      if (status && !status.can_submit) {
+        switch (status.reason) {
+          case "cooldown": {
+            const sec = Math.max(1, Math.ceil((status.reset_in_ms || 0) / 1000));
+            toast.error("Tunggu sebentar", {
+              description: `Terlalu cepat. Coba lagi dalam ~${sec} detik.`,
+            });
+            return;
+          }
+          case "hard_limit":
+            toast.error("Batas percobaan tercapai", {
+              description: `Maksimum ${status.hard_limit} jawaban per kuis.`,
+            });
+            return;
+          case "already_won":
+            toast.info("Kamu sudah menang 🎉", { description: "Beri kesempatan ke yang lain ya." });
+            return;
+          case "winners_full":
+          case "quiz_ended":
+            toast.info("Kuis sudah berakhir", {
+              description: `Pemenang ${status.winner_count}/${status.max_winners} sudah penuh.`,
+            });
+            return;
+          default:
+            toast.error("Jawaban ditolak", { description: status.reason || "Coba lagi." });
+            return;
+        }
+      }
+    }
+
+    lastSentRef.current = now;
     setSending(true);
     setNewMessage("");
 
@@ -460,7 +497,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     // Don't call syncMessages here - realtime INSERT event will handle dedup
     setSending(false);
     inputRef.current?.focus();
-  }, [newMessage, username, tokenId, isAdmin, currentUserId]);
+  }, [newMessage, username, tokenId, isAdmin, currentUserId, activeQuiz, checkAttemptStatus, scrollToBottom]);
 
   const handlePin = useCallback(async (id: string) => {
     if (onPinMessage) {

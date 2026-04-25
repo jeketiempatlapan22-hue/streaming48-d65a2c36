@@ -1732,6 +1732,7 @@ export type Database = {
         }
       }
       get_purchased_show_passwords: { Args: never; Returns: Json }
+      get_quiz_attempt_status: { Args: { _quiz_id: string }; Returns: Json }
       get_reseller_by_phone: { Args: { _phone: string }; Returns: Json }
       get_restream_playlists: {
         Args: { _code: string }
