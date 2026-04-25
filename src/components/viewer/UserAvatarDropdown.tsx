@@ -103,6 +103,10 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
     setPreviewUrl(url);
   };
 
+  const broadcastProfileUpdated = () => {
+    try { window.dispatchEvent(new CustomEvent("profile:updated")); } catch {}
+  };
+
   const handleRemoveAvatar = async () => {
     setSaving(true);
     try {
@@ -116,9 +120,12 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
       setAvatarUrl(null);
       setPreviewUrl(null);
       setPendingFile(null);
+      broadcastProfileUpdated();
       toast.success("Foto profil dihapus");
     } catch (err: any) {
       toast.error(err.message || "Gagal menghapus foto");
+      // Resync from DB to be safe
+      await fetchProfile();
     } finally {
       setSaving(false);
     }
@@ -126,6 +133,8 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
 
   const handleSave = async () => {
     setSaving(true);
+    let uploadFailed = false;
+    let uploadAttempted = false;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Sesi tidak ditemukan"); return; }
@@ -134,28 +143,40 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
 
       // Upload new avatar if any
       if (pendingFile) {
+        uploadAttempted = true;
         setUploading(true);
-        const compressed = await compressImage(pendingFile, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
-        const ext = (compressed.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-        const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("avatars")
-          .upload(path, compressed, { upsert: true, cacheControl: "3600", contentType: compressed.type });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
-        updates.avatar_url = pub.publicUrl;
-        setUploading(false);
+        try {
+          const compressed = await compressImage(pendingFile, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
+          const ext = (compressed.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+          const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("avatars")
+            .upload(path, compressed, { upsert: true, cacheControl: "3600", contentType: compressed.type });
+          if (upErr) throw upErr;
+          const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+          updates.avatar_url = pub.publicUrl;
+        } catch (upErr: any) {
+          uploadFailed = true;
+          toast.error(`Upload foto gagal: ${upErr?.message || "kesalahan jaringan"}`);
+        } finally {
+          setUploading(false);
+        }
       }
 
       // Username
       const trimmed = editUsername.trim();
-      if (trimmed.length > 0 && trimmed.length <= 50 && trimmed !== username) {
+      const currentName = displayUsername || username || "";
+      if (trimmed.length > 0 && trimmed.length <= 50 && trimmed !== currentName) {
         updates.username = trimmed;
       }
 
       if (Object.keys(updates).length === 0) {
-        toast.info("Tidak ada perubahan");
-        setEditOpen(false);
+        if (!uploadFailed) {
+          toast.info("Tidak ada perubahan");
+          setEditOpen(false);
+        }
+        // Resync to ensure UI matches DB even if nothing was saved
+        await fetchProfile();
         return;
       }
 
@@ -165,11 +186,27 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
         .eq("id", user.id);
       if (error) throw error;
 
-      if (updates.avatar_url) setAvatarUrl(updates.avatar_url);
-      toast.success("Profil diperbarui");
-      setEditOpen(false);
+      // Optimistic local update
+      if (typeof updates.avatar_url !== "undefined") setAvatarUrl(updates.avatar_url);
+      if (updates.username) setDisplayUsername(updates.username);
+
+      // Authoritative resync from DB (handles upload-failed-but-name-saved case)
+      await fetchProfile();
+      broadcastProfileUpdated();
+
+      if (uploadFailed) {
+        toast.warning("Username tersimpan, tapi foto gagal diunggah");
+        // Keep dialog open so user can retry the photo upload
+        setPendingFile(null);
+        setPreviewUrl(null);
+      } else {
+        toast.success("Profil diperbarui");
+        setEditOpen(false);
+      }
     } catch (err: any) {
       toast.error(err.message || "Gagal menyimpan profil");
+      // Resync from DB so the UI never shows stale optimistic data
+      await fetchProfile();
     } finally {
       setUploading(false);
       setSaving(false);
