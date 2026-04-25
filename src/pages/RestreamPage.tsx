@@ -101,6 +101,31 @@ const RestreamPage = () => {
   const effectiveUrl = isDirect ? activePlaylist?.url : signedUrl;
   const effectiveType = isDirect ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
+  // ── Fullscreen handling ──
+  const playerWrapRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const el = playerWrapRef.current;
+        if (el?.requestFullscreen) await el.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) await document.exitFullscreen();
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // ── UI: code gate ──
   if (validated !== true) {
     return (
