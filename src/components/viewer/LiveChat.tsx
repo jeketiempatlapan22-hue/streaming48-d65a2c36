@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX, Reply } from "lucide-react";
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 import { formatTimeWIB, getUserZoneLabel, isUserOutsideWIB } from "@/lib/timeFormat";
+import { useLiveQuiz, isLikelyQuizAnswer } from "@/hooks/useLiveQuiz";
+import { toast } from "sonner";
 
 
 interface LiveChatProps {
