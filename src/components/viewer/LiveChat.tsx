@@ -441,12 +441,21 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     const insertData: any = { username, message: trimmed, token_id: tokenId || null };
     if (currentUserId) insertData.user_id = currentUserId;
     if (isAdmin) insertData.is_admin = true;
-    const { error } = await supabase.from("chat_messages").insert(insertData);
+    const { data: inserted, error } = await supabase
+      .from("chat_messages")
+      .insert(insertData)
+      .select("id")
+      .maybeSingle();
     if (error) {
       console.error("[LiveChat] send error:", error);
       // Remove optimistic message on failure
       optimisticRef.current.delete(optimisticId);
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+    } else if (inserted?.id && !isAdmin) {
+      // Fire-and-forget AI tagging (admin pesan tidak perlu di-tag)
+      supabase.functions.invoke("ai-tag-chat", {
+        body: { message_id: inserted.id, message: trimmed },
+      }).catch(() => { /* silent */ });
     }
     // Don't call syncMessages here - realtime INSERT event will handle dedup
     setSending(false);
