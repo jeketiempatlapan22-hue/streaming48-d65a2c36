@@ -13,6 +13,7 @@ import {
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
+import HeroVideoBackground from "@/components/viewer/HeroVideoBackground";
 
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 
