@@ -156,18 +156,35 @@ Deno.serve(async (req) => {
     }
 
     // Call Pak Kasir API — uses "project" field (not "merchant_code")
-    const pakasirRes = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: PAKASIR_API_KEY,
-        project: PAKASIR_MERCHANT_CODE,
-        amount: finalAmount,
-        order_id: shortId,
-      }),
-    });
-
-    const pakasirData = await pakasirRes.json();
+    // Add 12s timeout so client never hangs on slow upstream
+    const ac = new AbortController();
+    const timeoutId = setTimeout(() => ac.abort(), 12_000);
+    let pakasirRes: Response;
+    let pakasirData: any;
+    try {
+      pakasirRes = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: PAKASIR_API_KEY,
+          project: PAKASIR_MERCHANT_CODE,
+          amount: finalAmount,
+          order_id: shortId,
+        }),
+        signal: ac.signal,
+      });
+      pakasirData = await pakasirRes.json().catch(() => ({}));
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      // Rollback the order so retries don't pile up
+      await supabase.from(orderTable).delete().eq("id", orderId);
+      const isAbort = e?.name === "AbortError";
+      const msg = isAbort
+        ? "Server pembayaran lambat merespons. Silakan coba lagi sebentar."
+        : "Tidak dapat menghubungi server pembayaran. Coba lagi.";
+      return new Response(JSON.stringify({ error: msg }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    clearTimeout(timeoutId);
     console.log("Pakasir response:", JSON.stringify(pakasirData));
 
     // Extract QR string from response — Pakasir returns it in payment.payment_number
