@@ -29,6 +29,7 @@ const getInitial = (name?: string | null) => {
 
 const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClick }: UserAvatarDropdownProps) => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayUsername, setDisplayUsername] = useState<string | null>(username || null);
   const [editOpen, setEditOpen] = useState(false);
   const [editUsername, setEditUsername] = useState(username || "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -37,8 +38,17 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync when parent prop changes
+  useEffect(() => {
+    if (username) setDisplayUsername(username);
+  }, [username]);
+
   const fetchProfile = useCallback(async () => {
-    if (!isLoggedIn) { setAvatarUrl(null); return; }
+    if (!isLoggedIn) {
+      setAvatarUrl(null);
+      setDisplayUsername(null);
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase
@@ -46,20 +56,31 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
       .select("avatar_url, username")
       .eq("id", user.id)
       .maybeSingle();
-    if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-    if (data?.username) setEditUsername(data.username);
+    setAvatarUrl(data?.avatar_url ?? null);
+    if (data?.username) {
+      setDisplayUsername(data.username);
+      setEditUsername(data.username);
+    }
   }, [isLoggedIn]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  // Listen for profile-updated events from anywhere in the app
+  useEffect(() => {
+    const onUpdated = () => { fetchProfile(); };
+    window.addEventListener("profile:updated", onUpdated);
+    return () => window.removeEventListener("profile:updated", onUpdated);
+  }, [fetchProfile]);
+
   useEffect(() => {
     if (editOpen) {
-      setEditUsername(username || "");
+      setEditUsername(displayUsername || username || "");
       setPreviewUrl(null);
       setPendingFile(null);
       fetchProfile();
     }
-  }, [editOpen, username, fetchProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen]);
 
   const handleLogout = async () => {
     try { await supabase.auth.signOut(); } catch {}
