@@ -35,7 +35,7 @@ import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import InstallBanner from "@/components/viewer/InstallBanner";
 import BundleShowCard from "@/components/viewer/BundleShowCard";
-import UserAvatarDropdown from "@/components/viewer/UserAvatarDropdown";
+
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
