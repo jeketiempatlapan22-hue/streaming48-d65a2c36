@@ -1393,7 +1393,10 @@ const Index = () => {
         </DialogContent>
       </Dialog>
       <InstallBanner />
-      <MobileBottomNav isLive={isStreamLive} />
+      <MobileBottomNav
+        isLive={isStreamLive}
+        liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+      />
     </div>
   );
 };
