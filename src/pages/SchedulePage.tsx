@@ -617,6 +617,8 @@ const SchedulePage = () => {
         isLive={isStreamLive}
         loading={loading}
         liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+        activeShowId={activeShowId}
+        activeShowTitle={activeShowId ? (shows.find((s) => s.id === activeShowId)?.title ?? null) : null}
       />
     </div>
   );
