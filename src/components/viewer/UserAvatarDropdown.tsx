@@ -29,6 +29,7 @@ const getInitial = (name?: string | null) => {
 
 const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClick }: UserAvatarDropdownProps) => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayUsername, setDisplayUsername] = useState<string | null>(username || null);
   const [editOpen, setEditOpen] = useState(false);
   const [editUsername, setEditUsername] = useState(username || "");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -37,8 +38,17 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync when parent prop changes
+  useEffect(() => {
+    if (username) setDisplayUsername(username);
+  }, [username]);
+
   const fetchProfile = useCallback(async () => {
-    if (!isLoggedIn) { setAvatarUrl(null); return; }
+    if (!isLoggedIn) {
+      setAvatarUrl(null);
+      setDisplayUsername(null);
+      return;
+    }
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data } = await supabase
@@ -46,20 +56,31 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
       .select("avatar_url, username")
       .eq("id", user.id)
       .maybeSingle();
-    if (data?.avatar_url) setAvatarUrl(data.avatar_url);
-    if (data?.username) setEditUsername(data.username);
+    setAvatarUrl(data?.avatar_url ?? null);
+    if (data?.username) {
+      setDisplayUsername(data.username);
+      setEditUsername(data.username);
+    }
   }, [isLoggedIn]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
+  // Listen for profile-updated events from anywhere in the app
+  useEffect(() => {
+    const onUpdated = () => { fetchProfile(); };
+    window.addEventListener("profile:updated", onUpdated);
+    return () => window.removeEventListener("profile:updated", onUpdated);
+  }, [fetchProfile]);
+
   useEffect(() => {
     if (editOpen) {
-      setEditUsername(username || "");
+      setEditUsername(displayUsername || username || "");
       setPreviewUrl(null);
       setPendingFile(null);
       fetchProfile();
     }
-  }, [editOpen, username, fetchProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editOpen]);
 
   const handleLogout = async () => {
     try { await supabase.auth.signOut(); } catch {}
@@ -82,6 +103,10 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
     setPreviewUrl(url);
   };
 
+  const broadcastProfileUpdated = () => {
+    try { window.dispatchEvent(new CustomEvent("profile:updated")); } catch {}
+  };
+
   const handleRemoveAvatar = async () => {
     setSaving(true);
     try {
@@ -95,9 +120,12 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
       setAvatarUrl(null);
       setPreviewUrl(null);
       setPendingFile(null);
+      broadcastProfileUpdated();
       toast.success("Foto profil dihapus");
     } catch (err: any) {
       toast.error(err.message || "Gagal menghapus foto");
+      // Resync from DB to be safe
+      await fetchProfile();
     } finally {
       setSaving(false);
     }
@@ -105,6 +133,8 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
 
   const handleSave = async () => {
     setSaving(true);
+    let uploadFailed = false;
+    let uploadAttempted = false;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Sesi tidak ditemukan"); return; }
@@ -113,28 +143,40 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
 
       // Upload new avatar if any
       if (pendingFile) {
+        uploadAttempted = true;
         setUploading(true);
-        const compressed = await compressImage(pendingFile, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
-        const ext = (compressed.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-        const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("avatars")
-          .upload(path, compressed, { upsert: true, cacheControl: "3600", contentType: compressed.type });
-        if (upErr) throw upErr;
-        const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
-        updates.avatar_url = pub.publicUrl;
-        setUploading(false);
+        try {
+          const compressed = await compressImage(pendingFile, { maxWidth: 512, maxHeight: 512, quality: 0.85 });
+          const ext = (compressed.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+          const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("avatars")
+            .upload(path, compressed, { upsert: true, cacheControl: "3600", contentType: compressed.type });
+          if (upErr) throw upErr;
+          const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+          updates.avatar_url = pub.publicUrl;
+        } catch (upErr: any) {
+          uploadFailed = true;
+          toast.error(`Upload foto gagal: ${upErr?.message || "kesalahan jaringan"}`);
+        } finally {
+          setUploading(false);
+        }
       }
 
       // Username
       const trimmed = editUsername.trim();
-      if (trimmed.length > 0 && trimmed.length <= 50 && trimmed !== username) {
+      const currentName = displayUsername || username || "";
+      if (trimmed.length > 0 && trimmed.length <= 50 && trimmed !== currentName) {
         updates.username = trimmed;
       }
 
       if (Object.keys(updates).length === 0) {
-        toast.info("Tidak ada perubahan");
-        setEditOpen(false);
+        if (!uploadFailed) {
+          toast.info("Tidak ada perubahan");
+          setEditOpen(false);
+        }
+        // Resync to ensure UI matches DB even if nothing was saved
+        await fetchProfile();
         return;
       }
 
@@ -144,11 +186,27 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
         .eq("id", user.id);
       if (error) throw error;
 
-      if (updates.avatar_url) setAvatarUrl(updates.avatar_url);
-      toast.success("Profil diperbarui");
-      setEditOpen(false);
+      // Optimistic local update
+      if (typeof updates.avatar_url !== "undefined") setAvatarUrl(updates.avatar_url);
+      if (updates.username) setDisplayUsername(updates.username);
+
+      // Authoritative resync from DB (handles upload-failed-but-name-saved case)
+      await fetchProfile();
+      broadcastProfileUpdated();
+
+      if (uploadFailed) {
+        toast.warning("Username tersimpan, tapi foto gagal diunggah");
+        // Keep dialog open so user can retry the photo upload
+        setPendingFile(null);
+        setPreviewUrl(null);
+      } else {
+        toast.success("Profil diperbarui");
+        setEditOpen(false);
+      }
     } catch (err: any) {
       toast.error(err.message || "Gagal menyimpan profil");
+      // Resync from DB so the UI never shows stale optimistic data
+      await fetchProfile();
     } finally {
       setUploading(false);
       setSaving(false);
@@ -179,9 +237,9 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
             aria-label="Menu pengguna"
           >
             {avatarUrl ? (
-              <img src={avatarUrl} alt={username || "User"} className="h-full w-full object-cover" />
+              <img src={avatarUrl} alt={displayUsername || "User"} className="h-full w-full object-cover" />
             ) : (
-              <span className="text-xs font-bold">{getInitial(username)}</span>
+              <span className="text-xs font-bold">{getInitial(displayUsername)}</span>
             )}
           </button>
         </DropdownMenuTrigger>
@@ -189,13 +247,13 @@ const UserAvatarDropdown = ({ username, coinBalance = 0, isLoggedIn, onLoginClic
           <DropdownMenuLabel className="flex items-center gap-2.5 py-2.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden border border-primary/30 bg-primary/10 shrink-0">
               {avatarUrl ? (
-                <img src={avatarUrl} alt={username || "User"} className="h-full w-full object-cover" />
+                <img src={avatarUrl} alt={displayUsername || "User"} className="h-full w-full object-cover" />
               ) : (
-                <span className="text-sm font-bold text-primary">{getInitial(username)}</span>
+                <span className="text-sm font-bold text-primary">{getInitial(displayUsername)}</span>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{username || "User"}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{displayUsername || "User"}</p>
               <div className="flex items-center gap-1 mt-0.5">
                 <Coins className="h-3 w-3 text-[hsl(var(--warning))]" />
                 <span className="text-[11px] font-bold text-[hsl(var(--warning))]">{coinBalance} Koin</span>
