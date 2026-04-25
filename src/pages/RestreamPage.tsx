@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRestreamSignedStreamUrl } from "@/hooks/useRestreamSignedStreamUrl";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
-import { Tv2, AlertCircle, Loader2 } from "lucide-react";
+import { Tv2, AlertCircle, Loader2, Maximize2, Minimize2 } from "lucide-react";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 
