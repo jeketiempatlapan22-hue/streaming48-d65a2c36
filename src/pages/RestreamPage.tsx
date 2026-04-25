@@ -1,11 +1,11 @@
-import { lazy, Suspense, useEffect, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRestreamSignedStreamUrl } from "@/hooks/useRestreamSignedStreamUrl";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
-import { Tv2, AlertCircle, Loader2 } from "lucide-react";
+import { Tv2, AlertCircle, Loader2, Maximize2, Minimize2 } from "lucide-react";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 
@@ -101,6 +101,31 @@ const RestreamPage = () => {
   const effectiveUrl = isDirect ? activePlaylist?.url : signedUrl;
   const effectiveType = isDirect ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
 
+  // ── Fullscreen handling ──
+  const playerWrapRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const el = playerWrapRef.current;
+        if (el?.requestFullscreen) await el.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) await document.exitFullscreen();
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // ── UI: code gate ──
   if (validated !== true) {
     return (
@@ -141,7 +166,7 @@ const RestreamPage = () => {
   return (
     <div className="fixed inset-0 bg-black flex flex-col">
       {/* Player area */}
-      <div className="flex-1 relative bg-black">
+      <div ref={playerWrapRef} className="flex-1 relative bg-black group">
         {loadingPlaylists ? (
           <div className="absolute inset-0 flex items-center justify-center text-white/70">
             <Loader2 className="h-6 w-6 animate-spin" />
@@ -169,10 +194,22 @@ const RestreamPage = () => {
             />
           </Suspense>
         ) : null}
+
+        {/* Fullscreen toggle */}
+        {playlists.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? "Keluar layar penuh" : "Layar penuh"}
+            className="absolute top-3 right-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white backdrop-blur-sm border border-white/15 opacity-80 hover:opacity-100 transition"
+          >
+            {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+          </button>
+        )}
       </div>
 
-      {/* Switcher only when more than one playlist */}
-      {playlists.length > 1 && (
+      {/* Switcher only when more than one playlist (hidden in fullscreen for clean view) */}
+      {playlists.length > 1 && !isFullscreen && (
         <div className="bg-black/80 backdrop-blur-sm border-t border-white/10 px-3 py-2">
           <PlaylistSwitcher
             playlists={playlists.map((p) => ({ id: p.id, title: p.title, type: p.type }))}
