@@ -32,6 +32,8 @@ const SharedNavbar = ({ showCoinBadge = true }: SharedNavbarProps) => {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(getInstallPrompt());
   const [isStandalone, setIsStandalone] = useState(false);
   const [loginPopup, setLoginPopup] = useState(false);
+  const { avatarUrl } = useProfileAvatar();
+  const userInitial = (coinUsername || "U").trim().charAt(0).toUpperCase();
 
   useEffect(() => {
     setIsStandalone(isAppInstalled());
