@@ -613,6 +613,7 @@ const SchedulePage = () => {
           </div>
         </DialogContent>
       </Dialog>
+      <MobileBottomNav isLive={isStreamLive} />
     </div>
   );
 };
