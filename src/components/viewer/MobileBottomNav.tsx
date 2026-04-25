@@ -2,6 +2,7 @@ import { Home, Tv, PlayCircle, Coins, User } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useProfileAvatar } from "@/hooks/useProfileAvatar";
 
 interface MobileBottomNavProps {
   isLive?: boolean;
