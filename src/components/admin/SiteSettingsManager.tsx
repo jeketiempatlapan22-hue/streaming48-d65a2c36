@@ -326,18 +326,19 @@ const SiteSettingsManager = () => {
         <div>
           <label className="mb-1 block text-sm font-bold text-foreground">🎬 Video Background Hero</label>
           <p className="text-xs text-muted-foreground">
-            Tempelkan link video langsung (.mp4 / .webm) — gunakan CDN/hosting eksternal agar tidak membebani database.
-            Video akan otomatis muted, loop, dan berhenti saat tidak terlihat untuk hemat bandwidth.
+            Tempelkan link video — mendukung <strong>.mp4 / .webm</strong> langsung, juga <strong>HLS (.m3u8)</strong> dan <strong>DASH (.mpd)</strong> untuk adaptive bitrate.
+            Disarankan pakai HLS dari CDN (Cloudflare Stream / Bunny / Mux) agar lancar di bandwidth rendah tanpa buffering.
+            Video otomatis muted, loop, mulai dari kualitas ringan, dan berhenti saat tidak terlihat.
           </p>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Video (.mp4/.webm)</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Video (.mp4 / .webm / .m3u8 / .mpd)</label>
           <div className="flex gap-2">
             <Input
               value={values.hero_video_url || ""}
               onChange={(e) => setValues((p) => ({ ...p, hero_video_url: e.target.value }))}
               className="bg-background"
-              placeholder="https://cdn.example.com/hero.mp4"
+              placeholder="https://cdn.example.com/hero.m3u8"
             />
             <Button size="sm" onClick={() => saveSetting("hero_video_url")} disabled={saving === "hero_video_url"}>
               Simpan
