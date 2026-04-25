@@ -28,6 +28,18 @@ export const useLiveQuiz = () => {
   const [activeQuiz, setActiveQuiz] = useState<ActiveQuiz | null>(null);
   const [winners, setWinners] = useState<QuizWinnerRow[]>([]);
   const activeIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
+  const announcedWinRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      currentUserIdRef.current = data.user?.id || null;
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      currentUserIdRef.current = session?.user?.id || null;
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const loadWinners = async (quizId: string) => {
     const { data: w } = await supabase
@@ -35,7 +47,20 @@ export const useLiveQuiz = () => {
       .select("id, quiz_id, user_id, username, rank, coins_awarded, answered_at")
       .eq("quiz_id", quizId)
       .order("rank", { ascending: true });
-    setWinners((w as QuizWinnerRow[]) || []);
+    const list = (w as QuizWinnerRow[]) || [];
+    setWinners(list);
+
+    // Announce win for current user (only once per win)
+    const uid = currentUserIdRef.current;
+    if (uid) {
+      const myWin = list.find((x) => x.user_id === uid);
+      if (myWin && !announcedWinRef.current.has(myWin.id)) {
+        announcedWinRef.current.add(myWin.id);
+        toast.success(`Selamat! Kamu menang 🏆 (peringkat #${myWin.rank})`, {
+          description: `+${myWin.coins_awarded} koin sudah masuk ke saldo kamu.`,
+        });
+      }
+    }
   };
 
   const loadActive = async () => {
