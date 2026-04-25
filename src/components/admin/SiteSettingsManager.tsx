@@ -320,6 +320,78 @@ const SiteSettingsManager = () => {
           <p className="mt-2 text-xs text-[hsl(var(--success))]">✓ Pengumuman sedang ditampilkan di landing page</p>
         )}
       </div>
+
+      {/* Hero Video Background */}
+      <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 space-y-3">
+        <div>
+          <label className="mb-1 block text-sm font-bold text-foreground">🎬 Video Background Hero</label>
+          <p className="text-xs text-muted-foreground">
+            Tempelkan link video langsung (.mp4 / .webm) — gunakan CDN/hosting eksternal agar tidak membebani database.
+            Video akan otomatis muted, loop, dan berhenti saat tidak terlihat untuk hemat bandwidth.
+          </p>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Video (.mp4/.webm)</label>
+          <div className="flex gap-2">
+            <Input
+              value={values.hero_video_url || ""}
+              onChange={(e) => setValues((p) => ({ ...p, hero_video_url: e.target.value }))}
+              className="bg-background"
+              placeholder="https://cdn.example.com/hero.mp4"
+            />
+            <Button size="sm" onClick={() => saveSetting("hero_video_url")} disabled={saving === "hero_video_url"}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">URL Poster (opsional, gambar fallback saat video belum dimuat)</label>
+          <div className="flex gap-2">
+            <Input
+              value={values.hero_video_poster || ""}
+              onChange={(e) => setValues((p) => ({ ...p, hero_video_poster: e.target.value }))}
+              className="bg-background"
+              placeholder="https://cdn.example.com/hero-poster.jpg"
+            />
+            <Button size="sm" onClick={() => saveSetting("hero_video_poster")} disabled={saving === "hero_video_poster"}>
+              Simpan
+            </Button>
+          </div>
+        </div>
+        <div>
+          <label className="mb-2 block text-xs font-medium text-muted-foreground">Status</label>
+          <div className="flex gap-2">
+            {[{ value: "true", label: "✅ Aktif" }, { value: "false", label: "❌ Nonaktif" }].map((opt) => (
+              <button key={opt.value}
+                onClick={async () => {
+                  setValues((p) => ({ ...p, hero_video_enabled: opt.value }));
+                  const { error } = await supabase.from("site_settings").upsert(
+                    { key: "hero_video_enabled", value: opt.value },
+                    { onConflict: "key" }
+                  );
+                  if (error) {
+                    toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+                  } else {
+                    toast({ title: opt.value === "true" ? "Video background diaktifkan" : "Video background dinonaktifkan" });
+                  }
+                }}
+                className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-all ${
+                  (values.hero_video_enabled || "false") === opt.value
+                    ? opt.value === "true"
+                      ? "bg-[hsl(var(--success))] text-primary-foreground ring-2 ring-[hsl(var(--success))]/50"
+                      : "bg-destructive text-destructive-foreground ring-2 ring-destructive/50"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}>{opt.label}</button>
+            ))}
+          </div>
+          {values.hero_video_enabled === "true" && !values.hero_video_url && (
+            <p className="mt-2 text-xs text-destructive">⚠️ Aktif tetapi URL video kosong — video tidak akan tampil.</p>
+          )}
+          {values.hero_video_enabled === "true" && values.hero_video_url && (
+            <p className="mt-2 text-xs text-[hsl(var(--success))]">✓ Video background tampil di hero landing page</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
