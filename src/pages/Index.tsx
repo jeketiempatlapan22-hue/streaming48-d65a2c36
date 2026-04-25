@@ -35,7 +35,7 @@ import type { Show } from "@/types/show";
 import ShowCard from "@/components/viewer/ShowCard";
 import InstallBanner from "@/components/viewer/InstallBanner";
 import BundleShowCard from "@/components/viewer/BundleShowCard";
-import UserAvatarDropdown from "@/components/viewer/UserAvatarDropdown";
+
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import { SHOW_CATEGORIES } from "@/types/show";
 import { toast } from "sonner";
@@ -530,12 +530,6 @@ const Index = () => {
                 <span className="text-xs font-semibold">Beli Koin</span>
               </button>
             )}
-            <UserAvatarDropdown
-              isLoggedIn={!!coinUser}
-              username={coinUsername}
-              coinBalance={coinBalance}
-              onLoginClick={() => setLoginPopup(true)}
-            />
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
                 <button className="rounded-lg bg-secondary p-2 text-secondary-foreground transition hover:bg-secondary/80 active:scale-[0.95]" aria-label="Buka menu">
