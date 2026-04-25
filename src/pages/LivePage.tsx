@@ -27,6 +27,7 @@ const UsernameModal = lazy(() => import("@/components/viewer/UsernameModal"));
 const LivePoll = lazy(() => import("@/components/viewer/LivePoll"));
 const LineupAvatars = lazy(() => import("@/components/viewer/LineupAvatars"));
 const PlayerAnimations = lazy(() => import("@/components/viewer/PlayerAnimations"));
+const LiveQuizBanner = lazy(() => import("@/components/viewer/LiveQuizBanner"));
 
 const MAX_RESET_ATTEMPTS = 3;
 const RESET_KEY_PREFIX = "rt48_reset_count_";
