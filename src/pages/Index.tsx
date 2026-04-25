@@ -1390,6 +1390,8 @@ const Index = () => {
       <MobileBottomNav
         isLive={isStreamLive}
         liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+        activeShowId={activeShowId}
+        activeShowTitle={activeShowId ? (shows.find((s) => s.id === activeShowId)?.title ?? null) : null}
       />
     </div>
   );

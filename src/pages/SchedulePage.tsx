@@ -55,6 +55,21 @@ const SchedulePage = () => {
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
+  // Scroll ke show tertentu jika URL berisi hash #show-<id> (mis. dari toast bottom nav)
+  useEffect(() => {
+    if (loading) return;
+    const hash = window.location.hash;
+    if (!hash.startsWith("#show-")) return;
+    const el = document.getElementById(hash.slice(1));
+    if (!el) return;
+    // Tunggu render selesai sebelum scroll
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-primary", "rounded-2xl");
+      setTimeout(() => el.classList.remove("ring-2", "ring-primary", "rounded-2xl"), 2400);
+    });
+  }, [loading]);
+
   // Poll dynamic QRIS payment status
   useEffect(() => {
     if (!dynamicOrderId || dynamicPaid) return;
@@ -342,7 +357,7 @@ const SchedulePage = () => {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredShows.map((show, i) => (
-              <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}>
+              <motion.div id={`show-${show.id}`} key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }} className="scroll-mt-24">
                 <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive && show.id === activeShowId} isUniversalAccess={!!universalToken} />
               </motion.div>
             ))}
@@ -617,6 +632,8 @@ const SchedulePage = () => {
         isLive={isStreamLive}
         loading={loading}
         liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+        activeShowId={activeShowId}
+        activeShowTitle={activeShowId ? (shows.find((s) => s.id === activeShowId)?.title ?? null) : null}
       />
     </div>
   );

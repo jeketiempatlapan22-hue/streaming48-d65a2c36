@@ -9,6 +9,10 @@ interface MobileBottomNavProps {
   loading?: boolean;
   /** Token valid milik user untuk show yang sedang live (jika ada) */
   liveAccessToken?: string | null;
+  /** Judul show yang sedang live (untuk toast informatif) */
+  activeShowTitle?: string | null;
+  /** ID show aktif untuk deep-link ke jadwal */
+  activeShowId?: string | null;
 }
 
 /**
@@ -57,7 +61,13 @@ const items: NavItem[] = [
   { href: "/profile", label: "Profil", icon: User, match: (p: string) => p.startsWith("/profile") },
 ];
 
-const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = null }: MobileBottomNavProps) => {
+const MobileBottomNav = ({
+  isLive = false,
+  loading = false,
+  liveAccessToken = null,
+  activeShowTitle = null,
+  activeShowId = null,
+}: MobileBottomNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
@@ -65,20 +75,28 @@ const MobileBottomNav = ({ isLive = false, loading = false, liveAccessToken = nu
 
   if (loading) return <MobileBottomNavSkeleton />;
 
+  const openSchedule = () => {
+    // Sertakan ID show pada hash agar SchedulePage bisa scroll/fokus ke kartu terkait
+    const target = activeShowId ? `/schedule#show-${activeShowId}` : "/schedule";
+    navigate(target);
+  };
+
   const handleLiveClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     if (!isLive) {
       toast.info("Belum ada show yang sedang live", {
-        description: "Cek jadwal show terbaru di halaman utama.",
+        description: "Cek jadwal show terbaru untuk pertunjukan berikutnya.",
+        action: { label: "Lihat Jadwal", onClick: () => navigate("/schedule") },
       });
-      navigate("/");
       return;
     }
     if (!liveAccessToken) {
-      toast.error("Akses ditolak", {
-        description: "Kamu belum membeli show yang sedang live. Silakan beli terlebih dahulu.",
+      const showLabel = activeShowTitle ? `“${activeShowTitle}”` : "show yang sedang live";
+      toast.error(`Akses ditolak — ${activeShowTitle || "belum membeli show"}`, {
+        description: `Kamu belum membeli akses untuk ${showLabel}. Buka jadwal show untuk membeli tiket.`,
+        duration: 8000,
+        action: { label: "Buka Jadwal Show", onClick: openSchedule },
       });
-      navigate("/");
       return;
     }
     navigate(`/live?t=${encodeURIComponent(liveAccessToken)}`);

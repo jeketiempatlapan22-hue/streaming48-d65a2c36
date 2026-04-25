@@ -38,7 +38,7 @@ const isShowPastSchedule = (show: Show) => {
 
 const ReplayPage = () => {
   const { toast } = useToast();
-  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
+  const { isLive: liveActive, liveAccessToken, activeShowId, activeShowTitle } = useActiveLiveAccess();
   const [shows, setShows] = useState<Show[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -683,7 +683,7 @@ const ReplayPage = () => {
           </div>
         </DialogContent>
       </Dialog>
-      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} activeShowId={activeShowId} activeShowTitle={activeShowTitle} />
     </div>
   );
 };

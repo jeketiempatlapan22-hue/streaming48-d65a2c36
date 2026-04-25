@@ -21,7 +21,7 @@ const UserTransactionHistory = lazy(() => import("@/components/viewer/UserTransa
 
 const ViewerProfile = () => {
   const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
-  const { isLive: liveActive, liveAccessToken } = useActiveLiveAccess();
+  const { isLive: liveActive, liveAccessToken, activeShowId, activeShowTitle } = useActiveLiveAccess();
   const [username, setUsername] = useState("");
   const [originalUsername, setOriginalUsername] = useState("");
   const [balance, setBalance] = useState(0);
@@ -467,7 +467,7 @@ const ViewerProfile = () => {
           </Button>
         </motion.div>
       </div>
-      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} />
+      <MobileBottomNav isLive={liveActive} liveAccessToken={liveAccessToken} activeShowId={activeShowId} activeShowTitle={activeShowTitle} />
     </div>
   );
 };
