@@ -9,6 +9,10 @@ interface MobileBottomNavProps {
   loading?: boolean;
   /** Token valid milik user untuk show yang sedang live (jika ada) */
   liveAccessToken?: string | null;
+  /** Judul show yang sedang live (untuk toast informatif) */
+  activeShowTitle?: string | null;
+  /** ID show aktif untuk deep-link ke jadwal */
+  activeShowId?: string | null;
 }
 
 /**
