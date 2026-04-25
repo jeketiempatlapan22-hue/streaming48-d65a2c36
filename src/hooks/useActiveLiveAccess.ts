@@ -16,6 +16,7 @@ export const useActiveLiveAccess = () => {
   const { redeemedTokens, membershipToken, bundleToken, customToken } = usePurchasedShows();
   const [isLive, setIsLive] = useState(false);
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
+  const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,11 +25,26 @@ export const useActiveLiveAccess = () => {
       try {
         const [settingsRes, streamRes] = await Promise.all([
           supabase.from("site_settings").select("key,value").eq("key", "active_show_id").maybeSingle(),
-          supabase.from("streams").select("is_live").eq("is_active", true).limit(1).maybeSingle(),
+          supabase.from("streams").select("is_live, title").eq("is_active", true).limit(1).maybeSingle(),
         ]);
         if (cancelled) return;
-        setActiveShowId((settingsRes.data?.value as string) || null);
+        const showId = (settingsRes.data?.value as string) || null;
+        setActiveShowId(showId);
         setIsLive(Boolean(streamRes.data?.is_live));
+
+        // Resolve judul show aktif untuk pesan toast yang lebih informatif.
+        // Fallback ke judul stream jika RPC tidak menemukan.
+        let title: string | null = (streamRes.data as any)?.title || null;
+        if (showId) {
+          try {
+            const { data: rows } = await (supabase as any).rpc("get_public_shows");
+            const match = (rows || []).find((s: any) => s?.id === showId);
+            if (match?.title) title = match.title;
+          } catch {
+            // Abaikan; gunakan fallback
+          }
+        }
+        if (!cancelled) setActiveShowTitle(title);
       } catch {
         // Diam — bottom nav tetap berfungsi sebagai link biasa
       }
@@ -60,5 +76,5 @@ export const useActiveLiveAccess = () => {
   const universalToken = membershipToken || bundleToken || customToken || null;
   const liveAccessToken = (activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null;
 
-  return { isLive, activeShowId, liveAccessToken };
+  return { isLive, activeShowId, activeShowTitle, liveAccessToken };
 };
