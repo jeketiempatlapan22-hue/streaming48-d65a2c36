@@ -22,6 +22,7 @@ import { withRetry, withTimeout } from "@/lib/queryCache";
 import { createClientId, safeStorageGet, safeStorageSet, safeJsonParse } from "@/lib/clientId";
 import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
 import SectionBoundary from "@/components/SectionBoundary";
+import LiveChatBoundary from "@/components/viewer/LiveChatBoundary";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
