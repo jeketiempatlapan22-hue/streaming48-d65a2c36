@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Hls, { type Level } from "hls.js";
-import { Play, Pause, Volume2, VolumeX, Maximize, Settings, Rewind, FastForward } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Settings, Rewind, FastForward, Loader2 } from "lucide-react";
 
 interface Props {
   src: string;
@@ -31,25 +31,39 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [seekIndicator, setSeekIndicator] = useState<{ side: "left" | "right"; amount: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [stalled, setStalled] = useState(false);
 
   // Tap tracking refs (one per side to avoid cross-side interference)
   const lastTapRef = useRef<{ side: "left" | "right" | null; time: number }>({ side: null, time: 0 });
   const singleTapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const seekIndicatorTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stallTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTimeRef = useRef<number>(0);
+  const lastTimeAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !src) return;
+    setLoading(true);
+    setStalled(false);
 
     if (Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: Infinity,
-        maxBufferLength: 60,
-        maxMaxBufferLength: 600,
+        backBufferLength: 90,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 120,
+        maxBufferSize: 60 * 1000 * 1000,
         liveDurationInfinity: false,
         liveSyncDurationCount: 3,
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingTimeOut: 15000,
+        levelLoadingMaxRetry: 4,
+        fragLoadingTimeOut: 25000,
+        fragLoadingMaxRetry: 6,
       });
       hlsRef.current = hls;
       hls.loadSource(src);
@@ -64,13 +78,9 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
       hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
         const details: any = data.details;
         if (!details) return;
-        // Force VOD mode so the entire timeline is seekable, even if the
-        // playlist is missing #EXT-X-ENDLIST. We trust that this is a replay.
         try {
           details.live = false;
         } catch {}
-        // Surface the total duration as soon as the manifest is parsed,
-        // so the UI can show it before the browser computes video.duration.
         const total = Number(details.totalduration);
         if (isFinite(total) && total > 0) {
           setDuration((prev) => (prev && isFinite(prev) && prev > 0 ? prev : total));
@@ -79,9 +89,31 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
         setCurrentLevel(hls.autoLevelEnabled ? -1 : data.level);
       });
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        setStalled(false);
+      });
       hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (data.fatal) {
-          onError?.(`Gagal memuat video: ${data.details || data.type}`);
+        // Try to recover from non-fatal/recoverable errors automatically
+        if (!data.fatal) return;
+        switch (data.type) {
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            // Common: fragment load timeout — retry instead of dying
+            try {
+              hls.startLoad();
+            } catch {
+              onError?.(`Jaringan: ${data.details || data.type}`);
+            }
+            break;
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            try {
+              hls.recoverMediaError();
+            } catch {
+              onError?.(`Media: ${data.details || data.type}`);
+            }
+            break;
+          default:
+            onError?.(`Gagal memuat video: ${data.details || data.type}`);
+            break;
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -93,6 +125,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     return () => {
       hlsRef.current?.destroy();
       hlsRef.current = null;
+      if (stallTimerRef.current) clearInterval(stallTimerRef.current);
     };
   }, [src, onError]);
 
