@@ -217,6 +217,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         aria-hidden
       />
 
+      {/* Smooth transition overlay saat menurunkan resolusi (z-15, di antara click overlay & controls) */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-[15] flex items-center justify-center bg-black/55 backdrop-blur-sm transition-opacity duration-500 ${
+          switching ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden={!switching}
+      >
+        <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white animate-fade-in">
+          <Wifi className="h-3.5 w-3.5 animate-pulse" />
+          Menyesuaikan kualitas{switching ? ` → ${switching}` : "..."}
+        </div>
+      </div>
+
       {/* Custom controls (z-20) */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 flex items-center justify-between text-white">
         <div className="flex items-center gap-3">
