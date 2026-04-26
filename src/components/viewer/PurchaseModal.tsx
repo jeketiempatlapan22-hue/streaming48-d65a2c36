@@ -147,7 +147,7 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
         <div className="space-y-1 text-xs text-muted-foreground">
           <p>🎭 {show.title}</p>
-          <p>💰 {show.price}</p>
+          <p>💰 {getDisplayPrice(show)}</p>
           {show.schedule_date && <p>📅 {show.schedule_date} {show.schedule_time}</p>}
         </div>
       </div>
@@ -177,7 +177,7 @@ const PurchaseModal = ({
           className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6"
         >
           <h3 className="mb-1 text-lg font-bold text-foreground">{show.title}</h3>
-          <p className="mb-4 text-sm text-muted-foreground">{show.price}</p>
+          <p className="mb-4 text-sm text-muted-foreground">{getDisplayPrice(show)}</p>
 
           {dynamicQrisStep === "phone" && (
             <div className="space-y-4">
@@ -221,7 +221,7 @@ const PurchaseModal = ({
         className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6"
       >
         <h3 className="mb-1 text-lg font-bold text-foreground">{show.title}</h3>
-        <p className="mb-4 text-sm text-muted-foreground">{show.price}</p>
+        <p className="mb-4 text-sm text-muted-foreground">{getDisplayPrice(show)}</p>
 
         {/* Hidden file input for gallery */}
         <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
@@ -252,7 +252,7 @@ const PurchaseModal = ({
               <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
               <div className="space-y-1 text-xs text-muted-foreground">
                 <p>🎭 {show.title}</p>
-                <p>💰 {show.price}</p>
+                <p>💰 {getDisplayPrice(show)}</p>
                 {show.schedule_date && <p>📅 {show.schedule_date} {show.schedule_time}</p>}
                 {show.lineup && <p>👥 {show.lineup}</p>}
               </div>
