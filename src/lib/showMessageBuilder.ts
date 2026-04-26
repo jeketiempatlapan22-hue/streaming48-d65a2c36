@@ -41,42 +41,25 @@ export function buildRegularShowMessage(opts: RegularShowMessageOpts): string {
       : "-");
   const maxDevices = opts.maxDevices ?? 1;
   let msg = `━━━━━━━━━━━━━━━━━━
-
 ✅ *Token Berhasil Dibuat!*
-
 ━━━━━━━━━━━━━━━━━━
 
-
-
 🎬 Show: *${opts.showTitle}*
-
 📅 Jadwal: ${schedule}
-
 📱 Max Device: *${maxDevices}*
 
-
-
 📺 *Link Nonton LIVE & REPLAY:*
-
 ${opts.liveLink}
 
-
-
 🔄 *Info Replay:*
-
-
-
   *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
 
-
-
 > ATAU GUNAKAN :
-
 > 🔗 Link: ${REPLAY_PORTAL_URL}`;
   if (opts.replayPassword) {
-    msg += `\n\n> 🔐 Sandi Replay: ${opts.replayPassword}`;
+    msg += `\n> 🔐 Sandi Replay: ${opts.replayPassword}`;
   }
-  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
+  msg += `\n━━━━━━━━━━━━━━━━━━`;
   return msg;
 }
 
