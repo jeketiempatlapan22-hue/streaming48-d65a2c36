@@ -145,13 +145,16 @@ const AdminMonitor = () => {
 
   const handleResetChat = async () => {
     setResetting(true);
-    const { error } = await supabase.from("chat_messages").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    const { data, error } = await supabase.rpc("admin_reset_live_chat_and_quiz");
     setResetting(false);
     if (error) {
-      toast.error("Gagal mereset chat");
-    } else {
-      toast.success("Live chat berhasil direset");
+      toast.error("Gagal mereset chat & quiz", { description: error.message });
+      return;
     }
+    const result = (data as any) || {};
+    toast.success("Live chat & riwayat quiz direset", {
+      description: `${result.chat_deleted ?? 0} chat • ${result.quiz_deleted ?? 0} quiz • ${result.winners_deleted ?? 0} pemenang dihapus`,
+    });
   };
 
   const handleBlockUser = async (tokenId: string) => {
@@ -230,14 +233,14 @@ const AdminMonitor = () => {
         <AlertDialogTrigger asChild>
           <Button variant="destructive" size="sm" disabled={resetting} className="gap-2">
             <Trash2 className="h-4 w-4" />
-            {resetting ? "Mereset..." : "Reset Live Chat"}
+            {resetting ? "Mereset..." : "Reset Live Chat & Quiz"}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Reset Live Chat?</AlertDialogTitle>
+            <AlertDialogTitle>Reset Live Chat & Riwayat Quiz?</AlertDialogTitle>
             <AlertDialogDescription>
-              Semua pesan chat (termasuk yang di-pin) akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.
+              Semua pesan chat (termasuk yang di-pin) <strong>dan</strong> seluruh riwayat quiz (aktif, selesai, pemenang, jawaban) akan dihapus secara permanen agar tidak menumpuk. Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
