@@ -514,7 +514,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     // Don't call syncMessages here - realtime INSERT event will handle dedup
     setSending(false);
     inputRef.current?.focus();
-  }, [newMessage, username, tokenId, isAdmin, currentUserId, activeQuiz, checkAttemptStatus, scrollToBottom]);
+  }, [newMessage, username, tokenId, isAdmin, currentUserId, activeQuiz, checkAttemptStatus, quizEnabled, scrollToBottom]);
 
   const handlePin = useCallback(async (id: string) => {
     if (onPinMessage) {
