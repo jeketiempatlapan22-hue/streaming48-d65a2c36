@@ -78,8 +78,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     qualityIndexRef.current += 1;
     lastDowngradeRef.current = now;
     const next = QUALITY_LADDER[qualityIndexRef.current];
+
+    // Smooth transition: tampilkan overlay singkat, set kualitas, lalu auto-resume play
+    setSwitching(qualityLabel(next));
     setQuality(next);
-  }, [setQuality]);
+    // Pastikan playback tidak macet pasca-switch
+    setTimeout(() => post("playVideo"), 250);
+    if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
+    switchingTimerRef.current = window.setTimeout(() => {
+      setSwitching(null);
+      // Reset baseline buffering supaya watcher tidak langsung downgrade lagi
+      bufferingSinceRef.current = null;
+    }, 1200);
+  }, [setQuality, post]);
 
   // Lazy YT IFrame API for state events (muted/playing/buffering/quality)
   useEffect(() => {
