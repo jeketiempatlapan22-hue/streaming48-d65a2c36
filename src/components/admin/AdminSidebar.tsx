@@ -3,7 +3,7 @@ import logo from "@/assets/logo.png";
 import {
   Radio, Key, Monitor, Settings, LogOut, Theater, FileText, ClipboardList, Coins, Package,
   Shield, Activity, ScrollText, UsersRound, UserCog, Image, BarChart3, Gauge, Ticket,
-  KeyRound, ShoppingBag, Sparkles, Tv2, ChevronDown,
+  KeyRound, ShoppingBag, Sparkles, Tv2, ChevronDown, MessageSquare,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -90,6 +90,7 @@ const sectionGroups: SectionGroup[] = [
     label: "Keamanan & Monitoring",
     icon: Shield,
     items: [
+      { id: "feedback", label: "Kritik & Saran", icon: MessageSquare },
       { id: "security", label: "Security Log", icon: Shield },
       { id: "health", label: "System Health", icon: Activity },
       { id: "logs", label: "Live Logs", icon: ScrollText },
