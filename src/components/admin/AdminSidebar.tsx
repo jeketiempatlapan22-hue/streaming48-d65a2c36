@@ -47,6 +47,7 @@ const sectionGroups: SectionGroup[] = [
     icon: Theater,
     items: [
       { id: "shows", label: "Show Manager", icon: Theater },
+      { id: "replay-passwords", label: "Sandi Global Replay", icon: KeyRound },
       { id: "descriptions", label: "Deskripsi LP", icon: FileText },
       { id: "member-photos", label: "Foto Member", icon: UsersRound },
       { id: "media", label: "Media Library", icon: Image },

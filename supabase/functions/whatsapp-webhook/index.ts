@@ -465,6 +465,14 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       ? `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`
       : "";
 
+    // Tentukan link replay (internal vs fallback) berdasar media show
+    const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url);
+    const replayShowKey = encodeURIComponent(show.short_id || show.id);
+    const replayPwParam = res.access_password ? `&password=${encodeURIComponent(res.access_password)}` : "";
+    const replayLink = hasReplayMedia
+      ? `realtime48stream.my.id/replay-play?show=${replayShowKey}${replayPwParam}`
+      : `https://replaytime.lovable.app`;
+
     let msg = `━━━━━━━━━━━━━━━━━━
 ✅ *Token Reseller Berhasil Dibuat!*
 ━━━━━━━━━━━━━━━━━━
@@ -478,8 +486,8 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
 📺 *Link Nonton:*
 ${link}
 
-🔄 *Info Replay:*
-🔗 Link: https://replaytime.lovable.app`;
+🔄 *Info Replay:*${hasReplayMedia ? " _(pemutar internal)_" : ""}
+🔗 Link: ${replayLink}`;
 
     if (res.access_password) {
       msg += `\n🔐 Sandi Replay: *${res.access_password}*`;
@@ -1101,7 +1109,7 @@ async function findShowByInput(supabase: any, input: string, activeOnly = true):
   // Fetch shows for matching
   const query = supabase
     .from('shows')
-    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link');
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link, replay_m3u8_url, replay_youtube_url, replay_month');
   if (activeOnly) query.eq('is_active', true);
   const { data: allShows } = await query;
 

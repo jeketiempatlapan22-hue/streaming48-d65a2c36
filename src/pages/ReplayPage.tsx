@@ -36,6 +36,21 @@ const isShowPastSchedule = (show: Show) => {
   } catch { return false; }
 };
 
+/**
+ * Hitung target URL replay untuk sebuah show.
+ * - Jika show punya M3U8/YouTube internal (has_replay_media), pakai pemutar internal /replay-play.
+ * - Jika tidak, fallback ke replaytime.lovable.app (perilaku lama).
+ * - Jika ada token/sandi yang sudah dimiliki user, sertakan sebagai query param agar auto-login.
+ */
+const buildReplayTarget = (show: Show, knownPassword?: string): string => {
+  const internalAvailable = (show as any).has_replay_media === true || !!((show as any).replay_m3u8_url || (show as any).replay_youtube_url);
+  if (!internalAvailable) return "https://replaytime.lovable.app";
+  const params = new URLSearchParams();
+  params.set("show", show.short_id || show.id);
+  if (knownPassword && knownPassword !== "__purchased__") params.set("password", knownPassword);
+  return `/replay-play?${params.toString()}`;
+};
+
 const ReplayPage = () => {
   const { toast } = useToast();
   const { isLive: liveActive, liveAccessToken, activeShowId, activeShowTitle } = useActiveLiveAccess();
@@ -365,9 +380,13 @@ const ReplayPage = () => {
                         </div>
                         <button
                           onClick={() => {
+                            const target = buildReplayTarget(show, replayPasswords[show.id]);
                             navigator.clipboard.writeText(replayPasswords[show.id]);
                             toast({ title: "Sandi disalin! Membuka halaman replay..." });
-                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
+                            setTimeout(() => {
+                              if (target.startsWith("/")) window.location.href = target;
+                              else window.open(target, "_blank");
+                            }, 400);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
@@ -375,10 +394,20 @@ const ReplayPage = () => {
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
-                        <Play className="h-4 w-4" /> Tonton Replay
-                      </a>
+                      (() => {
+                        const target = buildReplayTarget(show);
+                        const isInternal = target.startsWith("/");
+                        return (
+                          <a
+                            href={target}
+                            target={isInternal ? "_self" : "_blank"}
+                            rel="noopener noreferrer"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
+                          >
+                            <Play className="h-4 w-4" /> Tonton Replay
+                          </a>
+                        );
+                      })()
                     ) : (
                       <button
                         onClick={() => openPurchase(show)}
@@ -620,8 +649,10 @@ const ReplayPage = () => {
                 onClick={() => {
                   navigator.clipboard.writeText(replayResult.replay_password);
                   toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                  const target = purchaseShow ? buildReplayTarget(purchaseShow, replayResult.replay_password) : "https://replaytime.lovable.app";
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    if (target.startsWith("/")) window.location.href = target;
+                    else window.open(target, "_blank");
                     setPurchaseShow(null);
                     setReplayResult(null);
                   }, 500);

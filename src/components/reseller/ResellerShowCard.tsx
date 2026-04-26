@@ -22,6 +22,9 @@ interface Show {
   bundle_replay_passwords?: any;
   background_image_url?: string;
   short_id?: string;
+  replay_m3u8_url?: string | null;
+  replay_youtube_url?: string | null;
+  has_replay_media?: boolean;
 }
 
 interface Props {
@@ -31,6 +34,7 @@ interface Props {
 }
 
 const LIVE_BASE = "https://realtime48stream.my.id/live";
+const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
 
 const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
   const [maxDevices, setMaxDevices] = useState("1");
@@ -78,6 +82,12 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" • ");
     const scheduleLine = scheduleParts ? `\n\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
 
+    // Tentukan link replay: jika show punya media internal → /replay-play, jika tidak → fallback lama
+    const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url || show.has_replay_media);
+    const replayLink = hasReplayMedia
+      ? `${REPLAY_BASE}?show=${encodeURIComponent(show.short_id || show.id)}${show.access_password ? `&password=${encodeURIComponent(show.access_password)}` : ""}`
+      : `https://replaytime.lovable.app`;
+
     let msg = `━━━━━━━━━━━━━━━━━━
 
 ✅ *Token Reseller Berhasil Dibuat!*
@@ -104,12 +114,16 @@ ${params.link}
 
 🔄 *Info Replay:*
 
-🔗 Link: https://replaytime.lovable.app`;
+🔗 Link: ${replayLink}`;
 
     if (show.access_password) {
       msg += `\n\n🔐 Sandi Replay: *${show.access_password}*`;
     } else {
       msg += `\n\nℹ️ Sandi replay belum diatur untuk show ini.`;
+    }
+
+    if (hasReplayMedia) {
+      msg += `\n\n🎥 _Pemutar replay internal aktif — link di atas otomatis membuka video._`;
     }
 
     msg += `\n\n\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
@@ -254,21 +268,25 @@ ${params.link}
             <div className="font-mono text-[11px] bg-background/60 p-2 rounded break-all">{lastToken.code}</div>
             <div className="font-mono text-[10px] text-muted-foreground bg-background/60 p-2 rounded break-all">{lastToken.link}</div>
 
-            {show.access_password && (
-              <div className="rounded-md border border-purple-500/20 bg-purple-500/5 p-2 space-y-1">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
-                  <Film className="h-3 w-3" /> Info Replay
+            {show.access_password && (() => {
+              const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url || show.has_replay_media);
+              const replayLink = hasReplayMedia
+                ? `${REPLAY_BASE}?show=${encodeURIComponent(show.short_id || show.id)}&password=${encodeURIComponent(show.access_password!)}`
+                : `https://replaytime.lovable.app`;
+              return (
+                <div className="rounded-md border border-purple-500/20 bg-purple-500/5 p-2 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300">
+                    <Film className="h-3 w-3" /> Info Replay {hasReplayMedia && <span className="text-[9px] text-purple-400">(Internal Player)</span>}
+                  </div>
+                  <div className="text-[11px] text-foreground flex items-center gap-1.5">
+                    <KeyRound className="h-3 w-3 text-purple-400" />
+                    <span className="text-muted-foreground">Sandi:</span>
+                    <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground break-all">🔗 {replayLink}</div>
                 </div>
-                <div className="text-[11px] text-foreground flex items-center gap-1.5">
-                  <KeyRound className="h-3 w-3 text-purple-400" />
-                  <span className="text-muted-foreground">Sandi:</span>
-                  <span className="font-mono bg-background/60 px-1.5 py-0.5 rounded">{show.access_password}</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground break-all">
-                  🔗 https://replaytime.lovable.app
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             <pre className="text-[10px] text-foreground/90 bg-background/60 p-2 rounded whitespace-pre-wrap break-words font-sans leading-relaxed max-h-48 overflow-y-auto">
 {lastToken.message}

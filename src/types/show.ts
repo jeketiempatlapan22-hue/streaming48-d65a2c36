@@ -28,6 +28,9 @@ export interface Show {
   bundle_replay_passwords?: any;
   bundle_replay_info?: string;
   short_id?: string | null;
+  has_replay_media?: boolean;
+  replay_month?: string | null;
+  replay_youtube_url?: string | null;
 }
 
 export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {

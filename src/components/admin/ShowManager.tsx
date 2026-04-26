@@ -609,7 +609,16 @@ const ShowManager = () => {
                   >
                     <Copy className="mr-1 h-3 w-3" /> Salin Password
                   </Button>
-                  <Button size="sm" className="flex-1 text-xs" onClick={() => window.open("https://replaytime.lovable.app", "_blank")}>
+                  <Button
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      const hasMedia = !!(draft.replay_m3u8_url?.trim() || draft.replay_youtube_url?.trim());
+                      const internal = `/replay-play?show=${encodeURIComponent(draft.short_id || draft.id)}&password=${encodeURIComponent(draft.access_password || "")}`;
+                      const target = hasMedia ? internal : "https://replaytime.lovable.app";
+                      window.open(target, "_blank");
+                    }}
+                  >
                     <ExternalLink className="mr-1 h-3 w-3" /> Tonton Replay
                   </Button>
                 </div>
@@ -753,6 +762,45 @@ const ShowManager = () => {
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">🔐 Sandi Replay</label>
               <Input value={draft.access_password} onChange={(event) => updateDraft({ access_password: event.target.value })} className="bg-background" placeholder="Kosongkan jika tidak perlu" />
+            </div>
+
+            {/* === Replay Media (M3U8 / YouTube / bulan) === */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                <Film className="h-3.5 w-3.5" /> Sumber Replay (Internal Player)
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Isi link M3U8 dan/atau YouTube di bawah agar pemutar internal aktif.
+                Jika kosong, kartu replay otomatis fallback ke <span className="font-mono">replaytime.lovable.app</span>.
+              </p>
+              <div>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Link M3U8 Replay</label>
+                <Input
+                  value={draft.replay_m3u8_url}
+                  onChange={(event) => updateDraft({ replay_m3u8_url: event.target.value })}
+                  className="bg-background font-mono text-xs"
+                  placeholder="https://.../master.m3u8"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Link YouTube Replay</label>
+                <Input
+                  value={draft.replay_youtube_url}
+                  onChange={(event) => updateDraft({ replay_youtube_url: event.target.value })}
+                  className="bg-background font-mono text-xs"
+                  placeholder="https://youtu.be/... atau https://www.youtube.com/watch?v=..."
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bulan Replay (untuk sandi global bulanan)</label>
+                <Input
+                  value={draft.replay_month}
+                  onChange={(event) => updateDraft({ replay_month: event.target.value })}
+                  className="bg-background font-mono text-xs"
+                  placeholder="YYYY-MM (contoh: 2026-04)"
+                />
+                <p className="mt-1 text-[10px] text-muted-foreground">Kosongkan untuk pakai bulan berjalan otomatis.</p>
+              </div>
             </div>
 
             {draft.is_subscription ? (
