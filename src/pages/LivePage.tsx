@@ -539,7 +539,9 @@ const LivePage = () => {
           try {
             const { data: replayData } = await supabase.rpc("validate_replay_access" as any, { _token: tokenCode });
             if ((replayData as any)?.success) {
-              window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`);
+              setRedirecting(true);
+              // Use replace to prevent back navigation to broken state
+              try { window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`); } catch {}
               return;
             }
           } catch { /* abaikan, lanjut tampilkan error normal */ }
