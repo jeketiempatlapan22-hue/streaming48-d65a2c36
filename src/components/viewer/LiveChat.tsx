@@ -191,19 +191,23 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   const isAtBottomRef = useRef(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   // Defensive: useLiveQuiz is a non-critical dependency for chat. If anything
-  // unexpected happens (channel error, RPC failure), fall back to no-quiz mode
-  // so the chat itself keeps working. The outer LiveChatBoundary catches
-  // anything that still escapes.
+  // unexpected happens (channel error, RPC failure), enter "quiz fallback mode":
+  // disable quiz integration entirely while keeping normal chat input/sending alive.
   let activeQuiz: ReturnType<typeof useLiveQuiz>["activeQuiz"] = null;
   let checkAttemptStatus: ReturnType<typeof useLiveQuiz>["checkAttemptStatus"] = async () => null;
+  let quizEnabled = true;
   try {
     const quiz = useLiveQuiz();
     activeQuiz = quiz?.activeQuiz ?? null;
     if (typeof quiz?.checkAttemptStatus === "function") {
       checkAttemptStatus = quiz.checkAttemptStatus;
+    } else {
+      // Hook returned but without expected API — degrade quiz gracefully.
+      quizEnabled = false;
     }
   } catch (e) {
-    console.warn("[LiveChat] useLiveQuiz failed, continuing without quiz integration:", e);
+    quizEnabled = false;
+    console.warn("[LiveChat] useLiveQuiz failed — quiz features disabled, chat continues:", e);
   }
 
   const isChatMod = chatModUsernames.has(username);
