@@ -138,13 +138,22 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onPlay = () => setPlaying(true);
+    const onPlay = () => {
+      setPlaying(true);
+      setStalled(false);
+    };
     const onPause = () => setPlaying(false);
+    const onWaiting = () => setLoading(true);
+    const onPlaying = () => {
+      setLoading(false);
+      setStalled(false);
+    };
+    const onCanPlay = () => setLoading(false);
+    const onLoadedData = () => setLoading(false);
+    const onSeeking = () => setLoading(true);
+    const onSeeked = () => setLoading(false);
     const onTime = () => {
       const vidDur = v.duration;
-      // Prefer the video element's duration once it's a finite positive number,
-      // but fall back to whatever we already have (e.g. from the HLS manifest)
-      // so the UI never regresses to 00:00 after we already know the length.
       const best =
         isFinite(vidDur) && vidDur > 0
           ? vidDur
@@ -156,18 +165,53 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
         setDuration((prev) => (prev && prev >= best ? prev : best));
         setProgress(((v.currentTime || 0) / best) * 100);
       }
+      // Track progression for stall detection
+      if (v.currentTime !== lastTimeRef.current) {
+        lastTimeRef.current = v.currentTime;
+        lastTimeAtRef.current = Date.now();
+      }
     };
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
+    v.addEventListener("waiting", onWaiting);
+    v.addEventListener("playing", onPlaying);
+    v.addEventListener("canplay", onCanPlay);
+    v.addEventListener("loadeddata", onLoadedData);
+    v.addEventListener("seeking", onSeeking);
+    v.addEventListener("seeked", onSeeked);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("loadedmetadata", onTime);
     v.addEventListener("durationchange", onTime);
+
+    // Stall watcher: kalau sedang play tapi currentTime tidak maju >4 detik
+    // → coba nudge buffer (startLoad) agar tidak nyangkut.
+    if (stallTimerRef.current) clearInterval(stallTimerRef.current);
+    stallTimerRef.current = setInterval(() => {
+      if (!v) return;
+      if (v.paused || v.ended) return;
+      const stuckMs = Date.now() - lastTimeAtRef.current;
+      if (stuckMs > 4000) {
+        setStalled(true);
+        setLoading(true);
+        try {
+          hlsRef.current?.startLoad();
+        } catch {}
+      }
+    }, 1500);
+
     return () => {
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
+      v.removeEventListener("waiting", onWaiting);
+      v.removeEventListener("playing", onPlaying);
+      v.removeEventListener("canplay", onCanPlay);
+      v.removeEventListener("loadeddata", onLoadedData);
+      v.removeEventListener("seeking", onSeeking);
+      v.removeEventListener("seeked", onSeeked);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("loadedmetadata", onTime);
       v.removeEventListener("durationchange", onTime);
+      if (stallTimerRef.current) clearInterval(stallTimerRef.current);
     };
   }, []);
 
