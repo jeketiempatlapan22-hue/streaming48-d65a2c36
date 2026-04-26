@@ -7,6 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Show } from "@/types/show";
 
+/** Tampilkan harga replay (replay_qris_price) bila show adalah replay & harga diset, jika tidak fallback ke show.price */
+const getDisplayPrice = (show: Show): string => {
+  if (show.is_replay && show.replay_qris_price && show.replay_qris_price > 0) {
+    return `Rp ${show.replay_qris_price.toLocaleString("id-ID")}`;
+  }
+  return show.price || "-";
+};
+
 interface PurchaseModalProps {
   show: Show;
   purchaseStep: "qris" | "upload" | "info" | "done";
