@@ -1,116 +1,62 @@
-# Rencana: Kritik & Saran Global + Perbaikan Tombol Rotasi
+## Tujuan
 
-## 1. Fitur "Kritik & Saran"
+1. Pastikan setiap token akses replay memiliki durasi **14 hari** sejak pembelian/aktivasi, dan otomatis terhapus dari database setelah expired.
+2. Pastikan user tetap dapat mengakses replay menggunakan token link lama (dari halaman live) tanpa perlu link baru.
+3. Pindahkan posisi player video ke **atas** kartu lineup member di halaman `/replay-play`.
 
-### Tabel baru (Lovable Cloud)
-Buat tabel `feedback_messages` lewat migration:
-- `id` (uuid, pk)
-- `message` (text, max 1000 chars)
-- `category` (text, opsional: "kritik" | "saran" | "bug" | "lainnya", default "saran")
-- `page_url` (text, halaman saat dikirim)
-- `user_id` (uuid, nullable — null untuk pengunjung anonim)
-- `username` (text, opsional)
-- `user_agent` (text)
-- `is_read` (boolean, default false)
-- `is_archived` (boolean, default false)
-- `created_at` (timestamptz, default now())
+---
 
-**RLS policies:**
-- INSERT: anon + authenticated boleh kirim (validasi length 5–1000, rate-limit via trigger pengecekan IP/created_at: maksimal 5 submission per user/IP per jam)
-- SELECT/UPDATE/DELETE: hanya admin (`has_role(auth.uid(), 'admin')`)
+## Status saat ini (hasil audit)
 
-### Komponen FAB global: `FeedbackFab.tsx`
-- **Lokasi**: floating button bulat kecil (40×40px) di pojok kanan-bawah, `position: fixed`, `z-index` di bawah toaster.
-- **Tidak mengganggu**:
-  - Default state semi-transparan (`opacity-60`) → jadi 100% saat hover/tap.
-  - Auto-hide saat fullscreen aktif (deteksi `document.fullscreenElement`).
-  - Sembunyikan otomatis di route `/adpan*` dan `/restream` (admin & partner punya UI sendiri).
-  - Offset bottom otomatis menyesuaikan keberadaan `MobileBottomNav` (cek viewport `<sm`).
-  - Bisa di-collapse/dimatikan per-sesi via `sessionStorage` (tombol "X" kecil saat dibuka).
-- **Dialog form** (Radix Dialog):
-  - Pilih kategori (Saran / Kritik / Laporan Bug / Lainnya).
-  - Textarea pesan (5–1000 char, counter live, validasi Zod).
-  - Optional: nama tampilan (auto-isi dari profil bila login).
-  - Tombol Kirim → insert ke `feedback_messages`, `page_url = window.location.pathname + search`.
-  - Toast sukses + reset form.
+- Trigger `migrate_tokens_on_replay_flip` **sudah** memindahkan token live aktif ke `replay_tokens` dengan masa berlaku **14 hari** ketika show diubah ke replay.
+- `LivePage` **sudah** mendeteksi token yang sudah dimigrasikan dan otomatis redirect ke `/replay-play?token=...`.
+- Cron `replay-cleanup-daily` (01:00 WIB) **sudah** menjalankan `cleanup_replay_artifacts()` yang menghapus `replay_tokens` setelah `expires_at`.
+- **Masalah ditemukan:** fungsi `redeem_coins_for_replay` masih membuat token replay dengan durasi **7 hari** (tidak konsisten dengan kebijakan 14 hari).
+- **Masalah UI:** di `ReplayPlayPage.tsx`, lineup member ditampilkan di atas player; user ingin player di atas.
 
-### Pasang FAB di `App.tsx`
-- Render `<FeedbackFab />` satu kali di dalam `MaintenanceGate` (di luar `<Suspense>`) sehingga muncul di **semua halaman** otomatis tanpa perlu mengedit tiap page.
+---
 
-### Admin panel: `FeedbackManager.tsx`
-- Komponen baru di `src/components/admin/`.
-- Daftar feedback dengan filter: kategori, status (baru/dibaca/diarsipkan), pencarian teks.
-- Setiap kartu: kategori + badge baru, pesan, halaman asal, user/username, user-agent ringkas, waktu relatif, tombol "Tandai dibaca" / "Arsipkan" / "Hapus".
-- Realtime subscription `postgres_changes` → notifikasi badge baru tanpa refresh.
-- Counter "feedback baru" muncul di tombol sidebar.
+## Perubahan yang akan dilakukan
 
-**Integrasi sidebar admin** (`AdminSidebar.tsx`):
-- Tambah item baru `{ id: "feedback", label: "Kritik & Saran", icon: MessageSquare }` di grup "Keamanan & Monitoring" atau grup baru "Komunitas".
+### 1. Database — konsistensi durasi 14 hari (migrasi baru)
 
-**Integrasi router admin** (`AdminDashboard.tsx`):
-- Tambah `case "feedback": return <FeedbackManager />;` ke switch `renderSection`.
+- Update `redeem_coins_for_replay`: ubah `_duration_days := 7` menjadi `14`.
+- Tambahkan safety net: update one-time semua `replay_tokens` aktif yang `expires_at`-nya kurang dari 14 hari setelah `created_at` (hanya yang dibuat via `coin`) agar disesuaikan ke `created_at + 14 hari` jika belum lewat.
+- Verifikasi `migrate_tokens_on_replay_flip` tetap memakai `now() + interval '14 days'` (tidak diubah, hanya dikonfirmasi).
+- Verifikasi `cleanup_replay_artifacts` dijadwalkan harian (sudah ada — tidak diubah).
 
-## 2. Perbaikan Tombol Rotasi Player
+### 2. Player di atas Lineup — `src/pages/ReplayPlayPage.tsx`
 
-### Masalah saat ini (`VideoPlayer.tsx` baris 884–889)
-```ts
-const o = screen.orientation;
-if (o.type.includes("portrait")) await (o as any).lock("landscape");
-else await (o as any).lock("portrait");
+Restruktur urutan render saat `access.success && has_media`:
+
+```text
+[Header: judul + badge akses + jadwal]
+[Selector sumber tonton (Auto / M3U8 / YouTube)]   ← dipindah ke atas player
+[Player M3U8 / YouTube]                             ← naik di atas lineup
+[Kartu Lineup Member]                               ← turun di bawah player
+[Info "Akses berlaku sampai ..."]
 ```
-Cuma jalan di Chrome Android **dalam mode fullscreen**. Di iOS Safari, Firefox desktop, banyak browser mobile → langsung gagal diam-diam (try/catch kosong) → user kira tombol rusak.
 
-### Strategi perbaikan
+- Lineup avatars dipindah keluar dari header card menjadi card terpisah di bawah player.
+- Header card tetap menampilkan judul + jadwal + badge akses (tanpa lineup di dalamnya).
 
-**Refactor `toggleOrientation`** dengan urutan fallback yang andal:
+### 3. Tidak ada perubahan pada alur token live
 
-1. **Auto-fullscreen dulu jika belum**: Screen Orientation Lock API (W3C) **mensyaratkan** elemen sedang fullscreen di banyak browser. Kalau belum fullscreen, panggil `el.requestFullscreen()` dulu, tunggu event `fullscreenchange`, lalu coba `lock()`.
+Token link lama (`/live?t=CODE`) tetap berfungsi karena `LivePage` sudah otomatis mendeteksi & redirect ke `/replay-play?token=CODE`. Jadwal cleanup juga tetap berjalan sehingga token expired terhapus dari DB.
 
-2. **Coba `screen.orientation.lock()`** (Chrome/Edge Android, Samsung Internet).
+---
 
-3. **Fallback CSS rotation** (untuk iOS Safari, Firefox, browser yang menolak `lock()`):
-   - Toggle state `manualLandscape` di komponen.
-   - Bungkus container player dengan kelas yang menerapkan `transform: rotate(90deg)` + swap `width/height` via `100vh`/`100vw` saat aktif.
-   - Sembunyikan scrollbar body saat aktif.
-   - Tap tombol lagi untuk kembali normal.
+## Detail teknis
 
-4. **Deteksi kapabilitas saat mount**: cek `'orientation' in screen && typeof screen.orientation.lock === 'function'` → set capability flag, gunakan untuk pilih jalur native vs CSS.
+**Migrasi SQL:**
+- `CREATE OR REPLACE FUNCTION public.redeem_coins_for_replay(...)` dengan `_duration_days := 14`.
+- One-time `UPDATE public.replay_tokens SET expires_at = created_at + interval '14 days' WHERE created_via = 'coin' AND status = 'active' AND expires_at < created_at + interval '14 days'` agar token koin existing yang masih aktif diperpanjang menjadi 14 hari.
 
-5. **Listener `orientationchange`** untuk update icon (portrait ↔ landscape) sehingga user mendapat feedback visual.
+**File yang dimodifikasi:**
+- `supabase/migrations/<new>.sql` (baru) — fix durasi `redeem_coins_for_replay` + backfill expiry.
+- `src/pages/ReplayPlayPage.tsx` — re-order layout (player di atas lineup, selector source di atas player).
 
-6. **Toast informatif** saat semua fallback gagal: "Browser Anda tidak mendukung rotasi otomatis. Putar perangkat secara manual atau aktifkan auto-rotate di pengaturan."
-
-### Perubahan di `VideoPlayer.tsx`
-- Tambah `useState` untuk `manualLandscape` & `currentOrientation`.
-- Refactor `toggleOrientation` jadi async dengan urutan: auto-fullscreen → coba native lock → CSS fallback → toast error.
-- Tambah class CSS dinamis di `containerRef` saat `manualLandscape` aktif.
-- Tambah CSS utility di `index.css`:
-  ```css
-  .force-landscape {
-    transform: rotate(90deg) translate(0, -100%);
-    transform-origin: top left;
-    width: 100vh; height: 100vw;
-    position: fixed; top: 0; left: 0; z-index: 9999;
-  }
-  ```
-- Update icon tombol agar berubah saat sudah landscape (RotateCw vs RotateCcw).
-
-## Detail Teknis
-
-**File baru:**
-- `src/components/viewer/FeedbackFab.tsx`
-- `src/components/admin/FeedbackManager.tsx`
-- 1 migration SQL untuk tabel `feedback_messages` + RLS + trigger rate-limit.
-
-**File diubah:**
-- `src/App.tsx` — render `<FeedbackFab />`.
-- `src/components/admin/AdminSidebar.tsx` — tambah item menu "Kritik & Saran".
-- `src/pages/AdminDashboard.tsx` — tambah case `feedback`.
-- `src/components/VideoPlayer.tsx` — refactor `toggleOrientation` + state baru + class kondisional.
-- `src/index.css` — utility `.force-landscape`.
-
-**Tidak dirilis sebagai edge function** — semua operasi (insert + admin read) cukup lewat RLS langsung.
-
-**Memory yang akan diperbarui:**
-- Tambah `mem://features/feedback-system` mendokumentasikan FAB + admin panel.
-- Update player UI memory dengan strategi rotasi multi-fallback.
+**File yang TIDAK diubah** (sudah benar):
+- `migrate_tokens_on_replay_flip` (sudah 14 hari).
+- `cleanup_replay_artifacts` & cron (sudah harian).
+- `LivePage.tsx` redirect logic (sudah ada).
