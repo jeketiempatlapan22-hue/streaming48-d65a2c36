@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
+import { buildRegularShowMessage } from "@/lib/showMessageBuilder";
 
 interface Show {
   id: string;
@@ -56,51 +57,14 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
-    // Schedule string ("YYYY-MM-DD HH.MM") — tampil apa adanya seperti contoh user
-    const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" ");
-    const scheduleLine = scheduleParts || "-";
-
-    let msg = `━━━━━━━━━━━━━━━━━━
-
-✅ *Token Berhasil Dibuat!*
-
-━━━━━━━━━━━━━━━━━━
-
-
-
-🎬 Show: *${show.title}*
-
-📅 Jadwal: ${scheduleLine}
-
-📱 Max Device: *${params.maxDevices}*
-
-
-
-📺 *Link Nonton LIVE & REPLAY:*
-
-${params.link}
-
-
-
-🔄 *Info Replay:*
-
-
-
-  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
-
-
-
-> ATAU GUNAKAN :
-
-> 🔗 Link: https://replaytime.lovable.app`;
-
-    if (show.access_password) {
-      msg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
-    }
-
-    msg += `\n\n━━━━━━━━━━━━━━━━━━`;
-
-    return msg;
+    return buildRegularShowMessage({
+      showTitle: show.title,
+      scheduleDate: show.schedule_date,
+      scheduleTime: show.schedule_time,
+      liveLink: params.link,
+      maxDevices: params.maxDevices,
+      replayPassword: show.access_password,
+    });
   };
 
   const generate = async () => {

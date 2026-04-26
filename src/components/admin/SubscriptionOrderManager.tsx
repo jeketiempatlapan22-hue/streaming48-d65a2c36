@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, XCircle, Clock, Trash2, Send, Image, SendHorizonal, Coins, Copy, Mail, Save, Search, UserPlus, Phone } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { buildRegularShowMessage } from "@/lib/showMessageBuilder";
 
 interface Order {
   id: string;
@@ -34,58 +35,8 @@ interface SubscriptionOrderManagerProps {
   mode?: "membership" | "regular";
 }
 
-// Format pesan show reguler (non-membership, non-bundle, non-replay) sesuai standar baru.
-const buildRegularShowMessage = (params: {
-  showTitle: string;
-  scheduleDate?: string | null;
-  scheduleTime?: string | null;
-  tokenCode: string;
-  liveLink: string;
-  accessPassword?: string | null;
-  maxDevices?: number;
-}): string => {
-  const schedule = params.scheduleDate
-    ? `${params.scheduleDate}${params.scheduleTime ? " " + params.scheduleTime : ""}`
-    : "-";
-  let msg = `━━━━━━━━━━━━━━━━━━
+// Helper buildRegularShowMessage diimpor dari "@/lib/showMessageBuilder".
 
-✅ *Token Berhasil Dibuat!*
-
-━━━━━━━━━━━━━━━━━━
-
-
-
-🎬 Show: *${params.showTitle}*
-
-📅 Jadwal: ${schedule}
-
-📱 Max Device: *${params.maxDevices ?? 1}*
-
-
-
-📺 *Link Nonton LIVE & REPLAY:*
-
-${params.liveLink}
-
-
-
-🔄 *Info Replay:*
-
-
-
-  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
-
-
-
-> ATAU GUNAKAN :
-
-> 🔗 Link: https://replaytime.lovable.app`;
-  if (params.accessPassword) {
-    msg += `\n\n> 🔐 Sandi Replay: ${params.accessPassword}`;
-  }
-  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
-  return msg;
-};
 
 const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderManagerProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -221,9 +172,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
             scheduleTime: showInfo.schedule_time,
-            tokenCode: result.token_code,
+            // liveLink sudah dibangun di atas
             liveLink,
-            accessPassword: showInfo.access_password,
+            replayPassword: showInfo.access_password,
             maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(order.phone, message);
@@ -518,9 +469,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
             scheduleTime: showInfo.schedule_time,
-            tokenCode: result.token_code,
+            // liveLink sudah dibangun di atas
             liveLink,
-            accessPassword: showInfo.access_password,
+            replayPassword: showInfo.access_password,
             maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(newOrder.phone.trim(), message);
@@ -608,9 +559,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 showTitle: showInfo.title,
                 scheduleDate: showInfo.schedule_date,
                 scheduleTime: showInfo.schedule_time,
-                tokenCode: result.token_code,
+                // liveLink sudah dibangun di atas
                 liveLink,
-                accessPassword: showInfo.access_password,
+                replayPassword: showInfo.access_password,
                 maxDevices: tokRow?.max_devices ?? 1,
               });
               sendWhatsApp(order.phone, message);

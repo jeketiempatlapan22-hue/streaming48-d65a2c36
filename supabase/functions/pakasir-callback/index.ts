@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildRegularShowMessage } from "../_shared/showMessageBuilder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -239,9 +240,7 @@ Deno.serve(async (req) => {
             waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
           }
         } else if (!show?.is_bundle && !show?.is_subscription && !show?.is_replay) {
-          // Regular show — gunakan format standar baru
-          const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? " " + show.schedule_time : ""}` : "-";
-          // Ambil max_devices aktual dari token
+          // Regular show — gunakan helper terpusat
           let maxDev = 1;
           if (tokenCode) {
             const { data: tokRow } = await supabase
@@ -251,11 +250,14 @@ Deno.serve(async (req) => {
               .maybeSingle();
             maxDev = tokRow?.max_devices ?? 1;
           }
-          waMessage = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${show?.title || "Show"}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDev}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${tokenCode}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
-          if (show?.access_password) {
-            waMessage += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
-          }
-          waMessage += `\n\n━━━━━━━━━━━━━━━━━━`;
+          waMessage = buildRegularShowMessage({
+            showTitle: show?.title || "Show",
+            scheduleDate: show?.schedule_date,
+            scheduleTime: show?.schedule_time,
+            liveLink: `https://${siteUrl}/live?t=${tokenCode}`,
+            maxDevices: maxDev,
+            replayPassword: show?.access_password,
+          });
           // Skip default footer for this branch
           await sendBuyerWhatsApp(subOrder.phone, waMessage);
           return new Response(JSON.stringify({ success: true, confirmed: true, type: "show", token_code: tokenCode }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
