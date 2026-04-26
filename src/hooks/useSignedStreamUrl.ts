@@ -33,14 +33,22 @@ export function useSignedStreamUrl(
       setLoading(true);
       setError(null);
 
-      const response = await supabase.functions.invoke("stream-proxy", {
-        method: "POST",
-        body: {
-          token_code: tokenCode,
-          playlist_id: playlist.id,
-          fingerprint: fingerprint || undefined,
-        },
-      });
+      let response: Awaited<ReturnType<typeof supabase.functions.invoke>>;
+      try {
+        response = await supabase.functions.invoke("stream-proxy", {
+          method: "POST",
+          body: {
+            token_code: tokenCode,
+            playlist_id: playlist.id,
+            fingerprint: fingerprint || undefined,
+          },
+        });
+      } catch (invokeErr: any) {
+        // supabase.functions.invoke can throw on network/CORS failures —
+        // catch it explicitly so the surrounding effect never sees an
+        // unhandled rejection that the page-level ErrorBoundary would catch.
+        throw new Error(invokeErr?.message || "Network error contacting stream-proxy");
+      }
 
       if (response.error) {
         throw new Error(response.error.message || "Failed to generate signed URL");
@@ -62,7 +70,7 @@ export function useSignedStreamUrl(
     } catch (err: any) {
       if (!isMounted.current) return;
       console.error("[useSignedStreamUrl] Error:", err);
-      setError(err.message || "Failed to get stream URL");
+      setError(err?.message || "Failed to get stream URL");
       setLoading(false);
       setSignedUrl(null);
       setProxyType(null);
