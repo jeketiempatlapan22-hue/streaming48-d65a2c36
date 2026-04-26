@@ -170,7 +170,7 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
   const [resetCount, setResetCount] = useState<number>(() => {
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
       if (!raw) return 0;
       const { count, day } = JSON.parse(raw);
       const today = new Date().toDateString();
@@ -193,7 +193,7 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
       if (result?.success) {
         const newCount = resetCount + 1;
         setResetCount(newCount);
-        try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
+        safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() }));
         try {
           const { data: tk } = await supabase.rpc("validate_token", { _code: tokenCode });
           const tid = (tk as any)?.id;
@@ -366,7 +366,7 @@ const LivePage = () => {
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
-  const [username, setUsername] = useState(() => localStorage.getItem("rt48_username") || "");
+  const [username, setUsername] = useState(() => safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username") || "");
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
