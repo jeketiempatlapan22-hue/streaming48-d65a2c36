@@ -160,6 +160,7 @@ const App = () => {
                   <Route path="/coins" element={<CoinShop />} />
                   <Route path="/schedule" element={<SchedulePage />} />
                   <Route path="/replay" element={<ReplayPage />} />
+                  <Route path="/replay-play" element={<ReplayPlayPage />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/install" element={<InstallPage />} />
