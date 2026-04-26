@@ -517,10 +517,52 @@ const SiteSettingsManager = () => {
               className="bg-background"
               placeholder="https://cdn.example.com/hero-poster.jpg"
             />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPosterPickerOpen(true)}
+              title="Pilih dari galeri"
+            >
+              <ImageIcon className="h-4 w-4" />
+            </Button>
             <Button size="sm" onClick={() => saveSetting("hero_video_poster")} disabled={saving === "hero_video_poster"}>
               Simpan
             </Button>
           </div>
+          {values.hero_video_poster && (
+            <div className="mt-2 flex items-center gap-2">
+              <img
+                src={values.hero_video_poster}
+                alt="Preview poster"
+                className="h-16 w-28 rounded border border-border object-cover"
+                onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  await saveValueImmediate("hero_video_poster", "");
+                  setValues((p) => ({ ...p, hero_video_poster: "" }));
+                  toast({ title: "Poster dihapus" });
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+          <MediaPickerDialog
+            open={posterPickerOpen}
+            onOpenChange={setPosterPickerOpen}
+            onSelect={async (url) => {
+              setValues((p) => ({ ...p, hero_video_poster: url }));
+              try {
+                await saveValueImmediate("hero_video_poster", url);
+                toast({ title: "Poster diperbarui dari galeri" });
+              } catch (err: any) {
+                toast({ title: "Gagal menyimpan", description: err.message, variant: "destructive" });
+              }
+            }}
+          />
         </div>
         <div>
           <label className="mb-2 block text-xs font-medium text-muted-foreground">Status</label>
