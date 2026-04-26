@@ -41,6 +41,7 @@ const ResellerAuditLog = lazy(() => import("@/components/admin/ResellerAuditLog"
 const ManualTokenGenerator = lazy(() => import("@/components/admin/ManualTokenGenerator"));
 const RestreamManager = lazy(() => import("@/components/admin/RestreamManager"));
 const ReplayGlobalPasswordManager = lazy(() => import("@/components/admin/ReplayGlobalPasswordManager"));
+const FeedbackManager = lazy(() => import("@/components/admin/FeedbackManager"));
 
 
 /** Safe race: returns result or fallback after timeout */
