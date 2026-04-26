@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2, Trash2 } from "lucide-react";
+import { Upload, Loader2, Trash2, Image as ImageIcon } from "lucide-react";
+import MediaPickerDialog from "./MediaPickerDialog";
 
 const HERO_VIDEO_BUCKET = "hero-videos";
 const HERO_VIDEO_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
