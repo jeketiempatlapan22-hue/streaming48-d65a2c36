@@ -1141,7 +1141,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   return (
     <div
       ref={containerRef}
-      className={`relative w-full bg-black ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
+      className={`relative w-full bg-black ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"} ${forcedLandscape ? "rt48-force-landscape" : ""}`}
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
@@ -1446,8 +1446,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           </div>
         )}
 
-        {/* Rotate */}
-        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30" title="Rotate">
+        {/* Rotate — bekerja di semua browser via fallback CSS */}
+        <button
+          onClick={toggleOrientation}
+          className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition ${
+            forcedLandscape ? "bg-primary/80 hover:bg-primary" : "bg-white/20 hover:bg-white/30"
+          }`}
+          title={forcedLandscape ? "Kembali ke portrait" : "Putar ke landscape"}
+          aria-label="Rotasi layar"
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
 
