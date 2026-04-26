@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, lazy, Suspense } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const Watermark = lazy(() => import("@/components/viewer/Watermark"));
 
@@ -40,6 +41,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [forcedLandscape, setForcedLandscape] = useState(false);
+  const { toast: showToast } = useToast();
   const [ytMuted, setYtMuted] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isBehindLive, setIsBehindLive] = useState(false);
