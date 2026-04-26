@@ -19,8 +19,9 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
-import { createClientId, safeStorageGet, safeStorageSet } from "@/lib/clientId";
+import { createClientId, safeStorageGet, safeStorageSet, safeJsonParse } from "@/lib/clientId";
 import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
+import SectionBoundary from "@/components/SectionBoundary";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
@@ -169,13 +170,10 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   // Track local reset attempts (per token, daily window)
   const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
   const [resetCount, setResetCount] = useState<number>(() => {
-    try {
-      const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
-      if (!raw) return 0;
-      const { count, day } = JSON.parse(raw);
-      const today = new Date().toDateString();
-      return day === today ? Number(count) || 0 : 0;
-    } catch { return 0; }
+    const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
+    const parsed = safeJsonParse<{ count?: number; day?: string }>(raw, {});
+    const today = new Date().toDateString();
+    return parsed?.day === today ? Number(parsed?.count) || 0 : 0;
   });
   const remaining = Math.max(0, MAX_RESET_ATTEMPTS - resetCount);
 
@@ -363,6 +361,7 @@ const LivePage = () => {
   const [blocked, setBlocked] = useState(false);
   const [forcedOut, setForcedOut] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
@@ -541,7 +540,9 @@ const LivePage = () => {
           try {
             const { data: replayData } = await supabase.rpc("validate_replay_access" as any, { _token: tokenCode });
             if ((replayData as any)?.success) {
-              window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`);
+              setRedirecting(true);
+              // Use replace to prevent back navigation to broken state
+              try { window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`); } catch {}
               return;
             }
           } catch { /* abaikan, lanjut tampilkan error normal */ }
@@ -894,7 +895,7 @@ const LivePage = () => {
 
   // === RENDER SECTION (after all hooks) ===
 
-  if (loading) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">Memvalidasi akses...</p></div></div>);
+  if (loading || redirecting) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">{redirecting ? "Mengarahkan ke replay..." : "Memvalidasi akses..."}</p></div></div>);
 
   if (blocked) return (
     <div className="flex min-h-screen items-center justify-center bg-destructive/5 px-4">
@@ -962,8 +963,8 @@ const LivePage = () => {
   const isLive = stream?.is_live || false;
 
   if (showMismatch) {
-    let mismatchInfo = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
-    try { mismatchInfo = JSON.parse(mismatchShowTitle); } catch {}
+    const defaultMismatch = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
+    const mismatchInfo = safeJsonParse<typeof defaultMismatch>(mismatchShowTitle, defaultMismatch);
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center shadow-lg">
@@ -1002,11 +1003,11 @@ const LivePage = () => {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-background lg:flex-row">
-      <ConnectionStatus />
-      <ViewerBroadcast />
-      <SecurityAlert />
-      {playerAnimation !== "none" && <Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense>}
-      {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
+      <SectionBoundary name="ConnectionStatus"><ConnectionStatus /></SectionBoundary>
+      <SectionBoundary name="ViewerBroadcast"><ViewerBroadcast /></SectionBoundary>
+      <SectionBoundary name="SecurityAlert"><SecurityAlert /></SectionBoundary>
+      {playerAnimation !== "none" && <SectionBoundary name="PlayerAnimations"><Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense></SectionBoundary>}
+      {showUsernameModal && <SectionBoundary name="UsernameModal"><Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense></SectionBoundary>}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
           <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
@@ -1094,16 +1095,25 @@ const LivePage = () => {
           {isLive && activePlaylist ? (
             <div className="relative">
               {effectiveStreamUrl ? (
-                <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
-                  <VideoPlayer
-                    ref={playerRef}
-                    key={`${activePlaylist.id}-${activePlaylist.type}`}
-                    playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
-                    autoPlay
-                    tokenCode={tokenData?.code}
-                    customHeadersRef={effectiveHeadersRef}
-                  />
-                </Suspense>
+                <SectionBoundary
+                  name="VideoPlayer"
+                  fallback={
+                    <div className="flex aspect-video w-full items-center justify-center bg-card">
+                      <p className="text-sm text-destructive">Player gagal dimuat. Coba refresh halaman.</p>
+                    </div>
+                  }
+                >
+                  <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                    <VideoPlayer
+                      ref={playerRef}
+                      key={`${activePlaylist.id}-${activePlaylist.type}`}
+                      playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
+                      autoPlay
+                      tokenCode={tokenData?.code}
+                      customHeadersRef={effectiveHeadersRef}
+                    />
+                  </Suspense>
+                </SectionBoundary>
               ) : effectiveStreamLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">
@@ -1242,24 +1252,35 @@ const LivePage = () => {
             <h2 className="text-sm font-bold text-foreground">{activeShowTitle}</h2>
           </div>
         )}
-        <Suspense fallback={null}>
-          <LineupAvatars team={activeShowTeam} />
-        </Suspense>
+        <SectionBoundary name="LineupAvatars">
+          <Suspense fallback={null}>
+            <LineupAvatars team={activeShowTeam} />
+          </Suspense>
+        </SectionBoundary>
         <div className="border-t border-border px-4 py-2"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
-          <Suspense fallback={null}>
-            <LivePoll voterId={tokenData?.id || username || "anon"} />
-          </Suspense>
+          <SectionBoundary name="LivePoll">
+            <Suspense fallback={null}>
+              <LivePoll voterId={tokenData?.id || username || "anon"} />
+            </Suspense>
+          </SectionBoundary>
         </div>
-        <Suspense fallback={null}>
-          <LiveQuizSlot currentUserId={null} />
-        </Suspense>
-        <div className="flex-1 min-h-0">
-          <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
-            <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
+        <SectionBoundary name="LiveQuizSlot">
+          <Suspense fallback={null}>
+            <LiveQuizSlot currentUserId={null} />
           </Suspense>
+        </SectionBoundary>
+        <div className="flex-1 min-h-0">
+          <SectionBoundary
+            name="LiveChat"
+            fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Chat tidak tersedia. Coba refresh.</p></div>}
+          >
+            <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
+              <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
+            </Suspense>
+          </SectionBoundary>
         </div>
       </div>
     </div>

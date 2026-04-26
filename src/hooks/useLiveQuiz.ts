@@ -42,56 +42,67 @@ export const useLiveQuiz = () => {
   }, []);
 
   const loadWinners = async (quizId: string) => {
-    const { data: w } = await supabase
-      .from("quiz_winners")
-      .select("id, quiz_id, user_id, username, rank, coins_awarded, answered_at")
-      .eq("quiz_id", quizId)
-      .order("rank", { ascending: true });
-    const list = (w as QuizWinnerRow[]) || [];
-    setWinners(list);
+    try {
+      const { data: w } = await supabase
+        .from("quiz_winners")
+        .select("id, quiz_id, user_id, username, rank, coins_awarded, answered_at")
+        .eq("quiz_id", quizId)
+        .order("rank", { ascending: true });
+      const list = (w as QuizWinnerRow[]) || [];
+      setWinners(list);
 
-    // Announce win for current user (only once per win)
-    const uid = currentUserIdRef.current;
-    if (uid) {
-      const myWin = list.find((x) => x.user_id === uid);
-      if (myWin && !announcedWinRef.current.has(myWin.id)) {
-        announcedWinRef.current.add(myWin.id);
-        toast.success(`Selamat! Kamu menang 🏆 (peringkat #${myWin.rank})`, {
-          description: `+${myWin.coins_awarded} koin sudah masuk ke saldo kamu.`,
-        });
+      // Announce win for current user (only once per win)
+      const uid = currentUserIdRef.current;
+      if (uid) {
+        const myWin = list.find((x) => x.user_id === uid);
+        if (myWin && !announcedWinRef.current.has(myWin.id)) {
+          announcedWinRef.current.add(myWin.id);
+          try {
+            toast.success(`Selamat! Kamu menang 🏆 (peringkat #${myWin.rank})`, {
+              description: `+${myWin.coins_awarded} koin sudah masuk ke saldo kamu.`,
+            });
+          } catch { /* toast not ready yet */ }
+        }
       }
+    } catch (e) {
+      // Network/RPC blip — keep previous winners list, don't crash polling loop
+      console.warn("[useLiveQuiz] loadWinners failed:", e);
     }
   };
 
   const loadActive = async () => {
-    // Cek cache singleton dulu (sangat cepat) untuk early-exit
-    const { data: state } = await supabase
-      .from("live_quiz_state")
-      .select("active_quiz_id, ends_at")
-      .eq("id", 1)
-      .maybeSingle();
+    try {
+      // Cek cache singleton dulu (sangat cepat) untuk early-exit
+      const { data: state } = await supabase
+        .from("live_quiz_state")
+        .select("active_quiz_id, ends_at")
+        .eq("id", 1)
+        .maybeSingle();
 
-    if (!state?.active_quiz_id || !state.ends_at || new Date(state.ends_at).getTime() <= Date.now()) {
-      setActiveQuiz(null);
-      setWinners([]);
-      activeIdRef.current = null;
-      return;
-    }
+      if (!state?.active_quiz_id || !state.ends_at || new Date(state.ends_at).getTime() <= Date.now()) {
+        setActiveQuiz(null);
+        setWinners([]);
+        activeIdRef.current = null;
+        return;
+      }
 
-    const { data } = await supabase
-      .from("live_quizzes")
-      .select("id, question, answers, max_winners, coin_reward, duration_seconds, started_at, ends_at, status")
-      .eq("id", state.active_quiz_id)
-      .maybeSingle();
+      const { data } = await supabase
+        .from("live_quizzes")
+        .select("id, question, answers, max_winners, coin_reward, duration_seconds, started_at, ends_at, status")
+        .eq("id", state.active_quiz_id)
+        .maybeSingle();
 
-    if (data && data.status === "active" && data.ends_at && new Date(data.ends_at).getTime() > Date.now()) {
-      setActiveQuiz(data as ActiveQuiz);
-      activeIdRef.current = data.id;
-      await loadWinners(data.id);
-    } else {
-      setActiveQuiz(null);
-      setWinners([]);
-      activeIdRef.current = null;
+      if (data && data.status === "active" && data.ends_at && new Date(data.ends_at).getTime() > Date.now()) {
+        setActiveQuiz(data as ActiveQuiz);
+        activeIdRef.current = data.id;
+        await loadWinners(data.id);
+      } else {
+        setActiveQuiz(null);
+        setWinners([]);
+        activeIdRef.current = null;
+      }
+    } catch (e) {
+      console.warn("[useLiveQuiz] loadActive failed:", e);
     }
   };
 

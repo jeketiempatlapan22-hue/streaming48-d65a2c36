@@ -44,42 +44,54 @@ const LineupAvatars = ({ showId, team }: LineupAvatarsProps) => {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchData = async () => {
-      // Fetch all member photos
-      const { data: photos } = await supabase
-        .from("member_photos")
-        .select("name, photo_url");
-      
-      setMemberPhotos(photos || []);
+      try {
+        // Fetch all member photos
+        const { data: photos } = await supabase
+          .from("member_photos")
+          .select("name, photo_url");
 
-      // Fetch active show lineup
-      if (showId) {
-        // Use RPC to get show data safely (shows table is admin-only)
-        const { data: shows } = await supabase.rpc("get_public_shows");
-        const show = (shows as any[])?.find((s: any) => s.id === showId);
-        if (show?.lineup) {
-          setLineupNames(parseLineup(show.lineup));
-        }
-      } else {
-        // Try to get from site_settings active_show_id
-        const { data: settings } = await supabase
-          .from("site_settings")
-          .select("key, value")
-          .eq("key", "active_show_id")
-          .maybeSingle();
-        
-        if (settings?.value) {
+        if (!isMounted) return;
+        setMemberPhotos(photos || []);
+
+        // Fetch active show lineup
+        if (showId) {
+          // Use RPC to get show data safely (shows table is admin-only)
           const { data: shows } = await supabase.rpc("get_public_shows");
-          const show = (shows as any[])?.find((s: any) => s.id === settings.value);
+          if (!isMounted) return;
+          const show = (shows as any[])?.find((s: any) => s.id === showId);
           if (show?.lineup) {
             setLineupNames(parseLineup(show.lineup));
           }
+        } else {
+          // Try to get from site_settings active_show_id
+          const { data: settings } = await supabase
+            .from("site_settings")
+            .select("key, value")
+            .eq("key", "active_show_id")
+            .maybeSingle();
+
+          if (!isMounted) return;
+          if (settings?.value) {
+            const { data: shows } = await supabase.rpc("get_public_shows");
+            if (!isMounted) return;
+            const show = (shows as any[])?.find((s: any) => s.id === settings.value);
+            if (show?.lineup) {
+              setLineupNames(parseLineup(show.lineup));
+            }
+          }
         }
+      } catch (e) {
+        // Network/RPC blip — keep section hidden gracefully
+        console.warn("[LineupAvatars] fetch failed:", e);
+      } finally {
+        if (isMounted) setLoaded(true);
       }
-      setLoaded(true);
     };
 
     fetchData();
+    return () => { isMounted = false; };
   }, [showId]);
 
   if (!loaded || lineupNames.length === 0) return null;
