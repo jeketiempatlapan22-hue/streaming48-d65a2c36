@@ -1933,7 +1933,9 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n` +
       `🔢 4 Digit: \`${escapeMarkdown(last4)}\``;
 
-    if (show.is_bundle) {
+    if (show.is_subscription) {
+      msg += `\n👑 Durasi Membership: *${escapeMarkdown(String(show.membership_duration_days || 30))} hari*`;
+    } else if (show.is_bundle) {
       msg += `\n📦 Durasi Bundle: *${escapeMarkdown(String(show.bundle_duration_days || 30))} hari*`;
     }
 
