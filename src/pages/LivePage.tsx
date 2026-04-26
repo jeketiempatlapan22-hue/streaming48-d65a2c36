@@ -1252,24 +1252,35 @@ const LivePage = () => {
             <h2 className="text-sm font-bold text-foreground">{activeShowTitle}</h2>
           </div>
         )}
-        <Suspense fallback={null}>
-          <LineupAvatars team={activeShowTeam} />
-        </Suspense>
+        <SectionBoundary name="LineupAvatars">
+          <Suspense fallback={null}>
+            <LineupAvatars team={activeShowTeam} />
+          </Suspense>
+        </SectionBoundary>
         <div className="border-t border-border px-4 py-2"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
-          <Suspense fallback={null}>
-            <LivePoll voterId={tokenData?.id || username || "anon"} />
-          </Suspense>
+          <SectionBoundary name="LivePoll">
+            <Suspense fallback={null}>
+              <LivePoll voterId={tokenData?.id || username || "anon"} />
+            </Suspense>
+          </SectionBoundary>
         </div>
-        <Suspense fallback={null}>
-          <LiveQuizSlot currentUserId={null} />
-        </Suspense>
-        <div className="flex-1 min-h-0">
-          <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
-            <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
+        <SectionBoundary name="LiveQuizSlot">
+          <Suspense fallback={null}>
+            <LiveQuizSlot currentUserId={null} />
           </Suspense>
+        </SectionBoundary>
+        <div className="flex-1 min-h-0">
+          <SectionBoundary
+            name="LiveChat"
+            fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Chat tidak tersedia. Coba refresh.</p></div>}
+          >
+            <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
+              <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
+            </Suspense>
+          </SectionBoundary>
         </div>
       </div>
     </div>
