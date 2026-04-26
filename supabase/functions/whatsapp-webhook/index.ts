@@ -2365,7 +2365,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     }
     if (!show) return `⚠️ Show "${showInput}" tidak ditemukan.`;
 
-    const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const code = (show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
@@ -2375,6 +2375,7 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
       max_devices: maxDevices,
       expires_at: expiresAt,
       status: 'active',
+      duration_type: show.is_subscription ? 'membership' : undefined,
     });
 
     if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
@@ -2384,7 +2385,9 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
-    if (show.is_bundle) {
+    if (show.is_subscription) {
+      msg += `\n👑 Durasi Membership: *${show.membership_duration_days || 30} hari*`;
+    } else if (show.is_bundle) {
       msg += `\n📦 Durasi Bundle: *${show.bundle_duration_days || 30} hari*`;
     }
     msg += `\n\n📺 *Link Nonton:*\n${liveLink}`;
