@@ -181,14 +181,15 @@ const CoinShop = () => {
   const handleStartDynamicQris = async () => {
     if (!selectedPkg || !user) return;
     setDynamicLoading(true);
+    setDynamicFailed(false);
     setPurchaseStep("qris");
 
-    // Hard client-side timeout (15s) so spinner never hangs forever
+    // Hard client-side timeout (28s) — slightly longer than edge function (22s+retry)
     const hardTimeout = setTimeout(() => {
-      toast({ title: "QRIS lambat dimuat", description: "Silakan coba lagi.", variant: "destructive" });
-      setPurchaseStep("phone");
+      toast({ title: "QRIS dinamis lambat", description: "Coba QRIS Statis sebagai cadangan.", variant: "destructive" });
       setDynamicLoading(false);
-    }, 15000);
+      setDynamicFailed(true);
+    }, 28000);
 
     try {
       const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, "")) || 0;
@@ -211,8 +212,8 @@ const CoinShop = () => {
       clearTimeout(hardTimeout);
 
       if (error || !data?.success) {
-        toast({ title: data?.error || error?.message || "Gagal membuat QRIS", variant: "destructive" });
-        setPurchaseStep("phone");
+        toast({ title: data?.error || error?.message || "Gagal membuat QRIS dinamis", description: "Silakan gunakan QRIS Statis sebagai cadangan.", variant: "destructive" });
+        setDynamicFailed(true);
         setDynamicLoading(false);
         return;
       }
@@ -221,10 +222,15 @@ const CoinShop = () => {
       setDynamicOrderId(data.order_id);
     } catch (err: any) {
       clearTimeout(hardTimeout);
-      toast({ title: "Gagal membuat QRIS", description: err?.message, variant: "destructive" });
-      setPurchaseStep("phone");
+      toast({ title: "Gagal membuat QRIS dinamis", description: "Coba QRIS Statis.", variant: "destructive" });
+      setDynamicFailed(true);
     }
     setDynamicLoading(false);
+  };
+
+  const switchToStaticQris = () => {
+    setPurchaseStep("static");
+    setDynamicFailed(false);
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
