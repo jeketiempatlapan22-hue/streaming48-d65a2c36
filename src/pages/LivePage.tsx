@@ -895,7 +895,7 @@ const LivePage = () => {
 
   // === RENDER SECTION (after all hooks) ===
 
-  if (loading) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">Memvalidasi akses...</p></div></div>);
+  if (loading || redirecting) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">{redirecting ? "Mengarahkan ke replay..." : "Memvalidasi akses..."}</p></div></div>);
 
   if (blocked) return (
     <div className="flex min-h-screen items-center justify-center bg-destructive/5 px-4">
