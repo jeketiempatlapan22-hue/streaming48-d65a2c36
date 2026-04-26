@@ -352,7 +352,7 @@ async function findShowByIdOrName(supabase: any, input: string, activeOnly = tru
   const cleanInput = input.replace(/^#/, '').trim();
   
   // First try matching by custom short_id
-  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
+  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link');
   if (activeOnly) query0.eq('is_active', true);
   const { data: allShows } = await query0;
   
@@ -1869,18 +1869,20 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
         const { show, error } = await findShowByIdOrName(supabase, input, false);
         if (error || !show) { allMessages.push(`⚠️ "${escapeMarkdown(input)}": ${escapeMarkdown(error || 'Tidak ditemukan')}`); continue; }
 
-        const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const code = (show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
         const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
         const { error: insertErr } = await supabase.from('tokens').insert({
           code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+          ...(show.is_subscription ? { duration_type: 'membership' } : {}),
         });
 
         if (insertErr) { allMessages.push(`⚠️ "${escapeMarkdown(show.title)}": ${escapeMarkdown(insertErr.message)}`); continue; }
 
         const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
         let msg = `✅ *${escapeMarkdown(show.title)}*\n🔑 \`${escapeMarkdown(code)}\`\n📱 Max: ${maxDevices} ⏰ ${escapeMarkdown(expDate)}`;
-        if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
+        if (show.is_subscription) msg += `\n👑 Membership: ${show.membership_duration_days || 30} hari`;
+        else if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
         msg += `\n💡 https://realtime48stream\\.my\\.id/live?t\\=${escapeMarkdown(code)}`;
         allMessages.push(msg);
       }
@@ -1896,7 +1898,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       return;
     }
 
-    const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const code = (show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
@@ -1905,6 +1907,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       max_devices: maxDevices,
       expires_at: expiresAt,
       status: 'active',
+      ...(show.is_subscription ? { duration_type: 'membership' } : {}),
     });
 
     if (insertErr) {
@@ -1930,7 +1933,9 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       `⏰ Kedaluwarsa: ${escapeMarkdown(expDate)}\n` +
       `🔢 4 Digit: \`${escapeMarkdown(last4)}\``;
 
-    if (show.is_bundle) {
+    if (show.is_subscription) {
+      msg += `\n👑 Durasi Membership: *${escapeMarkdown(String(show.membership_duration_days || 30))} hari*`;
+    } else if (show.is_bundle) {
       msg += `\n📦 Durasi Bundle: *${escapeMarkdown(String(show.bundle_duration_days || 30))} hari*`;
     }
 
@@ -2124,6 +2129,12 @@ function buildReplayInfoMessageTelegram(show: any): string {
 }
 
 async function calculateShowTokenExpiry(supabase: any, show: any): Promise<string> {
+  // Membership shows must follow admin-defined membership_duration_days
+  if (show?.is_subscription) {
+    const days = Number(show.membership_duration_days) > 0 ? Number(show.membership_duration_days) : 30;
+    return new Date(Date.now() + days * 86400000).toISOString();
+  }
+
   if (show?.is_bundle && (show.bundle_duration_days || 0) > 0) {
     return new Date(Date.now() + show.bundle_duration_days * 86400000).toISOString();
   }

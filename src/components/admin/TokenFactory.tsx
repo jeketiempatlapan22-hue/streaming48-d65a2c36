@@ -18,11 +18,22 @@ const DURATION_TABS = [
 ] as const;
 
 type DurationKey = "daily" | "weekly" | "monthly" | "custom";
-type TabKey = DurationKey | "coin";
+type TabKey = DurationKey | "coin" | "membership";
+
+// Membership tokens are kept in a SEPARATE tab so they can't be accidentally
+// bulk-deleted alongside generic daily/weekly tokens. Detection by code prefix
+// AND duration_type to handle legacy rows.
+const isMembershipToken = (t: any): boolean => {
+  if (!t) return false;
+  if (t.duration_type === "membership") return true;
+  const code = String(t.code || "").toUpperCase();
+  return code.startsWith("MBR-") || code.startsWith("MRD-");
+};
 
 const TokenFactory = () => {
   const [tokens, setTokens] = useState<any[]>([]);
   const [coinTokens, setCoinTokens] = useState<any[]>([]);
+  const [membershipTokens, setMembershipTokens] = useState<any[]>([]);
   const [sessions, setSessions] = useState<Record<string, number>>({});
   const [duration, setDuration] = useState<DurationKey>("daily");
   const [customDays, setCustomDays] = useState("3");
@@ -31,7 +42,7 @@ const TokenFactory = () => {
   const [isPublic, setIsPublic] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Record<TabKey, Set<string>>>({
-    daily: new Set(), weekly: new Set(), monthly: new Set(), custom: new Set(), coin: new Set(),
+    daily: new Set(), weekly: new Set(), monthly: new Set(), custom: new Set(), coin: new Set(), membership: new Set(),
   });
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "expired">("all");
   const [activeTab, setActiveTab] = useState<TabKey>("daily");
@@ -53,7 +64,13 @@ const TokenFactory = () => {
       supabase.from("tokens").select("*").not("code", "like", "COIN-%").order("created_at", { ascending: false }),
       supabase.from("tokens").select("*").like("code", "COIN-%").order("created_at", { ascending: false }),
     ]);
-    setTokens(manualRes.data || []);
+    const allManual = manualRes.data || [];
+    // Split membership tokens into their own bucket so they cannot be bulk-deleted
+    // alongside generic daily/weekly/monthly/custom tokens.
+    const memberships = allManual.filter(isMembershipToken);
+    const regular = allManual.filter((t: any) => !isMembershipToken(t));
+    setTokens(regular);
+    setMembershipTokens(memberships);
     setCoinTokens(coinRes.data || []);
     const { data: sessData } = await supabase.from("token_sessions").select("token_id").eq("is_active", true);
     if (sessData) {
@@ -123,10 +140,16 @@ const TokenFactory = () => {
     toast({ title: "Link disalin!" });
   };
 
+  const getSourceForTab = (dur: TabKey): any[] => {
+    if (dur === "coin") return coinTokens;
+    if (dur === "membership") return membershipTokens;
+    return tokens;
+  };
+
   const bulkCopyUncopied = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens;
+    const source = getSourceForTab(dur);
     const uncopied = source.filter(
-      (t) => (dur === "coin" || t.duration_type === dur) && !copiedTokens.has(t.code) && t.status !== "blocked" && !isExpired(t)
+      (t) => (dur === "coin" || dur === "membership" || t.duration_type === dur) && !copiedTokens.has(t.code) && t.status !== "blocked" && !isExpired(t)
     );
     if (uncopied.length === 0) {
       toast({ title: "Tidak ada token baru untuk disalin" });
@@ -153,7 +176,7 @@ const TokenFactory = () => {
   };
 
   const blockToken = async (id: string) => {
-    const token = [...tokens, ...coinTokens].find(t => t.id === id);
+    const token = [...tokens, ...coinTokens, ...membershipTokens].find(t => t.id === id);
     const newStatus = token?.status === "blocked" ? "active" : "blocked";
     await supabase.from("tokens").update({ status: newStatus }).eq("id", id);
     if (newStatus === "blocked") {
@@ -244,9 +267,11 @@ const TokenFactory = () => {
   };
 
   const getFilteredTokens = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens;
+    const source = getSourceForTab(dur);
     return source.filter((t) => {
-      if (dur !== "coin" && t.duration_type !== dur) return false;
+      // For regular duration tabs, match exact duration_type. Coin & membership
+      // tabs already use a pre-filtered source so no duration check needed.
+      if (dur !== "coin" && dur !== "membership" && t.duration_type !== dur) return false;
       const matchSearch = t.code.toLowerCase().includes(search.toLowerCase());
       if (!matchSearch) return false;
       if (statusFilter === "all") return true;
@@ -259,11 +284,16 @@ const TokenFactory = () => {
 
   const getCountByDuration = (dur: TabKey) => {
     if (dur === "coin") return coinTokens.length;
+    if (dur === "membership") return membershipTokens.length;
     return tokens.filter(t => t.duration_type === dur).length;
   };
 
   const getCountByStatus = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens.filter(t => t.duration_type === dur);
+    const source = dur === "coin"
+      ? coinTokens
+      : dur === "membership"
+        ? membershipTokens
+        : tokens.filter(t => t.duration_type === dur);
     return {
       all: source.length,
       active: source.filter(t => t.status !== "blocked" && !isExpired(t)).length,
@@ -487,7 +517,7 @@ const TokenFactory = () => {
 
       {/* Duration Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabKey); setStatusFilter("all"); }}>
-        <TabsList className="w-full grid grid-cols-5">
+        <TabsList className="w-full grid grid-cols-6">
           {DURATION_TABS.map(({ key, label, emoji }) => (
             <TabsTrigger key={key} value={key} className="gap-1 text-xs">
               <span>{emoji}</span> {label}
@@ -498,11 +528,25 @@ const TokenFactory = () => {
             <span>🪙</span> Koin
             <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold">{getCountByDuration("coin")}</span>
           </TabsTrigger>
+          <TabsTrigger value="membership" className="gap-1 text-xs">
+            <span>👑</span> Membership
+            <span className="ml-1 rounded-full bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 text-[10px] font-bold">{getCountByDuration("membership")}</span>
+          </TabsTrigger>
         </TabsList>
         {DURATION_TABS.map(({ key }) => (
           <TabsContent key={key} value={key} className="mt-4">{renderTokenList(key)}</TabsContent>
         ))}
         <TabsContent value="coin" className="mt-4">{renderTokenList("coin")}</TabsContent>
+        <TabsContent value="membership" className="mt-4">
+          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+            <p className="text-xs text-yellow-500 font-semibold">👑 Token Membership Terpisah</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Token ini dibuat otomatis dari pembelian membership (QRIS / Koin) dan terisolasi dari token lain
+              agar tidak terhapus saat bulk-delete tab Harian/Mingguan/Bulanan/Custom.
+            </p>
+          </div>
+          {renderTokenList("membership")}
+        </TabsContent>
       </Tabs>
 
       {/* Extend Token Dialog */}
