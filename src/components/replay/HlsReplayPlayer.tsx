@@ -32,13 +32,43 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     if (!video || !src) return;
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: true, lowLatencyMode: false });
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        // Replay/VOD: jangan buang segmen lama, simpan seluruh buffer agar bisa
+        // di-seek dari awal sampai akhir. Default backBufferLength=90 detik
+        // membuat playlist EVENT/live-style hanya menampilkan bagian akhir.
+        backBufferLength: Infinity,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 600,
+        liveDurationInfinity: false,
+        liveSyncDurationCount: 3,
+      });
       hlsRef.current = hls;
       hls.loadSource(src);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setLevels(data.levels || []);
+        // Untuk replay: paksa mulai dari awal (currentTime=0).
+        // Tanpa ini, playlist EVENT tanpa #EXT-X-ENDLIST akan diperlakukan
+        // seperti live & user hanya melihat bagian paling akhir.
+        try {
+          if (video.currentTime < 0.1) {
+            video.currentTime = 0;
+          }
+        } catch {}
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
+        // Jika manifest sebenarnya VOD tapi tidak diberi tanda ENDLIST oleh
+        // origin, tetap perlakukan sebagai VOD agar seekable bar penuh.
+        const details: any = data.details;
+        if (details && details.live && details.endSN > 0) {
+          // Override: anggap sebagai VOD setelah semua segmen termuat
+          if (details.endSN === details.startSN + details.fragments.length - 1) {
+            details.live = false;
+          }
+        }
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
         setCurrentLevel(hls.autoLevelEnabled ? -1 : data.level);
