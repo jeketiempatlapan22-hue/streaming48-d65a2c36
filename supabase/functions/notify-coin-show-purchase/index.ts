@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     // Get show details
     const { data: show } = await supabase
       .from('shows')
-      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info, bundle_duration_days')
+      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info, bundle_duration_days, replay_m3u8_url, replay_youtube_url')
       .eq('id', show_id)
       .maybeSingle();
 
