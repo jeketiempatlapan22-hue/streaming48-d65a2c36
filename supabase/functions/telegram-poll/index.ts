@@ -2012,6 +2012,20 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
     });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
+    // Show REGULER → format pesan standar terbaru (plain) dengan info penerima
+    if (!show.is_subscription && !show.is_bundle) {
+      const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
+      const base = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      await sendTelegramMessage(botToken, chatId, `👤 Diberikan ke: ${profile.username || 'Unknown'}\n\n${base}`);
+      return;
+    }
+
     let msg = `✅ *Token Diberikan ke User\\!*\n\n` +
       `👤 User: *${escapeMarkdown(profile.username || 'Unknown')}*\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
