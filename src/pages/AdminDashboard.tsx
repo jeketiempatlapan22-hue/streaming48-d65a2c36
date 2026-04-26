@@ -217,6 +217,7 @@ const AdminDashboard = () => {
       case "member-photos": return <MemberPhotoManager />;
       case "resellers": return <ResellerManager />;
       case "reseller-audit": return <ResellerAuditLog />;
+      case "feedback": return <FeedbackManager />;
       default: return <LiveControl />;
     }
   };
