@@ -57,6 +57,12 @@ const ViewerAuth = () => {
       });
   }, [navigate, refCode]);
 
+  useEffect(() => {
+    if (!turnstileSiteKey || turnstileToken || turnstileFailed) return;
+    const timer = window.setTimeout(() => setTurnstileFailed(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [turnstileSiteKey, turnstileToken, turnstileFailed]);
+
   const phoneDigits = (raw: string) => raw.replace(/[^0-9]/g, "");
   const normalizePhone = (raw: string) => {
     let digits = phoneDigits(raw);
@@ -130,8 +136,7 @@ const ViewerAuth = () => {
 
     // Turnstile verification (if configured and not failed)
     if (turnstileSiteKey && !turnstileToken && !turnstileFailed) {
-      toast.error("Silakan selesaikan verifikasi keamanan terlebih dahulu");
-      return;
+      setTurnstileFailed(true);
     }
     if (turnstileSiteKey && turnstileToken) {
       try {
@@ -139,9 +144,8 @@ const ViewerAuth = () => {
           body: { token: turnstileToken },
         });
         if (!verifyResult?.success) {
-          toast.error("Verifikasi keamanan gagal. Coba lagi.");
           setTurnstileToken(null);
-          return;
+          setTurnstileFailed(true);
         }
       } catch {
         // If verification fails, allow through (graceful degradation)
@@ -390,7 +394,7 @@ const ViewerAuth = () => {
                   <Input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); }} placeholder="08xxxxxxxxxx" required className="bg-background pl-10" />
                 </div>
               </div>
-              {normalizePhone(phone).length >= 10 && (
+              {phoneDigits(phone).length >= 10 && (
                 <div className="flex items-start gap-2 rounded-lg border border-border bg-secondary/50 p-3">
                   <Checkbox
                     id="phone-verify"
@@ -431,7 +435,7 @@ const ViewerAuth = () => {
           {turnstileFailed && (
             <p className="text-center text-[10px] text-muted-foreground">Verifikasi keamanan tidak tersedia — Anda tetap bisa masuk</p>
           )}
-          <Button type="submit" className="w-full" disabled={loading || !isFormValid() || (!!turnstileSiteKey && !turnstileToken && !turnstileFailed)}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
+          <Button type="submit" className="w-full" disabled={loading || !isFormValid()}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
           <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setLoginError(""); setFailCount(0); }} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
           {mode === "login" && (
             <p className="text-center text-xs"><a href="/forgot-password" className={`transition-colors ${failCount >= 2 ? "font-bold text-primary" : "text-muted-foreground hover:text-primary"}`}>Lupa password?</a></p>
