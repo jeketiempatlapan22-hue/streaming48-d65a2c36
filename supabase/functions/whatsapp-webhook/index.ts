@@ -1337,19 +1337,13 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
             waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
             await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
           } else {
-            // Regular show confirmation
-            let waMsg = `━━━━━━━━━━━━━━━━━━\n✅ *Pesanan Dikonfirmasi!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${showTitle}*\n\n🎫 *Token Akses:* ${result.token_code}\n📺 *Link Nonton:*\n${liveLink}\n`;
+            // Regular show confirmation — format standar baru
+            const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+            let waMsg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *1*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
             if (show?.access_password) {
-              waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
+              waMsg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
             }
-            if (show?.schedule_date) {
-              waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
-            }
-            waMsg += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
-            if (show?.access_password) {
-              waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
-            }
-            waMsg += `\n⚠️ _Token hanya berlaku untuk 1 perangkat._\n_Jangan bagikan link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+            waMsg += `\n\n━━━━━━━━━━━━━━━━━━`;
             await sendFonnteMessage(FONNTE_TOKEN, order.phone, waMsg);
           }
         }
