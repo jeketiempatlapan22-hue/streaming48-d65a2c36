@@ -46,7 +46,14 @@ interface ShowMeta {
   lineup?: string | null;
 }
 
-type Source = "m3u8" | "youtube";
+type Source = "auto" | "m3u8" | "youtube";
+
+const resolveAuto = (a: AccessData | null): "m3u8" | "youtube" | null => {
+  if (!a) return null;
+  if (a.m3u8_url) return "m3u8";
+  if (a.youtube_url) return "youtube";
+  return null;
+};
 
 const ReplayPlayPage = () => {
   const { toast } = useToast();
