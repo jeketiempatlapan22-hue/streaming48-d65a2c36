@@ -2467,8 +2467,6 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
-
-    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
     const liveLinkSample = `https://realtime48stream.my.id/live?t=${tokens[0]}`;
 
