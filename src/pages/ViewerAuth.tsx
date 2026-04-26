@@ -285,11 +285,19 @@ const ViewerAuth = () => {
           }
         } catch {}
 
-        const result = await authWithRetry(
-          () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-          15_000,
-          2
-        );
+        const candidates = getAuthEmailCandidates();
+        let result: { data: any; error: any } = { data: null, error: { message: "Login gagal" } };
+        let usedCandidate = authEmail;
+        for (const candidate of candidates) {
+          result = await authWithRetry(
+            () => supabase.auth.signInWithPassword({ email: candidate, password }),
+            15_000,
+            2
+          );
+          usedCandidate = candidate;
+          const msg = String(result.error?.message || "");
+          if (!result.error || !/Invalid login credentials|invalid_credentials/i.test(msg)) break;
+        }
 
         const ms = Math.round(performance.now() - authStart);
 
@@ -322,8 +330,8 @@ const ViewerAuth = () => {
               setLoginError("Password salah. Pastikan password yang kamu masukkan benar, atau gunakan Lupa Password.");
               toast.error("Password salah. Periksa kembali atau reset password.");
             } else {
-              setLoginError("Password salah atau akun tidak ditemukan.");
-              toast.error("Password salah atau akun tidak ditemukan. Periksa kembali nomor HP/email dan password kamu.");
+              setLoginError(method === "phone" ? "Nomor HP atau password salah. Coba format 08xxx / 628xxx, atau gunakan Lupa Password." : "Email atau password salah.");
+              toast.error(method === "phone" ? "Nomor HP atau password salah. Kami sudah mencoba format 08xxx dan 628xxx." : "Email atau password salah.");
             }
           } else if (msg.includes("Email not confirmed")) {
             toast.error("Akun belum diverifikasi. Coba daftar ulang dengan nomor/email yang sama.");
@@ -332,6 +340,7 @@ const ViewerAuth = () => {
             toast.error(msg);
           }
         } else {
+          if (usedCandidate !== authEmail) recordAuthMetric("login_success_phone_alias", ms, "viewer");
           recordAuthMetric("login_success", ms, "viewer");
           navigate("/coins");
         }
