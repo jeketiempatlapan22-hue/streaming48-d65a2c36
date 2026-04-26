@@ -24,6 +24,7 @@ import {
   Upload,
 } from "lucide-react";
 import MediaPickerDialog from "./MediaPickerDialog";
+import { parseYoutubeId } from "@/lib/youtubeUrl";
 
 interface Show {
   id: string;
