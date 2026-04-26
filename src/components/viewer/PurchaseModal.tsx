@@ -34,6 +34,20 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
+  // Hitung harga aktual: replay → replay_qris_price (jika ada), kalau tidak → parsing show.price
+  const computeAmount = (): number => {
+    if (show.is_replay && show.replay_qris_price && show.replay_qris_price > 0) {
+      return show.replay_qris_price;
+    }
+    return parseInt((show.price || "").replace(/[^\d]/g, ""), 10) || 0;
+  };
+
+  const orderTypeForReplay = show.is_replay
+    ? "replay"
+    : show.is_subscription
+      ? "membership"
+      : "regular";
+
   // Create dynamic QRIS on mount
   useEffect(() => {
     const create = async () => {
@@ -44,11 +58,11 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         setLoading(false);
       }, 15000);
       try {
-        const priceNum = parseInt(show.price.replace(/[^\d]/g, "")) || 0;
+        const priceNum = computeAmount();
         if (priceNum <= 0) { toast.error("Harga tidak valid"); clearTimeout(hardTimeout); setLoading(false); return; }
 
         const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
-          body: { show_id: show.id, amount: priceNum, phone, order_type: show.is_subscription ? "membership" : "regular" },
+          body: { show_id: show.id, amount: priceNum, phone, order_type: orderTypeForReplay },
         });
         clearTimeout(hardTimeout);
         if (error || !data?.success) {
@@ -65,7 +79,7 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
       setLoading(false);
     };
     create();
-  }, [show.id, show.price, phone, show.is_subscription]);
+  }, [show.id, show.price, show.is_replay, show.replay_qris_price, phone, show.is_subscription]);
 
   // Poll payment status every 3s
   useEffect(() => {
