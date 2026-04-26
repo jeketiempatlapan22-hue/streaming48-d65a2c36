@@ -1003,11 +1003,11 @@ const LivePage = () => {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-background lg:flex-row">
-      <ConnectionStatus />
-      <ViewerBroadcast />
-      <SecurityAlert />
-      {playerAnimation !== "none" && <Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense>}
-      {showUsernameModal && <Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense>}
+      <SectionBoundary name="ConnectionStatus"><ConnectionStatus /></SectionBoundary>
+      <SectionBoundary name="ViewerBroadcast"><ViewerBroadcast /></SectionBoundary>
+      <SectionBoundary name="SecurityAlert"><SecurityAlert /></SectionBoundary>
+      {playerAnimation !== "none" && <SectionBoundary name="PlayerAnimations"><Suspense fallback={null}><PlayerAnimations type={playerAnimation} backgroundOnly /></Suspense></SectionBoundary>}
+      {showUsernameModal && <SectionBoundary name="UsernameModal"><Suspense fallback={null}><UsernameModal onSubmit={handleUsernameSet} /></Suspense></SectionBoundary>}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center gap-3 border-b border-border px-4 py-3">
           <img src={logo} alt="RT48" className="h-8 w-8 rounded-full object-cover" />
