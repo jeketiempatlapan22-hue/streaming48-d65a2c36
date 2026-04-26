@@ -1668,6 +1668,7 @@ export type Database = {
         Returns: Json
       }
       end_expired_quizzes: { Args: never; Returns: number }
+      get_active_show_external_id: { Args: never; Returns: string }
       get_ban_info: { Args: { _user_id: string }; Returns: Json }
       get_chat_messages: {
         Args: { _limit?: number }
