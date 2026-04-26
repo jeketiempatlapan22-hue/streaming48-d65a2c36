@@ -1770,6 +1770,7 @@ export type Database = {
       }
       check_user_replay_access: { Args: { _show_id: string }; Returns: Json }
       claim_referral: { Args: { _code: string }; Returns: Json }
+      cleanup_live_chat_daily: { Args: never; Returns: Json }
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       cleanup_replay_access_tokens: { Args: never; Returns: undefined }
