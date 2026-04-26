@@ -475,17 +475,17 @@ const LivePage = () => {
 
           if (profileRes?.data?.username) {
             setUsername(profileRes.data.username);
-            localStorage.setItem("rt48_username", profileRes.data.username);
+            safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username", profileRes.data.username);
             return;
           }
           setShowUsernameModal(true);
           return;
         }
 
-        const stored = localStorage.getItem("rt48_username");
+        const stored = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username");
         if (!stored) setShowUsernameModal(true);
       } catch {
-        const stored = localStorage.getItem("rt48_username");
+        const stored = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username");
         if (!stored) setShowUsernameModal(true);
       }
     };
