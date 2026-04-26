@@ -517,7 +517,7 @@ const TokenFactory = () => {
 
       {/* Duration Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as TabKey); setStatusFilter("all"); }}>
-        <TabsList className="w-full grid grid-cols-5">
+        <TabsList className="w-full grid grid-cols-6">
           {DURATION_TABS.map(({ key, label, emoji }) => (
             <TabsTrigger key={key} value={key} className="gap-1 text-xs">
               <span>{emoji}</span> {label}
@@ -528,11 +528,25 @@ const TokenFactory = () => {
             <span>🪙</span> Koin
             <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold">{getCountByDuration("coin")}</span>
           </TabsTrigger>
+          <TabsTrigger value="membership" className="gap-1 text-xs">
+            <span>👑</span> Membership
+            <span className="ml-1 rounded-full bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 text-[10px] font-bold">{getCountByDuration("membership")}</span>
+          </TabsTrigger>
         </TabsList>
         {DURATION_TABS.map(({ key }) => (
           <TabsContent key={key} value={key} className="mt-4">{renderTokenList(key)}</TabsContent>
         ))}
         <TabsContent value="coin" className="mt-4">{renderTokenList("coin")}</TabsContent>
+        <TabsContent value="membership" className="mt-4">
+          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+            <p className="text-xs text-yellow-500 font-semibold">👑 Token Membership Terpisah</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Token ini dibuat otomatis dari pembelian membership (QRIS / Koin) dan terisolasi dari token lain
+              agar tidak terhapus saat bulk-delete tab Harian/Mingguan/Bulanan/Custom.
+            </p>
+          </div>
+          {renderTokenList("membership")}
+        </TabsContent>
       </Tabs>
 
       {/* Extend Token Dialog */}
