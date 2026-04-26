@@ -57,14 +57,31 @@ const ViewerAuth = () => {
       });
   }, [navigate, refCode]);
 
-  const normalizePhone = (raw: string) => raw.replace(/[^0-9]/g, "");
-  const deriveEmail = (phoneNum: string) => `${normalizePhone(phoneNum)}@rt48.user`;
-  const getAuthEmail = () => method === "email" ? email.trim() : deriveEmail(phone);
+  const phoneDigits = (raw: string) => raw.replace(/[^0-9]/g, "");
+  const normalizePhone = (raw: string) => {
+    let digits = phoneDigits(raw);
+    if (!digits) return "";
+    if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+    else if (digits.startsWith("8")) digits = `62${digits}`;
+    else if (!digits.startsWith("62")) digits = `62${digits}`;
+    return digits;
+  };
+  const getPhoneAuthEmails = (raw: string) => {
+    const digits = phoneDigits(raw);
+    const canonical = normalizePhone(raw);
+    const local = canonical.startsWith("62") ? canonical.slice(2) : canonical;
+    const legacyZero = local ? `0${local}` : "";
+    return Array.from(new Set([digits, canonical, legacyZero, local]
+      .filter((v) => v.length >= 10)
+      .map((v) => `${v}@rt48.user`)));
+  };
+  const getAuthEmail = () => method === "email" ? email.trim().toLowerCase() : `${normalizePhone(phone)}@rt48.user`;
+  const getAuthEmailCandidates = () => method === "email" ? [email.trim().toLowerCase()] : getPhoneAuthEmails(phone);
   const isFormValid = () => {
     if (mode === "signup" && !username.trim()) return false;
     if (method === "phone") {
       if (!phoneVerified) return false;
-      return normalizePhone(phone).length >= 10 && password.length >= 6;
+      return phoneDigits(phone).length >= 10 && password.length >= 6;
     }
     return email.trim().includes("@") && password.length >= 6;
   };
