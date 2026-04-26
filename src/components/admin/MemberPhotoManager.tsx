@@ -137,33 +137,27 @@ const MemberPhotoManager = () => {
     }
   };
 
-  const uploadPhotoForMember = async (memberId: string, memberName: string, file: File) => {
+  const uploadPhotoForMember = async (memberId: string | null, memberName: string, file: File) => {
     const compressed = await compressImage(file, {
       maxWidth: 400,
       maxHeight: 400,
       quality: 0.85,
       maxSizeBytes: 100_000,
     });
-    const ext = compressed.name.split(".").pop() || "webp";
-    const safeName = memberName.toLowerCase().replace(/[^a-z0-9]/g, "_");
-    const filePath = `${safeName}_${Date.now()}.${ext}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("member-photos")
-      .upload(filePath, compressed, { upsert: true });
+    const formData = new FormData();
+    formData.append("file", compressed);
+    formData.append("member_name", memberName);
+    if (memberId) formData.append("member_id", memberId);
 
-    if (uploadError) throw new Error(uploadError.message);
+    const { data, error } = await supabase.functions.invoke("admin-member-photo", {
+      body: formData,
+    });
 
-    const { data: urlData } = supabase.storage.from("member-photos").getPublicUrl(filePath);
+    if (error) throw new Error(error.message);
+    if (!data?.success) throw new Error(data?.error || "Upload gagal");
 
-    const { error: updateError } = await supabase
-      .from("member_photos")
-      .update({ photo_url: urlData.publicUrl })
-      .eq("id", memberId);
-
-    if (updateError) throw new Error(updateError.message);
-
-    return { url: urlData.publicUrl, size: compressed.size };
+    return { url: data.photo_url as string, size: compressed.size, member: data.member as MemberPhoto };
   };
 
   const handlePhotoUpload = async (memberId: string, memberName: string, file: File) => {
@@ -245,22 +239,16 @@ const MemberPhotoManager = () => {
       seenNames.add(key);
 
       try {
-        let memberId: string;
+        let memberId: string | null;
         const existing = memberMap.get(key);
         if (existing) {
           memberId = existing.id;
         } else {
-          const { data: created, error: createErr } = await supabase
-            .from("member_photos")
-            .insert({ name: memberName })
-            .select()
-            .single();
-          if (createErr || !created) throw new Error(createErr?.message || "insert failed");
-          memberId = created.id;
-          memberMap.set(key, created as MemberPhoto);
+          memberId = null;
         }
 
-        await uploadPhotoForMember(memberId, memberName, file);
+        const result = await uploadPhotoForMember(memberId, memberName, file);
+        if (result.member) memberMap.set(key, result.member);
         success++;
       } catch (err) {
         console.error("Bulk upload failed for", file.name, err);
