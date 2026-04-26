@@ -1095,16 +1095,25 @@ const LivePage = () => {
           {isLive && activePlaylist ? (
             <div className="relative">
               {effectiveStreamUrl ? (
-                <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
-                  <VideoPlayer
-                    ref={playerRef}
-                    key={`${activePlaylist.id}-${activePlaylist.type}`}
-                    playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
-                    autoPlay
-                    tokenCode={tokenData?.code}
-                    customHeadersRef={effectiveHeadersRef}
-                  />
-                </Suspense>
+                <SectionBoundary
+                  name="VideoPlayer"
+                  fallback={
+                    <div className="flex aspect-video w-full items-center justify-center bg-card">
+                      <p className="text-sm text-destructive">Player gagal dimuat. Coba refresh halaman.</p>
+                    </div>
+                  }
+                >
+                  <Suspense fallback={<div className="flex aspect-video w-full items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                    <VideoPlayer
+                      ref={playerRef}
+                      key={`${activePlaylist.id}-${activePlaylist.type}`}
+                      playlist={{ url: effectiveStreamUrl, type: effectiveType, label: activePlaylist.title }}
+                      autoPlay
+                      tokenCode={tokenData?.code}
+                      customHeadersRef={effectiveHeadersRef}
+                    />
+                  </Suspense>
+                </SectionBoundary>
               ) : effectiveStreamLoading ? (
                 <div className="flex aspect-video w-full items-center justify-center bg-card">
                   <div className="flex flex-col items-center gap-2">
