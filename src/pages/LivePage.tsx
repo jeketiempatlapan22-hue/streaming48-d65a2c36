@@ -1156,7 +1156,7 @@ const LivePage = () => {
                       Show Belum Dimulai
                     </h3>
                     {activeShowTitle && (
-                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                      <p className="mt-2 text-center text-lg sm:text-xl md:text-2xl font-bold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                         🎭 {activeShowTitle}
                       </p>
                     )}
