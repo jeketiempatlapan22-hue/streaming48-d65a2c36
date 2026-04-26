@@ -82,6 +82,12 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" • ");
     const scheduleLine = scheduleParts ? `\n\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
 
+    // Tentukan link replay: jika show punya media internal → /replay-play, jika tidak → fallback lama
+    const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url || show.has_replay_media);
+    const replayLink = hasReplayMedia
+      ? `${REPLAY_BASE}?show=${encodeURIComponent(show.short_id || show.id)}${show.access_password ? `&password=${encodeURIComponent(show.access_password)}` : ""}`
+      : `https://replaytime.lovable.app`;
+
     let msg = `━━━━━━━━━━━━━━━━━━
 
 ✅ *Token Reseller Berhasil Dibuat!*
@@ -108,12 +114,16 @@ ${params.link}
 
 🔄 *Info Replay:*
 
-🔗 Link: https://replaytime.lovable.app`;
+🔗 Link: ${replayLink}`;
 
     if (show.access_password) {
       msg += `\n\n🔐 Sandi Replay: *${show.access_password}*`;
     } else {
       msg += `\n\nℹ️ Sandi replay belum diatur untuk show ini.`;
+    }
+
+    if (hasReplayMedia) {
+      msg += `\n\n🎥 _Pemutar replay internal aktif — link di atas otomatis membuka video._`;
     }
 
     msg += `\n\n\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
