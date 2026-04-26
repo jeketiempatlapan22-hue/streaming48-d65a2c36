@@ -63,10 +63,17 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
         const details: any = data.details;
-        if (details && details.live && details.endSN > 0) {
-          if (details.endSN === details.startSN + details.fragments.length - 1) {
-            details.live = false;
-          }
+        if (!details) return;
+        // Force VOD mode so the entire timeline is seekable, even if the
+        // playlist is missing #EXT-X-ENDLIST. We trust that this is a replay.
+        try {
+          details.live = false;
+        } catch {}
+        // Surface the total duration as soon as the manifest is parsed,
+        // so the UI can show it before the browser computes video.duration.
+        const total = Number(details.totalduration);
+        if (isFinite(total) && total > 0) {
+          setDuration((prev) => (prev && isFinite(prev) && prev > 0 ? prev : total));
         }
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
@@ -89,16 +96,33 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     };
   }, [src, onError]);
 
+  // Track the best-known duration (manifest totalduration OR video.duration)
+  const durationRef = useRef(0);
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onTime = () => {
-      const dur = v.duration || 0;
+      const vidDur = v.duration;
+      // Prefer the video element's duration once it's a finite positive number,
+      // but fall back to whatever we already have (e.g. from the HLS manifest)
+      // so the UI never regresses to 00:00 after we already know the length.
+      const best =
+        isFinite(vidDur) && vidDur > 0
+          ? vidDur
+          : durationRef.current && isFinite(durationRef.current)
+          ? durationRef.current
+          : 0;
       setCurrentTime(v.currentTime || 0);
-      setDuration(dur);
-      if (dur && isFinite(dur)) setProgress((v.currentTime / dur) * 100);
+      if (best > 0) {
+        setDuration((prev) => (prev && prev >= best ? prev : best));
+        setProgress(((v.currentTime || 0) / best) * 100);
+      }
     };
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
@@ -135,13 +159,27 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     setMuted(v.muted);
   };
 
-  const seekBy = useCallback((delta: number) => {
+  // Best-known total length: prefer the live <video> duration, else manifest
+  const getEffectiveDuration = useCallback(() => {
     const v = videoRef.current;
-    if (!v) return;
-    const dur = v.duration || 0;
-    const target = Math.max(0, Math.min(dur || v.currentTime + delta, v.currentTime + delta));
-    v.currentTime = target;
+    const vd = v?.duration ?? NaN;
+    if (isFinite(vd) && vd > 0) return vd;
+    return durationRef.current && isFinite(durationRef.current) ? durationRef.current : 0;
   }, []);
+
+  const seekBy = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      const dur = getEffectiveDuration();
+      const next = (v.currentTime || 0) + delta;
+      const target = dur > 0 ? Math.max(0, Math.min(dur, next)) : Math.max(0, next);
+      try {
+        v.currentTime = target;
+      } catch {}
+    },
+    [getEffectiveDuration]
+  );
 
   const showSeekIndicator = (side: "left" | "right", amount: number) => {
     setSeekIndicator({ side, amount });
@@ -149,12 +187,17 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     seekIndicatorTimerRef.current = setTimeout(() => setSeekIndicator(null), 600);
   };
 
-  // Unified seek (works for click and drag)
+  // Unified seek (works for click and drag) — uses effective duration so that
+  // users can jump to the middle/end even before video.duration resolves.
   const seekToClientX = (clientX: number, rect: DOMRect) => {
     const v = videoRef.current;
-    if (!v || !v.duration || !isFinite(v.duration)) return;
+    if (!v) return;
+    const dur = getEffectiveDuration();
+    if (!dur) return;
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    v.currentTime = ratio * v.duration;
+    try {
+      v.currentTime = ratio * dur;
+    } catch {}
   };
 
   const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -326,7 +369,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
               {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
             <span className="text-xs tabular-nums opacity-80">
-              {fmt(currentTime)} / {fmt(duration)}
+              {fmt(currentTime)} / {duration > 0 && isFinite(duration) ? fmt(duration) : "--:--"}
             </span>
           </div>
           <div className="flex items-center gap-2 relative">
