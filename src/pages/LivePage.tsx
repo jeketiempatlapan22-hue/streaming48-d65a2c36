@@ -1273,14 +1273,11 @@ const LivePage = () => {
           </Suspense>
         </SectionBoundary>
         <div className="flex-1 min-h-0">
-          <SectionBoundary
-            name="LiveChat"
-            fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Chat tidak tersedia. Coba refresh.</p></div>}
-          >
+          <LiveChatBoundary>
             <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
               <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
             </Suspense>
-          </SectionBoundary>
+          </LiveChatBoundary>
         </div>
       </div>
     </div>
