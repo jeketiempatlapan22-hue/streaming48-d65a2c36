@@ -649,8 +649,10 @@ const ReplayPage = () => {
                 onClick={() => {
                   navigator.clipboard.writeText(replayResult.replay_password);
                   toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                  const target = purchaseShow ? buildReplayTarget(purchaseShow, replayResult.replay_password) : "https://replaytime.lovable.app";
                   setTimeout(() => {
-                    window.open("https://replaytime.lovable.app", "_blank");
+                    if (target.startsWith("/")) window.location.href = target;
+                    else window.open(target, "_blank");
                     setPurchaseShow(null);
                     setReplayResult(null);
                   }, 500);
