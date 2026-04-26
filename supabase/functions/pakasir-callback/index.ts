@@ -241,7 +241,17 @@ Deno.serve(async (req) => {
         } else if (!show?.is_bundle && !show?.is_subscription && !show?.is_replay) {
           // Regular show — gunakan format standar baru
           const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? " " + show.schedule_time : ""}` : "-";
-          waMessage = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${show?.title || "Show"}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *1*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${tokenCode}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
+          // Ambil max_devices aktual dari token
+          let maxDev = 1;
+          if (tokenCode) {
+            const { data: tokRow } = await supabase
+              .from('tokens')
+              .select('max_devices')
+              .eq('code', tokenCode)
+              .maybeSingle();
+            maxDev = tokRow?.max_devices ?? 1;
+          }
+          waMessage = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${show?.title || "Show"}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDev}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${tokenCode}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
           if (show?.access_password) {
             waMessage += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
           }
