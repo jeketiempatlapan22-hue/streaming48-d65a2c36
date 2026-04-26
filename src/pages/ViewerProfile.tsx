@@ -31,7 +31,7 @@ const ViewerProfile = () => {
   const [showTitles, setShowTitles] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "stats">("history");
+  const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "membership" | "stats">("history");
   const [editingPhone, setEditingPhone] = useState<Record<string, string>>({});
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -339,7 +339,7 @@ const ViewerProfile = () => {
         {/* Tabs */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <div className="flex rounded-lg glass p-1 gap-0.5 overflow-x-auto">
-            {([["history", "Riwayat", Receipt], ["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
+            {([["history", "Riwayat", Receipt], ["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["membership", "Membership", Crown], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key as any)} className={`flex-1 min-w-[60px] flex items-center justify-center gap-1 rounded-md py-2 text-[10px] font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Icon className="h-3 w-3" />{label}
               </button>
@@ -457,6 +457,158 @@ const ViewerProfile = () => {
               </div>
             )
           )}
+          {tab === "membership" && (() => {
+            // Filter token membership/bundle/custom (long-lived access tokens)
+            const membershipTokens = tokens
+              .filter((t: any) => {
+                const code = (t.code || "").toUpperCase();
+                return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
+              })
+              .sort((a: any, b: any) => {
+                // Active first, then by created_at desc
+                const aActive = a.status === "active" && (!a.expires_at || new Date(a.expires_at) > new Date());
+                const bActive = b.status === "active" && (!b.expires_at || new Date(b.expires_at) > new Date());
+                if (aActive !== bActive) return aActive ? -1 : 1;
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+              });
+
+            if (membershipTokens.length === 0) {
+              return (
+                <div className="py-8 text-center">
+                  <Crown className="h-10 w-10 mx-auto text-muted-foreground/40 mb-2" />
+                  <p className="text-xs text-muted-foreground">Belum ada riwayat membership/bundle</p>
+                  <Button size="sm" variant="outline" className="mt-3 h-8 text-xs" onClick={() => navigate("/")}>
+                    Lihat Show Membership
+                  </Button>
+                </div>
+              );
+            }
+
+            const activeCount = membershipTokens.filter((t: any) =>
+              t.status === "active" && (!t.expires_at || new Date(t.expires_at) > new Date())
+            ).length;
+
+            return (
+              <div className="space-y-3">
+                {/* Summary */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-[hsl(var(--success))]/5 border border-[hsl(var(--success))]/20 p-2.5 text-center">
+                    <p className="text-lg font-bold text-[hsl(var(--success))]">{activeCount}</p>
+                    <p className="text-[10px] text-muted-foreground">Aktif</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/30 border border-border p-2.5 text-center">
+                    <p className="text-lg font-bold text-muted-foreground">{membershipTokens.length - activeCount}</p>
+                    <p className="text-[10px] text-muted-foreground">Kedaluwarsa</p>
+                  </div>
+                </div>
+
+                {/* List */}
+                <div className="space-y-2">
+                  {membershipTokens.map((t: any) => {
+                    const code = (t.code || "").toUpperCase();
+                    const isMembership = code.startsWith("MBR-") || code.startsWith("MRD-");
+                    const isBundle = code.startsWith("BDL-");
+                    const isCustom = code.startsWith("RT48-");
+                    const expiresAt = t.expires_at ? new Date(t.expires_at) : null;
+                    const startedAt = t.created_at ? new Date(t.created_at) : null;
+                    const now = new Date();
+                    const isExpired = expiresAt ? expiresAt <= now : false;
+                    const isActive = t.status === "active" && !isExpired;
+                    const diffMs = expiresAt ? expiresAt.getTime() - now.getTime() : 0;
+                    const daysLeft = Math.ceil(diffMs / 86400000);
+                    const hoursLeft = Math.ceil(diffMs / 3600000);
+
+                    const typeLabel = isMembership ? "👑 Membership" : isBundle ? "📦 Bundle" : "🎫 Token Custom";
+                    const typeColor = isMembership ? "text-yellow-500" : isBundle ? "text-purple-400" : "text-cyan-400";
+                    const showTitle = (t.show_id && showTitles[t.show_id]) || null;
+                    const liveLink = `/live?t=${encodeURIComponent(t.code)}`;
+
+                    return (
+                      <div
+                        key={t.id}
+                        className={`rounded-xl border p-3 space-y-2 ${
+                          isActive
+                            ? "border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5"
+                            : "border-border bg-muted/20 opacity-80"
+                        }`}
+                      >
+                        {/* Header: type + status */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Crown className={`h-3.5 w-3.5 shrink-0 ${isActive ? typeColor : "text-muted-foreground"}`} />
+                            <span className="text-[11px] font-bold text-foreground truncate">{typeLabel}</span>
+                          </div>
+                          {isActive ? (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shrink-0 ${
+                              daysLeft <= 3
+                                ? "text-destructive bg-destructive/10"
+                                : "text-[hsl(var(--success))] bg-[hsl(var(--success))]/10"
+                            }`}>
+                              ● Aktif {daysLeft > 0 ? `· ${daysLeft}h lagi` : `· ${hoursLeft}j lagi`}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded shrink-0">
+                              Kedaluwarsa
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Show title */}
+                        {showTitle && (
+                          <p className="text-xs font-semibold text-foreground truncate">{showTitle}</p>
+                        )}
+
+                        {/* Token code */}
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[10px] font-mono text-muted-foreground truncate flex-1">{t.code}</p>
+                          <button
+                            onClick={() => copyText(t.code)}
+                            className="text-muted-foreground hover:text-primary active:scale-95 shrink-0"
+                            title="Salin kode"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        {/* Date range */}
+                        <div className="grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="rounded-md bg-background/50 px-2 py-1.5">
+                            <p className="text-muted-foreground/70">Mulai</p>
+                            <p className="font-medium text-foreground">
+                              {startedAt
+                                ? startedAt.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-background/50 px-2 py-1.5">
+                            <p className="text-muted-foreground/70">Berakhir</p>
+                            <p className={`font-medium ${isActive && daysLeft <= 3 ? "text-destructive" : "text-foreground"}`}>
+                              {expiresAt
+                                ? expiresAt.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
+                                : "Tanpa batas"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Action button */}
+                        {isActive && (
+                          <Button
+                            size="sm"
+                            className="w-full h-8 gap-1.5 text-xs"
+                            onClick={() => navigate(liveLink)}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
+                            Masuk Live
+                            <ExternalLink className="h-3 w-3 ml-0.5" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           {tab === "stats" && (
             <Suspense fallback={<div className="h-40 skeleton rounded-xl" />}>
               {authUser && <UserStatsPanel user={authUser} />}
