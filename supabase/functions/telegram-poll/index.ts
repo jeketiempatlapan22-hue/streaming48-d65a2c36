@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildRegularShowMessage as buildRegularShowMessageWa } from "../_shared/showMessageBuilder.ts";
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 const MAX_RUNTIME_MS = 50_000;
