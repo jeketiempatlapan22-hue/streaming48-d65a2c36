@@ -885,12 +885,72 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   const toggleOrientation = useCallback(async () => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Helper: pakai CSS fallback (rotate 90deg) — jalan di SEMUA browser
+    const applyCssFallback = () => {
+      setForcedLandscape((prev) => {
+        const next = !prev;
+        if (next) document.body.classList.add("rt48-landscape-lock");
+        else document.body.classList.remove("rt48-landscape-lock");
+        return next;
+      });
+    };
+
+    // Coba native Screen Orientation API. Persyaratan: harus fullscreen dulu
+    // di banyak browser. Kalau gagal, fallback ke CSS rotation.
+    const tryNativeLock = async (): Promise<boolean> => {
+      const o: any = (screen as any).orientation;
+      if (!o || typeof o.lock !== "function") return false;
+      try {
+        const isPortrait = (o.type || "").includes("portrait");
+        await o.lock(isPortrait ? "landscape" : "portrait");
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     try {
-      const o = screen.orientation;
-      if (o.type.includes("portrait")) await (o as any).lock("landscape");
-      else await (o as any).lock("portrait");
-    } catch {}
-  }, []);
+      // Jika kita sedang dalam mode CSS landscape, satu klik berarti keluar
+      if (forcedLandscape) {
+        applyCssFallback();
+        return;
+      }
+
+      // 1) Auto-fullscreen jika belum (syarat lock di Chrome/Edge Android)
+      const inFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!inFs) {
+        try {
+          if (el.requestFullscreen) await el.requestFullscreen();
+          else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+        } catch { /* abaikan, lanjut coba lock */ }
+      }
+
+      // 2) Coba native lock
+      const ok = await tryNativeLock();
+      if (ok) return;
+
+      // 3) Fallback CSS — rotate container via class di body
+      applyCssFallback();
+
+      // 4) Beri info ringan kalau di desktop (tidak ada gunanya rotasi)
+      if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+        showToast({
+          title: "Rotasi diaktifkan",
+          description: "Klik tombol lagi untuk kembali ke tampilan normal.",
+        });
+      }
+    } catch {
+      // Gagal total — beri tahu user agar putar manual
+      showToast({
+        title: "Rotasi tidak didukung",
+        description: "Silakan putar perangkat manual atau aktifkan auto-rotate di pengaturan.",
+        variant: "destructive",
+      });
+    }
+  }, [forcedLandscape, showToast]);
 
   const toggleYtMute = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
