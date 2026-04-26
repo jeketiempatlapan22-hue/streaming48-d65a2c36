@@ -361,6 +361,7 @@ const LivePage = () => {
   const [blocked, setBlocked] = useState(false);
   const [forcedOut, setForcedOut] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
