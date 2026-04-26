@@ -153,13 +153,25 @@ const ManualTokenGenerator = () => {
   }, [selectedShow]);
 
   const durationInfo = useMemo(() => {
+    // Membership shows MUST follow admin-defined membership_duration_days,
+    // overriding any UI-selected duration. This keeps manual tokens consistent
+    // with QRIS/coin/bot purchase flows.
+    if (selectedShow?.is_subscription) {
+      const days = Math.max(1, Number(selectedShow.membership_duration_days) || 30);
+      return { ms: days * 86_400_000, label_h: `${days} hari (Membership)`, locked: true as const, storedDuration: "membership" };
+    }
+    // Bundle shows follow bundle_duration_days when set
+    if (selectedShow?.is_bundle && Number(selectedShow.bundle_duration_days) > 0) {
+      const days = Number(selectedShow.bundle_duration_days);
+      return { ms: days * 86_400_000, label_h: `${days} hari (Bundle)`, locked: true as const, storedDuration: "bundle" };
+    }
     if (durationKey === "custom") {
       const days = Math.max(1, Math.min(365, parseInt(customDays) || 1));
-      return { ms: days * 86_400_000, label_h: `${days} hari` };
+      return { ms: days * 86_400_000, label_h: `${days} hari`, locked: false as const, storedDuration: "custom" };
     }
     const opt = DURATION_OPTIONS.find((d) => d.key === durationKey)!;
-    return { ms: opt.ms, label_h: opt.label_h };
-  }, [durationKey, customDays]);
+    return { ms: opt.ms, label_h: opt.label_h, locked: false as const, storedDuration: durationKey };
+  }, [durationKey, customDays, selectedShow]);
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -174,7 +186,7 @@ const ManualTokenGenerator = () => {
     const { error } = await supabase.from("tokens").insert({
       code,
       max_devices: md,
-      duration_type: durationKey === "custom" ? "custom" : durationKey,
+      duration_type: durationInfo.storedDuration,
       expires_at: expiresAt.toISOString(),
       show_id: selectedShow?.id ?? null,
       status: "active",
