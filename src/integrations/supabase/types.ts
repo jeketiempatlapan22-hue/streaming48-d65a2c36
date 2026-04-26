@@ -1621,6 +1621,7 @@ export type Database = {
         Args: { _limit?: number; _reseller_id?: string }
         Returns: Json
       }
+      admin_reset_live_chat_and_quiz: { Args: never; Returns: Json }
       admin_reset_reseller_tokens: {
         Args: { _reseller_id: string }
         Returns: Json
