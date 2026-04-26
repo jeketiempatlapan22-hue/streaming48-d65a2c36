@@ -278,8 +278,17 @@ const ViewerProfile = () => {
                 const iconColor = isExpired ? "text-muted-foreground" : isMembership ? "text-yellow-500" : isCustom ? "text-cyan-400" : "text-primary";
                 const borderClass = isExpired ? "border-border bg-muted/30" : isMembership ? "border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-primary/5" : isCustom ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5" : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
 
+                const liveUrl = `/live?t=${encodeURIComponent(t.code)}`;
                 return (
-                  <div key={t.id} className={`rounded-xl border p-4 ${borderClass}`}>
+                  <div
+                    key={t.id}
+                    role={!isExpired ? "button" : undefined}
+                    tabIndex={!isExpired ? 0 : undefined}
+                    onClick={() => { if (!isExpired) navigate(liveUrl); }}
+                    onKeyDown={(e) => { if (!isExpired && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); navigate(liveUrl); } }}
+                    className={`rounded-xl border p-4 ${borderClass} ${!isExpired ? "cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-transform" : "opacity-70"}`}
+                    title={!isExpired ? "Klik untuk masuk ke halaman live" : undefined}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Crown className={`h-4 w-4 ${iconColor}`} />
@@ -297,6 +306,13 @@ const ViewerProfile = () => {
                     <p className="text-[10px] text-muted-foreground">Berakhir: {expiresAt.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
                     {!isExpired && daysLeft <= 3 && (
                       <p className="text-[10px] text-destructive mt-1">⚠️ Segera berakhir!</p>
+                    )}
+                    {!isExpired && (
+                      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] font-bold text-primary">
+                        <PlayCircle className="h-3.5 w-3.5" />
+                        <span>Masuk Live</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </div>
                     )}
                   </div>
                 );
