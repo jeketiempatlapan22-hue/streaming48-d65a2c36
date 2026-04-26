@@ -801,13 +801,42 @@ const ShowManager = () => {
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">YouTube Replay (URL atau ID)</label>
-                <Input
-                  value={draft.replay_youtube_url}
-                  onChange={(event) => updateDraft({ replay_youtube_url: event.target.value })}
-                  className="bg-background font-mono text-xs"
-                  placeholder="dQw4w9WgXcQ  •  https://youtu.be/...  •  https://youtube.com/watch?v=..."
-                />
-                <p className="mt-1 text-[10px] text-muted-foreground">Cukup tempel <strong>ID video</strong> (mis. <code>dQw4w9WgXcQ</code>) atau URL YouTube apa pun.</p>
+                {(() => {
+                  const ytVal = draft.replay_youtube_url?.trim() || "";
+                  const ytId = ytVal ? parseYoutubeId(ytVal) : null;
+                  const isInvalid = ytVal.length > 0 && !ytId;
+                  return (
+                    <>
+                      <Input
+                        value={draft.replay_youtube_url}
+                        onChange={(event) => updateDraft({ replay_youtube_url: event.target.value })}
+                        className={`bg-background font-mono text-xs ${isInvalid ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                        placeholder="dQw4w9WgXcQ"
+                        aria-invalid={isInvalid}
+                      />
+                      {isInvalid ? (
+                        <p className="mt-1 text-[10px] font-semibold text-destructive">
+                          Format tidak valid. Gunakan ID YouTube 11 karakter atau URL YouTube yang sah.
+                        </p>
+                      ) : ytId ? (
+                        <p className="mt-1 text-[10px] font-semibold text-emerald-500">
+                          ✓ Valid — ID terdeteksi: <code className="font-mono">{ytId}</code>
+                        </p>
+                      ) : null}
+                      <div className="mt-1.5 space-y-0.5 text-[10px] text-muted-foreground">
+                        <p className="font-medium">Contoh format yang diterima:</p>
+                        <ul className="ml-3 list-disc space-y-0.5 font-mono">
+                          <li>dQw4w9WgXcQ <span className="font-sans not-italic opacity-70">(ID 11 karakter)</span></li>
+                          <li>https://youtu.be/dQw4w9WgXcQ</li>
+                          <li>https://www.youtube.com/watch?v=dQw4w9WgXcQ</li>
+                          <li>https://www.youtube.com/embed/dQw4w9WgXcQ</li>
+                          <li>https://www.youtube.com/shorts/dQw4w9WgXcQ</li>
+                          <li>https://www.youtube.com/live/dQw4w9WgXcQ</li>
+                        </ul>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bulan Replay (untuk sandi global bulanan)</label>
