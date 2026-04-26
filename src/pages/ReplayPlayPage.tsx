@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import HlsReplayPlayer from "@/components/replay/HlsReplayPlayer";
 import YoutubeReplayPlayer from "@/components/replay/YoutubeReplayPlayer";
+import LineupAvatars from "@/components/viewer/LineupAvatars";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SharedNavbar from "@/components/SharedNavbar";
-import { Lock, Clock, AlertCircle, RotateCcw, ExternalLink } from "lucide-react";
+import { Lock, Clock, AlertCircle, RotateCcw, ExternalLink, Youtube, Film, Calendar } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const FP_KEY = "rt48_replay_fp";
@@ -37,6 +38,16 @@ interface AccessData {
   message?: string;
 }
 
+interface ShowMeta {
+  background_image_url?: string | null;
+  schedule_date?: string | null;
+  schedule_time?: string | null;
+  team?: string | null;
+  lineup?: string | null;
+}
+
+type Source = "m3u8" | "youtube";
+
 const ReplayPlayPage = () => {
   const { toast } = useToast();
   const [params] = useSearchParams();
@@ -51,9 +62,17 @@ const ReplayPlayPage = () => {
   const [loading, setLoading] = useState(false);
   const [access, setAccess] = useState<AccessData | null>(null);
   const [lockMsg, setLockMsg] = useState<string>("");
-  const [showThumb, setShowThumb] = useState<string | null>(null);
+  const [showMeta, setShowMeta] = useState<ShowMeta | null>(null);
+  const [source, setSource] = useState<Source>("m3u8");
 
   const fp = getFingerprint();
+
+  // Pilih sumber default ketika access didapat
+  useEffect(() => {
+    if (!access?.success) return;
+    if (access.m3u8_url) setSource("m3u8");
+    else if (access.youtube_url) setSource("youtube");
+  }, [access?.success, access?.m3u8_url, access?.youtube_url]);
 
   const tryAccess = async () => {
     setLoading(true);
@@ -93,11 +112,19 @@ const ReplayPlayPage = () => {
         }
       }
 
-      // Try to fetch poster
+      // Ambil metadata show (poster, jadwal, lineup, team) — sama seperti LivePage
       try {
         const { data: shows } = await supabase.rpc("get_public_shows" as any);
         const show = (shows as any[])?.find((s) => s.id === d.show_id);
-        if (show?.background_image_url) setShowThumb(show.background_image_url);
+        if (show) {
+          setShowMeta({
+            background_image_url: show.background_image_url || null,
+            schedule_date: show.schedule_date || null,
+            schedule_time: show.schedule_time || null,
+            team: show.team || null,
+            lineup: show.lineup || null,
+          });
+        }
       } catch {
         /* ignore */
       }
@@ -139,8 +166,19 @@ const ReplayPlayPage = () => {
   const isExpired =
     access?.expires_at && new Date(access.expires_at).getTime() < Date.now();
 
-  // Fallback to external when no media is configured for this show
   const fallbackExternal = access?.success && access.has_media === false;
+
+  const accessBadge = useMemo(() => {
+    switch (access?.access_via) {
+      case "global_password": return "Sandi Global";
+      case "show_password": return "Sandi Show";
+      case "live_token_upgrade": return "Token Live → Replay";
+      case "replay_token": return "Token Replay";
+      default: return "Akses Replay";
+    }
+  }, [access?.access_via]);
+
+  const hasBoth = !!(access?.m3u8_url && access?.youtube_url);
 
   return (
     <div className="min-h-screen bg-background">
@@ -235,32 +273,89 @@ const ReplayPlayPage = () => {
           </div>
         )}
 
-        {/* Player */}
+        {/* Player + header (mirror LivePage) */}
         {access?.success && !lockMsg && !isExpired && access.has_media && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-foreground">{access.show_title}</h2>
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
-                {access.access_via === "global_password"
-                  ? "Sandi Global"
-                  : access.access_via === "show_password"
-                  ? "Sandi Show"
-                  : access.access_via === "live_token_upgrade"
-                  ? "Token Live"
-                  : "Token Replay"}
-              </span>
+          <div className="space-y-4">
+            {/* Header judul + badge akses + jadwal — selaras dengan LivePage */}
+            <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-bold text-foreground">
+                    {access.show_title || "Replay Show"}
+                  </h2>
+                  {(showMeta?.schedule_date || showMeta?.schedule_time) && (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5 text-primary" />
+                      {showMeta.schedule_date} {showMeta.schedule_time || ""}
+                    </p>
+                  )}
+                </div>
+                <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-bold text-primary">
+                  {accessBadge}
+                </span>
+              </div>
+
+              {/* Lineup + foto member, sama persis dengan LivePage */}
+              {(access.show_id || showMeta?.lineup) && (
+                <div className="pt-1">
+                  <LineupAvatars showId={access.show_id} team={showMeta?.team || null} />
+                </div>
+              )}
             </div>
 
-            {access.m3u8_url ? (
+            {/* Selector sumber tonton (M3U8 / YouTube) */}
+            {hasBoth && (
+              <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1.5">
+                <button
+                  onClick={() => setSource("m3u8")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                    source === "m3u8"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  <Film className="h-4 w-4" /> M3U8 (HD)
+                </button>
+                <button
+                  onClick={() => setSource("youtube")}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                    source === "youtube"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                >
+                  <Youtube className="h-4 w-4" /> YouTube
+                </button>
+              </div>
+            )}
+
+            {/* Player */}
+            {source === "m3u8" && access.m3u8_url ? (
               <HlsReplayPlayer
                 src={access.m3u8_url}
-                poster={showThumb}
+                poster={showMeta?.background_image_url || null}
+                onError={(msg) =>
+                  toast({ title: "Player error", description: msg, variant: "destructive" })
+                }
+              />
+            ) : source === "youtube" && access.youtube_url ? (
+              <YoutubeReplayPlayer
+                url={access.youtube_url}
+                poster={showMeta?.background_image_url || null}
+              />
+            ) : access.m3u8_url ? (
+              <HlsReplayPlayer
+                src={access.m3u8_url}
+                poster={showMeta?.background_image_url || null}
                 onError={(msg) =>
                   toast({ title: "Player error", description: msg, variant: "destructive" })
                 }
               />
             ) : access.youtube_url ? (
-              <YoutubeReplayPlayer url={access.youtube_url} poster={showThumb} />
+              <YoutubeReplayPlayer
+                url={access.youtube_url}
+                poster={showMeta?.background_image_url || null}
+              />
             ) : null}
 
             {access.expires_at && (
