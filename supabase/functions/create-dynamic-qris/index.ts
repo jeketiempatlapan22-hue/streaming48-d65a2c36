@@ -66,14 +66,20 @@ Deno.serve(async (req) => {
     }
 
     // For show orders, check if show has a separate qris_price (to absorb fees)
+    // Replay orders use replay_qris_price instead.
     let finalAmount = Math.round(amount);
     if (!isCoinOrder && show_id) {
       const { data: showData } = await supabase
         .from("shows")
-        .select("qris_price, is_subscription, max_subscribers")
+        .select("qris_price, replay_qris_price, is_subscription, is_replay, max_subscribers")
         .eq("id", show_id)
         .maybeSingle();
-      if (showData?.qris_price && showData.qris_price > 0) {
+
+      const isReplayOrder = order_type === "replay" || showData?.is_replay === true;
+
+      if (isReplayOrder && showData?.replay_qris_price && showData.replay_qris_price > 0) {
+        finalAmount = showData.replay_qris_price;
+      } else if (showData?.qris_price && showData.qris_price > 0) {
         finalAmount = showData.qris_price;
       }
       // Check membership quota before generating QRIS
