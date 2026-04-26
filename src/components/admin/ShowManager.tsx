@@ -314,6 +314,22 @@ const ShowManager = () => {
       }
     }
 
+    // Validasi YouTube Replay: harus ID 11 karakter atau URL YouTube valid
+    const ytRaw = draft.replay_youtube_url.trim();
+    let normalizedYoutubeId: string | null = null;
+    if (ytRaw) {
+      normalizedYoutubeId = parseYoutubeId(ytRaw);
+      if (!normalizedYoutubeId) {
+        toast({
+          title: "YouTube Replay tidak valid",
+          description:
+            "Masukkan ID YouTube 11 karakter (contoh: dQw4w9WgXcQ) atau URL YouTube yang valid (youtu.be/..., youtube.com/watch?v=..., /embed/, /shorts/, /live/).",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setSaving(true);
     const payload = {
       title: draft.title.trim() || "Show Baru",
