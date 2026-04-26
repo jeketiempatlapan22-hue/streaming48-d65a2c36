@@ -531,6 +531,17 @@ const LivePage = () => {
         if (validationResult.error || !result?.valid) {
           const errText = String(result?.error || validationResult.error?.message || "").toLowerCase();
           if (errText.includes("diblokir")) { setBlocked(true); return; }
+
+          // Token mungkin sudah dipindah ke replay (show is_replay = true).
+          // Coba validate_replay_access; jika berhasil → redirect ke pemain replay internal.
+          try {
+            const { data: replayData } = await supabase.rpc("validate_replay_access" as any, { _token: tokenCode });
+            if ((replayData as any)?.success) {
+              window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`);
+              return;
+            }
+          } catch { /* abaikan, lanjut tampilkan error normal */ }
+
           setError(result?.error || "Server sedang sibuk, coba muat ulang.");
           return;
         }

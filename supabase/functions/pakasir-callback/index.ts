@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       // Get show details
       const { data: show } = await supabase
         .from("shows")
-        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days, is_bundle, bundle_replay_passwords, bundle_replay_info")
+        .select("title, schedule_date, schedule_time, is_subscription, is_replay, access_password, group_link, membership_duration_days, is_bundle, bundle_replay_passwords, bundle_replay_info, replay_m3u8_url, replay_youtube_url")
         .eq("id", subOrder.show_id)
         .maybeSingle();
 
@@ -158,6 +158,30 @@ Deno.serve(async (req) => {
       }
 
       const siteUrl = "realtime48stream.my.id";
+      const hasReplayMedia = !!(show?.replay_m3u8_url || show?.replay_youtube_url);
+      const replayLinkInternal = (code: string) => `https://${siteUrl}/replay-play?token=${code}`;
+      const replayLinkFallback = "https://replaytime.lovable.app";
+      const replayLinkFor = (code: string | null) =>
+        hasReplayMedia && code ? replayLinkInternal(code) : replayLinkFallback;
+
+      // Jika show sudah replay & punya token + media internal, buat entri replay_tokens
+      // agar token bisa dipakai di /replay-play tanpa perlu pakai sandi.
+      if (show?.is_replay && tokenCode) {
+        try {
+          await supabase.from("replay_tokens" as any).insert({
+            code: tokenCode,
+            show_id: subOrder.show_id,
+            password: show.access_password || null,
+            expires_at: expiresAt,
+            created_via: "qris",
+            user_id: subOrder.user_id || null,
+            phone: subOrder.phone || null,
+            source_token_code: tokenCode,
+          });
+        } catch (e) {
+          console.warn("replay_tokens insert (qris) skipped:", (e as any)?.message);
+        }
+      }
 
       // Send Telegram notification
       const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -201,13 +225,16 @@ Deno.serve(async (req) => {
             waMessage += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
           }
           // Include replay info for membership
-          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: ${replayLinkFor(tokenCode)}\n`;
           if (show.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }
         } else if (show?.is_replay) {
           waMessage += `📦 Tipe: *Replay*\n`;
-          waMessage += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
+          waMessage += `\n🔗 *Link Replay:*\n${replayLinkFor(tokenCode)}\n`;
+          if (tokenCode && hasReplayMedia) {
+            waMessage += `🎫 *Token Replay:* ${tokenCode}\n`;
+          }
           if (show.access_password) {
             waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
           }
@@ -222,7 +249,7 @@ Deno.serve(async (req) => {
           if (show?.schedule_date) {
             waMessage += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
           }
-          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+          waMessage += `\n🔄 *Info Replay:*\n🔗 Link: ${replayLinkFor(tokenCode)}\n`;
           if (show?.access_password) {
             waMessage += `🔑 Sandi Replay: ${show.access_password}\n`;
           }

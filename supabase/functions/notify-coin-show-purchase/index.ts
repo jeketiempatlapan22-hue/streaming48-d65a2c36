@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     // Get show details
     const { data: show } = await supabase
       .from('shows')
-      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info, bundle_duration_days')
+      .select('title, access_password, group_link, is_subscription, is_replay, membership_duration_days, schedule_date, schedule_time, is_bundle, bundle_replay_passwords, bundle_replay_info, bundle_duration_days, replay_m3u8_url, replay_youtube_url')
       .eq('id', show_id)
       .maybeSingle();
 
@@ -116,6 +116,11 @@ Deno.serve(async (req) => {
     }
 
     const siteUrl = 'realtime48stream.my.id';
+    const hasReplayMedia = !!(show?.replay_m3u8_url || show?.replay_youtube_url);
+    const replayLinkFor = (code?: string | null) =>
+      hasReplayMedia && code
+        ? `https://${siteUrl}/replay-play?token=${code}`
+        : 'https://replaytime.lovable.app';
     let message = '';
 
     if (purchase_type === 'bundle' || isBundle) {
@@ -144,7 +149,7 @@ Deno.serve(async (req) => {
       if (bundleReplayInfo) {
         message += `\n🎬 *Info Replay:*\n🔗 ${bundleReplayInfo}\n`;
       } else {
-        message += `\n🎬 *Link Replay:*\n🔗 https://replaytime.lovable.app\n`;
+        message += `\n🎬 *Link Replay:*\n🔗 ${replayLinkFor(token_code)}\n`;
       }
 
       // Single access password if exists
@@ -160,13 +165,16 @@ Deno.serve(async (req) => {
       if (groupLink) {
         message += `\n🔗 *Link Grup:*\n${groupLink}\n`;
       }
-      message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+      message += `\n🔄 *Info Replay:*\n🔗 Link: ${replayLinkFor(token_code)}\n`;
       if (replayPassword) {
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
     } else if (purchase_type === 'replay' || isReplay) {
       message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Replay Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n📦 Tipe: *Replay*\n💳 Metode: *Koin*\n`;
-      message += `\n🔗 *Link Replay:*\nhttps://replaytime.lovable.app\n`;
+      message += `\n🔗 *Link Replay:*\n${replayLinkFor(token_code)}\n`;
+      if (token_code && hasReplayMedia) {
+        message += `🎫 *Token Replay:* ${token_code}\n`;
+      }
       if (replayPassword) {
         message += `🔐 *Sandi Replay:* ${replayPassword}\n`;
       }
@@ -180,7 +188,7 @@ Deno.serve(async (req) => {
         message += `📅 *Jadwal:* ${scheduleDate} ${scheduleTime}\n`;
       }
       if (replayPassword) {
-        message += `\n🔄 *Info Replay:*\n🔗 Link: https://replaytime.lovable.app\n`;
+        message += `\n🔄 *Info Replay:*\n🔗 Link: ${replayLinkFor(token_code)}\n`;
         message += `🔑 Sandi Replay: ${replayPassword}\n`;
       }
     }
