@@ -33,6 +33,7 @@ const isMembershipToken = (t: any): boolean => {
 const TokenFactory = () => {
   const [tokens, setTokens] = useState<any[]>([]);
   const [coinTokens, setCoinTokens] = useState<any[]>([]);
+  const [membershipTokens, setMembershipTokens] = useState<any[]>([]);
   const [sessions, setSessions] = useState<Record<string, number>>({});
   const [duration, setDuration] = useState<DurationKey>("daily");
   const [customDays, setCustomDays] = useState("3");
