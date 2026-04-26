@@ -162,35 +162,49 @@ Deno.serve(async (req) => {
     }
 
     // Call Pak Kasir API — uses "project" field (not "merchant_code")
-    // Add 12s timeout so client never hangs on slow upstream
-    const ac = new AbortController();
-    const timeoutId = setTimeout(() => ac.abort(), 12_000);
+    // Try up to 2 attempts (timeout 22s each) so transient slowness doesn't fail UX
+    const callPakasir = async (timeoutMs: number): Promise<{ res: Response; data: any }> => {
+      const ac = new AbortController();
+      const tid = setTimeout(() => ac.abort(), timeoutMs);
+      try {
+        const r = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: PAKASIR_API_KEY,
+            project: PAKASIR_MERCHANT_CODE,
+            amount: finalAmount,
+            order_id: shortId,
+          }),
+          signal: ac.signal,
+        });
+        const d = await r.json().catch(() => ({}));
+        return { res: r, data: d };
+      } finally {
+        clearTimeout(tid);
+      }
+    };
+
     let pakasirRes: Response;
     let pakasirData: any;
     try {
-      pakasirRes = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: PAKASIR_API_KEY,
-          project: PAKASIR_MERCHANT_CODE,
-          amount: finalAmount,
-          order_id: shortId,
-        }),
-        signal: ac.signal,
-      });
-      pakasirData = await pakasirRes.json().catch(() => ({}));
+      try {
+        ({ res: pakasirRes, data: pakasirData } = await callPakasir(22_000));
+      } catch (firstErr: any) {
+        // Retry once on network/abort errors
+        console.warn("Pakasir attempt 1 failed:", firstErr?.name || firstErr?.message);
+        await new Promise((r) => setTimeout(r, 800));
+        ({ res: pakasirRes, data: pakasirData } = await callPakasir(22_000));
+      }
     } catch (e: any) {
-      clearTimeout(timeoutId);
       // Rollback the order so retries don't pile up
       await supabase.from(orderTable).delete().eq("id", orderId);
       const isAbort = e?.name === "AbortError";
       const msg = isAbort
-        ? "Server pembayaran lambat merespons. Silakan coba lagi sebentar."
-        : "Tidak dapat menghubungi server pembayaran. Coba lagi.";
-      return new Response(JSON.stringify({ error: msg }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        ? "Server QRIS lambat merespons. Silakan coba QRIS Statis sebagai cadangan."
+        : "Tidak dapat menghubungi server QRIS. Silakan coba QRIS Statis sebagai cadangan.";
+      return new Response(JSON.stringify({ error: msg, fallback_to_static: true }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    clearTimeout(timeoutId);
     console.log("Pakasir response:", JSON.stringify(pakasirData));
 
     // Extract QR string from response — Pakasir returns it in payment.payment_number
@@ -221,6 +235,46 @@ Deno.serve(async (req) => {
           payment_gateway_order_id: transactionId,
         })
         .eq("id", orderId);
+    }
+
+    // Notify admin (Telegram + WhatsApp) that a dynamic QRIS order was created.
+    // Best-effort; never blocks the response. Pak Kasir callback will send a 2nd
+    // notification when payment is actually confirmed.
+    try {
+      const FONNTE_TOKEN = Deno.env.get("FONNTE_API_TOKEN");
+      const TG_BOT = Deno.env.get("TELEGRAM_BOT_TOKEN");
+      const TG_CHAT = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
+
+      const amountStr = `Rp ${finalAmount.toLocaleString("id-ID")}`;
+      const typeLabel = isCoinOrder ? `🪙 ${coin_amount} Koin` : `🎫 Show ${order_type || "regular"}`;
+      const text =
+        `🟡 *QRIS Dinamis Dibuat (menunggu bayar)*\n\n` +
+        `${typeLabel}\n` +
+        `💵 ${amountStr}\n` +
+        `📱 ${phone || "-"}\n` +
+        `🆔 ${shortId}\n` +
+        `🔗 QR: ${qrImageUrl}\n\n` +
+        `_Notifikasi konfirmasi otomatis akan dikirim setelah user membayar._`;
+
+      if (TG_BOT && TG_CHAT) {
+        fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "Markdown" }),
+        }).catch(() => {});
+      }
+      if (FONNTE_TOKEN) {
+        const { data: adminWa } = await supabase.from("site_settings").select("value").eq("key", "whatsapp_number").maybeSingle();
+        if (adminWa?.value) {
+          fetch("https://api.fonnte.com/send", {
+            method: "POST",
+            headers: { Authorization: FONNTE_TOKEN },
+            body: new URLSearchParams({ target: adminWa.value, message: text.replace(/\*/g, "") }),
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Admin notify (qris-created) failed:", e instanceof Error ? e.message : e);
     }
 
     return new Response(JSON.stringify({

@@ -29,7 +29,8 @@ const CoinShop = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"buy" | "redeem" | "history">("buy");
   const [selectedPkg, setSelectedPkg] = useState<CoinPackage | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"phone" | "qris" | "upload" | "done">("phone");
+  const [purchaseStep, setPurchaseStep] = useState<"phone" | "qris" | "static" | "upload" | "done">("phone");
+  const [dynamicFailed, setDynamicFailed] = useState(false);
   const [buyerPhone, setBuyerPhone] = useState("");
   const [uploading, setUploading] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -174,19 +175,21 @@ const CoinShop = () => {
     setDynamicOrderId("");
     setDynamicPaid(false);
     setDynamicLoading(false);
+    setDynamicFailed(false);
   };
 
   const handleStartDynamicQris = async () => {
     if (!selectedPkg || !user) return;
     setDynamicLoading(true);
+    setDynamicFailed(false);
     setPurchaseStep("qris");
 
-    // Hard client-side timeout (15s) so spinner never hangs forever
+    // Hard client-side timeout (28s) — slightly longer than edge function (22s+retry)
     const hardTimeout = setTimeout(() => {
-      toast({ title: "QRIS lambat dimuat", description: "Silakan coba lagi.", variant: "destructive" });
-      setPurchaseStep("phone");
+      toast({ title: "QRIS dinamis lambat", description: "Coba QRIS Statis sebagai cadangan.", variant: "destructive" });
       setDynamicLoading(false);
-    }, 15000);
+      setDynamicFailed(true);
+    }, 28000);
 
     try {
       const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, "")) || 0;
@@ -209,8 +212,8 @@ const CoinShop = () => {
       clearTimeout(hardTimeout);
 
       if (error || !data?.success) {
-        toast({ title: data?.error || error?.message || "Gagal membuat QRIS", variant: "destructive" });
-        setPurchaseStep("phone");
+        toast({ title: data?.error || error?.message || "Gagal membuat QRIS dinamis", description: "Silakan gunakan QRIS Statis sebagai cadangan.", variant: "destructive" });
+        setDynamicFailed(true);
         setDynamicLoading(false);
         return;
       }
@@ -219,10 +222,15 @@ const CoinShop = () => {
       setDynamicOrderId(data.order_id);
     } catch (err: any) {
       clearTimeout(hardTimeout);
-      toast({ title: "Gagal membuat QRIS", description: err?.message, variant: "destructive" });
-      setPurchaseStep("phone");
+      toast({ title: "Gagal membuat QRIS dinamis", description: "Coba QRIS Statis.", variant: "destructive" });
+      setDynamicFailed(true);
     }
     setDynamicLoading(false);
+  };
+
+  const switchToStaticQris = () => {
+    setPurchaseStep("static");
+    setDynamicFailed(false);
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -432,6 +440,7 @@ const CoinShop = () => {
                 <div className="flex flex-col items-center gap-3 py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+                  <p className="text-[10px] text-muted-foreground">Mohon tunggu, ini bisa memakan waktu hingga 25 detik.</p>
                 </div>
               ) : dynamicPaid ? (
                 <div className="space-y-3 text-center py-4">
@@ -449,17 +458,34 @@ const CoinShop = () => {
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Menunggu pembayaran...
                   </div>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full text-xs" onClick={switchToStaticQris}>
+                      📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
+                    </Button>
+                  )}
                 </>
               ) : (
-                <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
-                  QRIS gagal dimuat. Coba lagi.
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+                    QRIS dinamis gagal dimuat.
+                  </div>
+                  <Button className="w-full" onClick={handleStartDynamicQris}>🔄 Coba Lagi QRIS Dinamis</Button>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full" onClick={switchToStaticQris}>
+                      📷 Gunakan QRIS Statis (cadangan)
+                    </Button>
+                  )}
+                  <p className="text-[10px] text-center text-muted-foreground">QRIS Statis perlu konfirmasi admin (1-15 menit)</p>
                 </div>
               )}
             </div>
           )}
 
-          {purchaseStep === "qris" && !useDynamicQris && (
+          {(purchaseStep === "static" || (purchaseStep === "qris" && !useDynamicQris)) && (
             <div className="space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                ℹ️ Anda menggunakan <strong>QRIS Statis</strong>. Setelah membayar, upload bukti transfer untuk dikonfirmasi admin.
+              </div>
               {selectedPkg?.qris_image_url ? (
                 <img src={selectedPkg.qris_image_url} alt="QRIS" className="mx-auto w-64 rounded-lg" />
               ) : (
