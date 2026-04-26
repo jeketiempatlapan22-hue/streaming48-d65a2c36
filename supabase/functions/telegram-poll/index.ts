@@ -699,10 +699,16 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
           } else {
             // Regular show: format pesan standar terbaru (info live + replay 14 hari)
             const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+            // Ambil max_devices aktual dari token yang baru dibuat
+            const { data: tokRow } = await supabase
+              .from('tokens')
+              .select('max_devices')
+              .eq('code', result.token_code)
+              .maybeSingle();
             const waMsg = buildRegularShowMessageWa({
               showTitle: showTitle,
               schedule,
-              maxDevices: 1,
+              maxDevices: tokRow?.max_devices ?? 1,
               liveLink,
               replayPassword: show?.access_password,
             });
