@@ -26,6 +26,8 @@ export function useRestreamSignedStreamUrl(
 
   const generate = useCallback(async () => {
     if (!playlist || !restreamCode) return;
+    // Proxy type is handled client-side via useProxyStream — skip server-side signing
+    if (playlist.type === "proxy") return;
     try {
       setLoading(true);
       setError(null);

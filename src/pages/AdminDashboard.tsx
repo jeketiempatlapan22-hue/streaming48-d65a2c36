@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { lazy, Suspense } from "react";
 import { recordAuthMetric } from "@/lib/authMetrics";
 import AdminGlobalSearch from "@/components/admin/AdminGlobalSearch";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const AdminDashboardStats = lazy(() => import("@/components/admin/AdminDashboardStats"));
 const LiveControl = lazy(() => import("@/components/admin/LiveControl"));
@@ -232,9 +233,18 @@ const AdminDashboard = () => {
           <Suspense fallback={null}><AdminNotifications /></Suspense>
         </header>
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 lg:p-8 2xl:p-10">
-          <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-            {renderSection()}
-          </Suspense>
+          <ErrorBoundary
+            key={activeSection}
+            fallback={
+              <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+                Bagian ini gagal dimuat. Coba pilih menu lain atau muat ulang halaman.
+              </div>
+            }
+          >
+            <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+              {renderSection()}
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>
