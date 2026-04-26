@@ -2165,21 +2165,7 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
 
 // Format pesan WA standar untuk show REGULER (bukan membership / bundle)
 // Sesuai template terbaru — dipakai bot Telegram saat mengirim notifikasi WA ke user.
-function buildRegularShowMessageWa(opts: {
-  showTitle: string;
-  schedule: string;
-  maxDevices: number;
-  liveLink: string;
-  replayPassword?: string | null;
-}): string {
-  const { showTitle, schedule, maxDevices, liveLink, replayPassword } = opts;
-  let msg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDevices}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
-  if (replayPassword) {
-    msg += `\n\n> 🔐 Sandi Replay: ${replayPassword}`;
-  }
-  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
-  return msg;
-}
+// buildRegularShowMessageWa diimpor sebagai alias dari ../_shared/showMessageBuilder.ts
 
 function buildReplayInfoMessageTelegram(show: any): string {
   if (show?.is_bundle) {
