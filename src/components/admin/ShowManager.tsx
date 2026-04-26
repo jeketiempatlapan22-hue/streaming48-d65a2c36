@@ -609,7 +609,16 @@ const ShowManager = () => {
                   >
                     <Copy className="mr-1 h-3 w-3" /> Salin Password
                   </Button>
-                  <Button size="sm" className="flex-1 text-xs" onClick={() => window.open("https://replaytime.lovable.app", "_blank")}>
+                  <Button
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => {
+                      const hasMedia = !!(draft.replay_m3u8_url?.trim() || draft.replay_youtube_url?.trim());
+                      const internal = `/replay-play?show=${encodeURIComponent(draft.short_id || draft.id)}&password=${encodeURIComponent(draft.access_password || "")}`;
+                      const target = hasMedia ? internal : "https://replaytime.lovable.app";
+                      window.open(target, "_blank");
+                    }}
+                  >
                     <ExternalLink className="mr-1 h-3 w-3" /> Tonton Replay
                   </Button>
                 </div>
