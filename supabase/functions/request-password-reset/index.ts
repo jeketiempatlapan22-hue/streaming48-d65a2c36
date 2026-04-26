@@ -33,6 +33,16 @@ function normalizePhone(raw: string | null | undefined) {
   return digits;
 }
 
+function phoneEmailCandidates(raw: string | null | undefined) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  const canonical = normalizePhone(raw);
+  const local = canonical.startsWith('62') ? canonical.slice(2) : canonical;
+  const legacyZero = local ? `0${local}` : '';
+  return Array.from(new Set([digits, canonical, legacyZero, local]
+    .filter((v) => v.length >= 10)
+    .map((v) => `${v}@rt48.user`)));
+}
+
 async function sendWhatsApp(target: string, message: string, token: string) {
   try {
     const response = await fetch("https://api.fonnte.com/send", {
@@ -99,18 +109,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Find user by email
-    const encodedEmail = encodeURIComponent(identifier.toLowerCase());
-    const userLookupRes = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodedEmail}`,
-      { method: 'GET', headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY } }
-    );
-
     let foundUser: any = null;
-    if (userLookupRes.ok) {
-      const usersData = await userLookupRes.json();
-      const allUsers = usersData.users || usersData || [];
-      foundUser = allUsers.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase());
+    const lookupEmails = identifier.endsWith('@rt48.user')
+      ? phoneEmailCandidates(identifier.replace('@rt48.user', ''))
+      : [identifier.toLowerCase()];
+    for (const lookupEmail of lookupEmails) {
+      const encodedEmail = encodeURIComponent(lookupEmail.toLowerCase());
+      const userLookupRes = await fetch(
+        `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1&filter=${encodedEmail}`,
+        { method: 'GET', headers: { 'Authorization': `Bearer ${SERVICE_KEY}`, 'apikey': SERVICE_KEY } }
+      );
+      if (userLookupRes.ok) {
+        const usersData = await userLookupRes.json();
+        const allUsers = usersData.users || usersData || [];
+        foundUser = allUsers.find((u: any) => u.email?.toLowerCase() === lookupEmail.toLowerCase());
+        if (foundUser) break;
+      }
     }
 
     if (!foundUser) {
