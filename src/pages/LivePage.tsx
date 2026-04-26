@@ -22,6 +22,7 @@ import { withRetry, withTimeout } from "@/lib/queryCache";
 import { createClientId, safeStorageGet, safeStorageSet, safeJsonParse } from "@/lib/clientId";
 import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
 import SectionBoundary from "@/components/SectionBoundary";
+import LiveChatBoundary from "@/components/viewer/LiveChatBoundary";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
@@ -1273,14 +1274,11 @@ const LivePage = () => {
           </Suspense>
         </SectionBoundary>
         <div className="flex-1 min-h-0">
-          <SectionBoundary
-            name="LiveChat"
-            fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Chat tidak tersedia. Coba refresh.</p></div>}
-          >
+          <LiveChatBoundary>
             <Suspense fallback={<div className="flex h-full items-center justify-center"><p className="text-xs text-muted-foreground">Memuat chat...</p></div>}>
               <LiveChat username={username} tokenId={tokenData?.id} isLive={isLive} isAdmin={false} />
             </Suspense>
-          </SectionBoundary>
+          </LiveChatBoundary>
         </div>
       </div>
     </div>
