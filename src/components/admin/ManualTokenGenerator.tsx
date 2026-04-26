@@ -48,8 +48,9 @@ const buildMessage = (opts: {
   tokenCode: string;
   durationLabel: string;
   customDescription: string;
+  maxDevices?: number;
 }): string => {
-  const { show, tokenCode, durationLabel, customDescription } = opts;
+  const { show, tokenCode, durationLabel, customDescription, maxDevices = 1 } = opts;
   const liveLink = `https://${SITE_URL}/live?t=${tokenCode}`;
   let msg = "";
 
