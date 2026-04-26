@@ -565,6 +565,26 @@ const SiteSettingsManager = () => {
           />
         </div>
         <div>
+          <label className="mb-1 flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span>Kecerahan Video Background</span>
+            <span className="font-mono text-foreground">{values.hero_video_brightness ?? "60"}%</span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={parseInt(values.hero_video_brightness ?? "60", 10)}
+            onChange={(e) => setValues((p) => ({ ...p, hero_video_brightness: e.target.value }))}
+            onMouseUp={() => saveSetting("hero_video_brightness")}
+            onTouchEnd={() => saveSetting("hero_video_brightness")}
+            className="w-full accent-primary"
+          />
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            0% = paling gelap (overlay hitam penuh), 100% = paling terang (tanpa overlay). Default 60%.
+          </p>
+        </div>
+        <div>
           <label className="mb-2 block text-xs font-medium text-muted-foreground">Status</label>
           <div className="flex gap-2">
             {[{ value: "true", label: "✅ Aktif" }, { value: "false", label: "❌ Nonaktif" }].map((opt) => (

@@ -5,6 +5,11 @@ interface HeroVideoBackgroundProps {
   url?: string;
   /** Optional poster image agar tidak blank saat video belum load. */
   poster?: string;
+  /**
+   * Kecerahan video (0-100). 100 = paling terang (tanpa overlay gelap),
+   * 0 = paling gelap (overlay hitam penuh). Default 60.
+   */
+  brightness?: number;
   className?: string;
 }
 
@@ -50,7 +55,7 @@ const pickStartLevel = (levels: Array<{ bitrate?: number; height?: number }>) =>
  *  - Defer attach src dengan requestIdleCallback agar tidak menghambat LCP
  *  - Native HLS Safari ditangani tanpa hls.js
  */
-const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroundProps) => {
+const HeroVideoBackground = ({ url, poster, brightness = 60, className = "" }: HeroVideoBackgroundProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsInstanceRef = useRef<any>(null);
@@ -242,11 +247,17 @@ const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroun
 
   if (!url || hidden) return null;
 
+  // Clamp brightness 0-100. Video opacity naik seiring brightness, overlay gelap berkurang.
+  const b = Math.max(0, Math.min(100, brightness));
+  const videoOpacity = 0.25 + (b / 100) * 0.75; // 0.25 - 1.0
+  const overlayAlpha = 0.7 - (b / 100) * 0.7;   // 0.7 - 0.0
+
   return (
     <div ref={containerRef} className={`absolute inset-0 overflow-hidden ${className}`} aria-hidden="true">
       <video
         ref={videoRef}
-        className="h-full w-full object-cover opacity-60"
+        className="h-full w-full object-cover transition-opacity duration-300"
+        style={{ opacity: videoOpacity }}
         autoPlay
         muted
         loop
@@ -257,8 +268,11 @@ const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroun
         poster={poster}
         onError={() => setHidden(true)}
       />
-      {/* Gelapkan video agar teks tetap kontras */}
-      <div className="absolute inset-0 bg-black/40" />
+      {/* Overlay gelap dinamis sesuai brightness agar teks tetap kontras */}
+      <div
+        className="absolute inset-0 transition-colors duration-300"
+        style={{ backgroundColor: `rgba(0,0,0,${overlayAlpha.toFixed(3)})` }}
+      />
     </div>
   );
 };

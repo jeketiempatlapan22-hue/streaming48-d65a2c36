@@ -7,6 +7,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Show } from "@/types/show";
 
+/** Tampilkan harga replay (replay_qris_price) bila show adalah replay & harga diset, jika tidak fallback ke show.price */
+const getDisplayPrice = (show: Show): string => {
+  if (show.is_replay && show.replay_qris_price && show.replay_qris_price > 0) {
+    return `Rp ${show.replay_qris_price.toLocaleString("id-ID")}`;
+  }
+  return show.price || "-";
+};
+
 interface PurchaseModalProps {
   show: Show;
   purchaseStep: "qris" | "upload" | "info" | "done";
@@ -34,6 +42,20 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
+  // Hitung harga aktual: replay → replay_qris_price (jika ada), kalau tidak → parsing show.price
+  const computeAmount = (): number => {
+    if (show.is_replay && show.replay_qris_price && show.replay_qris_price > 0) {
+      return show.replay_qris_price;
+    }
+    return parseInt((show.price || "").replace(/[^\d]/g, ""), 10) || 0;
+  };
+
+  const orderTypeForReplay = show.is_replay
+    ? "replay"
+    : show.is_subscription
+      ? "membership"
+      : "regular";
+
   // Create dynamic QRIS on mount
   useEffect(() => {
     const create = async () => {
@@ -44,11 +66,11 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         setLoading(false);
       }, 15000);
       try {
-        const priceNum = parseInt(show.price.replace(/[^\d]/g, "")) || 0;
+        const priceNum = computeAmount();
         if (priceNum <= 0) { toast.error("Harga tidak valid"); clearTimeout(hardTimeout); setLoading(false); return; }
 
         const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
-          body: { show_id: show.id, amount: priceNum, phone, order_type: show.is_subscription ? "membership" : "regular" },
+          body: { show_id: show.id, amount: priceNum, phone, order_type: orderTypeForReplay },
         });
         clearTimeout(hardTimeout);
         if (error || !data?.success) {
@@ -65,7 +87,7 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
       setLoading(false);
     };
     create();
-  }, [show.id, show.price, phone, show.is_subscription]);
+  }, [show.id, show.price, show.is_replay, show.replay_qris_price, phone, show.is_subscription]);
 
   // Poll payment status every 3s
   useEffect(() => {
@@ -125,7 +147,7 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
         <div className="space-y-1 text-xs text-muted-foreground">
           <p>🎭 {show.title}</p>
-          <p>💰 {show.price}</p>
+          <p>💰 {getDisplayPrice(show)}</p>
           {show.schedule_date && <p>📅 {show.schedule_date} {show.schedule_time}</p>}
         </div>
       </div>
@@ -155,7 +177,7 @@ const PurchaseModal = ({
           className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6"
         >
           <h3 className="mb-1 text-lg font-bold text-foreground">{show.title}</h3>
-          <p className="mb-4 text-sm text-muted-foreground">{show.price}</p>
+          <p className="mb-4 text-sm text-muted-foreground">{getDisplayPrice(show)}</p>
 
           {dynamicQrisStep === "phone" && (
             <div className="space-y-4">
@@ -199,7 +221,7 @@ const PurchaseModal = ({
         className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6"
       >
         <h3 className="mb-1 text-lg font-bold text-foreground">{show.title}</h3>
-        <p className="mb-4 text-sm text-muted-foreground">{show.price}</p>
+        <p className="mb-4 text-sm text-muted-foreground">{getDisplayPrice(show)}</p>
 
         {/* Hidden file input for gallery */}
         <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
@@ -230,7 +252,7 @@ const PurchaseModal = ({
               <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
               <div className="space-y-1 text-xs text-muted-foreground">
                 <p>🎭 {show.title}</p>
-                <p>💰 {show.price}</p>
+                <p>💰 {getDisplayPrice(show)}</p>
                 {show.schedule_date && <p>📅 {show.schedule_date} {show.schedule_time}</p>}
                 {show.lineup && <p>👥 {show.lineup}</p>}
               </div>

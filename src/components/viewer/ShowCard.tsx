@@ -72,6 +72,14 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
 
+  // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
+  const replayQrisPrice = show.replay_qris_price || 0;
+  const hasReplayPrice = isReplayMode && replayQrisPrice > 0;
+  const displayPrice = hasReplayPrice
+    ? `Rp ${replayQrisPrice.toLocaleString("id-ID")}`
+    : show.price;
+  const isFree = displayPrice === "Gratis" || (!hasReplayPrice && show.price === "Gratis");
+
   const handleReminder = async () => {
     if (reminded) {
       removeShowReminder(show.id);
@@ -202,10 +210,17 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
 
         {/* Price row */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          {show.price && show.price !== "Gratis" && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{show.price}</span>
+          {displayPrice && displayPrice !== "Gratis" && (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              hasReplayPrice
+                ? "bg-accent/15 text-accent"
+                : "bg-muted text-muted-foreground"
+            }`}>
+              {hasReplayPrice && <Film className="inline h-2.5 w-2.5 mr-0.5" />}
+              {displayPrice}
+            </span>
           )}
-          {show.price && show.price !== "Gratis" && hasCoin && (
+          {displayPrice && displayPrice !== "Gratis" && hasCoin && (
             <span className="text-[10px] text-muted-foreground/50">/</span>
           )}
           {hasCoin && (
@@ -217,7 +232,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
               {isReplayMode ? <Film className="h-2.5 w-2.5" /> : <Coins className="h-2.5 w-2.5" />} {coinPrice} Koin
             </span>
           )}
-          {show.price === "Gratis" && (
+          {isFree && !hasCoin && (
             <span className="rounded-full bg-[hsl(var(--success))]/15 px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--success))]">Gratis</span>
           )}
         </div>
