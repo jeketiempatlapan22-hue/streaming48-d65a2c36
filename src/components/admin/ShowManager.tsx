@@ -57,6 +57,9 @@ interface Show {
   bundle_duration_days: number;
   bundle_replay_passwords: any[];
   bundle_replay_info: string;
+  replay_m3u8_url: string;
+  replay_youtube_url: string;
+  replay_month: string;
 }
 
 const CATEGORY_OPTIONS = [
