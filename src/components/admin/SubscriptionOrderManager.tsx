@@ -211,6 +211,12 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           message += `⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
           sendWhatsApp(order.phone, message);
         } else {
+          // Ambil max_devices aktual dari token yang baru dibuat
+          const { data: tokRow } = await supabase
+            .from("tokens")
+            .select("max_devices")
+            .eq("code", result.token_code)
+            .maybeSingle();
           const message = buildRegularShowMessage({
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
@@ -218,7 +224,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             tokenCode: result.token_code,
             liveLink,
             accessPassword: showInfo.access_password,
-            maxDevices: 1,
+            maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(order.phone, message);
         }
@@ -503,6 +509,11 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         } else if (result.token_code) {
           // Regular order
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
+          const { data: tokRow } = await supabase
+            .from("tokens")
+            .select("max_devices")
+            .eq("code", result.token_code)
+            .maybeSingle();
           const message = buildRegularShowMessage({
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
@@ -510,7 +521,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             tokenCode: result.token_code,
             liveLink,
             accessPassword: showInfo.access_password,
-            maxDevices: 1,
+            maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(newOrder.phone.trim(), message);
         }
@@ -588,6 +599,11 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               message += `\n✨ Akses *semua show* selama masa aktif.\n⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
               sendWhatsApp(order.phone, message);
             } else {
+              const { data: tokRow } = await supabase
+                .from("tokens")
+                .select("max_devices")
+                .eq("code", result.token_code)
+                .maybeSingle();
               const message = buildRegularShowMessage({
                 showTitle: showInfo.title,
                 scheduleDate: showInfo.schedule_date,
@@ -595,7 +611,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 tokenCode: result.token_code,
                 liveLink,
                 accessPassword: showInfo.access_password,
-                maxDevices: 1,
+                maxDevices: tokRow?.max_devices ?? 1,
               });
               sendWhatsApp(order.phone, message);
             }

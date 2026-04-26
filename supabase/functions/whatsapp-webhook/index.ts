@@ -1339,7 +1339,14 @@ async function processSubOrder(supabase: any, order: any, action: 'approve' | 'r
           } else {
             // Regular show confirmation — format standar baru
             const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
-            let waMsg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *1*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
+            // Ambil max_devices aktual dari token yang baru dibuat
+            const { data: tokRow } = await supabase
+              .from('tokens')
+              .select('max_devices')
+              .eq('code', result.token_code)
+              .maybeSingle();
+            const maxDev = tokRow?.max_devices ?? 1;
+            let waMsg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDev}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
             if (show?.access_password) {
               waMsg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
             }
@@ -1514,7 +1521,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
       if (subOrder.user_id) {
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('user_id', subOrder.user_id)
           .eq('status', 'active')
@@ -1529,7 +1536,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('status', 'active')
           .gte('created_at', minTime)
@@ -1595,7 +1602,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         waMsg = buildRegularShowMessage({
           showTitle: show?.title || 'Show',
           schedule,
-          maxDevices: 1,
+          maxDevices: token?.max_devices ?? 1,
           liveLink,
           replayPassword: show?.access_password,
         });

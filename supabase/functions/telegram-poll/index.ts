@@ -699,10 +699,16 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
           } else {
             // Regular show: format pesan standar terbaru (info live + replay 14 hari)
             const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+            // Ambil max_devices aktual dari token yang baru dibuat
+            const { data: tokRow } = await supabase
+              .from('tokens')
+              .select('max_devices')
+              .eq('code', result.token_code)
+              .maybeSingle();
             const waMsg = buildRegularShowMessageWa({
               showTitle: showTitle,
               schedule,
-              maxDevices: 1,
+              maxDevices: tokRow?.max_devices ?? 1,
               liveLink,
               replayPassword: show?.access_password,
             });
@@ -2300,7 +2306,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
       if (subOrder.user_id) {
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('user_id', subOrder.user_id)
           .eq('status', 'active')
@@ -2316,7 +2322,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('status', 'active')
           .gte('created_at', minTime)
@@ -2384,7 +2390,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         waMsg = buildRegularShowMessageWa({
           showTitle: show?.title || 'Show',
           schedule,
-          maxDevices: 1,
+          maxDevices: token?.max_devices ?? 1,
           liveLink,
           replayPassword: show?.access_password,
         });
