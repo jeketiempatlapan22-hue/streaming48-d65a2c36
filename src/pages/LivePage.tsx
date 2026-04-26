@@ -1255,7 +1255,6 @@ const LivePage = () => {
             <LineupAvatars team={activeShowTeam} />
           </Suspense>
         </SectionBoundary>
-        
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
