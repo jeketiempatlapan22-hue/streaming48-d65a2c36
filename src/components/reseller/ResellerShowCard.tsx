@@ -22,6 +22,9 @@ interface Show {
   bundle_replay_passwords?: any;
   background_image_url?: string;
   short_id?: string;
+  replay_m3u8_url?: string | null;
+  replay_youtube_url?: string | null;
+  has_replay_media?: boolean;
 }
 
 interface Props {
@@ -31,6 +34,7 @@ interface Props {
 }
 
 const LIVE_BASE = "https://realtime48stream.my.id/live";
+const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
 
 const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
   const [maxDevices, setMaxDevices] = useState("1");
