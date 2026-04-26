@@ -1898,7 +1898,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       return;
     }
 
-    const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    const code = (show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map((b: number) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
     const { error: insertErr } = await supabase.from('tokens').insert({
@@ -1907,6 +1907,7 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
       max_devices: maxDevices,
       expires_at: expiresAt,
       status: 'active',
+      ...(show.is_subscription ? { duration_type: 'membership' } : {}),
     });
 
     if (insertErr) {
