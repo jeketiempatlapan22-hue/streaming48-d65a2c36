@@ -1,4 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildRegularShowMessage,
+  buildMembershipMessage,
+  buildBundleMessage,
+  buildReplayMessage,
+} from "../_shared/showMessageBuilder.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
