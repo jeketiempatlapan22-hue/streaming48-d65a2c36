@@ -1149,14 +1149,14 @@ const LivePage = () => {
                 );
               })()}
               {/* Foreground content */}
-              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-4 py-6">
+              <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-1.5 px-4 py-6">
                 {countdown ? (
                   <>
-                    <h3 className="text-center text-xl sm:text-2xl font-bold text-foreground drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+                    <h3 className="text-center text-lg sm:text-xl md:text-2xl font-semibold text-foreground/90 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
                       Show Belum Dimulai
                     </h3>
                     {activeShowTitle && (
-                      <p className="mt-2 text-center text-lg sm:text-xl md:text-2xl font-bold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                      <p className="text-center text-xl sm:text-2xl md:text-3xl font-extrabold text-primary leading-tight drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] line-clamp-2 max-w-[92%]">
                         🎭 {activeShowTitle}
                       </p>
                     )}
@@ -1164,31 +1164,28 @@ const LivePage = () => {
                       const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00");
                       const outsideWIB = parsedTs != null && isUserOutsideWIB();
                       const userZoneLabel = getUserZoneLabel();
-                      // Tanggal: kalau di luar WIB, pakai tanggal lokal user (handle lewat tengah malam)
                       const dateLabel = parsedTs != null
                         ? (outsideWIB
                             ? formatLocal(parsedTs, { day: "numeric", month: "long", year: "numeric" })
                             : formatDateWIB(parsedTs))
                         : (activeShowDate || "");
-                      // Jam utama: kalau di luar WIB → jam lokal user (mis. WITA 20:00 / WIT 21:00)
                       const primaryTimeLabel = parsedTs != null
                         ? (outsideWIB
                             ? `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit" })} ${userZoneLabel}`
                             : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)} WIB`)
                         : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "");
-                      // Keterangan WIB asli (hanya kalau user di luar WIB)
                       const wibHint = outsideWIB && parsedTs != null
                         ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)
                         : "";
                       return (
                         <>
-                          <p className="mt-1 text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                          <p className="text-center text-xs sm:text-sm text-foreground/80 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                             📅 {dateLabel}
                             {dateLabel && primaryTimeLabel ? " • 🕐 " : ""}
                             {primaryTimeLabel}
                           </p>
                           {outsideWIB && wibHint && (
-                            <p className="mt-1 text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                            <p className="text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                               🌐 Jadwal asli: <span className="font-semibold">{wibHint} WIB</span>
                             </p>
                           )}
@@ -1258,7 +1255,6 @@ const LivePage = () => {
             <LineupAvatars team={activeShowTeam} />
           </Suspense>
         </SectionBoundary>
-        
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
