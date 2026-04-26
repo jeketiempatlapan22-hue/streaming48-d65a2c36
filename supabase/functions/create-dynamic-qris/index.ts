@@ -237,6 +237,46 @@ Deno.serve(async (req) => {
         .eq("id", orderId);
     }
 
+    // Notify admin (Telegram + WhatsApp) that a dynamic QRIS order was created.
+    // Best-effort; never blocks the response. Pak Kasir callback will send a 2nd
+    // notification when payment is actually confirmed.
+    try {
+      const FONNTE_TOKEN = Deno.env.get("FONNTE_API_TOKEN");
+      const TG_BOT = Deno.env.get("TELEGRAM_BOT_TOKEN");
+      const TG_CHAT = Deno.env.get("ADMIN_TELEGRAM_CHAT_ID");
+
+      const amountStr = `Rp ${finalAmount.toLocaleString("id-ID")}`;
+      const typeLabel = isCoinOrder ? `🪙 ${coin_amount} Koin` : `🎫 Show ${order_type || "regular"}`;
+      const text =
+        `🟡 *QRIS Dinamis Dibuat (menunggu bayar)*\n\n` +
+        `${typeLabel}\n` +
+        `💵 ${amountStr}\n` +
+        `📱 ${phone || "-"}\n` +
+        `🆔 ${shortId}\n` +
+        `🔗 QR: ${qrImageUrl}\n\n` +
+        `_Notifikasi konfirmasi otomatis akan dikirim setelah user membayar._`;
+
+      if (TG_BOT && TG_CHAT) {
+        fetch(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "Markdown" }),
+        }).catch(() => {});
+      }
+      if (FONNTE_TOKEN) {
+        const { data: adminWa } = await supabase.from("site_settings").select("value").eq("key", "whatsapp_number").maybeSingle();
+        if (adminWa?.value) {
+          fetch("https://api.fonnte.com/send", {
+            method: "POST",
+            headers: { Authorization: FONNTE_TOKEN },
+            body: new URLSearchParams({ target: adminWa.value, message: text.replace(/\*/g, "") }),
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.warn("Admin notify (qris-created) failed:", e instanceof Error ? e.message : e);
+    }
+
     return new Response(JSON.stringify({
       success: true,
       order_id: orderId,
