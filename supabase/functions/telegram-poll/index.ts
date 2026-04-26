@@ -2305,13 +2305,11 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         if (show.access_password) {
           waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
         }
-      } else {
+      } else if (show?.is_subscription) {
+        // Membership: keep existing format
         waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
         if (token?.code) {
           waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
-        }
-        if (show?.access_password) {
-          waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
         }
         if (show?.schedule_date) {
           waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
@@ -2323,9 +2321,24 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         if (show?.access_password) {
           waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
         }
+        waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      } else {
+        // Regular show: format pesan standar terbaru
+        const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+        const liveLink = token?.code ? `${siteUrl}/live?t=${token.code}` : `${siteUrl}/live`;
+        waMsg = buildRegularShowMessageWa({
+          showTitle: show?.title || 'Show',
+          schedule,
+          maxDevices: 1,
+          liveLink,
+          replayPassword: show?.access_password,
+        });
       }
 
-      waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      // Bundle message already includes its own footer above
+      if (show?.is_bundle) {
+        waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      }
 
       await sendFonnteWhatsApp(subOrder.phone, waMsg);
 
