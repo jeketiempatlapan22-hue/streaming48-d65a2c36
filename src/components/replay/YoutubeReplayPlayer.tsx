@@ -155,11 +155,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     // Adaptive watcher: every 1s, if buffering >3s and adaptive on, downgrade
     const watcher = setInterval(() => {
       if (!adaptive) return;
+      // Jangan downgrade saat masih dalam transisi
+      if (switchingTimerRef.current) return;
       const since = bufferingSinceRef.current;
       if (since && Date.now() - since > 3000) {
         downgradeOneStep();
-        // Reset baseline so next downgrade waits another 3s of continuous buffering
-        bufferingSinceRef.current = Date.now();
+        // Baseline buffering akan di-reset oleh downgradeOneStep setelah transisi selesai
       }
     }, 1000);
 
@@ -167,6 +168,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       window.removeEventListener("message", onMessage);
       clearTimeout(sub);
       clearInterval(watcher);
+      if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
   }, [src, adaptive, downgradeOneStep]);
 
