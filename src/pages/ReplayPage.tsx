@@ -270,6 +270,32 @@ const ReplayPage = () => {
 
   const availableCategories = ["all", ...Array.from(new Set(shows.map((s) => s.category || "regular")))];
 
+  // ===== Group shows per bulan (replay_month → schedule_date → "Lainnya") =====
+  const MONTH_LABEL_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const monthKeyForShow = (s: Show): string => {
+    const explicit = (s as any).replay_month as string | undefined;
+    if (explicit && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
+    if (s.schedule_date) {
+      const d = new Date(s.schedule_date);
+      if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return "0000-00";
+  };
+  const monthLabel = (key: string): string => {
+    if (key === "0000-00") return "Lainnya";
+    const [y, m] = key.split("-").map(Number);
+    return `${MONTH_LABEL_ID[m - 1]} ${y}`;
+  };
+  const groupedShows = (() => {
+    const map = new Map<string, Show[]>();
+    for (const s of filteredShows) {
+      const k = monthKeyForShow(s);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(s);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
+  })();
+
   return (
     <div className="min-h-screen bg-background">
       <SharedNavbar />
