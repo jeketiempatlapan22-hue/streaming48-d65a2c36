@@ -40,6 +40,7 @@ const ResellerManager = lazy(() => import("@/components/admin/ResellerManager"))
 const ResellerAuditLog = lazy(() => import("@/components/admin/ResellerAuditLog"));
 const ManualTokenGenerator = lazy(() => import("@/components/admin/ManualTokenGenerator"));
 const RestreamManager = lazy(() => import("@/components/admin/RestreamManager"));
+const ReplayGlobalPasswordManager = lazy(() => import("@/components/admin/ReplayGlobalPasswordManager"));
 
 
 /** Safe race: returns result or fallback after timeout */
@@ -181,6 +182,7 @@ const AdminDashboard = () => {
       case "tokens": return <TokenFactory />;
       case "manual-token": return <ManualTokenGenerator />;
       case "shows": return <ShowManager />;
+      case "replay-passwords": return <ReplayGlobalPasswordManager />;
       case "orders": return <SubscriptionOrderManager mode="membership" />;
       case "show-orders": return <SubscriptionOrderManager mode="regular" />;
       case "coin-packages": return <CoinPackageManager />;
