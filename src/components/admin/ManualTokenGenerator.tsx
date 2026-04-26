@@ -6,9 +6,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Sparkles, Send, RefreshCw, Ticket } from "lucide-react";
+import {
+  buildRegularShowMessage,
+  buildMembershipMessage,
+  buildBundleMessage,
+  buildReplayMessage,
+  REPLAY_PORTAL_URL,
+} from "@/lib/showMessageBuilder";
 
 const SITE_URL = "realtime48stream.my.id";
-const REPLAY_URL = "https://replaytime.lovable.app";
+const REPLAY_URL = REPLAY_PORTAL_URL;
 
 const DURATION_OPTIONS = [
   { key: "1h", label: "1 Jam", ms: 3_600_000, label_h: "1 jam" },
