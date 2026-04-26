@@ -1109,7 +1109,7 @@ async function findShowByInput(supabase: any, input: string, activeOnly = true):
   // Fetch shows for matching
   const query = supabase
     .from('shows')
-    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link');
+    .select('id, title, is_replay, replay_coin_price, access_password, short_id, coin_price, schedule_date, schedule_time, is_active, category, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link, replay_m3u8_url, replay_youtube_url, replay_month');
   if (activeOnly) query.eq('is_active', true);
   const { data: allShows } = await query;
 
