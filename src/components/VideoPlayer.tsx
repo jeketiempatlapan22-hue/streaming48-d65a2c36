@@ -286,77 +286,79 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
         load(context: any, config: any, callbacks: any) {
           const headerMap = getProxyHeaders();
-
           if (headerMap) {
-            context.headers = {
-              ...(context.headers || {}),
-              ...headerMap,
-            };
-
-            console.log(
-              "[VideoPlayer proxyLoader] Inject headers via context.headers:",
-              context.url,
-              Object.keys(headerMap).join(",")
-            );
-          } else {
-            console.warn("[VideoPlayer proxyLoader] No custom headers available for:", context.url);
+            context.headers = { ...(context.headers || {}), ...headerMap };
           }
-
           return super.load(context, config, callbacks);
         }
       }
 
+      // ── Cross-browser detection: tune HLS for weaker engines ──
+      const ua = navigator.userAgent || "";
+      const isFirefox = /Firefox/i.test(ua);
+      const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg/i.test(ua);
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+      // Heuristic for low-memory / low-CPU devices
+      const deviceMem = (navigator as any).deviceMemory || 4;
+      const cpuCores = navigator.hardwareConcurrency || 4;
+      const isLowEnd = deviceMem <= 2 || cpuCores <= 2 || (isMobile && deviceMem <= 4);
+      // Respect Save-Data / slow connection
+      const conn: any = (navigator as any).connection;
+      const saveData = !!conn?.saveData;
+      const slowNet = conn?.effectiveType && /(^|-)(2g|slow-2g)$/.test(conn.effectiveType);
+
+      // DVR back-buffer: 30 min on capable desktop, scaled down elsewhere
+      const backBuffer = isLowEnd || saveData || slowNet ? 120 :
+                         isMobile || isFirefox || isSafari ? 600 : 1800;
+      // Front buffer: smaller on weak browsers to avoid memory pressure
+      const fwdMax = isLowEnd ? 30 : 60;
+      const fwd = isLowEnd ? 15 : 30;
+
       const hlsConfig: any = {
         enableWorker: true,
-        lowLatencyMode: true,
-        // DVR: keep up to 30 minutes of back buffer so users can rewind live
-        backBufferLength: 1800,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferHole: 0.3,
-        nudgeOffset: 0.05,
-        nudgeMaxRetry: 10,
-        liveSyncDurationCount: 3,
-        liveMaxLatencyDurationCount: 6,
-        liveBackBufferLength: 1800,
+        // lowLatencyMode breaks Firefox/Safari live playback frequently — disable there
+        lowLatencyMode: !isFirefox && !isSafari && !isLowEnd,
+        backBufferLength: backBuffer,
+        maxBufferLength: fwd,
+        maxMaxBufferLength: fwdMax,
+        // Cap buffer memory so long sessions don't OOM the tab
+        maxBufferSize: (isLowEnd ? 30 : 60) * 1000 * 1000,
+        maxBufferHole: 0.5,
+        nudgeOffset: 0.1,
+        nudgeMaxRetry: 8,
+        liveSyncDurationCount: isFirefox || isSafari ? 4 : 3,
+        liveMaxLatencyDurationCount: 8,
+        liveBackBufferLength: backBuffer,
         liveDurationInfinity: true,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
-        progressive: usesNativeHeaderInjection ? false : true,
+        // progressive=true upsets Firefox & Safari on some streams
+        progressive: usesNativeHeaderInjection ? false : !isFirefox && !isSafari,
         fragLoadingMaxRetry: 8,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 300,
-        manifestLoadingTimeOut: 8000,
-        fragLoadingTimeOut: 10000,
-        levelLoadingTimeOut: 8000,
-        testBandwidth: true,
-        abrEwmaDefaultEstimate: 2000000,
+        fragLoadingRetryDelay: 500,
+        manifestLoadingTimeOut: 12000,
+        fragLoadingTimeOut: 15000,
+        levelLoadingTimeOut: 12000,
+        testBandwidth: !isLowEnd,
+        abrEwmaDefaultEstimate: isLowEnd ? 800000 : 2000000,
         abrEwmaDefaultEstimateMax: 5000000,
-        maxStarvationDelay: 2,
-        maxLoadingDelay: 2,
-        highBufferWatchdogPeriod: 1,
+        maxStarvationDelay: 4,
+        maxLoadingDelay: 4,
+        highBufferWatchdogPeriod: 2,
         ...(usesNativeHeaderInjection ? { loader: HeaderInjectingLoader } : {}),
       };
 
-      // Inject custom auth headers for hanabira proxy stream via xhrSetup
+      // Inject custom auth headers for hanabira proxy stream via xhrSetup (silent in prod)
       if (usesNativeHeaderInjection) {
-        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, url: string) => {
+        hlsConfig.xhrSetup = (xhr: XMLHttpRequest, _url: string) => {
           xhr.withCredentials = false;
           const hdrs = getProxyHeaders();
-          console.log("[VideoPlayer xhrSetup] URL:", url, "Headers available:", hdrs ? Object.keys(hdrs).join(",") : "NONE");
-          if (!hdrs) {
-            console.warn("[VideoPlayer xhrSetup] No custom headers available — request will likely fail");
-            return;
-          }
+          if (!hdrs) return;
           for (const [key, value] of Object.entries(hdrs)) {
-            try {
-              xhr.setRequestHeader(key, value);
-              console.log("[VideoPlayer xhrSetup] Set header:", key, "=", value.substring(0, 8) + "...");
-            } catch (e) {
-              console.error("[VideoPlayer xhrSetup] Failed to set header:", key, e);
-            }
+            try { xhr.setRequestHeader(key, value); } catch { /* noop */ }
           }
         };
       }
