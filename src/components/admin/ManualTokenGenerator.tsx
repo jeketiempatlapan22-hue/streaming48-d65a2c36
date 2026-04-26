@@ -105,7 +105,7 @@ const buildMessage = (opts: {
 
 📅 Jadwal: ${schedule}
 
-📱 Max Device: *1*
+📱 Max Device: *${maxDevices}*
 
 
 
