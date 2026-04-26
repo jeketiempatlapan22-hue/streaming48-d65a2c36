@@ -379,10 +379,14 @@ const ReplayPage = () => {
                           <p className="font-mono text-lg font-bold text-primary">{replayPasswords[show.id]}</p>
                         </div>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const target = buildReplayTarget(show, replayPasswords[show.id]);
-                            navigator.clipboard.writeText(replayPasswords[show.id]);
-                            toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                            try {
+                              await navigator.clipboard.writeText(replayPasswords[show.id]);
+                              toast({ title: "Sandi disalin! Membuka halaman replay..." });
+                            } catch {
+                              toast({ title: "Membuka halaman replay...", description: "Sandi siap di kartu jika perlu disalin manual." });
+                            }
                             setTimeout(() => {
                               if (target.startsWith("/")) window.location.href = target;
                               else window.open(target, "_blank");

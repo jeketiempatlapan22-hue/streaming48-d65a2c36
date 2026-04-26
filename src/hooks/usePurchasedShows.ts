@@ -187,7 +187,9 @@ export function usePurchasedShows() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     let balChannel: any;
+    const channelId = `purchase-bal-${Math.random().toString(36).slice(2, 10)}`;
 
     const init = async () => {
       const { data: { session } } = await Promise.race([
@@ -197,29 +199,32 @@ export function usePurchasedShows() {
 
       const user = session?.user;
       if (!user) {
-        setState(prev => ({ ...prev, loading: false }));
+        if (!cancelled) setState(prev => ({ ...prev, loading: false }));
         return;
       }
 
       await loadFromDB(user);
+      if (cancelled) return;
 
-      // Listen for balance changes
-      balChannel = supabase
-        .channel(`purchase-bal-${user.id}`)
-        .on("postgres_changes", {
-          event: "*", schema: "public", table: "coin_balances",
-          filter: `user_id=eq.${user.id}`,
-        }, (payload: any) => {
-          if (payload.new?.balance !== undefined) {
-            setCoinBalance(payload.new.balance);
-          }
-        })
-        .subscribe();
+      // Build channel before subscribing — once subscribed, .on() cannot be added.
+      const ch = supabase.channel(channelId);
+      ch.on("postgres_changes", {
+        event: "*", schema: "public", table: "coin_balances",
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        if (payload.new?.balance !== undefined) {
+          setCoinBalance(payload.new.balance);
+        }
+      });
+      if (cancelled) return;
+      ch.subscribe();
+      balChannel = ch;
     };
 
     init();
 
     return () => {
+      cancelled = true;
       if (balChannel) supabase.removeChannel(balChannel);
     };
   }, [loadFromDB, setCoinBalance]);
