@@ -2419,10 +2419,14 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
 
     const tokens: string[] = [];
     const rows = [];
+    const prefix = show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-';
     for (let i = 0; i < count; i++) {
-      const code = 'RT48-' + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const code = prefix + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
       tokens.push(code);
-      rows.push({ code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active' });
+      rows.push({
+        code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+        ...(show.is_subscription ? { duration_type: 'membership' } : {}),
+      });
     }
 
     const { error: insertErr } = await supabase.from('tokens').insert(rows);
@@ -2434,7 +2438,9 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     msg += `🎬 Show: *${show.title}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
     msg += `⏰ Kedaluwarsa: ${expDate}\n`;
-    if (show.is_bundle) {
+    if (show.is_subscription) {
+      msg += `👑 Durasi Membership: *${show.membership_duration_days || 30} hari*\n`;
+    } else if (show.is_bundle) {
       msg += `📦 Durasi Bundle: *${show.bundle_duration_days || 30} hari*\n`;
     }
     msg += buildReplayInfoMessage(show);
