@@ -2471,6 +2471,14 @@ function buildReplayInfoMessage(show: any): string {
 }
 
 async function calculateShowTokenExpiry(supabase: any, show: any): Promise<string> {
+  // Membership shows must follow admin-defined membership_duration_days, not the
+  // schedule end-of-day default. This keeps bot-generated link tokens consistent
+  // with QRIS/coin purchase flow.
+  if (show?.is_subscription) {
+    const days = Number(show.membership_duration_days) > 0 ? Number(show.membership_duration_days) : 30;
+    return new Date(Date.now() + days * 86400000).toISOString();
+  }
+
   if (show?.is_bundle && (show.bundle_duration_days || 0) > 0) {
     return new Date(Date.now() + show.bundle_duration_days * 86400000).toISOString();
   }
