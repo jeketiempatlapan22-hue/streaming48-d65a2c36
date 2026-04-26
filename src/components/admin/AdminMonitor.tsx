@@ -1,12 +1,6 @@
-import { useCallback, useEffect, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import { supabase } from "@/integrations/supabase/client";
-const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
-import LiveChat from "@/components/viewer/LiveChat";
-import ChatModeratorManager from "@/components/admin/ChatModeratorManager";
-import PollManager from "@/components/admin/PollManager";
-import QuizManager from "@/components/admin/QuizManager";
-import LivePoll from "@/components/viewer/LivePoll";
-import LiveQuizSlot from "@/components/viewer/LiveQuizSlot";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
 import { useAdminSignedStreamUrl } from "@/hooks/useAdminSignedStreamUrl";
@@ -26,7 +20,23 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Playlists are sorted by admin-defined sort_order from DB
+const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
+const LiveChat = lazy(() => import("@/components/viewer/LiveChat"));
+const ChatModeratorManager = lazy(() => import("@/components/admin/ChatModeratorManager"));
+const MonitorPollSection = lazy(() => import("@/components/admin/MonitorPollSection"));
+const MonitorQuizSection = lazy(() => import("@/components/admin/MonitorQuizSection"));
+
+const SectionFallback = ({ label }: { label: string }) => (
+  <div className="rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
+    {label}…
+  </div>
+);
+
+const SectionError = ({ label }: { label: string }) => (
+  <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-xs text-destructive">
+    Bagian "{label}" gagal dimuat. Coba refresh halaman.
+  </div>
+);
 
 const AdminMonitor = () => {
   const [stream, setStream] = useState<any>(null);
@@ -36,11 +46,21 @@ const AdminMonitor = () => {
   const [previewRefreshKey, setPreviewRefreshKey] = useState(0);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
 
+  // Stable random channel id per component lifetime to avoid duplicate subscriptions
+  const channelIdRef = useRef<string>(Math.random().toString(36).slice(2, 10));
+  const activePlaylistTypeRef = useRef<string | null>(null);
+
   const isProxyPlaylist = activePlaylist?.type === "proxy";
   const isDirectPlaylist = activePlaylist?.type === "direct";
 
+  useEffect(() => {
+    activePlaylistTypeRef.current = activePlaylist?.type ?? null;
+  }, [activePlaylist?.type]);
+
   const { signedUrl, loading: previewLoading, error: previewError, proxyType } = useAdminSignedStreamUrl(
-    activePlaylist && !isProxyPlaylist && !isDirectPlaylist ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url } : null,
+    activePlaylist && !isProxyPlaylist && !isDirectPlaylist
+      ? { id: activePlaylist.id, type: activePlaylist.type, url: activePlaylist.url }
+      : null,
     previewRefreshKey
   );
 
@@ -68,30 +88,35 @@ const AdminMonitor = () => {
 
   const fetchMonitorData = useCallback(async () => {
     const [streamRes, playlistRes, settingsRes] = await Promise.all([
-      supabase.from("streams").select("*").limit(1).single(),
+      supabase.from("streams").select("*").limit(1).maybeSingle(),
       supabase.from("playlists").select("*").order("sort_order"),
       supabase.from("site_settings").select("*").eq("key", "active_show_id").maybeSingle(),
     ]);
 
     setStream(streamRes.data || null);
 
-    // Fetch external_show_id for proxy player
     const activeShowId = settingsRes.data?.value;
     if (activeShowId) {
-      const { data: showData } = await supabase.from("shows").select("external_show_id").eq("id", activeShowId).maybeSingle();
-      if (showData?.external_show_id) {
-        setExternalShowId(showData.external_show_id);
-      }
+      const { data: showData } = await supabase
+        .from("shows")
+        .select("external_show_id")
+        .eq("id", activeShowId)
+        .maybeSingle();
+      if (showData?.external_show_id) setExternalShowId(showData.external_show_id);
+      else setExternalShowId(null);
+    } else {
+      setExternalShowId(null);
     }
 
-    const pls = playlistRes.data || [];
-    syncPlaylists(pls);
+    syncPlaylists(playlistRes.data || []);
   }, [syncPlaylists]);
 
   useEffect(() => {
     void fetchMonitorData();
 
-    const ch = supabase.channel("monitor-stream-rt")
+    const channelName = `monitor-stream-rt-${channelIdRef.current}`;
+    const ch = supabase
+      .channel(channelName)
       .on("postgres_changes", { event: "*", schema: "public", table: "streams" }, () => {
         void fetchMonitorData();
       })
@@ -100,11 +125,12 @@ const AdminMonitor = () => {
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_settings" }, (payload: any) => {
         if (payload.new?.key === "active_show_id") {
+          void fetchMonitorData();
           setPreviewRefreshKey((value) => value + 1);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows" }, () => {
-        if (activePlaylist?.type === "proxy") {
+        if (activePlaylistTypeRef.current === "proxy") {
           setPreviewRefreshKey((value) => value + 1);
         }
       })
@@ -113,7 +139,9 @@ const AdminMonitor = () => {
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [activePlaylist?.type, fetchMonitorData]);
+    // Intentionally only run once per mount to avoid resubscribing on playlist switches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleResetChat = async () => {
     setResetting(true);
@@ -228,33 +256,35 @@ const AdminMonitor = () => {
             </div>
             <div className="p-1.5 sm:p-2">
               <div className="rounded-xl border border-border overflow-hidden">
-                {activePlaylist ? (
-                  effectivePreviewUrl ? (
-                    <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
-                      <VideoPlayer
-                        key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
-                        playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
-                        autoPlay
-                        customHeadersRef={isProxyPlaylist ? proxyHeadersRef : undefined}
-                      />
-                    </Suspense>
-                  ) : effectivePreviewLoading ? (
-                    <div className="flex aspect-video items-center justify-center bg-card">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                        <p className="text-sm text-muted-foreground">Menyiapkan preview player...</p>
+                <ErrorBoundary fallback={<SectionError label="Preview Player" />}>
+                  {activePlaylist ? (
+                    effectivePreviewUrl ? (
+                      <Suspense fallback={<div className="flex aspect-video items-center justify-center bg-card"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+                        <VideoPlayer
+                          key={`${activePlaylist.id}-${previewRefreshKey}-${effectivePreviewType}`}
+                          playlist={{ url: effectivePreviewUrl, type: effectivePreviewType, label: activePlaylist.title }}
+                          autoPlay
+                          customHeadersRef={isProxyPlaylist ? proxyHeadersRef : undefined}
+                        />
+                      </Suspense>
+                    ) : effectivePreviewLoading ? (
+                      <div className="flex aspect-video items-center justify-center bg-card">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                          <p className="text-sm text-muted-foreground">Menyiapkan preview player...</p>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
+                        <p className="text-sm text-destructive">{effectivePreviewError || "Preview player belum tersedia."}</p>
+                      </div>
+                    )
                   ) : (
                     <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
-                      <p className="text-sm text-destructive">{effectivePreviewError || "Preview player belum tersedia."}</p>
+                      <p className="text-sm text-muted-foreground">Belum ada playlist untuk dipreview.</p>
                     </div>
-                  )
-                ) : (
-                  <div className="flex aspect-video items-center justify-center bg-card px-4 text-center">
-                    <p className="text-sm text-muted-foreground">Belum ada playlist untuk dipreview.</p>
-                  </div>
-                )}
+                  )}
+                </ErrorBoundary>
               </div>
             </div>
             <div className="border-t border-border px-2 py-2 sm:px-3 sm:py-3">
@@ -273,52 +303,40 @@ const AdminMonitor = () => {
         </div>
 
         <div className="h-[500px] overflow-hidden rounded-2xl border border-border">
-          <LiveChat
-            username="Admin"
-            isLive={stream?.is_live || false}
-            isAdmin={true}
-            onPinMessage={handlePinMessage}
-            onDeleteMessage={handleDeleteMessage}
-            onBlockUser={handleBlockUser}
-            onToggleChatMod={handleToggleChatMod}
-            onBanUser={handleBanByUsername}
-          />
+          <ErrorBoundary fallback={<SectionError label="Live Chat" />}>
+            <Suspense fallback={<SectionFallback label="Memuat Live Chat" />}>
+              <LiveChat
+                username="Admin"
+                isLive={stream?.is_live || false}
+                isAdmin={true}
+                onPinMessage={handlePinMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onBlockUser={handleBlockUser}
+                onToggleChatMod={handleToggleChatMod}
+                onBanUser={handleBanByUsername}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PollManager />
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Preview Poll (tampilan user)</h3>
-          <div className="rounded-xl border border-border bg-card p-2">
-            <LivePoll voterId="admin-preview" />
-            <p className="mt-2 text-center text-xs text-muted-foreground italic">Preview poll aktif saat ini</p>
-          </div>
-        </div>
-      </div>
+      <ErrorBoundary fallback={<SectionError label="Poll" />}>
+        <Suspense fallback={<SectionFallback label="Memuat Poll" />}>
+          <MonitorPollSection />
+        </Suspense>
+      </ErrorBoundary>
 
-      <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div>
-            <h3 className="text-lg font-bold text-foreground">🏆 Live Quiz</h3>
-            <p className="text-xs text-muted-foreground">Atur pertanyaan, lihat preview viewer, dan pantau jawaban masuk secara langsung.</p>
-          </div>
-        </div>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)]">
-          <div className="min-w-0">
-            <QuizManager />
-          </div>
-          <div className="space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Preview Quiz (tampilan user)</h4>
-            <div className="rounded-xl border border-border bg-background/40 p-2 min-h-[200px]">
-              <LiveQuizSlot />
-              <p className="mt-2 text-center text-[10px] text-muted-foreground italic">Sinkron realtime dengan quiz aktif. Pemenang akan otomatis tampil di sini.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ErrorBoundary fallback={<SectionError label="Quiz" />}>
+        <Suspense fallback={<SectionFallback label="Memuat Quiz" />}>
+          <MonitorQuizSection />
+        </Suspense>
+      </ErrorBoundary>
 
-      <ChatModeratorManager />
+      <ErrorBoundary fallback={<SectionError label="Moderator Chat" />}>
+        <Suspense fallback={<SectionFallback label="Memuat moderator" />}>
+          <ChatModeratorManager />
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 };
