@@ -333,3 +333,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+/* ============================================================
+   Force-landscape rotation fallback (untuk browser yang tidak
+   mendukung Screen Orientation Lock API: iOS Safari, Firefox, dll)
+   Diaktifkan oleh tombol rotasi pada VideoPlayer.
+   ============================================================ */
+body.rt48-landscape-lock {
+  overflow: hidden !important;
+}
+
+.rt48-force-landscape {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vh !important;
+  height: 100vw !important;
+  max-height: 100vw !important;
+  z-index: 9998 !important;
+  transform: rotate(90deg) translateY(-100vh);
+  transform-origin: top left;
+  aspect-ratio: auto !important;
+}
