@@ -616,7 +616,11 @@ const Index = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e1a] via-[#0d1226] to-background animate-gradient" />
         {/* Optional video background dari URL (mengganti efek statis bila aktif) */}
         {settings.hero_video_enabled === "true" && settings.hero_video_url && (
-          <HeroVideoBackground url={settings.hero_video_url} poster={settings.hero_video_poster} />
+          <HeroVideoBackground
+            url={settings.hero_video_url}
+            poster={settings.hero_video_poster}
+            brightness={settings.hero_video_brightness ? parseInt(settings.hero_video_brightness, 10) : 60}
+          />
         )}
         {/* Starfield overlay */}
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(1px 1px at 20% 30%, hsl(var(--primary)/0.6) 1px, transparent 0), radial-gradient(1px 1px at 80% 70%, hsl(var(--primary)/0.4) 1px, transparent 0), radial-gradient(1px 1px at 50% 50%, hsl(var(--primary)/0.5) 1px, transparent 0)', backgroundSize: '200px 200px, 150px 150px, 300px 300px' }} />
