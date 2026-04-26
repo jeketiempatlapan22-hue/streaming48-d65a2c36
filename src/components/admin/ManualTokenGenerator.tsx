@@ -91,15 +91,44 @@ const buildMessage = (opts: {
       msg += `🔐 *Sandi Replay:* ${show.access_password}\n`;
     }
   } else if (show) {
-    msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Show*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show.title}*\n⏰ Durasi: *${durationLabel}*\n`;
-    msg += `\n🎫 *Token Akses:* ${tokenCode}\n📺 *Link Nonton:*\n${liveLink}\n`;
-    if (show.schedule_date) {
-      msg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
-    }
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? " " + show.schedule_time : ""}` : "-";
+    msg = `━━━━━━━━━━━━━━━━━━
+
+✅ *Token Berhasil Dibuat!*
+
+━━━━━━━━━━━━━━━━━━
+
+
+
+🎬 Show: *${show.title}*
+
+📅 Jadwal: ${schedule}
+
+📱 Max Device: *1*
+
+
+
+📺 *Link Nonton LIVE & REPLAY:*
+
+${liveLink}
+
+
+
+🔄 *Info Replay:*
+
+
+
+  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
+
+
+
+> ATAU GUNAKAN :
+
+> 🔗 Link: ${REPLAY_URL}`;
     if (show.access_password) {
-      msg += `\n🔄 *Info Replay:*\n🔗 Link: ${REPLAY_URL}\n`;
-      msg += `🔑 Sandi Replay: ${show.access_password}\n`;
+      msg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
     }
+    msg += `\n\n━━━━━━━━━━━━━━━━━━\n`;
   } else {
     msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Akses (ALL Show)*\n━━━━━━━━━━━━━━━━━━\n\n⏰ Durasi: *${durationLabel}*\n`;
     msg += `\n🎫 *Token Akses:* ${tokenCode}\n📺 *Link Nonton:*\n${liveLink}\n`;
