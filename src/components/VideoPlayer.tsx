@@ -996,16 +996,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     }
   }, [playlistType, ytIframeCommand]);
 
-  // Fullscreen listener
+  // Fullscreen listener — juga membersihkan kunci landscape CSS saat keluar fullscreen
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFsChange = () => {
+      const fs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(fs);
+      if (!fs && forcedLandscape) {
+        document.body.classList.remove("rt48-landscape-lock");
+        setForcedLandscape(false);
+      }
+    };
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange);
     return () => {
       document.removeEventListener("fullscreenchange", onFsChange);
       document.removeEventListener("webkitfullscreenchange", onFsChange);
+      // Pastikan body class dibersihkan saat komponen unmount
+      document.body.classList.remove("rt48-landscape-lock");
     };
-  }, []);
+  }, [forcedLandscape]);
 
   // ── DVR seekbar tracking ──
   useEffect(() => {
