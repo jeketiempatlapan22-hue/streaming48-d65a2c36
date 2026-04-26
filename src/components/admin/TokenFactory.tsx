@@ -267,9 +267,11 @@ const TokenFactory = () => {
   };
 
   const getFilteredTokens = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens;
+    const source = getSourceForTab(dur);
     return source.filter((t) => {
-      if (dur !== "coin" && t.duration_type !== dur) return false;
+      // For regular duration tabs, match exact duration_type. Coin & membership
+      // tabs already use a pre-filtered source so no duration check needed.
+      if (dur !== "coin" && dur !== "membership" && t.duration_type !== dur) return false;
       const matchSearch = t.code.toLowerCase().includes(search.toLowerCase());
       if (!matchSearch) return false;
       if (statusFilter === "all") return true;
@@ -282,11 +284,16 @@ const TokenFactory = () => {
 
   const getCountByDuration = (dur: TabKey) => {
     if (dur === "coin") return coinTokens.length;
+    if (dur === "membership") return membershipTokens.length;
     return tokens.filter(t => t.duration_type === dur).length;
   };
 
   const getCountByStatus = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens.filter(t => t.duration_type === dur);
+    const source = dur === "coin"
+      ? coinTokens
+      : dur === "membership"
+        ? membershipTokens
+        : tokens.filter(t => t.duration_type === dur);
     return {
       all: source.length,
       active: source.filter(t => t.status !== "blocked" && !isExpired(t)).length,
