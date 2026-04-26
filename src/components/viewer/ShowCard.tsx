@@ -72,6 +72,14 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
 
+  // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
+  const replayQrisPrice = show.replay_qris_price || 0;
+  const hasReplayPrice = isReplayMode && replayQrisPrice > 0;
+  const displayPrice = hasReplayPrice
+    ? `Rp ${replayQrisPrice.toLocaleString("id-ID")}`
+    : show.price;
+  const isFree = displayPrice === "Gratis" || (!hasReplayPrice && show.price === "Gratis");
+
   const handleReminder = async () => {
     if (reminded) {
       removeShowReminder(show.id);
