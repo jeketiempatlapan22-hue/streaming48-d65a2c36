@@ -36,3 +36,17 @@ export const safeStorageSet = (storage: Storage | undefined, key: string, value:
     // Storage can be unavailable in strict/private mobile browsers.
   }
 };
+
+/**
+ * Safe JSON.parse that never throws.
+ * Returns the fallback when the input is null, empty, or malformed.
+ */
+export const safeJsonParse = <T,>(raw: string | null | undefined, fallback: T): T => {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return (parsed ?? fallback) as T;
+  } catch {
+    return fallback;
+  }
+};
