@@ -35,58 +35,8 @@ interface SubscriptionOrderManagerProps {
   mode?: "membership" | "regular";
 }
 
-// Format pesan show reguler (non-membership, non-bundle, non-replay) sesuai standar baru.
-const buildRegularShowMessage = (params: {
-  showTitle: string;
-  scheduleDate?: string | null;
-  scheduleTime?: string | null;
-  tokenCode: string;
-  liveLink: string;
-  accessPassword?: string | null;
-  maxDevices?: number;
-}): string => {
-  const schedule = params.scheduleDate
-    ? `${params.scheduleDate}${params.scheduleTime ? " " + params.scheduleTime : ""}`
-    : "-";
-  let msg = `━━━━━━━━━━━━━━━━━━
+// Helper buildRegularShowMessage diimpor dari "@/lib/showMessageBuilder".
 
-✅ *Token Berhasil Dibuat!*
-
-━━━━━━━━━━━━━━━━━━
-
-
-
-🎬 Show: *${params.showTitle}*
-
-📅 Jadwal: ${schedule}
-
-📱 Max Device: *${params.maxDevices ?? 1}*
-
-
-
-📺 *Link Nonton LIVE & REPLAY:*
-
-${params.liveLink}
-
-
-
-🔄 *Info Replay:*
-
-
-
-  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
-
-
-
-> ATAU GUNAKAN :
-
-> 🔗 Link: https://replaytime.lovable.app`;
-  if (params.accessPassword) {
-    msg += `\n\n> 🔐 Sandi Replay: ${params.accessPassword}`;
-  }
-  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
-  return msg;
-};
 
 const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderManagerProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
