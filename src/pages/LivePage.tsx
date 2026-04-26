@@ -1258,7 +1258,7 @@ const LivePage = () => {
             <LineupAvatars team={activeShowTeam} />
           </Suspense>
         </SectionBoundary>
-        <div className="border-t border-border px-4 py-2"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
+        
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
