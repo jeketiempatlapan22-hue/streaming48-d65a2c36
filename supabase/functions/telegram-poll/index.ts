@@ -352,7 +352,7 @@ async function findShowByIdOrName(supabase: any, input: string, activeOnly = tru
   const cleanInput = input.replace(/^#/, '').trim();
   
   // First try matching by custom short_id
-  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id, is_bundle, bundle_duration_days, bundle_replay_passwords, bundle_replay_info');
+  const query0 = supabase.from('shows').select('id, title, is_replay, replay_coin_price, access_password, schedule_date, schedule_time, coin_price, is_active, category, short_id, is_bundle, is_subscription, membership_duration_days, bundle_duration_days, bundle_replay_passwords, bundle_replay_info, group_link');
   if (activeOnly) query0.eq('is_active', true);
   const { data: allShows } = await query0;
   
