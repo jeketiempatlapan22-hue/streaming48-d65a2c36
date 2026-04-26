@@ -179,18 +179,29 @@ Deno.serve(async (req) => {
         message += `🔐 *Sandi Replay:* ${replayPassword}\n`;
       }
     } else {
-      // Regular show
-      message = `━━━━━━━━━━━━━━━━━━\n✅ *Pembelian Show Berhasil!*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${title}*\n💳 Metode: *Koin*\n`;
-      if (token_code) {
-        message += `\n🎫 *Token Akses:* ${token_code}\n📺 *Link Nonton:*\nhttps://${siteUrl}/live?t=${token_code}\n`;
-      }
-      if (scheduleDate) {
-        message += `📅 *Jadwal:* ${scheduleDate} ${scheduleTime}\n`;
-      }
+      // Regular show — format standar baru
+      const schedule = scheduleDate ? `${scheduleDate}${scheduleTime ? " " + scheduleTime : ""}` : "-";
+      message = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${title}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *1*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${token_code}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
       if (replayPassword) {
-        message += `\n🔄 *Info Replay:*\n🔗 Link: ${replayLinkFor(token_code)}\n`;
-        message += `🔑 Sandi Replay: ${replayPassword}\n`;
+        message += `\n\n> 🔐 Sandi Replay: ${replayPassword}`;
       }
+      message += `\n\n━━━━━━━━━━━━━━━━━━`;
+      // Kirim langsung & skip footer default
+      let cleanPhoneR = phone.replace(/[^0-9]/g, '');
+      if (cleanPhoneR.startsWith('0')) cleanPhoneR = '62' + cleanPhoneR.slice(1);
+      if (!cleanPhoneR.startsWith('62')) cleanPhoneR = '62' + cleanPhoneR;
+      try {
+        await fetch('https://api.fonnte.com/send', {
+          method: 'POST',
+          headers: { 'Authorization': FONNTE_TOKEN },
+          body: new URLSearchParams({ target: cleanPhoneR, message }),
+        });
+      } catch (e) {
+        console.error('Failed to send WA:', e);
+      }
+      return new Response(JSON.stringify({ success: true, phone: cleanPhoneR }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     message += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
