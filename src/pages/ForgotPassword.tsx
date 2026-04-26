@@ -19,12 +19,20 @@ const ForgotPassword = () => {
   const navigate = useNavigate();
   const submitRef = useRef(false);
 
-  const normalizePhone = (raw: string) => raw.replace(/[^0-9]/g, "");
+  const phoneDigits = (raw: string) => raw.replace(/[^0-9]/g, "");
+  const normalizePhone = (raw: string) => {
+    let digits = phoneDigits(raw);
+    if (!digits) return "";
+    if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+    else if (digits.startsWith("8")) digits = `62${digits}`;
+    else if (!digits.startsWith("62")) digits = `62${digits}`;
+    return digits;
+  };
   const deriveEmail = (p: string) => `${normalizePhone(p)}@rt48.user`;
 
   const isValid = () => {
-    if (method === "phone") return normalizePhone(phone).length >= 10;
-    return email.trim().includes("@") && normalizePhone(whatsappNumber).length >= 10;
+    if (method === "phone") return phoneDigits(phone).length >= 10;
+    return email.trim().includes("@") && phoneDigits(whatsappNumber).length >= 10;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

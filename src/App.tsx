@@ -157,6 +157,7 @@ const App = () => {
                   <Route path="/adpan" element={<AdminLogin />} />
                   <Route path="/adpanboard" element={<AdminDashboard />} />
                   <Route path="/auth" element={<ViewerAuth />} />
+                  <Route path="/login" element={<ViewerAuth />} />
                   <Route path="/live" element={<LivePage />} />
                   <Route path="/coins" element={<CoinShop />} />
                   <Route path="/schedule" element={<SchedulePage />} />

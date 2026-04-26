@@ -26,6 +26,27 @@ function jsonResponse(body: Record<string, unknown>) {
   });
 }
 
+function normalizePhone(raw: string | null | undefined) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('0')) digits = `62${digits.slice(1)}`;
+  else if (digits.startsWith('8')) digits = `62${digits}`;
+  else if (!digits.startsWith('62')) digits = `62${digits}`;
+  return digits;
+}
+
+function phoneEmailCandidates(email: string) {
+  if (!email.endsWith('@rt48.user')) return [email.toLowerCase()];
+  const raw = email.replace('@rt48.user', '');
+  const digits = raw.replace(/\D/g, '');
+  const canonical = normalizePhone(raw);
+  const local = canonical.startsWith('62') ? canonical.slice(2) : canonical;
+  const legacyZero = local ? `0${local}` : '';
+  return Array.from(new Set([digits, canonical, legacyZero, local]
+    .filter((v) => v.length >= 10)
+    .map((v) => `${v}@rt48.user`)));
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -83,17 +104,20 @@ Deno.serve(async (req) => {
     }
 
     // Check if user already exists using Admin API with email filter
-    const lookupRes = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&page=1&per_page=1`,
-      { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
-    );
+    const lookupEmails = phoneEmailCandidates(String(email).toLowerCase());
+    for (const lookupEmail of lookupEmails) {
+      const lookupRes = await fetch(
+        `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(lookupEmail)}&page=1&per_page=1`,
+        { headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey } }
+      );
 
-    if (lookupRes.ok) {
-      const lookupData = await lookupRes.json();
-      const users = lookupData?.users || [];
-      const exactMatch = users.find((u: any) => u.email === email);
-      if (exactMatch) {
-        return jsonResponse({ success: false, error: "User already registered" });
+      if (lookupRes.ok) {
+        const lookupData = await lookupRes.json();
+        const users = lookupData?.users || [];
+        const exactMatch = users.find((u: any) => u.email?.toLowerCase() === lookupEmail.toLowerCase());
+        if (exactMatch) {
+          return jsonResponse({ success: false, error: "User already registered" });
+        }
       }
     }
 

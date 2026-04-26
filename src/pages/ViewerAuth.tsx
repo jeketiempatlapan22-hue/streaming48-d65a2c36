@@ -57,14 +57,37 @@ const ViewerAuth = () => {
       });
   }, [navigate, refCode]);
 
-  const normalizePhone = (raw: string) => raw.replace(/[^0-9]/g, "");
-  const deriveEmail = (phoneNum: string) => `${normalizePhone(phoneNum)}@rt48.user`;
-  const getAuthEmail = () => method === "email" ? email.trim() : deriveEmail(phone);
+  useEffect(() => {
+    if (!turnstileSiteKey || turnstileToken || turnstileFailed) return;
+    const timer = window.setTimeout(() => setTurnstileFailed(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [turnstileSiteKey, turnstileToken, turnstileFailed]);
+
+  const phoneDigits = (raw: string) => raw.replace(/[^0-9]/g, "");
+  const normalizePhone = (raw: string) => {
+    let digits = phoneDigits(raw);
+    if (!digits) return "";
+    if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+    else if (digits.startsWith("8")) digits = `62${digits}`;
+    else if (!digits.startsWith("62")) digits = `62${digits}`;
+    return digits;
+  };
+  const getPhoneAuthEmails = (raw: string) => {
+    const digits = phoneDigits(raw);
+    const canonical = normalizePhone(raw);
+    const local = canonical.startsWith("62") ? canonical.slice(2) : canonical;
+    const legacyZero = local ? `0${local}` : "";
+    return Array.from(new Set([digits, canonical, legacyZero, local]
+      .filter((v) => v.length >= 10)
+      .map((v) => `${v}@rt48.user`)));
+  };
+  const getAuthEmail = () => method === "email" ? email.trim().toLowerCase() : `${normalizePhone(phone)}@rt48.user`;
+  const getAuthEmailCandidates = () => method === "email" ? [email.trim().toLowerCase()] : getPhoneAuthEmails(phone);
   const isFormValid = () => {
     if (mode === "signup" && !username.trim()) return false;
     if (method === "phone") {
       if (!phoneVerified) return false;
-      return normalizePhone(phone).length >= 10 && password.length >= 6;
+      return phoneDigits(phone).length >= 10 && password.length >= 6;
     }
     return email.trim().includes("@") && password.length >= 6;
   };
@@ -113,8 +136,7 @@ const ViewerAuth = () => {
 
     // Turnstile verification (if configured and not failed)
     if (turnstileSiteKey && !turnstileToken && !turnstileFailed) {
-      toast.error("Silakan selesaikan verifikasi keamanan terlebih dahulu");
-      return;
+      setTurnstileFailed(true);
     }
     if (turnstileSiteKey && turnstileToken) {
       try {
@@ -122,9 +144,8 @@ const ViewerAuth = () => {
           body: { token: turnstileToken },
         });
         if (!verifyResult?.success) {
-          toast.error("Verifikasi keamanan gagal. Coba lagi.");
           setTurnstileToken(null);
-          return;
+          setTurnstileFailed(true);
         }
       } catch {
         // If verification fails, allow through (graceful degradation)
@@ -268,11 +289,19 @@ const ViewerAuth = () => {
           }
         } catch {}
 
-        const result = await authWithRetry(
-          () => supabase.auth.signInWithPassword({ email: authEmail, password }),
-          15_000,
-          2
-        );
+        const candidates = getAuthEmailCandidates();
+        let result: { data: any; error: any } = { data: null, error: { message: "Login gagal" } };
+        let usedCandidate = authEmail;
+        for (const candidate of candidates) {
+          result = await authWithRetry(
+            () => supabase.auth.signInWithPassword({ email: candidate, password }),
+            15_000,
+            2
+          );
+          usedCandidate = candidate;
+          const msg = String(result.error?.message || "");
+          if (!result.error || !/Invalid login credentials|invalid_credentials/i.test(msg)) break;
+        }
 
         const ms = Math.round(performance.now() - authStart);
 
@@ -305,8 +334,8 @@ const ViewerAuth = () => {
               setLoginError("Password salah. Pastikan password yang kamu masukkan benar, atau gunakan Lupa Password.");
               toast.error("Password salah. Periksa kembali atau reset password.");
             } else {
-              setLoginError("Password salah atau akun tidak ditemukan.");
-              toast.error("Password salah atau akun tidak ditemukan. Periksa kembali nomor HP/email dan password kamu.");
+              setLoginError(method === "phone" ? "Nomor HP atau password salah. Coba format 08xxx / 628xxx, atau gunakan Lupa Password." : "Email atau password salah.");
+              toast.error(method === "phone" ? "Nomor HP atau password salah. Kami sudah mencoba format 08xxx dan 628xxx." : "Email atau password salah.");
             }
           } else if (msg.includes("Email not confirmed")) {
             toast.error("Akun belum diverifikasi. Coba daftar ulang dengan nomor/email yang sama.");
@@ -315,6 +344,7 @@ const ViewerAuth = () => {
             toast.error(msg);
           }
         } else {
+          if (usedCandidate !== authEmail) recordAuthMetric("login_success_phone_alias", ms, "viewer");
           recordAuthMetric("login_success", ms, "viewer");
           navigate("/coins");
         }
@@ -364,7 +394,7 @@ const ViewerAuth = () => {
                   <Input type="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneVerified(false); }} placeholder="08xxxxxxxxxx" required className="bg-background pl-10" />
                 </div>
               </div>
-              {normalizePhone(phone).length >= 10 && (
+              {phoneDigits(phone).length >= 10 && (
                 <div className="flex items-start gap-2 rounded-lg border border-border bg-secondary/50 p-3">
                   <Checkbox
                     id="phone-verify"
@@ -405,7 +435,7 @@ const ViewerAuth = () => {
           {turnstileFailed && (
             <p className="text-center text-[10px] text-muted-foreground">Verifikasi keamanan tidak tersedia — Anda tetap bisa masuk</p>
           )}
-          <Button type="submit" className="w-full" disabled={loading || !isFormValid() || (!!turnstileSiteKey && !turnstileToken && !turnstileFailed)}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
+          <Button type="submit" className="w-full" disabled={loading || !isFormValid()}>{loading ? "Memproses..." : mode === "login" ? "Masuk" : "Daftar"}</Button>
           <p className="text-center text-xs text-muted-foreground">{mode === "login" ? "Belum punya akun?" : "Sudah punya akun?"}<button type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setLoginError(""); setFailCount(0); }} className="ml-1 font-medium text-primary hover:underline">{mode === "login" ? "Daftar" : "Masuk"}</button></p>
           {mode === "login" && (
             <p className="text-center text-xs"><a href="/forgot-password" className={`transition-colors ${failCount >= 2 ? "font-bold text-primary" : "text-muted-foreground hover:text-primary"}`}>Lupa password?</a></p>
