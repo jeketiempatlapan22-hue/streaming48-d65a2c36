@@ -63,10 +63,17 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
         const details: any = data.details;
-        if (details && details.live && details.endSN > 0) {
-          if (details.endSN === details.startSN + details.fragments.length - 1) {
-            details.live = false;
-          }
+        if (!details) return;
+        // Force VOD mode so the entire timeline is seekable, even if the
+        // playlist is missing #EXT-X-ENDLIST. We trust that this is a replay.
+        try {
+          details.live = false;
+        } catch {}
+        // Surface the total duration as soon as the manifest is parsed,
+        // so the UI can show it before the browser computes video.duration.
+        const total = Number(details.totalduration);
+        if (isFinite(total) && total > 0) {
+          setDuration((prev) => (prev && isFinite(prev) && prev > 0 ? prev : total));
         }
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
