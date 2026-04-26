@@ -2384,7 +2384,7 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         waMsg = buildRegularShowMessageWa({
           showTitle: show?.title || 'Show',
           schedule,
-          maxDevices: 1,
+          maxDevices: token?.max_devices ?? 1,
           liveLink,
           replayPassword: show?.access_password,
         });

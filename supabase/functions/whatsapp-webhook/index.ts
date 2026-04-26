@@ -1595,7 +1595,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         waMsg = buildRegularShowMessage({
           showTitle: show?.title || 'Show',
           schedule,
-          maxDevices: 1,
+          maxDevices: token?.max_devices ?? 1,
           liveLink,
           replayPassword: show?.access_password,
         });
