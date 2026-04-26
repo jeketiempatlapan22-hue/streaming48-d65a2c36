@@ -433,7 +433,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     const trimmed = newMessage.trim().slice(0, 200); // 200 char limit
 
     // Pre-check quiz attempt status when message looks like an answer to active quiz
-    if (!isAdmin && currentUserId && activeQuiz && isLikelyQuizAnswer(trimmed, activeQuiz)) {
+    if (quizEnabled && !isAdmin && currentUserId && activeQuiz && isLikelyQuizAnswer(trimmed, activeQuiz)) {
       const status = await checkAttemptStatus(activeQuiz.id);
       if (status && !status.can_submit) {
         switch (status.reason) {
