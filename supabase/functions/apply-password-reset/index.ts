@@ -53,34 +53,49 @@ Deno.serve(async (req) => {
       return ok({ success: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
     }
 
-    // Try plaintext token first, then hashed token
+    // Try plaintext token first, then hashed token (legacy support)
     let request: any = null;
 
     const { data: r1 } = await supabase
       .from('password_reset_requests')
-      .select('id, user_id, status, processed_at, secure_token')
+      .select('id, user_id, status, processed_at, secure_token, created_at')
       .eq('secure_token', secure_token)
-      .eq('status', 'approved')
+      .in('status', ['approved', 'pending'])
       .maybeSingle();
 
     if (r1) {
       request = r1;
     } else {
-      // Try hashed lookup (DB function stores hash_token())
+      // Try hashed lookup (older rows may have stored hash_token())
       const { data: hashResult } = await supabase.rpc('hash_token', { _token: secure_token });
       if (hashResult) {
         const { data: r2 } = await supabase
           .from('password_reset_requests')
-          .select('id, user_id, status, processed_at, secure_token')
+          .select('id, user_id, status, processed_at, secure_token, created_at')
           .eq('secure_token', hashResult)
-          .eq('status', 'approved')
+          .in('status', ['approved', 'pending'])
           .maybeSingle();
         if (r2) request = r2;
       }
     }
 
     if (!request) {
-      return ok({ success: false, error: 'Link reset tidak valid atau sudah digunakan.' });
+      // Distinguish "already used" vs "never existed" so user can act accordingly
+      const { count: usedCount } = await supabase
+        .from('password_reset_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'completed')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      console.warn('apply-password-reset: token tidak cocok', { tokenPrefix: secure_token.slice(0, 8), recentCompleted: usedCount });
+      return ok({ success: false, error: 'Link reset tidak valid atau sudah digunakan. Minta admin untuk mengirim ulang link.' });
+    }
+
+    // Auto-promote pending → approved (admin may have skipped approval, e.g. via WA flow)
+    if (request.status === 'pending') {
+      await supabase.from('password_reset_requests')
+        .update({ status: 'approved', processed_at: new Date().toISOString() })
+        .eq('id', request.id);
+      request.processed_at = new Date().toISOString();
     }
 
     // Check 2-hour expiry
@@ -90,7 +105,7 @@ Deno.serve(async (req) => {
         await supabase.from('password_reset_requests')
           .update({ status: 'expired' })
           .eq('id', request.id);
-        return ok({ success: false, error: 'Link reset sudah expired (2 jam). Minta reset ulang.' });
+        return ok({ success: false, error: 'Link reset sudah expired (lebih dari 2 jam). Minta reset ulang.' });
       }
     }
 
