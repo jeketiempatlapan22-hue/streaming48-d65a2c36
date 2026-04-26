@@ -451,8 +451,25 @@ const ResellerManager = () => {
               <div className="text-xs space-y-1">
                 <p>HP: <span className="font-mono">{detail.phone}</span></p>
                 <p>Prefix: <code className="font-mono text-primary">/{detail.prefix}token</code></p>
-                <p>Total token: <span className="font-bold">{detail.total_tokens}</span></p>
-                {detail.notes && <p className="text-muted-foreground">Catatan: {detail.notes}</p>}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+                  <div className="rounded bg-primary/10 border border-primary/20 px-2 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">Total</p>
+                    <p className="text-sm font-bold text-primary">{detail.total_tokens ?? 0}</p>
+                  </div>
+                  <div className="rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">Aktif</p>
+                    <p className="text-sm font-bold text-emerald-400">{detail.active_tokens ?? 0}</p>
+                  </div>
+                  <div className="rounded bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">Expired</p>
+                    <p className="text-sm font-bold text-amber-400">{detail.expired_tokens ?? 0}</p>
+                  </div>
+                  <div className="rounded bg-red-500/10 border border-red-500/20 px-2 py-1.5">
+                    <p className="text-[10px] text-muted-foreground">Blokir</p>
+                    <p className="text-sm font-bold text-red-400">{detail.blocked_tokens ?? 0}</p>
+                  </div>
+                </div>
+                {detail.notes && <p className="text-muted-foreground pt-1">Catatan: {detail.notes}</p>}
               </div>
               <div className="border-t border-border pt-3">
                 <p className="text-xs font-semibold mb-2">Rincian per Show:</p>
