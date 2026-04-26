@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2 } from "lucide-react";
+import { parseYoutubeId as parseYoutubeIdShared } from "@/lib/youtubeUrl";
 
 interface Props {
   url: string; // YouTube URL or ID
@@ -10,18 +11,8 @@ interface Props {
 const QUALITY_LADDER = ["hd1080", "hd720", "large", "medium", "small"];
 const MAX_QUALITY = "hd1080";
 
-// Extract video id from youtube url forms
-const parseYoutubeId = (url: string): string => {
-  if (!url) return "";
-  const m1 = url.match(/[?&]v=([\w-]{6,})/);
-  if (m1) return m1[1];
-  const m2 = url.match(/youtu\.be\/([\w-]{6,})/);
-  if (m2) return m2[1];
-  const m3 = url.match(/youtube\.com\/embed\/([\w-]{6,})/);
-  if (m3) return m3[1];
-  if (/^[\w-]{6,}$/.test(url)) return url;
-  return "";
-};
+// Wrapper to keep existing call signature (returns "" when invalid)
+const parseYoutubeId = (url: string): string => parseYoutubeIdShared(url) ?? "";
 
 const qualityLabel = (q: string): string => {
   switch (q) {
