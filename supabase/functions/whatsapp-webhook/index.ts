@@ -2275,11 +2275,12 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
         if (multiple) { allMessages.push(`⚠️ "${input}": Ditemukan ${multiple.length} show, gunakan ID spesifik`); continue; }
         if (!show) { allMessages.push(`⚠️ "${input}": Tidak ditemukan`); continue; }
 
-        const code = (show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+        const code = (show.is_subscription ? 'MBR-' : show.is_bundle ? 'BDL-' : 'RT48-') + Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
         const expiresAt = await calculateShowTokenExpiry(supabase, show);
 
         const { error: insertErr } = await supabase.from('tokens').insert({
           code, show_id: show.id, max_devices: maxDevices, expires_at: expiresAt, status: 'active',
+          duration_type: show.is_subscription ? 'membership' : undefined,
         });
 
         if (insertErr) { allMessages.push(`⚠️ "${show.title}": ${insertErr.message}`); continue; }
@@ -2288,7 +2289,8 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
         const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
         let msg = `✅ *${show.title}*\n🔑 Token: ${code}\n📱 Max: ${maxDevices} | ⏰ ${expDate}`;
-        if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
+        if (show.is_subscription) msg += `\n👑 Membership: ${show.membership_duration_days || 30} hari`;
+        else if (show.is_bundle) msg += `\n📦 Bundle: ${show.bundle_duration_days || 30} hari`;
         msg += `\n📺 ${liveLink}`;
         if (show.access_password) msg += `\n🔐 Sandi: ${show.access_password}`;
         allMessages.push(msg);
