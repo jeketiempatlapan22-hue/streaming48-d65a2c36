@@ -36,6 +36,21 @@ const isShowPastSchedule = (show: Show) => {
   } catch { return false; }
 };
 
+/**
+ * Hitung target URL replay untuk sebuah show.
+ * - Jika show punya M3U8/YouTube internal (has_replay_media), pakai pemutar internal /replay-play.
+ * - Jika tidak, fallback ke replaytime.lovable.app (perilaku lama).
+ * - Jika ada token/sandi yang sudah dimiliki user, sertakan sebagai query param agar auto-login.
+ */
+const buildReplayTarget = (show: Show, knownPassword?: string): string => {
+  const internalAvailable = (show as any).has_replay_media === true || !!((show as any).replay_m3u8_url || (show as any).replay_youtube_url);
+  if (!internalAvailable) return "https://replaytime.lovable.app";
+  const params = new URLSearchParams();
+  params.set("show", show.short_id || show.id);
+  if (knownPassword && knownPassword !== "__purchased__") params.set("password", knownPassword);
+  return `/replay-play?${params.toString()}`;
+};
+
 const ReplayPage = () => {
   const { toast } = useToast();
   const { isLive: liveActive, liveAccessToken, activeShowId, activeShowTitle } = useActiveLiveAccess();
