@@ -2468,6 +2468,24 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
+    const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLinkSample = `https://realtime48stream.my.id/live?t=${tokens[0]}`;
+
+    // Show REGULER → tampilkan template pesan standar + daftar token
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink: liveLinkSample,
+        replayPassword: show.access_password,
+      });
+      let msg = `📋 *${count} Token Berhasil Dibuat*\n\n${base}\n\n🔑 *Daftar Token:*\n`;
+      for (const code of tokens) msg += `${code}\n`;
+      return msg;
+    }
+
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *${count} Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n`;
     msg += `🎬 Show: *${show.title}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
@@ -2482,7 +2500,7 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     for (const code of tokens) {
       msg += `${code}\n`;
     }
-    msg += `\n📺 *Link Nonton (contoh):*\nhttps://realtime48stream.my.id/live?t=${tokens[0]}`;
+    msg += `\n📺 *Link Nonton (contoh):*\n${liveLinkSample}`;
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
