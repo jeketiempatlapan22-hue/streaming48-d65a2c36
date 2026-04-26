@@ -108,16 +108,36 @@ export const useLiveQuiz = () => {
 
   useEffect(() => {
     loadActive();
-    const ch = supabase
-      .channel("live-quiz-public")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_quizzes" }, () => loadActive())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "quiz_winners" }, (payload: any) => {
-        const qid = activeIdRef.current;
-        if (qid && payload.new?.quiz_id === qid) {
-          loadWinners(qid);
-        }
-      })
-      .subscribe();
+
+    // Use unique channel name per mount to avoid "callbacks after subscribe()" errors
+    // that happen when React StrictMode or hot reloads reuse the same channel name.
+    const channelName = `live-quiz-public-${Math.random().toString(36).slice(2, 10)}`;
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase.channel(channelName);
+      ch.on(
+        "postgres_changes" as any,
+        { event: "*", schema: "public", table: "live_quizzes" },
+        () => loadActive()
+      )
+        .on(
+          "postgres_changes" as any,
+          { event: "INSERT", schema: "public", table: "quiz_winners" },
+          (payload: any) => {
+            const qid = activeIdRef.current;
+            if (qid && payload.new?.quiz_id === qid) {
+              loadWinners(qid);
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn("[useLiveQuiz] realtime status:", status);
+          }
+        });
+    } catch (e) {
+      console.warn("[useLiveQuiz] failed to subscribe realtime channel:", e);
+    }
 
     // Polling cepat (2s) winners hanya saat ada quiz aktif untuk responsivitas tinggi
     const fastPoll = window.setInterval(() => {
@@ -129,7 +149,11 @@ export const useLiveQuiz = () => {
     const slowPoll = window.setInterval(loadActive, 15000);
 
     return () => {
-      supabase.removeChannel(ch);
+      try {
+        if (ch) supabase.removeChannel(ch);
+      } catch (e) {
+        console.warn("[useLiveQuiz] removeChannel failed:", e);
+      }
       window.clearInterval(fastPoll);
       window.clearInterval(slowPoll);
     };
