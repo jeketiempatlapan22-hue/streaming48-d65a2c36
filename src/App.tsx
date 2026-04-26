@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import FeedbackFab from "@/components/viewer/FeedbackFab";
 import { supabase } from "@/integrations/supabase/client";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -173,6 +174,7 @@ const App = () => {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
+              <FeedbackFab />
             </MaintenanceGate>
           </BrowserRouter>
         </TooltipProvider>

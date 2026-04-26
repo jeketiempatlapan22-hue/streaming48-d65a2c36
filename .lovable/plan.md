@@ -1,86 +1,116 @@
-# Investigasi Mendalam Error Halaman Live
+# Rencana: Kritik & Saran Global + Perbaikan Tombol Rotasi
 
-## Temuan Audit
+## 1. Fitur "Kritik & Saran"
 
-Screenshot menunjukkan ErrorBoundary muncul (`Terjadi Kesalahan`) di `/live?t=MBR-47E1E2`. Token `MBR-47E1E2` **tidak ada** di tabel `tokens` maupun `replay_tokens` (sudah saya cek DB), jadi alur seharusnya jatuh ke `setError("Akses Ditolak")` — **bukan** ErrorBoundary. Artinya ada *exception* yang lolos dari try/catch di salah satu titik.
+### Tabel baru (Lovable Cloud)
+Buat tabel `feedback_messages` lewat migration:
+- `id` (uuid, pk)
+- `message` (text, max 1000 chars)
+- `category` (text, opsional: "kritik" | "saran" | "bug" | "lainnya", default "saran")
+- `page_url` (text, halaman saat dikirim)
+- `user_id` (uuid, nullable — null untuk pengunjung anonim)
+- `username` (text, opsional)
+- `user_agent` (text)
+- `is_read` (boolean, default false)
+- `is_archived` (boolean, default false)
+- `created_at` (timestamptz, default now())
 
-Setelah audit baris demi baris pada `LivePage.tsx`, komponen anak (LivePoll, LiveQuizSlot, LiveChat, LineupAvatars, ConnectionStatus, ViewerBroadcast, SecurityAlert, VideoPlayer), dan hooks (`useSignedStreamUrl`, `useProxyStream`, `useLiveQuiz`), berikut titik rawan yang ditemukan:
+**RLS policies:**
+- INSERT: anon + authenticated boleh kirim (validasi length 5–1000, rate-limit via trigger pengecekan IP/created_at: maksimal 5 submission per user/IP per jam)
+- SELECT/UPDATE/DELETE: hanya admin (`has_role(auth.uid(), 'admin')`)
 
-### 1. Bukan dari Quiz / Poll / Chat secara langsung
-LivePoll, LiveQuizBanner, LiveChat **tidak** memakai `localStorage`/`crypto` langsung dan punya try/catch di semua RPC. Quiz & poll **bukan penyebab utama**.
+### Komponen FAB global: `FeedbackFab.tsx`
+- **Lokasi**: floating button bulat kecil (40×40px) di pojok kanan-bawah, `position: fixed`, `z-index` di bawah toaster.
+- **Tidak mengganggu**:
+  - Default state semi-transparan (`opacity-60`) → jadi 100% saat hover/tap.
+  - Auto-hide saat fullscreen aktif (deteksi `document.fullscreenElement`).
+  - Sembunyikan otomatis di route `/adpan*` dan `/restream` (admin & partner punya UI sendiri).
+  - Offset bottom otomatis menyesuaikan keberadaan `MobileBottomNav` (cek viewport `<sm`).
+  - Bisa di-collapse/dimatikan per-sesi via `sessionStorage` (tombol "X" kecil saat dibuka).
+- **Dialog form** (Radix Dialog):
+  - Pilih kategori (Saran / Kritik / Laporan Bug / Lainnya).
+  - Textarea pesan (5–1000 char, counter live, validasi Zod).
+  - Optional: nama tampilan (auto-isi dari profil bila login).
+  - Tombol Kirim → insert ke `feedback_messages`, `page_url = window.location.pathname + search`.
+  - Toast sukses + reset form.
 
-### 2. Penyebab utama yang sangat mungkin
-- **a. `useState` initializer di LivePage**: `safeStorageGet` aman, tapi blok `JSON.parse(raw)` di `DeviceLimitScreen` dan beberapa tempat lain masih bisa throw kalau `raw` korup → state init throw → ErrorBoundary.
-- **b. `lazy()` di-deklarasikan di module-scope**: bila satu chunk gagal di-fetch (browser dalam-app Mi/Telegram dengan koneksi flaky), `Suspense` akan throw error setelah retry timeout → ErrorBoundary. Saat ini **tidak ada `errorElement` per route** dan `Suspense` tidak punya `ErrorBoundary` per-komponen.
-- **c. Edge function `stream-proxy` melempar non-2xx**: `useSignedStreamUrl` me-`throw` di catch tapi `setSignedUrl(null)` tetap dijalankan — ini aman. Namun bila `supabase.functions.invoke` throw karena CORS/network di in-app browser, `response.error` tidak terbaca dengan benar di beberapa edge case → unhandled promise.
-- **d. Race condition `validate_token` → `validate_replay_access`**: kalau user akses token live yang sudah dimigrasi → kode redirect `window.location.replace(...)` di baris 544. Tapi *sebelum* redirect terjadi, hook lain (`useSignedStreamUrl`) sudah dipanggil dengan `tokenCode` lama → bisa throw async setelah unmount.
-- **e. `LiveQuizSlot` import via `lazy` lalu di-render di `Suspense fallback={null}`**: `useLiveQuiz` me-subscribe realtime + interval. Jika `loadActive` mendapat `null`/error tak terduga, `setActiveQuiz` masih aman. Tapi `loadWinners` memakai `toast.success` — kalau `Sonner` belum ter-mount karena race lazy chunk, tidak masalah. Aman.
-- **f. `motion`/`AnimatePresence` di FlipDigit**: jika `value` kebetulan `NaN` (misal `countdown.s = NaN` saat `target` invalid) → render string `"NaN"` → tetap render (aman). Tapi `padStart` pada `NaN.toString()` masih aman.
-- **g. `ErrorBoundary` global sekarang menangkap *semua* error termasuk error yang seharusnya jadi UI inline**, sehingga "Akses Ditolak" tidak pernah terlihat user.
+### Pasang FAB di `App.tsx`
+- Render `<FeedbackFab />` satu kali di dalam `MaintenanceGate` (di luar `<Suspense>`) sehingga muncul di **semua halaman** otomatis tanpa perlu mengedit tiap page.
 
-### 3. Penyebab sekunder
-- `ViewerBroadcast` & `SecurityAlert` membuat realtime channel tanpa try/catch di subscribe — kalau Supabase realtime down, `removeChannel` di cleanup bisa throw.
-- `LineupAvatars` memanggil `supabase.rpc("get_public_shows")` tanpa error handling — kalau RPC timeout di koneksi lemah, promise reject → unhandled.
-- `useLiveQuiz` polling 2 detik untuk winners + 15 detik untuk active state, **tanpa try/catch** di pemanggilan langsung — bila Supabase 503/429, throw terus-menerus.
+### Admin panel: `FeedbackManager.tsx`
+- Komponen baru di `src/components/admin/`.
+- Daftar feedback dengan filter: kategori, status (baru/dibaca/diarsipkan), pencarian teks.
+- Setiap kartu: kategori + badge baru, pesan, halaman asal, user/username, user-agent ringkas, waktu relatif, tombol "Tandai dibaca" / "Arsipkan" / "Hapus".
+- Realtime subscription `postgres_changes` → notifikasi badge baru tanpa refresh.
+- Counter "feedback baru" muncul di tombol sidebar.
 
-## Rencana Perbaikan
+**Integrasi sidebar admin** (`AdminSidebar.tsx`):
+- Tambah item baru `{ id: "feedback", label: "Kritik & Saran", icon: MessageSquare }` di grup "Keamanan & Monitoring" atau grup baru "Komunitas".
 
-### A. Membungkus Setiap Sub-Region dengan ErrorBoundary Lokal
-Buat `SectionBoundary` (varian dari `ErrorBoundary` dengan `fallback={null}` atau pesan kecil) lalu bungkus tiap area di LivePage:
-- `<SectionBoundary><LivePoll /></SectionBoundary>`
-- `<SectionBoundary><LiveQuizSlot /></SectionBoundary>`
-- `<SectionBoundary><LiveChat /></SectionBoundary>`
-- `<SectionBoundary><LineupAvatars /></SectionBoundary>`
-- `<SectionBoundary><ViewerBroadcast /></SectionBoundary>`
-- `<SectionBoundary><SecurityAlert /></SectionBoundary>`
-- `<SectionBoundary><VideoPlayer /></SectionBoundary>`
+**Integrasi router admin** (`AdminDashboard.tsx`):
+- Tambah `case "feedback": return <FeedbackManager />;` ke switch `renderSection`.
 
-Tujuan: bila satu komponen gagal, halaman **tetap tampil** (player tetap jalan, error hanya di sidebar/komponen yang gagal).
+## 2. Perbaikan Tombol Rotasi Player
 
-### B. Hardening Hook & Komponen
-1. **`useLiveQuiz`** — bungkus semua `await supabase.*` di `loadActive`/`loadWinners` dengan try/catch agar interval polling tidak melempar.
-2. **`LineupAvatars`** — try/catch + early return saat RPC gagal.
-3. **`ViewerBroadcast` & `SecurityAlert`** — try/catch di `subscribe()` dan `removeChannel()`.
-4. **`useSignedStreamUrl`** — tangkap `supabase.functions.invoke` yang throw (network, CORS) sebagai `error state`, jangan biarkan `unhandled rejection`.
-5. **`useProxyStream`** — pastikan tidak throw saat `externalShowId` null/undefined; tambahkan guard.
-6. **LivePage validate flow** — saat redirect ke `/replay-play`, segera `return` *dan* set flag agar render berikutnya tidak memanggil hook stream (saat ini hook tetap berjalan sebelum unmount).
-7. **`safeStorageGet`/`safeJsonParse`** — tambahkan helper `safeJsonParse` di `clientId.ts` untuk membungkus `JSON.parse` agar konsisten.
+### Masalah saat ini (`VideoPlayer.tsx` baris 884–889)
+```ts
+const o = screen.orientation;
+if (o.type.includes("portrait")) await (o as any).lock("landscape");
+else await (o as any).lock("portrait");
+```
+Cuma jalan di Chrome Android **dalam mode fullscreen**. Di iOS Safari, Firefox desktop, banyak browser mobile → langsung gagal diam-diam (try/catch kosong) → user kira tombol rusak.
 
-### C. Menampilkan Pesan Error yang Bermakna (bukan ErrorBoundary)
-- Pastikan `setError("Token tidak valid")` terpasang sebagai fallback terakhir di catch global `validate()`.
-- Tambahkan logging tracing (`console.warn("[LivePage] validate failed:", e)`) — sudah otomatis terambil oleh sistem agar jika kasus ini berulang kita bisa lihat di log Lovable.
+### Strategi perbaikan
 
-### D. Watchdog Anti-Reload Loop
-Tambahkan `try/catch` di sekitar `componentDidCatch` ErrorBoundary untuk **mengirim event** ke `security_events` (supaya admin bisa lihat berapa kali error muncul) — namun *tidak* memicu reload otomatis (karena reload bisa loop).
+**Refactor `toggleOrientation`** dengan urutan fallback yang andal:
 
-### E. Validasi via Browser Setelah Implementasi
-Setelah semua perubahan, akan saya:
-1. Buka `/live?t=MBR-47E1E2` (token tidak valid) — harus tampil "Akses Ditolak", bukan ErrorBoundary.
-2. Buka `/live` tanpa token — harus tampil "Beli token".
-3. Buka `/live?t=<token-valid>` — harus tampil player normal.
+1. **Auto-fullscreen dulu jika belum**: Screen Orientation Lock API (W3C) **mensyaratkan** elemen sedang fullscreen di banyak browser. Kalau belum fullscreen, panggil `el.requestFullscreen()` dulu, tunggu event `fullscreenchange`, lalu coba `lock()`.
 
-## File yang Akan Diubah
+2. **Coba `screen.orientation.lock()`** (Chrome/Edge Android, Samsung Internet).
 
-| File | Perubahan |
-|---|---|
-| `src/components/ErrorBoundary.tsx` | Tambah varian `SectionBoundary` (silent fallback) + opsi log-to-DB |
-| `src/lib/clientId.ts` | Tambah `safeJsonParse<T>(raw, fallback)` |
-| `src/pages/LivePage.tsx` | Bungkus 7 sub-region dengan `SectionBoundary`; pakai `safeJsonParse`; perbaiki redirect race |
-| `src/hooks/useLiveQuiz.ts` | try/catch menyeluruh di `loadActive`/`loadWinners` |
-| `src/hooks/useSignedStreamUrl.ts` | Hardening try/catch invoke |
-| `src/hooks/useProxyStream.ts` | Guard null + try/catch |
-| `src/components/viewer/LineupAvatars.tsx` | try/catch + cleanup setLoaded saat unmount |
-| `src/components/viewer/ViewerBroadcast.tsx` | try/catch subscribe & removeChannel |
-| `src/components/viewer/SecurityAlert.tsx` | try/catch subscribe & removeChannel |
+3. **Fallback CSS rotation** (untuk iOS Safari, Firefox, browser yang menolak `lock()`):
+   - Toggle state `manualLandscape` di komponen.
+   - Bungkus container player dengan kelas yang menerapkan `transform: rotate(90deg)` + swap `width/height` via `100vh`/`100vw` saat aktif.
+   - Sembunyikan scrollbar body saat aktif.
+   - Tap tombol lagi untuk kembali normal.
+
+4. **Deteksi kapabilitas saat mount**: cek `'orientation' in screen && typeof screen.orientation.lock === 'function'` → set capability flag, gunakan untuk pilih jalur native vs CSS.
+
+5. **Listener `orientationchange`** untuk update icon (portrait ↔ landscape) sehingga user mendapat feedback visual.
+
+6. **Toast informatif** saat semua fallback gagal: "Browser Anda tidak mendukung rotasi otomatis. Putar perangkat secara manual atau aktifkan auto-rotate di pengaturan."
+
+### Perubahan di `VideoPlayer.tsx`
+- Tambah `useState` untuk `manualLandscape` & `currentOrientation`.
+- Refactor `toggleOrientation` jadi async dengan urutan: auto-fullscreen → coba native lock → CSS fallback → toast error.
+- Tambah class CSS dinamis di `containerRef` saat `manualLandscape` aktif.
+- Tambah CSS utility di `index.css`:
+  ```css
+  .force-landscape {
+    transform: rotate(90deg) translate(0, -100%);
+    transform-origin: top left;
+    width: 100vh; height: 100vw;
+    position: fixed; top: 0; left: 0; z-index: 9999;
+  }
+  ```
+- Update icon tombol agar berubah saat sudah landscape (RotateCw vs RotateCcw).
 
 ## Detail Teknis
 
-- `SectionBoundary` adalah class component sederhana mirip `ErrorBoundary` tapi mengembalikan `null` (atau pesan compact) saat error, **tanpa** memblokir seluruh halaman.
-- `safeJsonParse(raw, fallback)` melakukan `try { JSON.parse(raw) } catch { return fallback }` agar localStorage rusak tidak menjatuhkan komponen.
-- Untuk redirect `/replay-play`, akan ditambah `setLoading(true) + setShouldRedirect(true)` lalu `return null` di render, supaya tidak ada hook stream yang dipanggil dengan token yang sebentar lagi pindah halaman.
-- ErrorBoundary global tetap dipertahankan sebagai jaring pengaman terakhir, namun karena tiap section sudah punya boundary sendiri, peluang ia muncul mendekati 0%.
+**File baru:**
+- `src/components/viewer/FeedbackFab.tsx`
+- `src/components/admin/FeedbackManager.tsx`
+- 1 migration SQL untuk tabel `feedback_messages` + RLS + trigger rate-limit.
 
-## Hasil yang Diharapkan
-- Halaman `/live` **tidak akan pernah** menampilkan layar "Terjadi Kesalahan" lagi — selalu ada UI yang relevan: player, countdown, "Akses Ditolak", atau "Token Tidak Valid".
-- Bila salah satu fitur (quiz/poll/chat) bermasalah, hanya bagian itu yang hilang, sisa halaman tetap berfungsi.
-- Log error per-section dikirim ke `security_events` sehingga regresi di masa depan terdeteksi cepat.
+**File diubah:**
+- `src/App.tsx` — render `<FeedbackFab />`.
+- `src/components/admin/AdminSidebar.tsx` — tambah item menu "Kritik & Saran".
+- `src/pages/AdminDashboard.tsx` — tambah case `feedback`.
+- `src/components/VideoPlayer.tsx` — refactor `toggleOrientation` + state baru + class kondisional.
+- `src/index.css` — utility `.force-landscape`.
+
+**Tidak dirilis sebagai edge function** — semua operasi (insert + admin read) cukup lewat RLS langsung.
+
+**Memory yang akan diperbarui:**
+- Tambah `mem://features/feedback-system` mendokumentasikan FAB + admin panel.
+- Update player UI memory dengan strategi rotasi multi-fallback.

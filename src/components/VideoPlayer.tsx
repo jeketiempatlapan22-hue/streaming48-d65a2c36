@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef, useCallback, lazy, Suspense } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const Watermark = lazy(() => import("@/components/viewer/Watermark"));
 
@@ -40,6 +41,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   const [selectedQuality, setSelectedQuality] = useState(-1);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [forcedLandscape, setForcedLandscape] = useState(false);
+  const { toast: showToast } = useToast();
   const [ytMuted, setYtMuted] = useState(true);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [isBehindLive, setIsBehindLive] = useState(false);
@@ -882,12 +885,72 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   }, []);
 
   const toggleOrientation = useCallback(async () => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    // Helper: pakai CSS fallback (rotate 90deg) — jalan di SEMUA browser
+    const applyCssFallback = () => {
+      setForcedLandscape((prev) => {
+        const next = !prev;
+        if (next) document.body.classList.add("rt48-landscape-lock");
+        else document.body.classList.remove("rt48-landscape-lock");
+        return next;
+      });
+    };
+
+    // Coba native Screen Orientation API. Persyaratan: harus fullscreen dulu
+    // di banyak browser. Kalau gagal, fallback ke CSS rotation.
+    const tryNativeLock = async (): Promise<boolean> => {
+      const o: any = (screen as any).orientation;
+      if (!o || typeof o.lock !== "function") return false;
+      try {
+        const isPortrait = (o.type || "").includes("portrait");
+        await o.lock(isPortrait ? "landscape" : "portrait");
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     try {
-      const o = screen.orientation;
-      if (o.type.includes("portrait")) await (o as any).lock("landscape");
-      else await (o as any).lock("portrait");
-    } catch {}
-  }, []);
+      // Jika kita sedang dalam mode CSS landscape, satu klik berarti keluar
+      if (forcedLandscape) {
+        applyCssFallback();
+        return;
+      }
+
+      // 1) Auto-fullscreen jika belum (syarat lock di Chrome/Edge Android)
+      const inFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      if (!inFs) {
+        try {
+          if (el.requestFullscreen) await el.requestFullscreen();
+          else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+        } catch { /* abaikan, lanjut coba lock */ }
+      }
+
+      // 2) Coba native lock
+      const ok = await tryNativeLock();
+      if (ok) return;
+
+      // 3) Fallback CSS — rotate container via class di body
+      applyCssFallback();
+
+      // 4) Beri info ringan kalau di desktop (tidak ada gunanya rotasi)
+      if (!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) {
+        showToast({
+          title: "Rotasi diaktifkan",
+          description: "Klik tombol lagi untuk kembali ke tampilan normal.",
+        });
+      }
+    } catch {
+      // Gagal total — beri tahu user agar putar manual
+      showToast({
+        title: "Rotasi tidak didukung",
+        description: "Silakan putar perangkat manual atau aktifkan auto-rotate di pengaturan.",
+        variant: "destructive",
+      });
+    }
+  }, [forcedLandscape, showToast]);
 
   const toggleYtMute = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -933,16 +996,25 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     }
   }, [playlistType, ytIframeCommand]);
 
-  // Fullscreen listener
+  // Fullscreen listener — juga membersihkan kunci landscape CSS saat keluar fullscreen
   useEffect(() => {
-    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFsChange = () => {
+      const fs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(fs);
+      if (!fs && forcedLandscape) {
+        document.body.classList.remove("rt48-landscape-lock");
+        setForcedLandscape(false);
+      }
+    };
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange);
     return () => {
       document.removeEventListener("fullscreenchange", onFsChange);
       document.removeEventListener("webkitfullscreenchange", onFsChange);
+      // Pastikan body class dibersihkan saat komponen unmount
+      document.body.classList.remove("rt48-landscape-lock");
     };
-  }, []);
+  }, [forcedLandscape]);
 
   // ── DVR seekbar tracking ──
   useEffect(() => {
@@ -1078,7 +1150,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
   return (
     <div
       ref={containerRef}
-      className={`relative w-full bg-black ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"}`}
+      className={`relative w-full bg-black ${isFullscreen ? "flex items-center justify-center !h-screen" : "aspect-video"} ${forcedLandscape ? "rt48-force-landscape" : ""}`}
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
@@ -1383,8 +1455,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           </div>
         )}
 
-        {/* Rotate */}
-        <button onClick={toggleOrientation} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30" title="Rotate">
+        {/* Rotate — bekerja di semua browser via fallback CSS */}
+        <button
+          onClick={toggleOrientation}
+          className={`flex h-10 w-10 items-center justify-center rounded-full text-white transition ${
+            forcedLandscape ? "bg-primary/80 hover:bg-primary" : "bg-white/20 hover:bg-white/30"
+          }`}
+          title={forcedLandscape ? "Kembali ke portrait" : "Putar ke landscape"}
+          aria-label="Rotasi layar"
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
 
