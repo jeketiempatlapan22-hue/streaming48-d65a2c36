@@ -35,41 +35,49 @@ const ViewerBroadcast = () => {
 
     // Delay broadcast fetch to reduce initial DB load
     const timer = setTimeout(async () => {
-      const nowIso = new Date().toISOString();
-      const { data } = await supabase
-        .from("admin_notifications")
-        .select("id, title, message, expires_at")
-        .eq("type", "broadcast")
-        .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data && !dismissed.has(data.id)) {
-        const b = data as Broadcast;
-        setNotification(b);
-        scheduleAutoExpire(b);
+      try {
+        const nowIso = new Date().toISOString();
+        const { data } = await supabase
+          .from("admin_notifications")
+          .select("id, title, message, expires_at")
+          .eq("type", "broadcast")
+          .or(`expires_at.is.null,expires_at.gt.${nowIso}`)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data && !dismissed.has(data.id)) {
+          const b = data as Broadcast;
+          setNotification(b);
+          scheduleAutoExpire(b);
+        }
+      } catch (e) {
+        console.warn("[ViewerBroadcast] fetch failed:", e);
       }
     }, 1000);
 
     // Listen for new broadcasts AND deletions in real-time
-    const ch = supabase
-      .channel("viewer-broadcasts")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "admin_notifications" }, (payload: any) => {
-        if (payload.new?.type !== "broadcast") return;
-        const b = payload.new as Broadcast;
-        if (isExpired(b)) return;
-        if (dismissed.has(b.id)) return;
-        setNotification(b);
-        scheduleAutoExpire(b);
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "admin_notifications" }, (payload: any) => {
-        // When admin deletes a broadcast, hide it immediately if currently shown
-        setNotification((curr) => (curr && payload.old?.id === curr.id ? null : curr));
-      })
-      .subscribe();
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      ch = supabase
+        .channel("viewer-broadcasts")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "admin_notifications" }, (payload: any) => {
+          if (payload.new?.type !== "broadcast") return;
+          const b = payload.new as Broadcast;
+          if (isExpired(b)) return;
+          if (dismissed.has(b.id)) return;
+          setNotification(b);
+          scheduleAutoExpire(b);
+        })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "admin_notifications" }, (payload: any) => {
+          setNotification((curr) => (curr && payload.old?.id === curr.id ? null : curr));
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("[ViewerBroadcast] subscribe failed:", e);
+    }
 
     return () => {
-      supabase.removeChannel(ch);
+      try { if (ch) supabase.removeChannel(ch); } catch {}
       clearTimeout(timer);
       if (auto) clearTimeout(auto);
     };
