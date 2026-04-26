@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Users } from "lucide-react";
+import { createClientId, safeStorageGet, safeStorageSet } from "@/lib/clientId";
 
 const STORAGE_KEY = "rt48_viewer_key";
 
@@ -15,12 +16,12 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
     if (!readOnly) {
       // Persist viewer key in sessionStorage to survive page refreshes
       if (!viewerKeyRef.current) {
-        const stored = sessionStorage.getItem(STORAGE_KEY);
+        const stored = safeStorageGet(typeof window !== "undefined" ? window.sessionStorage : undefined, STORAGE_KEY);
         if (stored) {
           viewerKeyRef.current = stored;
         } else {
-          viewerKeyRef.current = `v_${crypto.randomUUID().slice(0, 12)}`;
-          sessionStorage.setItem(STORAGE_KEY, viewerKeyRef.current);
+          viewerKeyRef.current = createClientId("v");
+          safeStorageSet(typeof window !== "undefined" ? window.sessionStorage : undefined, STORAGE_KEY, viewerKeyRef.current);
         }
       }
       const key = viewerKeyRef.current;

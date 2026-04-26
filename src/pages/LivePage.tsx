@@ -19,6 +19,7 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { createClientId, safeStorageGet, safeStorageSet } from "@/lib/clientId";
 import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
@@ -169,7 +170,7 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
   const [resetCount, setResetCount] = useState<number>(() => {
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
       if (!raw) return 0;
       const { count, day } = JSON.parse(raw);
       const today = new Date().toDateString();
@@ -192,7 +193,7 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
       if (result?.success) {
         const newCount = resetCount + 1;
         setResetCount(newCount);
-        try { localStorage.setItem(storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() })); } catch {}
+        safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey, JSON.stringify({ count: newCount, day: new Date().toDateString() }));
         try {
           const { data: tk } = await supabase.rpc("validate_token", { _code: tokenCode });
           const tid = (tk as any)?.id;
@@ -365,7 +366,7 @@ const LivePage = () => {
   const [stream, setStream] = useState<any>(null);
   const [playlists, setPlaylists] = useState<any[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<any>(null);
-  const [username, setUsername] = useState(() => localStorage.getItem("rt48_username") || "");
+  const [username, setUsername] = useState(() => safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username") || "");
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [purchaseMessage, setPurchaseMessage] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
@@ -387,8 +388,11 @@ const LivePage = () => {
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
-    let fp = localStorage.getItem("rt48_fp");
-    if (!fp) { fp = crypto.randomUUID(); localStorage.setItem("rt48_fp", fp); }
+    let fp = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_fp");
+    if (!fp) {
+      fp = createClientId("fp");
+      safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_fp", fp);
+    }
     return fp;
   }, []);
 
@@ -471,17 +475,17 @@ const LivePage = () => {
 
           if (profileRes?.data?.username) {
             setUsername(profileRes.data.username);
-            localStorage.setItem("rt48_username", profileRes.data.username);
+            safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username", profileRes.data.username);
             return;
           }
           setShowUsernameModal(true);
           return;
         }
 
-        const stored = localStorage.getItem("rt48_username");
+        const stored = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username");
         if (!stored) setShowUsernameModal(true);
       } catch {
-        const stored = localStorage.getItem("rt48_username");
+        const stored = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username");
         if (!stored) setShowUsernameModal(true);
       }
     };
@@ -880,7 +884,7 @@ const LivePage = () => {
 
   useEffect(() => { const h = (e: MouseEvent) => { if ((e.target as HTMLElement).closest(".player-area")) e.preventDefault(); }; document.addEventListener("contextmenu", h); return () => document.removeEventListener("contextmenu", h); }, []);
 
-  const handleUsernameSet = async (name: string) => { setUsername(name); localStorage.setItem("rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
+  const handleUsernameSet = async (name: string) => { setUsername(name); safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
 
   const handlePlaylistSwitch = useCallback((newPlaylist: any) => {
     if (activePlaylist?.id === newPlaylist.id) return;
