@@ -43,6 +43,8 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [muted, setMuted] = useState(false);
   const [currentQuality, setCurrentQuality] = useState<string>("hd1080");
   const [adaptive, setAdaptive] = useState(true);
+  const [switching, setSwitching] = useState<string | null>(null); // label kualitas saat transisi
+  const switchingTimerRef = useRef<number | null>(null);
 
   // Buffering tracking — drop quality if buffering > 3s
   const bufferingSinceRef = useRef<number | null>(null);
