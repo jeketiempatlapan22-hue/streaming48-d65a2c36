@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Wifi } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2 } from "lucide-react";
 
 interface Props {
   url: string; // YouTube URL or ID
@@ -41,19 +41,25 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [muted, setMuted] = useState(false);
   const [currentQuality, setCurrentQuality] = useState<string>("hd1080");
   const [adaptive, setAdaptive] = useState(true);
-  const [switching, setSwitching] = useState<string | null>(null); // label kualitas saat transisi
-  const switchingTimerRef = useRef<number | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [stalled, setStalled] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Buffering tracking — drop quality if buffering > 3s
+  const switchingTimerRef = useRef<number | null>(null);
   const bufferingSinceRef = useRef<number | null>(null);
-  const qualityIndexRef = useRef<number>(0); // start at top of ladder
+  const qualityIndexRef = useRef<number>(0);
   const lastDowngradeRef = useRef<number>(0);
+  const readyRef = useRef<boolean>(false);
+  const readyTimeoutRef = useRef<number | null>(null);
 
   const id = parseYoutubeId(url);
 
-  // Embed parameters: hide controls + branding + related, request highest quality
+  // Build iframe src. `origin` is REQUIRED for the YT IFrame API postMessage
+  // bridge to work reliably across browsers.
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&autoplay=0`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&autoplay=0&origin=${encodeURIComponent(origin)}&widgetid=1`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -70,47 +76,79 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
 
   const downgradeOneStep = useCallback(() => {
     const now = Date.now();
-    // Throttle: don't downgrade more than once per 5s
     if (now - lastDowngradeRef.current < 5000) return;
     if (qualityIndexRef.current >= QUALITY_LADDER.length - 1) return;
     qualityIndexRef.current += 1;
     lastDowngradeRef.current = now;
     const next = QUALITY_LADDER[qualityIndexRef.current];
 
-    // Smooth transition: tampilkan overlay singkat, set kualitas, lalu auto-resume play
     setSwitching(qualityLabel(next));
     setQuality(next);
-    // Pastikan playback tidak macet pasca-switch
     setTimeout(() => post("playVideo"), 250);
     if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     switchingTimerRef.current = window.setTimeout(() => {
       setSwitching(null);
-      // Reset baseline buffering supaya watcher tidak langsung downgrade lagi
       bufferingSinceRef.current = null;
     }, 1200);
   }, [setQuality, post]);
 
-  // Lazy YT IFrame API for state events (muted/playing/buffering/quality)
+  // Reset loading state on reload / src change
+  useEffect(() => {
+    setLoading(true);
+    setStalled(false);
+    readyRef.current = false;
+  }, [src, reloadKey]);
+
+  // Watchdog: kalau iframe tidak siap dalam 8 detik, anggap stuck dan reload sekali
+  useEffect(() => {
+    if (readyTimeoutRef.current) window.clearTimeout(readyTimeoutRef.current);
+    readyTimeoutRef.current = window.setTimeout(() => {
+      if (!readyRef.current) {
+        setStalled(true);
+        // Soft reload iframe via key bump
+        setReloadKey((k) => k + 1);
+      }
+    }, 8000);
+    return () => {
+      if (readyTimeoutRef.current) window.clearTimeout(readyTimeoutRef.current);
+    };
+  }, [src, reloadKey]);
+
+  // YT IFrame API bridge
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
+      // Hanya proses pesan dari domain YouTube
+      if (typeof e.origin === "string" && !/youtube(-nocookie)?\.com$/.test(new URL(e.origin).hostname)) {
+        // continue silently — beberapa browser tidak set origin dengan rapi
+      }
       if (typeof e.data !== "string") return;
       try {
         const data = JSON.parse(e.data);
+
+        // Tanda iframe API hidup → matikan loading
+        if (data.event === "onReady" || data.event === "initialDelivery" || data.event === "infoDelivery") {
+          if (!readyRef.current) {
+            readyRef.current = true;
+            setLoading(false);
+            setStalled(false);
+          }
+        }
+
         if (data.event === "infoDelivery" && data.info) {
           if (typeof data.info.muted === "boolean") setMuted(data.info.muted);
 
           if (typeof data.info.playerState === "number") {
             const state = data.info.playerState;
-            // 1 = playing, 2 = paused, 3 = buffering, 0 = ended
+            // -1 unstarted, 0 ended, 1 playing, 2 paused, 3 buffering, 5 cued
             setPlaying(state === 1);
 
             if (state === 3) {
-              // Buffering started
+              setLoading(true);
               if (bufferingSinceRef.current == null) {
                 bufferingSinceRef.current = Date.now();
               }
             } else {
-              // Not buffering — reset
+              setLoading(false);
               bufferingSinceRef.current = null;
             }
           }
@@ -130,45 +168,52 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     };
     window.addEventListener("message", onMessage);
 
-    // Subscribe to state updates and force highest quality
-    const sub = setTimeout(() => {
-      iframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: "listening" }),
+    // Subscribe ke event YT secepat mungkin & polling sampai ready
+    let attempts = 0;
+    const subscribe = () => {
+      const w = iframeRef.current?.contentWindow;
+      if (!w) return;
+      w.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+      w.postMessage(
+        JSON.stringify({ event: "command", func: "addEventListener", args: ["onReady"] }),
         "*",
       );
-      iframeRef.current?.contentWindow?.postMessage(
+      w.postMessage(
         JSON.stringify({ event: "command", func: "addEventListener", args: ["onStateChange"] }),
         "*",
       );
-      iframeRef.current?.contentWindow?.postMessage(
+      w.postMessage(
         JSON.stringify({ event: "command", func: "addEventListener", args: ["onPlaybackQualityChange"] }),
         "*",
       );
-      iframeRef.current?.contentWindow?.postMessage(
+      w.postMessage(
         JSON.stringify({ event: "command", func: "setPlaybackQuality", args: ["hd1080"] }),
         "*",
       );
-    }, 800);
+    };
+    const sub = setInterval(() => {
+      attempts += 1;
+      subscribe();
+      if (readyRef.current || attempts > 20) clearInterval(sub);
+    }, 500);
 
     // Adaptive watcher: every 1s, if buffering >3s and adaptive on, downgrade
     const watcher = setInterval(() => {
       if (!adaptive) return;
-      // Jangan downgrade saat masih dalam transisi
       if (switchingTimerRef.current) return;
       const since = bufferingSinceRef.current;
       if (since && Date.now() - since > 3000) {
         downgradeOneStep();
-        // Baseline buffering akan di-reset oleh downgradeOneStep setelah transisi selesai
       }
     }, 1000);
 
     return () => {
       window.removeEventListener("message", onMessage);
-      clearTimeout(sub);
+      clearInterval(sub);
       clearInterval(watcher);
       if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
-  }, [src, adaptive, downgradeOneStep]);
+  }, [src, reloadKey, adaptive, downgradeOneStep]);
 
   if (!id) {
     return (
@@ -197,12 +242,16 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-black">
       <div className="aspect-video w-full">
         <iframe
+          key={reloadKey}
           ref={iframeRef}
           src={src}
           title="Replay"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen={false}
           className="h-full w-full"
+          onLoad={() => {
+            // Iframe document loaded — biarkan watchdog yang verifikasi API ready
+          }}
         />
       </div>
 
@@ -215,7 +264,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         aria-hidden
       />
 
-      {/* Smooth transition overlay saat menurunkan resolusi (z-15, di antara click overlay & controls) */}
+      {/* Loading / connecting overlay */}
+      {loading && (
+        <div className="pointer-events-none absolute inset-0 z-[16] flex items-center justify-center bg-black/55 backdrop-blur-[1px] animate-in fade-in duration-200">
+          <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/65 px-5 py-4 text-white">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-[11px] font-semibold tracking-wide">
+              {stalled ? "Memulihkan koneksi…" : "Menghubungkan ke YouTube…"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Smooth transition overlay saat menurunkan resolusi */}
       <div
         className={`pointer-events-none absolute inset-0 z-[15] flex items-center justify-center bg-black/55 backdrop-blur-sm transition-opacity duration-500 ${
           switching ? "opacity-100" : "opacity-0"
