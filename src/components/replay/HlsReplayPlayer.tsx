@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Hls, { type Level } from "hls.js";
-import { Play, Pause, Volume2, VolumeX, Maximize, Settings } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Settings, Rewind, FastForward } from "lucide-react";
 
 interface Props {
   src: string;
   poster?: string | null;
   onError?: (msg: string) => void;
 }
+
+const SEEK_SECONDS = 10;
+const DOUBLE_TAP_MS = 300;
 
 const formatLabel = (lvl: Level) => {
   if (lvl.height) return `${lvl.height}p`;
@@ -20,12 +23,19 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   const hlsRef = useRef<Hls | null>(null);
 
   const [levels, setLevels] = useState<Level[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<number>(-1); // -1 = auto
+  const [currentLevel, setCurrentLevel] = useState<number>(-1);
   const [showQuality, setShowQuality] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [seekIndicator, setSeekIndicator] = useState<{ side: "left" | "right"; amount: number } | null>(null);
+
+  // Tap tracking refs (one per side to avoid cross-side interference)
+  const lastTapRef = useRef<{ side: "left" | "right" | null; time: number }>({ side: null, time: 0 });
+  const singleTapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const seekIndicatorTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -35,9 +45,6 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // Replay/VOD: jangan buang segmen lama, simpan seluruh buffer agar bisa
-        // di-seek dari awal sampai akhir. Default backBufferLength=90 detik
-        // membuat playlist EVENT/live-style hanya menampilkan bagian akhir.
         backBufferLength: Infinity,
         maxBufferLength: 60,
         maxMaxBufferLength: 600,
@@ -50,21 +57,13 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setLevels(data.levels || []);
-        // Untuk replay: paksa mulai dari awal (currentTime=0).
-        // Tanpa ini, playlist EVENT tanpa #EXT-X-ENDLIST akan diperlakukan
-        // seperti live & user hanya melihat bagian paling akhir.
         try {
-          if (video.currentTime < 0.1) {
-            video.currentTime = 0;
-          }
+          if (video.currentTime < 0.1) video.currentTime = 0;
         } catch {}
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_e, data) => {
-        // Jika manifest sebenarnya VOD tapi tidak diberi tanda ENDLIST oleh
-        // origin, tetap perlakukan sebagai VOD agar seekable bar penuh.
         const details: any = data.details;
         if (details && details.live && details.endSN > 0) {
-          // Override: anggap sebagai VOD setelah semua segmen termuat
           if (details.endSN === details.startSN + details.fragments.length - 1) {
             details.live = false;
           }
@@ -79,7 +78,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src; // Safari native
+      video.src = src;
     } else {
       onError?.("Browser tidak mendukung HLS");
     }
@@ -96,26 +95,38 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onTime = () => {
-      if (v.duration) setProgress((v.currentTime / v.duration) * 100);
-      setDuration(v.duration || 0);
+      const dur = v.duration || 0;
+      setCurrentTime(v.currentTime || 0);
+      setDuration(dur);
+      if (dur && isFinite(dur)) setProgress((v.currentTime / dur) * 100);
     };
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("loadedmetadata", onTime);
+    v.addEventListener("durationchange", onTime);
     return () => {
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("loadedmetadata", onTime);
+      v.removeEventListener("durationchange", onTime);
     };
   }, []);
 
-  const togglePlay = () => {
+  // Cleanup any pending tap timers on unmount
+  useEffect(() => {
+    return () => {
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+      if (seekIndicatorTimerRef.current) clearTimeout(seekIndicatorTimerRef.current);
+    };
+  }, []);
+
+  const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    v.paused ? v.play() : v.pause();
-  };
+    v.paused ? v.play().catch(() => {}) : v.pause();
+  }, []);
 
   const toggleMute = () => {
     const v = videoRef.current;
@@ -124,18 +135,84 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     setMuted(v.muted);
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+  const seekBy = useCallback((delta: number) => {
     const v = videoRef.current;
-    if (!v || !v.duration) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = (e.clientX - rect.left) / rect.width;
+    if (!v) return;
+    const dur = v.duration || 0;
+    const target = Math.max(0, Math.min(dur || v.currentTime + delta, v.currentTime + delta));
+    v.currentTime = target;
+  }, []);
+
+  const showSeekIndicator = (side: "left" | "right", amount: number) => {
+    setSeekIndicator({ side, amount });
+    if (seekIndicatorTimerRef.current) clearTimeout(seekIndicatorTimerRef.current);
+    seekIndicatorTimerRef.current = setTimeout(() => setSeekIndicator(null), 600);
+  };
+
+  // Unified seek (works for click and drag)
+  const seekToClientX = (clientX: number, rect: DOMRect) => {
+    const v = videoRef.current;
+    if (!v || !v.duration || !isFinite(v.duration)) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     v.currentTime = ratio * v.duration;
+  };
+
+  const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const rect = target.getBoundingClientRect();
+    seekToClientX(e.clientX, rect);
+
+    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    const up = (ev: PointerEvent) => {
+      target.releasePointerCapture(e.pointerId);
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
+  };
+
+  // Tap on video area: single tap toggles play, double-tap on left/right seeks
+  const handleVideoAreaTap = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Ignore taps that originate from inside the controls bar
+    const targetEl = e.target as HTMLElement;
+    if (targetEl.closest("[data-controls-bar]")) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const side: "left" | "right" = x < rect.width / 2 ? "left" : "right";
+    const now = Date.now();
+    const last = lastTapRef.current;
+
+    if (last.side === side && now - last.time < DOUBLE_TAP_MS) {
+      // Double tap detected — cancel pending single-tap (play toggle)
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
+      const delta = side === "left" ? -SEEK_SECONDS : SEEK_SECONDS;
+      seekBy(delta);
+      showSeekIndicator(side, SEEK_SECONDS);
+      lastTapRef.current = { side: null, time: 0 };
+      return;
+    }
+
+    lastTapRef.current = { side, time: now };
+    if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+    singleTapTimerRef.current = setTimeout(() => {
+      togglePlay();
+      singleTapTimerRef.current = null;
+    }, DOUBLE_TAP_MS);
   };
 
   const setLevel = (idx: number) => {
     const hls = hlsRef.current;
     if (!hls) return;
-    hls.currentLevel = idx; // -1 = auto
+    hls.currentLevel = idx;
     setCurrentLevel(idx);
     setShowQuality(false);
   };
@@ -148,43 +225,108 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   };
 
   const fmt = (s: number) => {
-    if (!isFinite(s)) return "00:00";
-    const m = Math.floor(s / 60);
+    if (!isFinite(s) || s < 0) return "00:00";
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
     const sec = Math.floor(s % 60);
+    if (h > 0) {
+      return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    }
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
   return (
-    <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-black">
-      <video
-        ref={videoRef}
-        poster={poster || undefined}
-        className="aspect-video w-full"
-        playsInline
-        onClick={togglePlay}
-      />
+    <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-black select-none">
+      <div
+        className="relative"
+        onPointerDown={handleVideoAreaTap}
+      >
+        <video
+          ref={videoRef}
+          poster={poster || undefined}
+          className="aspect-video w-full"
+          playsInline
+        />
+
+        {/* Double-tap seek indicator overlay */}
+        {seekIndicator && (
+          <div
+            className={`pointer-events-none absolute inset-y-0 ${
+              seekIndicator.side === "left" ? "left-0" : "right-0"
+            } flex w-1/2 items-center justify-center`}
+          >
+            <div className="flex flex-col items-center gap-1 rounded-full bg-black/55 px-5 py-3 text-white backdrop-blur-sm animate-in fade-in zoom-in duration-150">
+              {seekIndicator.side === "left" ? (
+                <Rewind className="h-7 w-7" fill="currentColor" />
+              ) : (
+                <FastForward className="h-7 w-7" fill="currentColor" />
+              )}
+              <span className="text-xs font-semibold tabular-nums">
+                {seekIndicator.amount} detik
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Controls */}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 space-y-2">
+      <div
+        data-controls-bar
+        className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 space-y-2"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {/* Seekbar with draggable thumb */}
         <div
-          className="h-1.5 w-full cursor-pointer rounded-full bg-white/20"
-          onClick={handleSeek}
+          className="group relative h-4 w-full cursor-pointer touch-none"
+          onPointerDown={handleSeekbarPointerDown}
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={currentTime}
         >
+          <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/20">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
           <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${progress}%` }}
+            className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow opacity-0 transition-opacity group-hover:opacity-100"
+            style={{ left: `${progress}%` }}
           />
         </div>
+
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <button onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
               {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
+            <button
+              onClick={() => {
+                seekBy(-SEEK_SECONDS);
+                showSeekIndicator("left", SEEK_SECONDS);
+              }}
+              aria-label="Mundur 10 detik"
+              className="hidden sm:inline-flex"
+            >
+              <Rewind className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => {
+                seekBy(SEEK_SECONDS);
+                showSeekIndicator("right", SEEK_SECONDS);
+              }}
+              aria-label="Maju 10 detik"
+              className="hidden sm:inline-flex"
+            >
+              <FastForward className="h-5 w-5" />
+            </button>
             <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"}>
               {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
             <span className="text-xs tabular-nums opacity-80">
-              {fmt((videoRef.current?.currentTime) || 0)} / {fmt(duration)}
+              {fmt(currentTime)} / {fmt(duration)}
             </span>
           </div>
           <div className="flex items-center gap-2 relative">
