@@ -852,6 +852,81 @@ export type Database = {
         }
         Relationships: []
       }
+      replay_token_sessions: {
+        Row: {
+          created_at: string
+          fingerprint: string
+          id: string
+          is_active: boolean
+          last_seen_at: string
+          token_code: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          fingerprint: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          token_code: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string
+          token_code?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      replay_tokens: {
+        Row: {
+          code: string
+          created_at: string
+          created_via: string
+          expires_at: string | null
+          id: string
+          password: string | null
+          phone: string | null
+          show_id: string | null
+          source_token_code: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_via?: string
+          expires_at?: string | null
+          id?: string
+          password?: string | null
+          phone?: string | null
+          show_id?: string | null
+          source_token_code?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_via?: string
+          expires_at?: string | null
+          id?: string
+          password?: string | null
+          phone?: string | null
+          show_id?: string | null
+          source_token_code?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       reseller_payments: {
         Row: {
           created_at: string
@@ -1123,7 +1198,10 @@ export type Database = {
           qris_image_url: string | null
           qris_price: number
           replay_coin_price: number
+          replay_m3u8_url: string | null
+          replay_month: string | null
           replay_qris_price: number
+          replay_youtube_url: string | null
           schedule_date: string | null
           schedule_time: string | null
           short_id: string | null
@@ -1158,7 +1236,10 @@ export type Database = {
           qris_image_url?: string | null
           qris_price?: number
           replay_coin_price?: number
+          replay_m3u8_url?: string | null
+          replay_month?: string | null
           replay_qris_price?: number
+          replay_youtube_url?: string | null
           schedule_date?: string | null
           schedule_time?: string | null
           short_id?: string | null
@@ -1193,7 +1274,10 @@ export type Database = {
           qris_image_url?: string | null
           qris_price?: number
           replay_coin_price?: number
+          replay_m3u8_url?: string | null
+          replay_month?: string | null
           replay_qris_price?: number
+          replay_youtube_url?: string | null
           schedule_date?: string | null
           schedule_time?: string | null
           short_id?: string | null
@@ -1650,10 +1734,19 @@ export type Database = {
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       cleanup_replay_access_tokens: { Args: never; Returns: undefined }
+      cleanup_replay_tokens: { Args: never; Returns: undefined }
       cleanup_stale_viewers: { Args: never; Returns: undefined }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
       confirm_membership_order: { Args: { _order_id: string }; Returns: Json }
       confirm_regular_order: { Args: { _order_id: string }; Returns: Json }
+      create_replay_session: {
+        Args: {
+          _fingerprint: string
+          _token_code: string
+          _user_agent?: string
+        }
+        Returns: Json
+      }
       create_show_order: {
         Args: {
           _email?: string
@@ -1687,51 +1780,58 @@ export type Database = {
       get_confirmed_order_count: { Args: { _show_id: string }; Returns: number }
       get_membership_show_passwords: { Args: never; Returns: Json }
       get_my_password_reset_status: { Args: never; Returns: Json }
+      get_my_replay_tokens: {
+        Args: never
+        Returns: {
+          code: string
+          created_via: string
+          expires_at: string
+          password: string
+          show_id: string
+        }[]
+      }
       get_or_create_referral_code: { Args: never; Returns: Json }
       get_order_count: { Args: { _show_id: string }; Returns: number }
       get_public_shows: {
         Args: never
         Returns: {
-          access_password: string | null
-          background_image_url: string | null
-          bundle_description: string | null
+          access_password: string
+          background_image_url: string
+          bundle_description: string
           bundle_duration_days: number
-          bundle_replay_info: string | null
+          bundle_replay_info: string
           bundle_replay_passwords: Json
-          category: string | null
-          category_member: string | null
+          category: string
+          category_member: string
           coin_price: number
           created_at: string
-          external_show_id: string | null
-          group_link: string | null
+          external_show_id: string
+          group_link: string
+          has_replay_media: boolean
           id: string
           is_active: boolean
           is_bundle: boolean
           is_order_closed: boolean
           is_replay: boolean
           is_subscription: boolean
-          lineup: string | null
+          lineup: string
           max_subscribers: number
           membership_duration_days: number
           price: string
-          qris_image_url: string | null
+          qris_image_url: string
           qris_price: number
           replay_coin_price: number
+          replay_month: string
           replay_qris_price: number
-          schedule_date: string | null
-          schedule_time: string | null
-          short_id: string | null
-          subscription_benefits: string | null
-          team: string | null
+          replay_youtube_url: string
+          schedule_date: string
+          schedule_time: string
+          short_id: string
+          subscription_benefits: string
+          team: string
           title: string
           updated_at: string
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "shows"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       get_purchased_show_passwords: { Args: never; Returns: Json }
       get_quiz_attempt_status: { Args: { _quiz_id: string }; Returns: Json }
@@ -1894,11 +1994,24 @@ export type Database = {
       }
       reseller_stats: { Args: never; Returns: Json }
       reset_ip_visit_log_daily: { Args: never; Returns: undefined }
+      self_reset_replay_session: {
+        Args: { _fingerprint: string; _token_code: string }
+        Returns: Json
+      }
       self_reset_token_session: {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
       }
       touch_restream_code_usage: { Args: { _code: string }; Returns: undefined }
+      validate_replay_access: {
+        Args: {
+          _password?: string
+          _short_id?: string
+          _show_id?: string
+          _token?: string
+        }
+        Returns: Json
+      }
       validate_reseller_session: {
         Args: { _session_token: string }
         Returns: string

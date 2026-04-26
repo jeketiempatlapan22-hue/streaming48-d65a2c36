@@ -57,6 +57,9 @@ interface Show {
   bundle_duration_days: number;
   bundle_replay_passwords: any[];
   bundle_replay_info: string;
+  replay_m3u8_url: string;
+  replay_youtube_url: string;
+  replay_month: string;
 }
 
 const CATEGORY_OPTIONS = [
@@ -114,6 +117,9 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   bundle_duration_days: show.bundle_duration_days ?? 30,
   bundle_replay_passwords: show.bundle_replay_passwords ?? [],
   bundle_replay_info: show.bundle_replay_info ?? "",
+  replay_m3u8_url: (show as any).replay_m3u8_url ?? "",
+  replay_youtube_url: (show as any).replay_youtube_url ?? "",
+  replay_month: (show as any).replay_month ?? "",
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
@@ -339,6 +345,9 @@ const ShowManager = () => {
       bundle_duration_days: Math.max(1, Number(draft.bundle_duration_days) || 30),
       bundle_replay_passwords: draft.bundle_replay_passwords || [],
       bundle_replay_info: draft.bundle_replay_info.trim(),
+      replay_m3u8_url: draft.replay_m3u8_url.trim() || null,
+      replay_youtube_url: draft.replay_youtube_url.trim() || null,
+      replay_month: draft.replay_month.trim() || null,
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
