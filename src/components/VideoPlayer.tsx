@@ -543,7 +543,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       });
 
       const liveCheckId = setInterval(() => {
-        if (destroyed || video.paused || !hls.liveSyncPosition) return;
+        if (destroyed || document.hidden || video.paused || !hls.liveSyncPosition) return;
         const lag = hls.liveSyncPosition - video.currentTime;
         const behindLive = lag > 4;
         if (isBehindLiveRef.current !== behindLive) {
@@ -554,7 +554,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         if (lag > 8 && !video.paused) {
           video.currentTime = hls.liveSyncPosition - 0.5;
         }
-      }, 1500);
+      }, 2500);
 
       const onVisible = () => {
         if (destroyed || document.hidden || !hlsRef.current) return;
@@ -576,7 +576,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             video.currentTime = hlsRef.current.liveSyncPosition - 0.5;
           }
         }
-      }, 5000);
+      }, 8000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
