@@ -697,12 +697,15 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
             waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
             await sendFonnteWhatsApp(order.phone, waMsg);
           } else {
-            // Regular show: send live link + token + replay info
-            let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
-            if (show?.access_password) {
-              waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: https://replaytime.lovable.app\n🔑 Sandi: ${show.access_password}\n`;
-            }
-            waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
+            // Regular show: format pesan standar terbaru (info live + replay 14 hari)
+            const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+            const waMsg = buildRegularShowMessageWa({
+              showTitle: showTitle,
+              schedule,
+              maxDevices: 1,
+              liveLink,
+              replayPassword: show?.access_password,
+            });
             await sendFonnteWhatsApp(order.phone, waMsg);
           }
         } else if (result.type === 'subscription') {
@@ -1925,6 +1928,21 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
     });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
+    // Show REGULER (bukan membership / bukan bundle) → format pesan standar terbaru
+    if (!show.is_subscription && !show.is_bundle) {
+      const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
+      const waMsg = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      // Kirim ke Telegram tanpa MarkdownV2 supaya separator dan format apa adanya
+      await sendTelegramMessage(botToken, chatId, waMsg);
+      return;
+    }
+
     let msg = `✅ *Token Berhasil Dibuat\\!*\n\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
       `📅 Jadwal: ${escapeMarkdown(schedule)}\n` +
@@ -1994,6 +2012,20 @@ async function handleGiveTokenCommand(supabase: any, botToken: string, chatId: s
     });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
+    // Show REGULER → format pesan standar terbaru (plain) dengan info penerima
+    if (!show.is_subscription && !show.is_bundle) {
+      const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
+      const base = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      await sendTelegramMessage(botToken, chatId, `👤 Diberikan ke: ${profile.username || 'Unknown'}\n\n${base}`);
+      return;
+    }
+
     let msg = `✅ *Token Diberikan ke User\\!*\n\n` +
       `👤 User: *${escapeMarkdown(profile.username || 'Unknown')}*\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
@@ -2058,6 +2090,32 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
       minute: '2-digit'
     });
 
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLinkSample = `https://realtime48stream.my.id/live?t=${tokens[0].code}`;
+
+    // Show REGULER → tampilkan template pesan standar + daftar token (plain)
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink: liveLinkSample,
+        replayPassword: show.access_password,
+      });
+
+      const chunkSize = 30;
+      const allCodes = tokens.map((t: any) => t.code);
+      const firstList = allCodes.slice(0, chunkSize).join('\n');
+      const header = `📋 ${count} Token Berhasil Dibuat\n\n${base}\n\n🔑 Daftar Token:\n${firstList}`;
+      await sendTelegramMessage(botToken, chatId, header);
+
+      for (let i = chunkSize; i < allCodes.length; i += chunkSize) {
+        const part = allCodes.slice(i, i + chunkSize).join('\n');
+        await sendTelegramMessage(botToken, chatId, `🔑 Token (lanjutan):\n${part}`);
+      }
+      return;
+    }
+
     let msg = `✅ *${count} Token Berhasil Dibuat\\!*\n\n`;
     msg += `🎬 Show: *${escapeMarkdown(show.title)}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
@@ -2096,6 +2154,24 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
   } catch (e) {
     await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${e instanceof Error ? escapeMarkdown(e.message) : 'Unknown'}`);
   }
+}
+
+// Format pesan WA standar untuk show REGULER (bukan membership / bundle)
+// Sesuai template terbaru — dipakai bot Telegram saat mengirim notifikasi WA ke user.
+function buildRegularShowMessageWa(opts: {
+  showTitle: string;
+  schedule: string;
+  maxDevices: number;
+  liveLink: string;
+  replayPassword?: string | null;
+}): string {
+  const { showTitle, schedule, maxDevices, liveLink, replayPassword } = opts;
+  let msg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDevices}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
+  if (replayPassword) {
+    msg += `\n\n> 🔐 Sandi Replay: ${replayPassword}`;
+  }
+  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
+  return msg;
 }
 
 function buildReplayInfoMessageTelegram(show: any): string {
@@ -2284,13 +2360,11 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         if (show.access_password) {
           waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
         }
-      } else {
+      } else if (show?.is_subscription) {
+        // Membership: keep existing format
         waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
         if (token?.code) {
           waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
-        }
-        if (show?.access_password) {
-          waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
         }
         if (show?.schedule_date) {
           waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
@@ -2302,9 +2376,24 @@ async function handleResendCommand(supabase: any, botToken: string, chatId: stri
         if (show?.access_password) {
           waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
         }
+        waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      } else {
+        // Regular show: format pesan standar terbaru
+        const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+        const liveLink = token?.code ? `${siteUrl}/live?t=${token.code}` : `${siteUrl}/live`;
+        waMsg = buildRegularShowMessageWa({
+          showTitle: show?.title || 'Show',
+          schedule,
+          maxDevices: 1,
+          liveLink,
+          replayPassword: show?.access_password,
+        });
       }
 
-      waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      // Bundle message already includes its own footer above
+      if (show?.is_bundle) {
+        waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
+      }
 
       await sendFonnteWhatsApp(subOrder.phone, waMsg);
 

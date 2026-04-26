@@ -1572,13 +1572,11 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         if (show.access_password) {
           waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
         }
-      } else {
+      } else if (show?.is_subscription) {
+        // Membership: keep existing format
         waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
         if (token?.code) {
           waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
-        }
-        if (show?.access_password) {
-          waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
         }
         if (show?.schedule_date) {
           waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
@@ -1590,6 +1588,17 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         if (show?.access_password) {
           waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
         }
+      } else {
+        // Regular show: gunakan format pesan terbaru
+        const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+        const liveLink = token?.code ? `${siteUrl}/live?t=${token.code}` : `${siteUrl}/live`;
+        waMsg = buildRegularShowMessage({
+          showTitle: show?.title || 'Show',
+          schedule,
+          maxDevices: 1,
+          liveLink,
+          replayPassword: show?.access_password,
+        });
       }
 
       waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
@@ -2330,6 +2339,17 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
     const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
+    // Show REGULER (bukan membership / bukan bundle) → gunakan format pesan standar terbaru
+    if (!show.is_subscription && !show.is_bundle) {
+      return buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+    }
+
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
     if (show.is_subscription) {
       msg += `\n👑 Durasi Membership: *${show.membership_duration_days || 30} hari*`;
@@ -2386,6 +2406,18 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
     const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
+    // Show REGULER → format pesan standar terbaru, dengan info penerima di bagian atas
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      return `👤 Diberikan ke: *${profile.username || 'Unknown'}*\n\n${base}`;
+    }
+
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
     if (show.is_subscription) {
       msg += `\n👑 Durasi Membership: *${show.membership_duration_days || 30} hari*`;
@@ -2435,6 +2467,22 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     if (insertErr) return `⚠️ Gagal membuat token: ${insertErr.message}`;
 
     const expDate = new Date(expiresAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLinkSample = `https://realtime48stream.my.id/live?t=${tokens[0]}`;
+
+    // Show REGULER → tampilkan template pesan standar + daftar token
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink: liveLinkSample,
+        replayPassword: show.access_password,
+      });
+      let msg = `📋 *${count} Token Berhasil Dibuat*\n\n${base}\n\n🔑 *Daftar Token:*\n`;
+      for (const code of tokens) msg += `${code}\n`;
+      return msg;
+    }
 
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *${count} Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n`;
     msg += `🎬 Show: *${show.title}*\n`;
@@ -2450,13 +2498,31 @@ async function handleBulkTokenWa(supabase: any, showInput: string, count: number
     for (const code of tokens) {
       msg += `${code}\n`;
     }
-    msg += `\n📺 *Link Nonton (contoh):*\nhttps://realtime48stream.my.id/live?t=${tokens[0]}`;
+    msg += `\n📺 *Link Nonton (contoh):*\n${liveLinkSample}`;
     msg += `\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
   } catch (e) {
     return `⚠️ Error: ${e instanceof Error ? e.message : 'Unknown'}`;
   }
+}
+
+// Format pesan token standar untuk show REGULER (bukan membership, bukan bundle)
+// Sesuai template terbaru dengan separator dan info replay 14 hari.
+function buildRegularShowMessage(opts: {
+  showTitle: string;
+  schedule: string;
+  maxDevices: number;
+  liveLink: string;
+  replayPassword?: string | null;
+}): string {
+  const { showTitle, schedule, maxDevices, liveLink, replayPassword } = opts;
+  let msg = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${showTitle}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDevices}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\n${liveLink}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
+  if (replayPassword) {
+    msg += `\n\n> 🔐 Sandi Replay: ${replayPassword}`;
+  }
+  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
+  return msg;
 }
 
 function buildReplayInfoMessage(show: any): string {
