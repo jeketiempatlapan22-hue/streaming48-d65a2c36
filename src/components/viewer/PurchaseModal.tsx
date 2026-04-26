@@ -30,11 +30,12 @@ interface PurchaseModalProps {
   useDynamicQris?: boolean;
 }
 
-const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: string; onClose: () => void; onDone: () => void }) => {
+const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { show: Show; phone: string; onClose: () => void; onDone: () => void; onFallbackStatic: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [qrString, setQrString] = useState("");
   const [orderId, setOrderId] = useState("");
   const [paid, setPaid] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
 
   // Dynamically import QR component
@@ -56,37 +57,43 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
       ? "membership"
       : "regular";
 
+  const tryCreate = async () => {
+    setLoading(true);
+    setFailed(false);
+    // Hard client-side timeout (28s) agar konsisten dengan edge function (22s + retry)
+    const hardTimeout = setTimeout(() => {
+      toast.error("QRIS dinamis lambat. Coba QRIS Statis sebagai cadangan.");
+      setLoading(false);
+      setFailed(true);
+    }, 28000);
+    try {
+      const priceNum = computeAmount();
+      if (priceNum <= 0) { toast.error("Harga tidak valid"); clearTimeout(hardTimeout); setLoading(false); return; }
+
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: { show_id: show.id, amount: priceNum, phone, order_type: orderTypeForReplay },
+      });
+      clearTimeout(hardTimeout);
+      if (error || !data?.success) {
+        toast.error(data?.error || error?.message || "Gagal membuat QRIS dinamis");
+        setFailed(true);
+        setLoading(false);
+        return;
+      }
+      setQrString(data.qr_string);
+      setOrderId(data.order_id);
+    } catch (err: any) {
+      clearTimeout(hardTimeout);
+      toast.error("Gagal membuat QRIS dinamis. Coba QRIS Statis.");
+      setFailed(true);
+    }
+    setLoading(false);
+  };
+
   // Create dynamic QRIS on mount
   useEffect(() => {
-    const create = async () => {
-      setLoading(true);
-      // Hard client-side timeout (15s) so the spinner never hangs forever
-      const hardTimeout = setTimeout(() => {
-        toast.error("QRIS lambat dimuat. Silakan coba lagi.");
-        setLoading(false);
-      }, 15000);
-      try {
-        const priceNum = computeAmount();
-        if (priceNum <= 0) { toast.error("Harga tidak valid"); clearTimeout(hardTimeout); setLoading(false); return; }
-
-        const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
-          body: { show_id: show.id, amount: priceNum, phone, order_type: orderTypeForReplay },
-        });
-        clearTimeout(hardTimeout);
-        if (error || !data?.success) {
-          toast.error(data?.error || error?.message || "Gagal membuat QRIS");
-          setLoading(false);
-          return;
-        }
-        setQrString(data.qr_string);
-        setOrderId(data.order_id);
-      } catch (err: any) {
-        clearTimeout(hardTimeout);
-        toast.error("Gagal membuat QRIS: " + (err?.message || "Coba lagi"));
-      }
-      setLoading(false);
-    };
-    create();
+    tryCreate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show.id, show.price, show.is_replay, show.replay_qris_price, phone, show.is_subscription]);
 
   // Poll payment status every 3s
@@ -112,7 +119,8 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
     return (
       <div className="flex flex-col items-center gap-3 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+        <p className="text-sm text-muted-foreground">Membuat QRIS dinamis...</p>
+        <p className="text-[10px] text-muted-foreground text-center px-4">Mohon tunggu hingga 25 detik. Jika gagal, Anda bisa pilih QRIS Statis.</p>
       </div>
     );
   }
@@ -123,6 +131,23 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
         <h4 className="text-lg font-bold text-foreground">Pembayaran Berhasil!</h4>
         <p className="text-sm text-muted-foreground">Pesanan Anda telah dikonfirmasi otomatis.</p>
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+          QRIS dinamis gagal dimuat.
+        </div>
+        <Button className="w-full" onClick={tryCreate}>🔄 Coba Lagi QRIS Dinamis</Button>
+        {show.qris_image_url && (
+          <Button variant="outline" className="w-full" onClick={onFallbackStatic}>
+            📷 Gunakan QRIS Statis (cadangan)
+          </Button>
+        )}
+        <p className="text-[10px] text-center text-muted-foreground">QRIS Statis perlu konfirmasi admin (1-15 menit)</p>
       </div>
     );
   }
@@ -143,6 +168,11 @@ const DynamicQrisView = ({ show, phone, onClose, onDone }: { show: Show; phone: 
         <Loader2 className="h-3 w-3 animate-spin" />
         Menunggu pembayaran...
       </div>
+      {show.qris_image_url && (
+        <Button variant="outline" size="sm" className="w-full text-xs" onClick={onFallbackStatic}>
+          📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
+        </Button>
+      )}
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
         <div className="space-y-1 text-xs text-muted-foreground">
