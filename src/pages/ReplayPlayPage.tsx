@@ -405,48 +405,6 @@ const ReplayPlayPage = () => {
                 <LineupAvatars showId={access.show_id} team={showMeta?.team || null} />
               </div>
             )}
-
-            {access.expires_at && (() => {
-              const exp = new Date(access.expires_at);
-              const msLeft = exp.getTime() - Date.now();
-              const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-              const hoursLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60)));
-              const isUrgent = daysLeft <= 2;
-              const sisaText =
-                daysLeft >= 1
-                  ? `${daysLeft} hari lagi`
-                  : `${hoursLeft} jam lagi`;
-              return (
-                <div
-                  className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-center ${
-                    isUrgent
-                      ? "border-destructive/40 bg-destructive/10"
-                      : "border-primary/30 bg-primary/5"
-                  }`}
-                >
-                  <div
-                    className={`flex items-center gap-1.5 text-xs font-semibold ${
-                      isUrgent ? "text-destructive" : "text-primary"
-                    }`}
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    Akses berlaku {sisaText}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Berakhir pada{" "}
-                    {exp.toLocaleString("id-ID", {
-                      weekday: "short",
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}{" "}
-                    WIB
-                  </p>
-                </div>
-              );
-            })()}
           </div>
         )}
       </div>
