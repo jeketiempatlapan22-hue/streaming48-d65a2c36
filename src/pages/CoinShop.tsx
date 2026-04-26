@@ -29,7 +29,8 @@ const CoinShop = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"buy" | "redeem" | "history">("buy");
   const [selectedPkg, setSelectedPkg] = useState<CoinPackage | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"phone" | "qris" | "upload" | "done">("phone");
+  const [purchaseStep, setPurchaseStep] = useState<"phone" | "qris" | "static" | "upload" | "done">("phone");
+  const [dynamicFailed, setDynamicFailed] = useState(false);
   const [buyerPhone, setBuyerPhone] = useState("");
   const [uploading, setUploading] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
