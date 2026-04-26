@@ -234,6 +234,7 @@ const ManualTokenGenerator = () => {
       tokenCode: code,
       durationLabel: durationInfo.label_h,
       customDescription,
+      maxDevices: md,
     });
 
     setGeneratedToken(code);
