@@ -190,7 +190,7 @@ const PurchaseModal = ({
   onClose, onConfirmRegular, onUploadProof, onSubmitSubscription, useDynamicQris = false,
 }: PurchaseModalProps) => {
   const galleryInputRef = useRef<HTMLInputElement>(null);
-  const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "done">("phone");
+  const [dynamicQrisStep, setDynamicQrisStep] = useState<"phone" | "qris" | "static" | "done">("phone");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUploadProof(e);
@@ -224,7 +224,31 @@ const PurchaseModal = ({
           )}
 
           {dynamicQrisStep === "qris" && (
-            <DynamicQrisView show={show} phone={phone} onClose={onClose} onDone={() => setDynamicQrisStep("done")} />
+            <DynamicQrisView
+              show={show}
+              phone={phone}
+              onClose={onClose}
+              onDone={() => setDynamicQrisStep("done")}
+              onFallbackStatic={() => setDynamicQrisStep("static")}
+            />
+          )}
+
+          {dynamicQrisStep === "static" && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                ℹ️ Anda menggunakan <strong>QRIS Statis</strong>. Setelah membayar, kirim bukti transfer ke admin via WhatsApp untuk dikonfirmasi (1-15 menit).
+              </div>
+              {show.qris_image_url ? (
+                <img src={show.qris_image_url} alt="QRIS Statis" className="mx-auto w-full max-w-sm rounded-lg object-contain" />
+              ) : (
+                <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                  QRIS Statis belum tersedia
+                </div>
+              )}
+              <Button onClick={onConfirmRegular} disabled={!phone.trim() || !show.qris_image_url} className="w-full gap-2 bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-primary-foreground">
+                <MessageCircle className="h-4 w-4" /> Kirim Bukti via WhatsApp ke Admin
+              </Button>
+            </div>
           )}
 
           {dynamicQrisStep === "done" && (
