@@ -238,6 +238,17 @@ Deno.serve(async (req) => {
           if (show.access_password) {
             waMessage += `🔐 *Sandi Replay:* ${show.access_password}\n`;
           }
+        } else if (!show?.is_bundle && !show?.is_subscription && !show?.is_replay) {
+          // Regular show — gunakan format standar baru
+          const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? " " + show.schedule_time : ""}` : "-";
+          waMessage = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${show?.title || "Show"}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *1*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${tokenCode}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
+          if (show?.access_password) {
+            waMessage += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
+          }
+          waMessage += `\n\n━━━━━━━━━━━━━━━━━━`;
+          // Skip default footer for this branch
+          await sendBuyerWhatsApp(subOrder.phone, waMessage);
+          return new Response(JSON.stringify({ success: true, confirmed: true, type: "show", token_code: tokenCode }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         } else {
           if (tokenCode) {
             waMessage += `\n🎫 *Token Akses:* ${tokenCode}\n`;

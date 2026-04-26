@@ -56,57 +56,27 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
-    // Format: "25 April 2026 pukul 19.00 WIB"
-    const formatExpiry = (iso: string | null) => {
-      if (!iso) return "-";
-      const d = new Date(iso);
-      const datePart = d.toLocaleDateString("id-ID", {
-        timeZone: "Asia/Jakarta",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-      const timePart = d
-        .toLocaleTimeString("id-ID", {
-          timeZone: "Asia/Jakarta",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-        .replace(":", ".");
-      return `${datePart} pukul ${timePart} WIB`;
-    };
-
-    const expDate = formatExpiry(params.expiresAt);
-
-    const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" • ");
-    const scheduleLine = scheduleParts ? `\n\n🗓️ Jadwal Show: *${scheduleParts} WIB*` : "";
-
-    // Tentukan link replay: jika show punya media internal → /replay-play, jika tidak → fallback lama
-    const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url || show.has_replay_media);
-    const replayLink = hasReplayMedia
-      ? `${REPLAY_BASE}?show=${encodeURIComponent(show.short_id || show.id)}${show.access_password ? `&password=${encodeURIComponent(show.access_password)}` : ""}`
-      : `https://replaytime.lovable.app`;
+    // Schedule string ("YYYY-MM-DD HH.MM") — tampil apa adanya seperti contoh user
+    const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" ");
+    const scheduleLine = scheduleParts || "-";
 
     let msg = `━━━━━━━━━━━━━━━━━━
 
-✅ *Token Reseller Berhasil Dibuat!*
+✅ *Token Berhasil Dibuat!*
 
 ━━━━━━━━━━━━━━━━━━
 
 
 
-🎬 Show: *${show.title}*${scheduleLine}
+🎬 Show: *${show.title}*
 
-🔑 Token: ${params.code}
+📅 Jadwal: ${scheduleLine}
 
 📱 Max Device: *${params.maxDevices}*
 
-⏰ Durasi: *${params.durationDays} hari*
 
-📅 Kedaluwarsa: ${expDate}
 
-📺 *Link Nonton:*
+📺 *Link Nonton LIVE & REPLAY:*
 
 ${params.link}
 
@@ -114,21 +84,21 @@ ${params.link}
 
 🔄 *Info Replay:*
 
-🔗 Link: ${replayLink}`;
+
+
+  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
+
+
+
+> ATAU GUNAKAN :
+
+> 🔗 Link: https://replaytime.lovable.app`;
 
     if (show.access_password) {
-      msg += `\n\n🔐 Sandi Replay: *${show.access_password}*`;
-    } else {
-      msg += `\n\nℹ️ Sandi replay belum diatur untuk show ini.`;
+      msg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
     }
 
-    if (hasReplayMedia) {
-      msg += `\n\n🎥 _Pemutar replay internal aktif — link di atas otomatis membuka video._`;
-    }
-
-    msg += `\n\n\n\n⚠️ _Jangan bagikan token/link ini ke orang lain._
-
-━━━━━━━━━━━━━━━━━━`;
+    msg += `\n\n━━━━━━━━━━━━━━━━━━`;
 
     return msg;
   };

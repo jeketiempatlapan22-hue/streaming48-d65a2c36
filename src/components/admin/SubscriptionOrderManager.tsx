@@ -34,6 +34,59 @@ interface SubscriptionOrderManagerProps {
   mode?: "membership" | "regular";
 }
 
+// Format pesan show reguler (non-membership, non-bundle, non-replay) sesuai standar baru.
+const buildRegularShowMessage = (params: {
+  showTitle: string;
+  scheduleDate?: string | null;
+  scheduleTime?: string | null;
+  tokenCode: string;
+  liveLink: string;
+  accessPassword?: string | null;
+  maxDevices?: number;
+}): string => {
+  const schedule = params.scheduleDate
+    ? `${params.scheduleDate}${params.scheduleTime ? " " + params.scheduleTime : ""}`
+    : "-";
+  let msg = `━━━━━━━━━━━━━━━━━━
+
+✅ *Token Berhasil Dibuat!*
+
+━━━━━━━━━━━━━━━━━━
+
+
+
+🎬 Show: *${params.showTitle}*
+
+📅 Jadwal: ${schedule}
+
+📱 Max Device: *${params.maxDevices ?? 1}*
+
+
+
+📺 *Link Nonton LIVE & REPLAY:*
+
+${params.liveLink}
+
+
+
+🔄 *Info Replay:*
+
+
+
+  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
+
+
+
+> ATAU GUNAKAN :
+
+> 🔗 Link: https://replaytime.lovable.app`;
+  if (params.accessPassword) {
+    msg += `\n\n> 🔐 Sandi Replay: ${params.accessPassword}`;
+  }
+  msg += `\n\n━━━━━━━━━━━━━━━━━━`;
+  return msg;
+};
+
 const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderManagerProps) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [shows, setShows] = useState<Record<string, ShowInfo>>({});
@@ -158,13 +211,15 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           message += `⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
           sendWhatsApp(order.phone, message);
         } else {
-          let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
-          if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
-          message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
-          if (showInfo.access_password) {
-            message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${replayUrl}\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
-          }
-          message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+          const message = buildRegularShowMessage({
+            showTitle: showInfo.title,
+            scheduleDate: showInfo.schedule_date,
+            scheduleTime: showInfo.schedule_time,
+            tokenCode: result.token_code,
+            liveLink,
+            accessPassword: showInfo.access_password,
+            maxDevices: 1,
+          });
           sendWhatsApp(order.phone, message);
         }
         toast({ title: `Order dikonfirmasi! Token: ${result.token_code} — WA dikirim` });
@@ -448,13 +503,15 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         } else if (result.token_code) {
           // Regular order
           const liveLink = `${siteUrl}/live?t=${result.token_code}`;
-          let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
-          if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
-          message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
-          if (showInfo.access_password) {
-            message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${replayUrl}\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
-          }
-          message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+          const message = buildRegularShowMessage({
+            showTitle: showInfo.title,
+            scheduleDate: showInfo.schedule_date,
+            scheduleTime: showInfo.schedule_time,
+            tokenCode: result.token_code,
+            liveLink,
+            accessPassword: showInfo.access_password,
+            maxDevices: 1,
+          });
           sendWhatsApp(newOrder.phone.trim(), message);
         }
       }
@@ -531,13 +588,15 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
               message += `\n✨ Akses *semua show* selama masa aktif.\n⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
               sendWhatsApp(order.phone, message);
             } else {
-              let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
-              if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
-              message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
-              if (showInfo.access_password) {
-                message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${siteUrl}/replay\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
-              }
-              message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+              const message = buildRegularShowMessage({
+                showTitle: showInfo.title,
+                scheduleDate: showInfo.schedule_date,
+                scheduleTime: showInfo.schedule_time,
+                tokenCode: result.token_code,
+                liveLink,
+                accessPassword: showInfo.access_password,
+                maxDevices: 1,
+              });
               sendWhatsApp(order.phone, message);
             }
           } else if (!result.token_code && order?.phone && showInfo) {
