@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRestreamSignedStreamUrl } from "@/hooks/useRestreamSignedStreamUrl";
+import { useProxyStream } from "@/hooks/useProxyStream";
 import PlaylistSwitcher from "@/components/viewer/PlaylistSwitcher";
-import { Tv2, AlertCircle, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import { Tv2, AlertCircle, Loader2, Maximize2, Minimize2, LogOut, RefreshCw } from "lucide-react";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
 
@@ -18,6 +20,29 @@ interface Playlist {
 }
 
 const STORAGE_KEY = "rt48_restream_code_v1";
+
+const PlayerError = ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
+  <div className="flex aspect-video items-center justify-center bg-card px-6 text-center">
+    <div className="space-y-3">
+      <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
+      <p className="text-sm text-destructive">{message}</p>
+      {onRetry && (
+        <Button size="sm" variant="outline" onClick={onRetry} className="gap-1.5">
+          <RefreshCw className="h-3.5 w-3.5" /> Coba lagi
+        </Button>
+      )}
+    </div>
+  </div>
+);
+
+const PlayerLoading = ({ label = "Menyiapkan player..." }: { label?: string }) => (
+  <div className="flex aspect-video items-center justify-center bg-card">
+    <div className="flex flex-col items-center gap-2">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <p className="text-sm text-muted-foreground">{label}</p>
+    </div>
+  </div>
+);
 
 const RestreamPage = () => {
   const [params, setParams] = useSearchParams();
@@ -33,6 +58,12 @@ const RestreamPage = () => {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [externalShowId, setExternalShowId] = useState<string | null>(null);
+  const [proxyShowError, setProxyShowError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const isProxy = activePlaylist?.type === "proxy";
+  const isDirect = activePlaylist?.type === "direct";
 
   const validateAndLoad = useCallback(async (codeToCheck: string) => {
     if (!codeToCheck) { setValidated(false); return; }
@@ -50,7 +81,6 @@ const RestreamPage = () => {
       setValidated(true);
       try { localStorage.setItem(STORAGE_KEY, codeToCheck); } catch {}
 
-      // Load playlists for this code
       setLoadingPlaylists(true);
       const { data: pls, error: plErr } = await (supabase as any).rpc("get_restream_playlists", { _code: codeToCheck });
       setLoadingPlaylists(false);
@@ -73,42 +103,84 @@ const RestreamPage = () => {
     }
   }, []);
 
-  // Initial validation if code already present
   useEffect(() => {
     if (code) validateAndLoad(code);
     else setValidated(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSubmitCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    const c = inputCode.trim();
-    if (!c) return;
-    setCode(c);
-    setParams({ code: c }, { replace: true });
-    validateAndLoad(c);
-  };
+  // Fetch active show external_show_id when proxy playlist is selected
+  useEffect(() => {
+    if (!isProxy) {
+      setProxyShowError(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await (supabase as any).rpc("get_active_show_external_id");
+        if (cancelled) return;
+        if (error) {
+          setProxyShowError("Gagal mengambil informasi show aktif.");
+          setExternalShowId(null);
+          return;
+        }
+        if (!data) {
+          setProxyShowError("Belum ada show aktif yang dipilih admin. Player IDN tidak bisa diputar saat ini.");
+          setExternalShowId(null);
+        } else {
+          setProxyShowError(null);
+          setExternalShowId(String(data));
+        }
+      } catch {
+        if (!cancelled) {
+          setProxyShowError("Tidak bisa terhubung ke server.");
+          setExternalShowId(null);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isProxy, refreshKey]);
 
-  // ── Player URL (only for validated state) ──
-  const isProxy = activePlaylist?.type === "proxy";
-  const isDirect = activePlaylist?.type === "direct";
+  // Server-side signed URL for m3u8 / youtube / cloudflare (NOT for proxy/direct)
   const { signedUrl, loading: urlLoading, error: urlError, proxyType } =
     useRestreamSignedStreamUrl(
-      validated && activePlaylist && !isDirect ? activePlaylist : null,
-      code
+      validated && activePlaylist && !isDirect && !isProxy ? activePlaylist : null,
+      code,
+      refreshKey
     );
 
-  const effectiveUrl = isDirect ? activePlaylist?.url : signedUrl;
-  const effectiveType = isDirect ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+  // Client-side proxy header injection (Hanabira / IDN)
+  const {
+    playbackUrl: proxyUrl,
+    customHeadersRef: proxyHeadersRef,
+    loading: proxyLoading,
+    error: proxyError,
+  } = useProxyStream(isProxy, externalShowId, refreshKey);
 
-  // ── Fullscreen handling ──
+  const effectiveUrl = isDirect
+    ? activePlaylist?.url
+    : isProxy
+      ? proxyUrl
+      : signedUrl;
+  const effectiveLoading = isDirect
+    ? false
+    : isProxy
+      ? proxyLoading
+      : urlLoading;
+  const effectiveError = isDirect
+    ? null
+    : isProxy
+      ? (proxyShowError || proxyError)
+      : urlError;
+  const effectiveType = (isDirect || isProxy) ? "m3u8" : (proxyType || activePlaylist?.type || "m3u8");
+
+  // Fullscreen handling
   const playerWrapRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
-    const onChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
@@ -121,10 +193,29 @@ const RestreamPage = () => {
       } else {
         if (document.exitFullscreen) await document.exitFullscreen();
       }
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   }, []);
+
+  const handleSubmitCode = (e: React.FormEvent) => {
+    e.preventDefault();
+    const c = inputCode.trim();
+    if (!c) return;
+    setCode(c);
+    setParams({ code: c }, { replace: true });
+    validateAndLoad(c);
+  };
+
+  const handleLogoutCode = () => {
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    setCode("");
+    setValidated(false);
+    setPlaylists([]);
+    setActivePlaylist(null);
+    setExternalShowId(null);
+    setParams({}, { replace: true });
+  };
+
+  const handleRetry = () => setRefreshKey((k) => k + 1);
 
   // ── UI: code gate ──
   if (validated !== true) {
@@ -162,65 +253,97 @@ const RestreamPage = () => {
     );
   }
 
-  // ── UI: validated — clean fullscreen player ──
+  // ── UI: validated — Monitor-style card layout ──
   return (
-    <div className="fixed inset-0 bg-black flex flex-col">
-      {/* Player area */}
-      <div ref={playerWrapRef} className="flex-1 relative bg-black group">
-        {loadingPlaylists ? (
-          <div className="absolute inset-0 flex items-center justify-center text-white/70">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : playlists.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm px-6 text-center">
-            Belum ada playlist yang diaktifkan untuk halaman restream. Hubungi admin.
-          </div>
-        ) : urlLoading ? (
-          <div className="absolute inset-0 flex items-center justify-center text-white/70">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : urlError ? (
-          <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm px-6 text-center">
+    <div className="min-h-screen bg-background p-3 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-5xl space-y-6">
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Tv2 className="h-5 w-5 text-primary" />
             <div>
-              <AlertCircle className="h-6 w-6 mx-auto mb-2 text-destructive" />
-              <p>{urlError}</p>
+              <h1 className="text-xl font-bold text-foreground">Halaman Restream</h1>
+              <p className="text-xs text-muted-foreground">Player bersih untuk partner — tanpa chat, poll, atau quiz.</p>
             </div>
           </div>
-        ) : effectiveUrl && activePlaylist ? (
-          <Suspense fallback={<div className="absolute inset-0 flex items-center justify-center text-white/70"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
-            <VideoPlayer
-              playlist={{ type: effectiveType, url: effectiveUrl, label: activePlaylist.title }}
-              autoPlay
-            />
-          </Suspense>
-        ) : null}
-
-        {/* Fullscreen toggle */}
-        {playlists.length > 0 && (
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            aria-label={isFullscreen ? "Keluar layar penuh" : "Layar penuh"}
-            className="absolute top-3 right-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white backdrop-blur-sm border border-white/15 opacity-80 hover:opacity-100 transition"
-          >
-            {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
-          </button>
-        )}
-      </div>
-
-      {/* Switcher only when more than one playlist (hidden in fullscreen for clean view) */}
-      {playlists.length > 1 && !isFullscreen && (
-        <div className="bg-black/80 backdrop-blur-sm border-t border-white/10 px-3 py-2">
-          <PlaylistSwitcher
-            playlists={playlists.map((p) => ({ id: p.id, title: p.title, type: p.type }))}
-            activePlaylistId={activePlaylist?.id}
-            onSelect={(p) => {
-              const full = playlists.find((x) => x.id === p.id);
-              if (full) setActivePlaylist(full);
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={handleRetry} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleLogoutCode} className="gap-1.5 text-muted-foreground hover:text-destructive">
+              <LogOut className="h-3.5 w-3.5" /> Keluar
+            </Button>
+          </div>
         </div>
-      )}
+
+        {/* Player card */}
+        <div className="rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-3 py-2 sm:px-4 sm:py-3">
+            <p className="text-sm font-semibold text-foreground">Preview Player</p>
+            <p className="text-xs text-muted-foreground">
+              Pilih server/resolusi di bawah. Mendukung IDN (Hanabira), Resolusi A & B.
+            </p>
+          </div>
+
+          <div className="p-1.5 sm:p-2">
+            <div ref={playerWrapRef} className="relative rounded-xl border border-border overflow-hidden bg-black group">
+              <ErrorBoundary fallback={<PlayerError message="Player gagal dimuat." onRetry={handleRetry} />}>
+                {loadingPlaylists ? (
+                  <PlayerLoading label="Memuat daftar player..." />
+                ) : playlists.length === 0 ? (
+                  <PlayerError message="Belum ada playlist yang diaktifkan untuk halaman restream. Hubungi admin." />
+                ) : !activePlaylist ? (
+                  <PlayerError message="Tidak ada playlist aktif." />
+                ) : effectiveError ? (
+                  <PlayerError message={effectiveError} onRetry={handleRetry} />
+                ) : effectiveUrl ? (
+                  <Suspense fallback={<PlayerLoading />}>
+                    <VideoPlayer
+                      key={`${activePlaylist.id}-${activePlaylist.type}-${refreshKey}`}
+                      playlist={{ type: effectiveType, url: effectiveUrl, label: activePlaylist.title }}
+                      autoPlay
+                      customHeadersRef={isProxy ? proxyHeadersRef : undefined}
+                    />
+                  </Suspense>
+                ) : effectiveLoading ? (
+                  <PlayerLoading />
+                ) : (
+                  <PlayerError message="Player belum tersedia." onRetry={handleRetry} />
+                )}
+
+                {/* Fullscreen toggle */}
+                {playlists.length > 0 && effectiveUrl && (
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    aria-label={isFullscreen ? "Keluar layar penuh" : "Layar penuh"}
+                    className="absolute top-3 right-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 hover:bg-black/75 text-white backdrop-blur-sm border border-white/15 opacity-80 hover:opacity-100 transition"
+                  >
+                    {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                  </button>
+                )}
+              </ErrorBoundary>
+            </div>
+          </div>
+
+          {/* Switcher */}
+          {playlists.length > 0 && (
+            <div className="border-t border-border px-2 py-2 sm:px-3 sm:py-3">
+              <PlaylistSwitcher
+                playlists={playlists.map((p) => ({ id: p.id, title: p.title, type: p.type }))}
+                activePlaylistId={activePlaylist?.id ?? null}
+                onSelect={(p) => {
+                  const full = playlists.find((x) => x.id === p.id);
+                  if (full) {
+                    setActivePlaylist(full);
+                    if (full.type === "proxy") setRefreshKey((k) => k + 1);
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
