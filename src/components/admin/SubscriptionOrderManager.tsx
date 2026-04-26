@@ -211,13 +211,15 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
           message += `⚠️ Token berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
           sendWhatsApp(order.phone, message);
         } else {
-          let message = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showInfo.title}*\n`;
-          if (showInfo.schedule_date) message += `📅 Jadwal: ${showInfo.schedule_date}${showInfo.schedule_time ? " " + showInfo.schedule_time : ""}\n`;
-          message += `🎫 Token: \`${result.token_code}\`\n📺 Link Nonton: ${liveLink}\n`;
-          if (showInfo.access_password) {
-            message += `\n🔄 *Akses Replay:*\n🔗 Link Replay: ${replayUrl}\n🔑 Sandi Replay: \`${showInfo.access_password}\`\n`;
-          }
-          message += `\n⚠️ Token hanya berlaku untuk *1 perangkat*.\nTerima kasih! 🎉`;
+          const message = buildRegularShowMessage({
+            showTitle: showInfo.title,
+            scheduleDate: showInfo.schedule_date,
+            scheduleTime: showInfo.schedule_time,
+            tokenCode: result.token_code,
+            liveLink,
+            accessPassword: showInfo.access_password,
+            maxDevices: 1,
+          });
           sendWhatsApp(order.phone, message);
         }
         toast({ title: `Order dikonfirmasi! Token: ${result.token_code} — WA dikirim` });
