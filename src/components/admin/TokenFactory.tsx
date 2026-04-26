@@ -64,7 +64,13 @@ const TokenFactory = () => {
       supabase.from("tokens").select("*").not("code", "like", "COIN-%").order("created_at", { ascending: false }),
       supabase.from("tokens").select("*").like("code", "COIN-%").order("created_at", { ascending: false }),
     ]);
-    setTokens(manualRes.data || []);
+    const allManual = manualRes.data || [];
+    // Split membership tokens into their own bucket so they cannot be bulk-deleted
+    // alongside generic daily/weekly/monthly/custom tokens.
+    const memberships = allManual.filter(isMembershipToken);
+    const regular = allManual.filter((t: any) => !isMembershipToken(t));
+    setTokens(regular);
+    setMembershipTokens(memberships);
     setCoinTokens(coinRes.data || []);
     const { data: sessData } = await supabase.from("token_sessions").select("token_id").eq("is_active", true);
     if (sessData) {
