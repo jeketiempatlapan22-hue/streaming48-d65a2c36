@@ -1023,6 +1023,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     if (playlistType !== "m3u8") return;
     watchStartRef.current = Date.now();
     const id = setInterval(() => {
+      if (document.hidden) return;
       const video = videoRef.current;
       const hls = hlsRef.current;
       if (!video) return;
@@ -1045,7 +1046,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       } else if (video.buffered.length > 0) {
         setLiveEdge(video.buffered.end(video.buffered.length - 1));
       }
-    }, 500);
+    }, 1000);
 
     return () => clearInterval(id);
   }, [playlistType]);
