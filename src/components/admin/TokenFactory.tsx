@@ -41,7 +41,7 @@ const TokenFactory = () => {
   const [isPublic, setIsPublic] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Record<TabKey, Set<string>>>({
-    daily: new Set(), weekly: new Set(), monthly: new Set(), custom: new Set(), coin: new Set(),
+    daily: new Set(), weekly: new Set(), monthly: new Set(), custom: new Set(), coin: new Set(), membership: new Set(),
   });
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "expired">("all");
   const [activeTab, setActiveTab] = useState<TabKey>("daily");
