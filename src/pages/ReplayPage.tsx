@@ -352,8 +352,18 @@ const ReplayPage = () => {
             <p className="mt-2 text-sm text-muted-foreground">Show yang sudah selesai akan muncul di sini</p>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredShows.map((show, i) => {
+          <div className="space-y-10">
+            {groupedShows.map(([monthKey, showsInMonth]) => (
+              <section key={monthKey}>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+                  <h2 className="rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-bold text-primary">
+                    🗓️ {monthLabel(monthKey)}
+                  </h2>
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+                </div>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {showsInMonth.map((show, i) => {
               const hasRealPassword = replayPasswords[show.id] && replayPasswords[show.id] !== "__purchased__";
               const hasPurchased = !!replayPasswords[show.id];
               return (
