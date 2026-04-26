@@ -1928,6 +1928,21 @@ async function handleCreateTokenCommand(supabase: any, botToken: string, chatId:
     });
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
 
+    // Show REGULER (bukan membership / bukan bundle) → format pesan standar terbaru
+    if (!show.is_subscription && !show.is_bundle) {
+      const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
+      const waMsg = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      // Kirim ke Telegram tanpa MarkdownV2 supaya separator dan format apa adanya
+      await sendTelegramMessage(botToken, chatId, waMsg);
+      return;
+    }
+
     let msg = `✅ *Token Berhasil Dibuat\\!*\n\n` +
       `🎬 Show: *${escapeMarkdown(show.title)}*\n` +
       `📅 Jadwal: ${escapeMarkdown(schedule)}\n` +
