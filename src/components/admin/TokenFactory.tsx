@@ -18,7 +18,17 @@ const DURATION_TABS = [
 ] as const;
 
 type DurationKey = "daily" | "weekly" | "monthly" | "custom";
-type TabKey = DurationKey | "coin";
+type TabKey = DurationKey | "coin" | "membership";
+
+// Membership tokens are kept in a SEPARATE tab so they can't be accidentally
+// bulk-deleted alongside generic daily/weekly tokens. Detection by code prefix
+// AND duration_type to handle legacy rows.
+const isMembershipToken = (t: any): boolean => {
+  if (!t) return false;
+  if (t.duration_type === "membership") return true;
+  const code = String(t.code || "").toUpperCase();
+  return code.startsWith("MBR-") || code.startsWith("MRD-");
+};
 
 const TokenFactory = () => {
   const [tokens, setTokens] = useState<any[]>([]);
