@@ -2406,6 +2406,18 @@ async function handleGiveTokenWa(supabase: any, usernameInput: string, showInput
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
     const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
+    // Show REGULER → format pesan standar terbaru, dengan info penerima di bagian atas
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+      return `👤 Diberikan ke: *${profile.username || 'Unknown'}*\n\n${base}`;
+    }
+
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Diberikan ke User!*\n━━━━━━━━━━━━━━━━━━\n\n👤 User: *${profile.username || 'Unknown'}*\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
     if (show.is_subscription) {
       msg += `\n👑 Durasi Membership: *${show.membership_duration_days || 30} hari*`;
