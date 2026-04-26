@@ -158,6 +158,30 @@ Deno.serve(async (req) => {
       }
 
       const siteUrl = "realtime48stream.my.id";
+      const hasReplayMedia = !!(show?.replay_m3u8_url || show?.replay_youtube_url);
+      const replayLinkInternal = (code: string) => `https://${siteUrl}/replay-play?token=${code}`;
+      const replayLinkFallback = "https://replaytime.lovable.app";
+      const replayLinkFor = (code: string | null) =>
+        hasReplayMedia && code ? replayLinkInternal(code) : replayLinkFallback;
+
+      // Jika show sudah replay & punya token + media internal, buat entri replay_tokens
+      // agar token bisa dipakai di /replay-play tanpa perlu pakai sandi.
+      if (show?.is_replay && tokenCode) {
+        try {
+          await supabase.from("replay_tokens" as any).insert({
+            code: tokenCode,
+            show_id: subOrder.show_id,
+            password: show.access_password || null,
+            expires_at: expiresAt,
+            created_via: "qris",
+            user_id: subOrder.user_id || null,
+            phone: subOrder.phone || null,
+            source_token_code: tokenCode,
+          });
+        } catch (e) {
+          console.warn("replay_tokens insert (qris) skipped:", (e as any)?.message);
+        }
+      }
 
       // Send Telegram notification
       const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
