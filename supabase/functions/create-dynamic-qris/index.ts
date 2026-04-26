@@ -162,35 +162,49 @@ Deno.serve(async (req) => {
     }
 
     // Call Pak Kasir API — uses "project" field (not "merchant_code")
-    // Add 12s timeout so client never hangs on slow upstream
-    const ac = new AbortController();
-    const timeoutId = setTimeout(() => ac.abort(), 12_000);
+    // Try up to 2 attempts (timeout 22s each) so transient slowness doesn't fail UX
+    const callPakasir = async (timeoutMs: number): Promise<{ res: Response; data: any }> => {
+      const ac = new AbortController();
+      const tid = setTimeout(() => ac.abort(), timeoutMs);
+      try {
+        const r = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: PAKASIR_API_KEY,
+            project: PAKASIR_MERCHANT_CODE,
+            amount: finalAmount,
+            order_id: shortId,
+          }),
+          signal: ac.signal,
+        });
+        const d = await r.json().catch(() => ({}));
+        return { res: r, data: d };
+      } finally {
+        clearTimeout(tid);
+      }
+    };
+
     let pakasirRes: Response;
     let pakasirData: any;
     try {
-      pakasirRes = await fetch("https://app.pakasir.com/api/transactioncreate/qris", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: PAKASIR_API_KEY,
-          project: PAKASIR_MERCHANT_CODE,
-          amount: finalAmount,
-          order_id: shortId,
-        }),
-        signal: ac.signal,
-      });
-      pakasirData = await pakasirRes.json().catch(() => ({}));
+      try {
+        ({ res: pakasirRes, data: pakasirData } = await callPakasir(22_000));
+      } catch (firstErr: any) {
+        // Retry once on network/abort errors
+        console.warn("Pakasir attempt 1 failed:", firstErr?.name || firstErr?.message);
+        await new Promise((r) => setTimeout(r, 800));
+        ({ res: pakasirRes, data: pakasirData } = await callPakasir(22_000));
+      }
     } catch (e: any) {
-      clearTimeout(timeoutId);
       // Rollback the order so retries don't pile up
       await supabase.from(orderTable).delete().eq("id", orderId);
       const isAbort = e?.name === "AbortError";
       const msg = isAbort
-        ? "Server pembayaran lambat merespons. Silakan coba lagi sebentar."
-        : "Tidak dapat menghubungi server pembayaran. Coba lagi.";
-      return new Response(JSON.stringify({ error: msg }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        ? "Server QRIS lambat merespons. Silakan coba QRIS Statis sebagai cadangan."
+        : "Tidak dapat menghubungi server QRIS. Silakan coba QRIS Statis sebagai cadangan.";
+      return new Response(JSON.stringify({ error: msg, fallback_to_static: true }), { status: 504, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    clearTimeout(timeoutId);
     console.log("Pakasir response:", JSON.stringify(pakasirData));
 
     // Extract QR string from response — Pakasir returns it in payment.payment_number
