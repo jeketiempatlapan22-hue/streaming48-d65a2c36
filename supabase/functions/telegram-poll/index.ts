@@ -2090,6 +2090,32 @@ async function handleBulkTokenCommand(supabase: any, botToken: string, chatId: s
       minute: '2-digit'
     });
 
+    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+    const liveLinkSample = `https://realtime48stream.my.id/live?t=${tokens[0].code}`;
+
+    // Show REGULER → tampilkan template pesan standar + daftar token (plain)
+    if (!show.is_subscription && !show.is_bundle) {
+      const base = buildRegularShowMessageWa({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink: liveLinkSample,
+        replayPassword: show.access_password,
+      });
+
+      const chunkSize = 30;
+      const allCodes = tokens.map((t: any) => t.code);
+      const firstList = allCodes.slice(0, chunkSize).join('\n');
+      const header = `📋 ${count} Token Berhasil Dibuat\n\n${base}\n\n🔑 Daftar Token:\n${firstList}`;
+      await sendTelegramMessage(botToken, chatId, header);
+
+      for (let i = chunkSize; i < allCodes.length; i += chunkSize) {
+        const part = allCodes.slice(i, i + chunkSize).join('\n');
+        await sendTelegramMessage(botToken, chatId, `🔑 Token (lanjutan):\n${part}`);
+      }
+      return;
+    }
+
     let msg = `✅ *${count} Token Berhasil Dibuat\\!*\n\n`;
     msg += `🎬 Show: *${escapeMarkdown(show.title)}*\n`;
     msg += `📱 Max Device: *${maxDevices}*\n`;
