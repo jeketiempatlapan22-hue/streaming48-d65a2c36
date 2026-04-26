@@ -440,6 +440,7 @@ const CoinShop = () => {
                 <div className="flex flex-col items-center gap-3 py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">Membuat QRIS...</p>
+                  <p className="text-[10px] text-muted-foreground">Mohon tunggu, ini bisa memakan waktu hingga 25 detik.</p>
                 </div>
               ) : dynamicPaid ? (
                 <div className="space-y-3 text-center py-4">
@@ -457,17 +458,34 @@ const CoinShop = () => {
                     <Loader2 className="h-3 w-3 animate-spin" />
                     Menunggu pembayaran...
                   </div>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full text-xs" onClick={switchToStaticQris}>
+                      📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
+                    </Button>
+                  )}
                 </>
               ) : (
-                <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
-                  QRIS gagal dimuat. Coba lagi.
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+                    QRIS dinamis gagal dimuat.
+                  </div>
+                  <Button className="w-full" onClick={handleStartDynamicQris}>🔄 Coba Lagi QRIS Dinamis</Button>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full" onClick={switchToStaticQris}>
+                      📷 Gunakan QRIS Statis (cadangan)
+                    </Button>
+                  )}
+                  <p className="text-[10px] text-center text-muted-foreground">QRIS Statis perlu konfirmasi admin (1-15 menit)</p>
                 </div>
               )}
             </div>
           )}
 
-          {purchaseStep === "qris" && !useDynamicQris && (
+          {(purchaseStep === "static" || (purchaseStep === "qris" && !useDynamicQris)) && (
             <div className="space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+                ℹ️ Anda menggunakan <strong>QRIS Statis</strong>. Setelah membayar, upload bukti transfer untuk dikonfirmasi admin.
+              </div>
               {selectedPkg?.qris_image_url ? (
                 <img src={selectedPkg.qris_image_url} alt="QRIS" className="mx-auto w-64 rounded-lg" />
               ) : (
