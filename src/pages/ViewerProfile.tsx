@@ -339,7 +339,7 @@ const ViewerProfile = () => {
         {/* Tabs */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <div className="flex rounded-lg glass p-1 gap-0.5 overflow-x-auto">
-            {([["history", "Riwayat", Receipt], ["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
+            {([["history", "Riwayat", Receipt], ["orders", "Order", History], ["subscriptions", "Langganan", Ticket], ["tokens", "Token", Key], ["membership", "Membership", Crown], ["stats", "Statistik", BarChart3]] as const).map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key as any)} className={`flex-1 min-w-[60px] flex items-center justify-center gap-1 rounded-md py-2 text-[10px] font-medium transition-all active:scale-[0.97] ${tab === key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Icon className="h-3 w-3" />{label}
               </button>
