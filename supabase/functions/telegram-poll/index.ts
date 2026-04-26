@@ -697,12 +697,15 @@ async function processSubscriptionOrder(supabase: any, botToken: string, chatId:
             waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih telah membeli!_ 🙏`;
             await sendFonnteWhatsApp(order.phone, waMsg);
           } else {
-            // Regular show: send live link + token + replay info
-            let waMsg = `✅ *Pesanan Dikonfirmasi!*\n\n🎭 Show: *${showTitle}*\n🎫 Token: ${result.token_code}\n📺 Link Nonton: ${liveLink}\n`;
-            if (show?.access_password) {
-              waMsg += `\n🔄 *Akses Replay:*\n🔗 Link Replay: https://replaytime.lovable.app\n🔑 Sandi: ${show.access_password}\n`;
-            }
-            waMsg += `\n⚠️ Token hanya berlaku untuk *1 perangkat*. Jangan bagikan link ini.\n\nTerima kasih! 🎉`;
+            // Regular show: format pesan standar terbaru (info live + replay 14 hari)
+            const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+            const waMsg = buildRegularShowMessageWa({
+              showTitle: showTitle,
+              schedule,
+              maxDevices: 1,
+              liveLink,
+              replayPassword: show?.access_password,
+            });
             await sendFonnteWhatsApp(order.phone, waMsg);
           }
         } else if (result.type === 'subscription') {
