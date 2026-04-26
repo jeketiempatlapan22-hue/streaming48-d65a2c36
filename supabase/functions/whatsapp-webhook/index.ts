@@ -2339,6 +2339,17 @@ async function handleCreateTokenWa(supabase: any, showInput: string, maxDevices:
     const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
     const liveLink = `https://realtime48stream.my.id/live?t=${code}`;
 
+    // Show REGULER (bukan membership / bukan bundle) → gunakan format pesan standar terbaru
+    if (!show.is_subscription && !show.is_bundle) {
+      return buildRegularShowMessage({
+        showTitle: show.title,
+        schedule,
+        maxDevices,
+        liveLink,
+        replayPassword: show.access_password,
+      });
+    }
+
     let msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Berhasil Dibuat!*\n━━━━━━━━━━━━━━━━━━\n\n🎬 Show: *${show.title}*\n📅 Jadwal: ${schedule}\n\n🔑 *Token:* ${code}\n📱 Max Device: *${maxDevices}*\n⏰ Kedaluwarsa: ${expDate}`;
     if (show.is_subscription) {
       msg += `\n👑 Durasi Membership: *${show.membership_duration_days || 30} hari*`;
