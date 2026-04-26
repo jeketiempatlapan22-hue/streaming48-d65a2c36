@@ -253,12 +253,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           >
             <Wifi className="h-3 w-3" /> {adaptive ? "AUTO" : "MAX"}
           </button>
-          {!adaptive && currentQuality !== "hd1080" && (
+          {!adaptive && currentQuality !== MAX_QUALITY && (
             <button
               onClick={resetToMaxQuality}
-              className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold"
+              className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold transition hover:bg-white/20"
             >
-              4K
+              1080p
             </button>
           )}
           <button onClick={enterFullscreen} aria-label="Fullscreen">
