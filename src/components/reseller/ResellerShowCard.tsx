@@ -56,29 +56,7 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
-    // Format: "25 April 2026 pukul 19.00 WIB"
-    const formatExpiry = (iso: string | null) => {
-      if (!iso) return "-";
-      const d = new Date(iso);
-      const datePart = d.toLocaleDateString("id-ID", {
-        timeZone: "Asia/Jakarta",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      });
-      const timePart = d
-        .toLocaleTimeString("id-ID", {
-          timeZone: "Asia/Jakarta",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-        .replace(":", ".");
-      return `${datePart} pukul ${timePart} WIB`;
-    };
-
-    const expDate = formatExpiry(params.expiresAt);
-
+    // Schedule string ("YYYY-MM-DD HH.MM") — tampil apa adanya seperti contoh user
     const scheduleParts = [show.schedule_date, show.schedule_time].filter(Boolean).join(" ");
     const scheduleLine = scheduleParts || "-";
 
