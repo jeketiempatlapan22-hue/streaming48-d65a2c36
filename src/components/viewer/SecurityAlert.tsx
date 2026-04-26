@@ -7,17 +7,24 @@ const SecurityAlert = forwardRef<HTMLDivElement>((_, ref) => {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("security-alerts")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "security_events" }, (payload: any) => {
-        const evt = payload.new;
-        if (evt && (evt.severity === "critical" || evt.severity === "high")) {
-          setAlert({ description: evt.description, severity: evt.severity });
-          setDismissed(false);
-        }
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel("security-alerts")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "security_events" }, (payload: any) => {
+          const evt = payload.new;
+          if (evt && (evt.severity === "critical" || evt.severity === "high")) {
+            setAlert({ description: evt.description, severity: evt.severity });
+            setDismissed(false);
+          }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("[SecurityAlert] subscribe failed:", e);
+    }
+    return () => {
+      try { if (channel) supabase.removeChannel(channel); } catch {}
+    };
   }, []);
 
   if (!alert || dismissed) return null;
