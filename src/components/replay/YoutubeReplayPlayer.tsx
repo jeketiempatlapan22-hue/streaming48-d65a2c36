@@ -43,6 +43,8 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [muted, setMuted] = useState(false);
   const [currentQuality, setCurrentQuality] = useState<string>("hd1080");
   const [adaptive, setAdaptive] = useState(true);
+  const [switching, setSwitching] = useState<string | null>(null); // label kualitas saat transisi
+  const switchingTimerRef = useRef<number | null>(null);
 
   // Buffering tracking — drop quality if buffering > 3s
   const bufferingSinceRef = useRef<number | null>(null);
@@ -76,8 +78,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     qualityIndexRef.current += 1;
     lastDowngradeRef.current = now;
     const next = QUALITY_LADDER[qualityIndexRef.current];
+
+    // Smooth transition: tampilkan overlay singkat, set kualitas, lalu auto-resume play
+    setSwitching(qualityLabel(next));
     setQuality(next);
-  }, [setQuality]);
+    // Pastikan playback tidak macet pasca-switch
+    setTimeout(() => post("playVideo"), 250);
+    if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
+    switchingTimerRef.current = window.setTimeout(() => {
+      setSwitching(null);
+      // Reset baseline buffering supaya watcher tidak langsung downgrade lagi
+      bufferingSinceRef.current = null;
+    }, 1200);
+  }, [setQuality, post]);
 
   // Lazy YT IFrame API for state events (muted/playing/buffering/quality)
   useEffect(() => {
@@ -142,11 +155,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     // Adaptive watcher: every 1s, if buffering >3s and adaptive on, downgrade
     const watcher = setInterval(() => {
       if (!adaptive) return;
+      // Jangan downgrade saat masih dalam transisi
+      if (switchingTimerRef.current) return;
       const since = bufferingSinceRef.current;
       if (since && Date.now() - since > 3000) {
         downgradeOneStep();
-        // Reset baseline so next downgrade waits another 3s of continuous buffering
-        bufferingSinceRef.current = Date.now();
+        // Baseline buffering akan di-reset oleh downgradeOneStep setelah transisi selesai
       }
     }, 1000);
 
@@ -154,6 +168,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       window.removeEventListener("message", onMessage);
       clearTimeout(sub);
       clearInterval(watcher);
+      if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
   }, [src, adaptive, downgradeOneStep]);
 
@@ -202,6 +217,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         aria-hidden
       />
 
+      {/* Smooth transition overlay saat menurunkan resolusi (z-15, di antara click overlay & controls) */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-[15] flex items-center justify-center bg-black/55 backdrop-blur-sm transition-opacity duration-500 ${
+          switching ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden={!switching}
+      >
+        <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white animate-fade-in">
+          <Wifi className="h-3.5 w-3.5 animate-pulse" />
+          Menyesuaikan kualitas{switching ? ` → ${switching}` : "..."}
+        </div>
+      </div>
+
       {/* Custom controls (z-20) */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 flex items-center justify-between text-white">
         <div className="flex items-center gap-3">
@@ -225,12 +253,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           >
             <Wifi className="h-3 w-3" /> {adaptive ? "AUTO" : "MAX"}
           </button>
-          {!adaptive && currentQuality !== "hd1080" && (
+          {!adaptive && currentQuality !== MAX_QUALITY && (
             <button
               onClick={resetToMaxQuality}
-              className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold"
+              className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold transition hover:bg-white/20"
             >
-              4K
+              1080p
             </button>
           )}
           <button onClick={enterFullscreen} aria-label="Fullscreen">
