@@ -300,6 +300,49 @@ const ReplayPlayPage = () => {
               </div>
             </div>
 
+            {/* Info akses replay 14 hari — di atas player agar langsung terlihat */}
+            {access.expires_at && (() => {
+              const exp = new Date(access.expires_at);
+              const msLeft = exp.getTime() - Date.now();
+              const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+              const hoursLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60)));
+              const isUrgent = daysLeft <= 2;
+              const sisaText = daysLeft >= 1 ? `${daysLeft} hari` : `${hoursLeft} jam`;
+              const isUpgraded = access.access_via === "live_token_upgrade";
+              return (
+                <div
+                  className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
+                    isUrgent
+                      ? "border-destructive/40 bg-destructive/10"
+                      : "border-primary/30 bg-primary/5"
+                  }`}
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                      isUrgent ? "bg-destructive/20 text-destructive" : "bg-primary/20 text-primary"
+                    }`}
+                  >
+                    <Clock className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-xs font-bold ${isUrgent ? "text-destructive" : "text-primary"}`}>
+                      Akses Replay 14 Hari{isUpgraded ? " • Otomatis Diperpanjang" : ""}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Sisa <strong>{sisaText}</strong> • Berakhir{" "}
+                      {exp.toLocaleString("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      WIB
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Selector sumber tonton — di atas player */}
             {hasBoth && (
               <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1.5">
@@ -362,48 +405,6 @@ const ReplayPlayPage = () => {
                 <LineupAvatars showId={access.show_id} team={showMeta?.team || null} />
               </div>
             )}
-
-            {access.expires_at && (() => {
-              const exp = new Date(access.expires_at);
-              const msLeft = exp.getTime() - Date.now();
-              const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
-              const hoursLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60)));
-              const isUrgent = daysLeft <= 2;
-              const sisaText =
-                daysLeft >= 1
-                  ? `${daysLeft} hari lagi`
-                  : `${hoursLeft} jam lagi`;
-              return (
-                <div
-                  className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-center ${
-                    isUrgent
-                      ? "border-destructive/40 bg-destructive/10"
-                      : "border-primary/30 bg-primary/5"
-                  }`}
-                >
-                  <div
-                    className={`flex items-center gap-1.5 text-xs font-semibold ${
-                      isUrgent ? "text-destructive" : "text-primary"
-                    }`}
-                  >
-                    <Clock className="h-3.5 w-3.5" />
-                    Akses berlaku {sisaText}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    Berakhir pada{" "}
-                    {exp.toLocaleString("id-ID", {
-                      weekday: "short",
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}{" "}
-                    WIB
-                  </p>
-                </div>
-              );
-            })()}
           </div>
         )}
       </div>

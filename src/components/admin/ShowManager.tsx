@@ -783,13 +783,14 @@ const ShowManager = () => {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Link YouTube Replay</label>
+                <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">YouTube Replay (URL atau ID)</label>
                 <Input
                   value={draft.replay_youtube_url}
                   onChange={(event) => updateDraft({ replay_youtube_url: event.target.value })}
                   className="bg-background font-mono text-xs"
-                  placeholder="https://youtu.be/... atau https://www.youtube.com/watch?v=..."
+                  placeholder="dQw4w9WgXcQ  •  https://youtu.be/...  •  https://youtube.com/watch?v=..."
                 />
+                <p className="mt-1 text-[10px] text-muted-foreground">Cukup tempel <strong>ID video</strong> (mis. <code>dQw4w9WgXcQ</code>) atau URL YouTube apa pun.</p>
               </div>
               <div>
                 <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bulan Replay (untuk sandi global bulanan)</label>
