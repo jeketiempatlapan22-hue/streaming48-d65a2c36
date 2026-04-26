@@ -1156,7 +1156,7 @@ const LivePage = () => {
                       Show Belum Dimulai
                     </h3>
                     {activeShowTitle && (
-                      <p className="mt-1 text-center text-sm sm:text-base font-semibold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
+                      <p className="mt-2 text-center text-lg sm:text-xl md:text-2xl font-bold text-primary drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
                         🎭 {activeShowTitle}
                       </p>
                     )}
@@ -1258,7 +1258,7 @@ const LivePage = () => {
             <LineupAvatars team={activeShowTeam} />
           </Suspense>
         </SectionBoundary>
-        <div className="border-t border-border px-4 py-2"><h2 className="text-sm font-bold text-foreground">{stream?.title || "RealTime48"}</h2></div>
+        
       </div>
       <div className="h-[50vh] border-t border-border lg:h-screen lg:sticky lg:top-0 lg:w-80 lg:border-l lg:border-t-0 xl:w-96 flex flex-col relative">
         <div className="absolute top-0 left-0 right-0 z-10">
