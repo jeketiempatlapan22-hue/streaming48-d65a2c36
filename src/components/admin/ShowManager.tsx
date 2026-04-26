@@ -345,6 +345,9 @@ const ShowManager = () => {
       bundle_duration_days: Math.max(1, Number(draft.bundle_duration_days) || 30),
       bundle_replay_passwords: draft.bundle_replay_passwords || [],
       bundle_replay_info: draft.bundle_replay_info.trim(),
+      replay_m3u8_url: draft.replay_m3u8_url.trim() || null,
+      replay_youtube_url: draft.replay_youtube_url.trim() || null,
+      replay_month: draft.replay_month.trim() || null,
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
