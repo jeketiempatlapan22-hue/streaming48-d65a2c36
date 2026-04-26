@@ -28,6 +28,7 @@ const SiteSettingsManager = () => {
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [posterPickerOpen, setPosterPickerOpen] = useState(false);
   const { toast } = useToast();
 
   const saveValueImmediate = async (key: string, value: string) => {
