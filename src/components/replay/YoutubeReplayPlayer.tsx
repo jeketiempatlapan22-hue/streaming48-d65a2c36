@@ -6,8 +6,9 @@ interface Props {
   poster?: string | null;
 }
 
-// Quality ladder (highest -> lowest)
-const QUALITY_LADDER = ["hd2160", "hd1440", "hd1080", "hd720", "large", "medium", "small"];
+// Quality ladder (highest -> lowest) — mulai dari 1080p
+const QUALITY_LADDER = ["hd1080", "hd720", "large", "medium", "small"];
+const MAX_QUALITY = "hd1080";
 
 // Extract video id from youtube url forms
 const parseYoutubeId = (url: string): string => {
