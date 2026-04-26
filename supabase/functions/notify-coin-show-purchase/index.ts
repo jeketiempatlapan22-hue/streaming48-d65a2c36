@@ -180,9 +180,7 @@ Deno.serve(async (req) => {
         message += `🔐 *Sandi Replay:* ${replayPassword}\n`;
       }
     } else {
-      // Regular show — format standar baru
-      const schedule = scheduleDate ? `${scheduleDate}${scheduleTime ? " " + scheduleTime : ""}` : "-";
-      // Ambil max_devices aktual dari token
+      // Regular show — gunakan helper terpusat
       let maxDev = 1;
       if (token_code) {
         const { data: tokRow } = await supabase
@@ -192,11 +190,14 @@ Deno.serve(async (req) => {
           .maybeSingle();
         maxDev = tokRow?.max_devices ?? 1;
       }
-      message = `━━━━━━━━━━━━━━━━━━\n\n✅ *Token Berhasil Dibuat!*\n\n━━━━━━━━━━━━━━━━━━\n\n\n\n🎬 Show: *${title}*\n\n📅 Jadwal: ${schedule}\n\n📱 Max Device: *${maxDev}*\n\n\n\n📺 *Link Nonton LIVE & REPLAY:*\n\nhttps://${siteUrl}/live?t=${token_code}\n\n\n\n🔄 *Info Replay:*\n\n\n\n  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*\n\n\n\n> ATAU GUNAKAN :\n\n> 🔗 Link: https://replaytime.lovable.app`;
-      if (replayPassword) {
-        message += `\n\n> 🔐 Sandi Replay: ${replayPassword}`;
-      }
-      message += `\n\n━━━━━━━━━━━━━━━━━━`;
+      message = buildRegularShowMessage({
+        showTitle: title,
+        scheduleDate,
+        scheduleTime,
+        liveLink: `https://${siteUrl}/live?t=${token_code}`,
+        maxDevices: maxDev,
+        replayPassword,
+      });
       // Kirim langsung & skip footer default
       let cleanPhoneR = phone.replace(/[^0-9]/g, '');
       if (cleanPhoneR.startsWith('0')) cleanPhoneR = '62' + cleanPhoneR.slice(1);
