@@ -1734,6 +1734,7 @@ export type Database = {
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       cleanup_replay_access_tokens: { Args: never; Returns: undefined }
+      cleanup_replay_artifacts: { Args: never; Returns: undefined }
       cleanup_replay_tokens: { Args: never; Returns: undefined }
       cleanup_stale_viewers: { Args: never; Returns: undefined }
       confirm_coin_order: { Args: { _order_id: string }; Returns: Json }
