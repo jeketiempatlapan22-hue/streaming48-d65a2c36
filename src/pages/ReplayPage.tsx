@@ -380,9 +380,13 @@ const ReplayPage = () => {
                         </div>
                         <button
                           onClick={() => {
+                            const target = buildReplayTarget(show, replayPasswords[show.id]);
                             navigator.clipboard.writeText(replayPasswords[show.id]);
                             toast({ title: "Sandi disalin! Membuka halaman replay..." });
-                            setTimeout(() => { window.open("https://replaytime.lovable.app", "_blank"); }, 500);
+                            setTimeout(() => {
+                              if (target.startsWith("/")) window.location.href = target;
+                              else window.open(target, "_blank");
+                            }, 400);
                           }}
                           className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
                         >
@@ -390,10 +394,20 @@ const ReplayPage = () => {
                         </button>
                       </div>
                     ) : hasPurchased ? (
-                      <a href="https://replaytime.lovable.app" target="_blank" rel="noopener noreferrer"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]">
-                        <Play className="h-4 w-4" /> Tonton Replay
-                      </a>
+                      (() => {
+                        const target = buildReplayTarget(show);
+                        const isInternal = target.startsWith("/");
+                        return (
+                          <a
+                            href={target}
+                            target={isInternal ? "_self" : "_blank"}
+                            rel="noopener noreferrer"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
+                          >
+                            <Play className="h-4 w-4" /> Tonton Replay
+                          </a>
+                        );
+                      })()
                     ) : (
                       <button
                         onClick={() => openPurchase(show)}
