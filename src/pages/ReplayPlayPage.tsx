@@ -280,7 +280,7 @@ const ReplayPlayPage = () => {
         {/* Player + header (mirror LivePage) */}
         {access?.success && !lockMsg && !isExpired && access.has_media && (
           <div className="space-y-4">
-            {/* Header judul + badge akses + jadwal — selaras dengan LivePage */}
+            {/* Header judul + badge akses + jadwal */}
             <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -298,16 +298,9 @@ const ReplayPlayPage = () => {
                   {accessBadge}
                 </span>
               </div>
-
-              {/* Lineup + foto member, sama persis dengan LivePage */}
-              {(access.show_id || showMeta?.lineup) && (
-                <div className="pt-1">
-                  <LineupAvatars showId={access.show_id} team={showMeta?.team || null} />
-                </div>
-              )}
             </div>
 
-            {/* Selector sumber tonton — Auto / M3U8 / YouTube */}
+            {/* Selector sumber tonton — di atas player */}
             {hasBoth && (
               <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1.5">
                 <button
@@ -347,7 +340,7 @@ const ReplayPlayPage = () => {
               </div>
             )}
 
-            {/* Player — gunakan effectiveSource (Auto resolves ke media yang tersedia) */}
+            {/* Player — di atas lineup member */}
             {effectiveSource === "m3u8" && access.m3u8_url ? (
               <HlsReplayPlayer
                 src={access.m3u8_url}
@@ -362,6 +355,13 @@ const ReplayPlayPage = () => {
                 poster={showMeta?.background_image_url || null}
               />
             ) : null}
+
+            {/* Lineup + foto member — pindah ke bawah player */}
+            {(access.show_id || showMeta?.lineup) && (
+              <div className="rounded-2xl border border-border bg-card p-4">
+                <LineupAvatars showId={access.show_id} team={showMeta?.team || null} />
+              </div>
+            )}
 
             {access.expires_at && (
               <p className="text-center text-[11px] text-muted-foreground">
