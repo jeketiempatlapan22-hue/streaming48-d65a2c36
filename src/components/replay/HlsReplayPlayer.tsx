@@ -369,7 +369,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
               {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
             <span className="text-xs tabular-nums opacity-80">
-              {fmt(currentTime)} / {fmt(duration)}
+              {fmt(currentTime)} / {duration > 0 && isFinite(duration) ? fmt(duration) : "--:--"}
             </span>
           </div>
           <div className="flex items-center gap-2 relative">
