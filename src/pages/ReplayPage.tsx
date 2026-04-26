@@ -460,6 +460,9 @@ const ReplayPage = () => {
                 </motion.div>
               );
             })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
 
