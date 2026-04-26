@@ -286,8 +286,13 @@ const ManualTokenGenerator = () => {
           {/* Duration + max devices */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Durasi</label>
-              <Select value={durationKey} onValueChange={setDurationKey}>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Durasi
+                {durationInfo.locked && (
+                  <span className="ml-2 text-[10px] text-yellow-500">(otomatis dari kartu show)</span>
+                )}
+              </label>
+              <Select value={durationKey} onValueChange={setDurationKey} disabled={durationInfo.locked}>
                 <SelectTrigger className="bg-background">
                   <SelectValue />
                 </SelectTrigger>
@@ -297,7 +302,7 @@ const ManualTokenGenerator = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {durationKey === "custom" && (
+              {durationKey === "custom" && !durationInfo.locked && (
                 <Input
                   type="number" min={1} max={365}
                   value={customDays}
@@ -305,6 +310,11 @@ const ManualTokenGenerator = () => {
                   className="mt-2 bg-background"
                   placeholder="Hari (1-365)"
                 />
+              )}
+              {durationInfo.locked && (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Token akan kedaluwarsa dalam <span className="font-bold text-foreground">{durationInfo.label_h}</span>
+                </p>
               )}
             </div>
             <div>
