@@ -170,13 +170,10 @@ const DeviceLimitScreen = ({ tokenCode, getFingerprint, navigate, maxDevices }: 
   // Track local reset attempts (per token, daily window)
   const storageKey = `${RESET_KEY_PREFIX}${tokenCode}`;
   const [resetCount, setResetCount] = useState<number>(() => {
-    try {
-      const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
-      if (!raw) return 0;
-      const { count, day } = JSON.parse(raw);
-      const today = new Date().toDateString();
-      return day === today ? Number(count) || 0 : 0;
-    } catch { return 0; }
+    const raw = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, storageKey);
+    const parsed = safeJsonParse<{ count?: number; day?: string }>(raw, {});
+    const today = new Date().toDateString();
+    return parsed?.day === today ? Number(parsed?.count) || 0 : 0;
   });
   const remaining = Math.max(0, MAX_RESET_ATTEMPTS - resetCount);
 
