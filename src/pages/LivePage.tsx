@@ -884,7 +884,7 @@ const LivePage = () => {
 
   useEffect(() => { const h = (e: MouseEvent) => { if ((e.target as HTMLElement).closest(".player-area")) e.preventDefault(); }; document.addEventListener("contextmenu", h); return () => document.removeEventListener("contextmenu", h); }, []);
 
-  const handleUsernameSet = async (name: string) => { setUsername(name); localStorage.setItem("rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
+  const handleUsernameSet = async (name: string) => { setUsername(name); safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
 
   const handlePlaylistSwitch = useCallback((newPlaylist: any) => {
     if (activePlaylist?.id === newPlaylist.id) return;
