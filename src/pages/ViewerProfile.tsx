@@ -31,7 +31,7 @@ const ViewerProfile = () => {
   const [showTitles, setShowTitles] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "stats">("history");
+  const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "membership" | "stats">("history");
   const [editingPhone, setEditingPhone] = useState<Record<string, string>>({});
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const navigate = useNavigate();
