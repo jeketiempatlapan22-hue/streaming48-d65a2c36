@@ -190,7 +190,21 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
   // Track whether user is scrolled to bottom (so we don't yank them down)
   const isAtBottomRef = useRef(true);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
-  const { activeQuiz, checkAttemptStatus } = useLiveQuiz();
+  // Defensive: useLiveQuiz is a non-critical dependency for chat. If anything
+  // unexpected happens (channel error, RPC failure), fall back to no-quiz mode
+  // so the chat itself keeps working. The outer LiveChatBoundary catches
+  // anything that still escapes.
+  let activeQuiz: ReturnType<typeof useLiveQuiz>["activeQuiz"] = null;
+  let checkAttemptStatus: ReturnType<typeof useLiveQuiz>["checkAttemptStatus"] = async () => null;
+  try {
+    const quiz = useLiveQuiz();
+    activeQuiz = quiz?.activeQuiz ?? null;
+    if (typeof quiz?.checkAttemptStatus === "function") {
+      checkAttemptStatus = quiz.checkAttemptStatus;
+    }
+  } catch (e) {
+    console.warn("[LiveChat] useLiveQuiz failed, continuing without quiz integration:", e);
+  }
 
   const isChatMod = chatModUsernames.has(username);
 
