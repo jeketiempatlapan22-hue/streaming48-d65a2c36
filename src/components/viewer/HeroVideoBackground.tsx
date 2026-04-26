@@ -5,6 +5,11 @@ interface HeroVideoBackgroundProps {
   url?: string;
   /** Optional poster image agar tidak blank saat video belum load. */
   poster?: string;
+  /**
+   * Kecerahan video (0-100). 100 = paling terang (tanpa overlay gelap),
+   * 0 = paling gelap (overlay hitam penuh). Default 60.
+   */
+  brightness?: number;
   className?: string;
 }
 
