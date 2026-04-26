@@ -465,6 +465,14 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       ? `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`
       : "";
 
+    // Tentukan link replay (internal vs fallback) berdasar media show
+    const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url);
+    const replayShowKey = encodeURIComponent(show.short_id || show.id);
+    const replayPwParam = res.access_password ? `&password=${encodeURIComponent(res.access_password)}` : "";
+    const replayLink = hasReplayMedia
+      ? `realtime48stream.my.id/replay-play?show=${replayShowKey}${replayPwParam}`
+      : `https://replaytime.lovable.app`;
+
     let msg = `━━━━━━━━━━━━━━━━━━
 ✅ *Token Reseller Berhasil Dibuat!*
 ━━━━━━━━━━━━━━━━━━
@@ -478,8 +486,8 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
 📺 *Link Nonton:*
 ${link}
 
-🔄 *Info Replay:*
-🔗 Link: https://replaytime.lovable.app`;
+🔄 *Info Replay:*${hasReplayMedia ? " _(pemutar internal)_" : ""}
+🔗 Link: ${replayLink}`;
 
     if (res.access_password) {
       msg += `\n🔐 Sandi Replay: *${res.access_password}*`;
