@@ -307,22 +307,36 @@ const ReplayPlayPage = () => {
               )}
             </div>
 
-            {/* Selector sumber tonton (M3U8 / YouTube) */}
+            {/* Selector sumber tonton — Auto / M3U8 / YouTube */}
             {hasBoth && (
               <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-1.5">
                 <button
+                  onClick={() => setSource("auto")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${
+                    source === "auto"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-secondary"
+                  }`}
+                  title="Pilih otomatis berdasarkan media yang tersedia"
+                >
+                  ⚡ Auto
+                  {source === "auto" && effectiveSource && (
+                    <span className="opacity-70">({effectiveSource === "m3u8" ? "HD" : "YT"})</span>
+                  )}
+                </button>
+                <button
                   onClick={() => setSource("m3u8")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${
                     source === "m3u8"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary"
                   }`}
                 >
-                  <Film className="h-4 w-4" /> M3U8 (HD)
+                  <Film className="h-4 w-4" /> M3U8
                 </button>
                 <button
                   onClick={() => setSource("youtube")}
-                  className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${
                     source === "youtube"
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-secondary"
@@ -333,8 +347,8 @@ const ReplayPlayPage = () => {
               </div>
             )}
 
-            {/* Player */}
-            {source === "m3u8" && access.m3u8_url ? (
+            {/* Player — gunakan effectiveSource (Auto resolves ke media yang tersedia) */}
+            {effectiveSource === "m3u8" && access.m3u8_url ? (
               <HlsReplayPlayer
                 src={access.m3u8_url}
                 poster={showMeta?.background_image_url || null}
@@ -342,20 +356,7 @@ const ReplayPlayPage = () => {
                   toast({ title: "Player error", description: msg, variant: "destructive" })
                 }
               />
-            ) : source === "youtube" && access.youtube_url ? (
-              <YoutubeReplayPlayer
-                url={access.youtube_url}
-                poster={showMeta?.background_image_url || null}
-              />
-            ) : access.m3u8_url ? (
-              <HlsReplayPlayer
-                src={access.m3u8_url}
-                poster={showMeta?.background_image_url || null}
-                onError={(msg) =>
-                  toast({ title: "Player error", description: msg, variant: "destructive" })
-                }
-              />
-            ) : access.youtube_url ? (
+            ) : effectiveSource === "youtube" && access.youtube_url ? (
               <YoutubeReplayPlayer
                 url={access.youtube_url}
                 poster={showMeta?.background_image_url || null}
