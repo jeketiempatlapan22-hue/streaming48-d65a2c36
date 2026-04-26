@@ -1514,7 +1514,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
       if (subOrder.user_id) {
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('user_id', subOrder.user_id)
           .eq('status', 'active')
@@ -1529,7 +1529,7 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         const maxTime = new Date(orderTime.getTime() + 30 * 60_000).toISOString();
         const { data: t } = await supabase
           .from('tokens')
-          .select('code, status, expires_at')
+          .select('code, status, expires_at, max_devices')
           .eq('show_id', subOrder.show_id)
           .eq('status', 'active')
           .gte('created_at', minTime)
