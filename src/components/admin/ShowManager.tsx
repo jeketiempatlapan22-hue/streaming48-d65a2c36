@@ -117,6 +117,9 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   bundle_duration_days: show.bundle_duration_days ?? 30,
   bundle_replay_passwords: show.bundle_replay_passwords ?? [],
   bundle_replay_info: show.bundle_replay_info ?? "",
+  replay_m3u8_url: (show as any).replay_m3u8_url ?? "",
+  replay_youtube_url: (show as any).replay_youtube_url ?? "",
+  replay_month: (show as any).replay_month ?? "",
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
