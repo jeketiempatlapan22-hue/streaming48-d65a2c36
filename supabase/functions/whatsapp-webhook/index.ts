@@ -1572,13 +1572,11 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         if (show.access_password) {
           waMsg += `🔑 Sandi Akses: *${show.access_password}*\n`;
         }
-      } else {
+      } else if (show?.is_subscription) {
+        // Membership: keep existing format
         waMsg = `━━━━━━━━━━━━━━━━━━\n🔄 *Info Pesanan Anda*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show?.title || 'Show'}*\n`;
         if (token?.code) {
           waMsg += `\n🎫 *Token Akses:* ${token.code}\n📺 *Link Nonton:*\n${siteUrl}/live?t=${token.code}\n`;
-        }
-        if (show?.access_password) {
-          waMsg += `🔑 *Sandi:* ${show.access_password}\n`;
         }
         if (show?.schedule_date) {
           waMsg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ''}\n`;
@@ -1590,6 +1588,17 @@ async function handleResendWa(supabase: any, shortId: string): Promise<string> {
         if (show?.access_password) {
           waMsg += `🔑 Sandi Replay: ${show.access_password}\n`;
         }
+      } else {
+        // Regular show: gunakan format pesan terbaru
+        const schedule = show?.schedule_date ? `${show.schedule_date}${show.schedule_time ? ' ' + show.schedule_time : ''}` : '-';
+        const liveLink = token?.code ? `${siteUrl}/live?t=${token.code}` : `${siteUrl}/live`;
+        waMsg = buildRegularShowMessage({
+          showTitle: show?.title || 'Show',
+          schedule,
+          maxDevices: 1,
+          liveLink,
+          replayPassword: show?.access_password,
+        });
       }
 
       waMsg += `\n⚠️ _Jangan bagikan token/link ini ke orang lain._\n━━━━━━━━━━━━━━━━━━\n_Terima kasih!_ 🎉`;
