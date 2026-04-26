@@ -963,8 +963,8 @@ const LivePage = () => {
   const isLive = stream?.is_live || false;
 
   if (showMismatch) {
-    let mismatchInfo = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
-    try { mismatchInfo = JSON.parse(mismatchShowTitle); } catch {}
+    const defaultMismatch = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
+    const mismatchInfo = safeJsonParse<typeof defaultMismatch>(mismatchShowTitle, defaultMismatch);
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center shadow-lg">
