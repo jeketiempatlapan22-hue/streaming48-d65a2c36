@@ -6,8 +6,9 @@ interface Props {
   poster?: string | null;
 }
 
-// Quality ladder (highest -> lowest)
-const QUALITY_LADDER = ["hd2160", "hd1440", "hd1080", "hd720", "large", "medium", "small"];
+// Quality ladder (highest -> lowest) — mulai dari 1080p
+const QUALITY_LADDER = ["hd1080", "hd720", "large", "medium", "small"];
+const MAX_QUALITY = "hd1080";
 
 // Extract video id from youtube url forms
 const parseYoutubeId = (url: string): string => {
@@ -24,7 +25,7 @@ const parseYoutubeId = (url: string): string => {
 
 const qualityLabel = (q: string): string => {
   switch (q) {
-    case "hd2160": return "4K";
+    case "hd1080": return "1080p";
     case "hd1440": return "1440p";
     case "hd1080": return "1080p";
     case "hd720": return "720p";
@@ -40,7 +41,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [currentQuality, setCurrentQuality] = useState<string>("hd2160");
+  const [currentQuality, setCurrentQuality] = useState<string>("hd1080");
   const [adaptive, setAdaptive] = useState(true);
 
   // Buffering tracking — drop quality if buffering > 3s
@@ -52,7 +53,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
 
   // Embed parameters: hide controls + branding + related, request highest quality
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd2160&autoplay=0`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&autoplay=0`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -133,7 +134,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         "*",
       );
       iframeRef.current?.contentWindow?.postMessage(
-        JSON.stringify({ event: "command", func: "setPlaybackQuality", args: ["hd2160"] }),
+        JSON.stringify({ event: "command", func: "setPlaybackQuality", args: ["hd1080"] }),
         "*",
       );
     }, 800);
@@ -176,7 +177,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     qualityIndexRef.current = 0;
     lastDowngradeRef.current = 0;
     bufferingSinceRef.current = null;
-    setQuality("hd2160");
+    setQuality("hd1080");
   };
 
   return (
@@ -224,7 +225,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           >
             <Wifi className="h-3 w-3" /> {adaptive ? "AUTO" : "MAX"}
           </button>
-          {!adaptive && currentQuality !== "hd2160" && (
+          {!adaptive && currentQuality !== "hd1080" && (
             <button
               onClick={resetToMaxQuality}
               className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold"
