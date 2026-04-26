@@ -387,6 +387,18 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
             </div>
           </div>
         )}
+
+        {/* Loading / buffering overlay */}
+        {loading && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-[1px] animate-in fade-in duration-200">
+            <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/60 px-5 py-4 text-white">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="text-[11px] font-semibold tracking-wide">
+                {stalled ? "Memulihkan koneksi…" : "Menghubungkan replay…"}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Controls */}
