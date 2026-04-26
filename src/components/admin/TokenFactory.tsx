@@ -140,10 +140,16 @@ const TokenFactory = () => {
     toast({ title: "Link disalin!" });
   };
 
+  const getSourceForTab = (dur: TabKey): any[] => {
+    if (dur === "coin") return coinTokens;
+    if (dur === "membership") return membershipTokens;
+    return tokens;
+  };
+
   const bulkCopyUncopied = (dur: TabKey) => {
-    const source = dur === "coin" ? coinTokens : tokens;
+    const source = getSourceForTab(dur);
     const uncopied = source.filter(
-      (t) => (dur === "coin" || t.duration_type === dur) && !copiedTokens.has(t.code) && t.status !== "blocked" && !isExpired(t)
+      (t) => (dur === "coin" || dur === "membership" || t.duration_type === dur) && !copiedTokens.has(t.code) && t.status !== "blocked" && !isExpired(t)
     );
     if (uncopied.length === 0) {
       toast({ title: "Tidak ada token baru untuk disalin" });
