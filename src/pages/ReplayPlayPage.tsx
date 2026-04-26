@@ -70,16 +70,13 @@ const ReplayPlayPage = () => {
   const [access, setAccess] = useState<AccessData | null>(null);
   const [lockMsg, setLockMsg] = useState<string>("");
   const [showMeta, setShowMeta] = useState<ShowMeta | null>(null);
-  const [source, setSource] = useState<Source>("m3u8");
+  const [source, setSource] = useState<Source>("auto");
 
   const fp = getFingerprint();
 
-  // Pilih sumber default ketika access didapat
-  useEffect(() => {
-    if (!access?.success) return;
-    if (access.m3u8_url) setSource("m3u8");
-    else if (access.youtube_url) setSource("youtube");
-  }, [access?.success, access?.m3u8_url, access?.youtube_url]);
+  // Mode auto: ikuti media yang tersedia (M3U8 dulu, fallback YouTube)
+  const effectiveSource: "m3u8" | "youtube" | null =
+    source === "auto" ? resolveAuto(access) : source;
 
   const tryAccess = async () => {
     setLoading(true);
