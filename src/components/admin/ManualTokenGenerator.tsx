@@ -62,82 +62,44 @@ const buildMessage = (opts: {
   let msg = "";
 
   if (show?.is_bundle) {
-    msg = `━━━━━━━━━━━━━━━━━━\n📦 *Token Bundle Show*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Paket: *${show.title}*\n⏰ Durasi Token: *${durationLabel}*\n`;
-    msg += `\n🎫 *Token Akses:* ${tokenCode}\n📺 *Link Nonton:*\n${liveLink}\n`;
-    if (show.schedule_date) {
-      msg += `📅 *Jadwal:* ${show.schedule_date} ${show.schedule_time || ""}\n`;
-    }
-    const bundlePasswords = Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [];
-    if (bundlePasswords.length > 0) {
-      msg += `\n📦 *Sandi Replay Bundle:*\n`;
-      for (const entry of bundlePasswords) {
-        if (entry?.show_name && entry?.password) {
-          msg += `  🎭 ${entry.show_name}: *${entry.password}*\n`;
-        }
-      }
-    }
-    if (show.bundle_replay_info) {
-      msg += `\n🎬 *Info Replay:*\n🔗 ${show.bundle_replay_info}\n`;
-    } else {
-      msg += `\n🎬 *Link Replay:*\n🔗 ${REPLAY_URL}\n`;
-    }
+    msg = buildBundleMessage({
+      bundleTitle: show.title,
+      tokenCode,
+      liveLink,
+      durationLabel,
+      scheduleDate: show.schedule_date,
+      scheduleTime: show.schedule_time,
+      bundleReplayPasswords: Array.isArray(show.bundle_replay_passwords) ? show.bundle_replay_passwords : [],
+      bundleReplayInfo: show.bundle_replay_info,
+    });
   } else if (show?.is_subscription) {
-    msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Membership*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show.title}*\n📦 Tipe: *Membership*\n⏰ Durasi: *${durationLabel}*\n`;
-    msg += `\n🎫 *Token Membership:* ${tokenCode}\n📺 *Link Nonton:*\n${liveLink}\n`;
-    if (show.group_link) {
-      msg += `\n🔗 *Link Grup:*\n${show.group_link}\n`;
-    }
-    msg += `\n🔄 *Info Replay:*\n🔗 Link: ${REPLAY_URL}\n`;
-    if (show.access_password) {
-      msg += `🔑 Sandi Replay: ${show.access_password}\n`;
-    }
+    msg = buildMembershipMessage({
+      showTitle: show.title,
+      tokenCode,
+      liveLink,
+      durationLabel,
+      groupLink: show.group_link,
+      replayPassword: show.access_password,
+    });
   } else if (show?.is_replay) {
-    msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Replay Show*\n━━━━━━━━━━━━━━━━━━\n\n🎭 Show: *${show.title}*\n📦 Tipe: *Replay*\n⏰ Durasi: *${durationLabel}*\n`;
-    msg += `\n🎫 *Token Akses:* ${tokenCode}\n`;
-    msg += `\n🔗 *Link Replay:*\n${REPLAY_URL}\n`;
-    if (show.access_password) {
-      msg += `🔐 *Sandi Replay:* ${show.access_password}\n`;
-    }
+    msg = buildReplayMessage({
+      showTitle: show.title,
+      tokenCode,
+      hasReplayMedia: true, // selalu tampilkan token replay di alur manual
+      replayPassword: show.access_password,
+      durationLabel,
+    });
   } else if (show) {
-    const schedule = show.schedule_date ? `${show.schedule_date}${show.schedule_time ? " " + show.schedule_time : ""}` : "-";
-    msg = `━━━━━━━━━━━━━━━━━━
-
-✅ *Token Berhasil Dibuat!*
-
-━━━━━━━━━━━━━━━━━━
-
-
-
-🎬 Show: *${show.title}*
-
-📅 Jadwal: ${schedule}
-
-📱 Max Device: *${maxDevices}*
-
-
-
-📺 *Link Nonton LIVE & REPLAY:*
-
-${liveLink}
-
-
-
-🔄 *Info Replay:*
-
-
-
-  *Dapat gunakan link live diatas kembali untuk mengakses replay ketika show telah menjadi replay dengan batas waktu 14 hari*
-
-
-
-> ATAU GUNAKAN :
-
-> 🔗 Link: ${REPLAY_URL}`;
-    if (show.access_password) {
-      msg += `\n\n> 🔐 Sandi Replay: ${show.access_password}`;
-    }
-    msg += `\n\n━━━━━━━━━━━━━━━━━━\n`;
+    msg = buildRegularShowMessage({
+      showTitle: show.title,
+      scheduleDate: show.schedule_date,
+      scheduleTime: show.schedule_time,
+      liveLink,
+      maxDevices,
+      replayPassword: show.access_password,
+    });
   } else {
+    // Token "ALL Show" — tidak terikat satu show, gunakan template ringkas khusus.
     msg = `━━━━━━━━━━━━━━━━━━\n✅ *Token Akses (ALL Show)*\n━━━━━━━━━━━━━━━━━━\n\n⏰ Durasi: *${durationLabel}*\n`;
     msg += `\n🎫 *Token Akses:* ${tokenCode}\n📺 *Link Nonton:*\n${liveLink}\n`;
     msg += `\n🔄 *Info Replay:*\n🔗 Link: ${REPLAY_URL}\n`;
