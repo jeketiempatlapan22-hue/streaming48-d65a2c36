@@ -176,7 +176,7 @@ const TokenFactory = () => {
   };
 
   const blockToken = async (id: string) => {
-    const token = [...tokens, ...coinTokens].find(t => t.id === id);
+    const token = [...tokens, ...coinTokens, ...membershipTokens].find(t => t.id === id);
     const newStatus = token?.status === "blocked" ? "active" : "blocked";
     await supabase.from("tokens").update({ status: newStatus }).eq("id", id);
     if (newStatus === "blocked") {
