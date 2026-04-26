@@ -19,6 +19,7 @@ import {
 import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
+import { createClientId, safeStorageGet, safeStorageSet } from "@/lib/clientId";
 import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
 
 const VideoPlayer = lazy(() => import("@/components/VideoPlayer"));
@@ -387,8 +388,11 @@ const LivePage = () => {
   const playerRef = useRef<VideoPlayerHandle>(null);
 
   const getFingerprint = useCallback(() => {
-    let fp = localStorage.getItem("rt48_fp");
-    if (!fp) { fp = crypto.randomUUID(); localStorage.setItem("rt48_fp", fp); }
+    let fp = safeStorageGet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_fp");
+    if (!fp) {
+      fp = createClientId("fp");
+      safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_fp", fp);
+    }
     return fp;
   }, []);
 
