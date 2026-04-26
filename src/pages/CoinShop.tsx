@@ -175,6 +175,7 @@ const CoinShop = () => {
     setDynamicOrderId("");
     setDynamicPaid(false);
     setDynamicLoading(false);
+    setDynamicFailed(false);
   };
 
   const handleStartDynamicQris = async () => {
