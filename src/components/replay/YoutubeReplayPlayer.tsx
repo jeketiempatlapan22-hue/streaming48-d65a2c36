@@ -26,8 +26,6 @@ const parseYoutubeId = (url: string): string => {
 const qualityLabel = (q: string): string => {
   switch (q) {
     case "hd1080": return "1080p";
-    case "hd1440": return "1440p";
-    case "hd1080": return "1080p";
     case "hd720": return "720p";
     case "large": return "480p";
     case "medium": return "360p";
