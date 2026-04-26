@@ -172,9 +172,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
             scheduleTime: showInfo.schedule_time,
-            tokenCode: result.token_code,
+            // liveLink sudah dibangun di atas
             liveLink,
-            accessPassword: showInfo.access_password,
+            replayPassword: showInfo.access_password,
             maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(order.phone, message);
@@ -469,9 +469,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             showTitle: showInfo.title,
             scheduleDate: showInfo.schedule_date,
             scheduleTime: showInfo.schedule_time,
-            tokenCode: result.token_code,
+            // liveLink sudah dibangun di atas
             liveLink,
-            accessPassword: showInfo.access_password,
+            replayPassword: showInfo.access_password,
             maxDevices: tokRow?.max_devices ?? 1,
           });
           sendWhatsApp(newOrder.phone.trim(), message);
@@ -559,9 +559,9 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
                 showTitle: showInfo.title,
                 scheduleDate: showInfo.schedule_date,
                 scheduleTime: showInfo.schedule_time,
-                tokenCode: result.token_code,
+                // liveLink sudah dibangun di atas
                 liveLink,
-                accessPassword: showInfo.access_password,
+                replayPassword: showInfo.access_password,
                 maxDevices: tokRow?.max_devices ?? 1,
               });
               sendWhatsApp(order.phone, message);
