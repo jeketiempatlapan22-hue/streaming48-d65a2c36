@@ -55,7 +55,7 @@ const pickStartLevel = (levels: Array<{ bitrate?: number; height?: number }>) =>
  *  - Defer attach src dengan requestIdleCallback agar tidak menghambat LCP
  *  - Native HLS Safari ditangani tanpa hls.js
  */
-const HeroVideoBackground = ({ url, poster, className = "" }: HeroVideoBackgroundProps) => {
+const HeroVideoBackground = ({ url, poster, brightness = 60, className = "" }: HeroVideoBackgroundProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsInstanceRef = useRef<any>(null);
