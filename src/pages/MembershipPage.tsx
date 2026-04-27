@@ -504,7 +504,7 @@ const MembershipPage = () => {
             className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground flex items-center gap-1.5">
-              {purchaseStep === "qris" || purchaseStep === "upload"
+              {purchaseStep === "qris" || purchaseStep === "upload" || purchaseStep === "qris_dynamic"
                 ? <>{selectedShow.price} · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
                 : <><Coins className="h-4 w-4" /> {selectedShow.coin_price} Koin · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
               }
