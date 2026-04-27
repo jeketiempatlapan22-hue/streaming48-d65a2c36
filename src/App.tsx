@@ -199,6 +199,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <VisitorTracker />
+            <RouteTransitionLoader />
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
