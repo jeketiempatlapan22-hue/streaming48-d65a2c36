@@ -47,6 +47,8 @@ const MembershipPage = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [dynamicExpired, setDynamicExpired] = useState(false);
+  const [dynamicSecondsLeft, setDynamicSecondsLeft] = useState(0);
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
