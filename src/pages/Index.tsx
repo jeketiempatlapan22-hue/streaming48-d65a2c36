@@ -370,17 +370,12 @@ const Index = () => {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (error) throw error;
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
-      setProofUrl(urlData?.signedUrl || "");
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
+      setProofUrl(signed_url || "");
       setProofFilePath(path);
       setPurchaseStep("info");
-    } catch {
-      toast.error("Upload gagal, coba lagi");
+    } catch (err: any) {
+      toast.error("Upload gagal: " + (err?.message || "coba lagi"));
     }
     setUploadingProof(false);
   };
