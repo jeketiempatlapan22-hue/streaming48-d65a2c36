@@ -27,6 +27,7 @@ import MediaPickerDialog from "./MediaPickerDialog";
 import { parseYoutubeId } from "@/lib/youtubeUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { parseShowImport, type ParsedShow, type ParsedTeam } from "@/lib/parseShowImport";
+import { findBestMediaMatch, fileNameToLabel } from "@/lib/mediaNaming";
 
 interface Show {
   id: string;
