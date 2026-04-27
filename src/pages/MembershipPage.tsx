@@ -208,10 +208,7 @@ const MembershipPage = () => {
     setPhone("");
     setEmail("");
     setMembershipResult(null);
-    setDynamicQrString("");
-    setDynamicOrderId("");
-    setDynamicPaid(false);
-    setDynamicLoading(false);
+    resetDynamicQris();
 
     if (mode === "qris") {
       // Use dynamic QRIS if admin enabled it (auto-confirm via callback).
