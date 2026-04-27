@@ -108,22 +108,36 @@ export async function fetchCachedEndpoint(
   if (!projectId) return null;
 
   const cacheKey = `edge_${type}`;
-  return cachedQuery(cacheKey, async () => {
+  const url = `https://${projectId}.supabase.co/functions/v1/cached-landing-data?type=${type}`;
+  const doFetch = async (timeoutMs: number) => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(
-      `https://${projectId}.supabase.co/functions/v1/cached-landing-data?type=${type}`,
-      {
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  return cachedQuery(cacheKey, async () => {
+    try {
+      let res = await doFetch(4000);
+      // Retry once on transient edge runtime errors (503 / cold boot)
+      if (!res.ok && (res.status === 503 || res.status === 504 || res.status >= 500)) {
+        await new Promise(r => setTimeout(r, 400));
+        res = await doFetch(5000);
       }
-    ).finally(() => clearTimeout(timer));
-    if (!res.ok) return null;
-    return res.json();
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
   }, 25_000).catch(() => null);
 }
 
