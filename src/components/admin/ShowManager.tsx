@@ -292,7 +292,83 @@ const ShowManager = () => {
     toast({ title: "Show ditambahkan" });
   };
 
-  const saveShow = async () => {
+  const handleImportPreview = () => {
+    const parsed = parseShowImport(importText);
+    if (parsed.length === 0) {
+      toast({ title: "Tidak ada show terdeteksi", description: "Pastikan format pesan benar (🎪 judul, 🗓️ tanggal, dst).", variant: "destructive" });
+      return;
+    }
+    setImportPreview(parsed.map((p) => ({ ...p, selected: true })));
+  };
+
+  const updateImportItem = (index: number, patch: Partial<ParsedShow & { selected: boolean }>) => {
+    setImportPreview((current) => current.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  };
+
+  const removeImportItem = (index: number) => {
+    setImportPreview((current) => current.filter((_, i) => i !== index));
+  };
+
+  const resetImport = () => {
+    setImportText("");
+    setImportPreview([]);
+  };
+
+  const handleImportCreate = async () => {
+    const toCreate = importPreview.filter((p) => p.selected && p.title.trim());
+    if (toCreate.length === 0) {
+      toast({ title: "Tidak ada show yang dipilih", variant: "destructive" });
+      return;
+    }
+    setImporting(true);
+    const payload = toCreate.map((p) => ({
+      title: p.title.trim(),
+      price: "Rp 0",
+      lineup: p.lineup.trim(),
+      schedule_date: p.schedule_date.trim(),
+      schedule_time: p.schedule_time.trim(),
+      background_image_url: null,
+      qris_image_url: null,
+      is_active: true,
+      is_subscription: false,
+      max_subscribers: 0,
+      subscription_benefits: "",
+      group_link: "",
+      is_order_closed: false,
+      category: "regular",
+      category_member: "",
+      coin_price: 0,
+      replay_coin_price: 0,
+      access_password: "",
+      is_replay: false,
+      qris_price: 0,
+      replay_qris_price: 0,
+      membership_duration_days: 30,
+      short_id: null,
+      external_show_id: null,
+      team: p.team || null,
+      is_bundle: false,
+      bundle_description: "",
+      bundle_duration_days: 30,
+      bundle_replay_passwords: [],
+      bundle_replay_info: "",
+    }));
+
+    const { data, error } = await supabase.from("shows").insert(payload).select();
+    setImporting(false);
+
+    if (error) {
+      toast({ title: "Gagal mengimpor show", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const created = ((data as Show[] | null) ?? []).map((s) => normalizeShow(s));
+    setShows((current) => [...created, ...current]);
+    toast({ title: `${created.length} show berhasil dibuat`, description: "Lengkapi harga & koin di tiap show." });
+    resetImport();
+    setImportOpen(false);
+  };
+
     if (!draft) return;
 
     const cleanShortId = sanitizeShortId(draft.short_id);
