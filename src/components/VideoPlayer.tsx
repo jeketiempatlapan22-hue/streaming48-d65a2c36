@@ -1344,26 +1344,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           LIVE
         </button>
 
-        {/* DVR Seekbar — HLS only */}
+        {/* DVR Seekbar — HLS only (skip ±10s buttons removed; seekbar bisa di-drag manual) */}
         {playlistType === "m3u8" && seekableEnd > seekableStart && (
-          <div className="flex items-center gap-1 md:gap-1.5 flex-1 min-w-0">
-            {/* Skip back 10s */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const video = videoRef.current;
-                if (video) {
-                  const target = Math.max(seekableStart, video.currentTime - 10);
-                  video.currentTime = target;
-                  setCurrentTime(target);
-                }
-              }}
-              className="flex h-6 w-6 md:h-7 md:w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-              title="-10s"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-[14px] md:h-[14px]"><path d="M12.5 8L8.5 12l4 4"/><text x="15" y="15" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">10</text><path d="M4 12a8 8 0 1 1 1.5 4.7"/><polyline points="4 8 4 12 8 12"/></svg>
-            </button>
-
+          <div className="flex items-center gap-2 md:gap-2.5 flex-1 min-w-0">
             {/* Elapsed watch time — hidden on mobile */}
             <span className="hidden md:inline text-[10px] text-white/70 font-mono whitespace-nowrap tabular-nums">
               {formatTime(watchElapsed)}
@@ -1399,27 +1382,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             <span className={`text-[9px] md:text-[10px] font-mono whitespace-nowrap tabular-nums ${liveEdge - currentTime > 4 ? "text-red-400" : "text-white/70"}`}>
               {liveEdge - currentTime > 1.5 ? `-${Math.round(liveEdge - currentTime)}s` : "LIVE"}
             </span>
-
-            {/* Skip forward 10s */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const video = videoRef.current;
-                if (video) {
-                  const target = Math.min(seekableEnd, video.currentTime + 10);
-                  video.currentTime = target;
-                  setCurrentTime(target);
-                  if (target >= liveEdge - 1.5) {
-                    isBehindLiveRef.current = false;
-                    setIsBehindLive(false);
-                  }
-                }
-              }}
-              className="flex h-6 w-6 md:h-7 md:w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
-              title="+10s"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="md:w-[14px] md:h-[14px]"><path d="M11.5 8l4 4-4 4"/><text x="5" y="15" fontSize="8" fill="currentColor" stroke="none" fontWeight="bold">10</text><path d="M20 12a8 8 0 1 0-1.5 4.7"/><polyline points="20 8 20 12 16 12"/></svg>
-            </button>
           </div>
         )}
 
