@@ -44,6 +44,8 @@ const CoinShop = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [dynamicExpired, setDynamicExpired] = useState(false);
+  const [dynamicSecondsLeft, setDynamicSecondsLeft] = useState(600);
   const [waFallbackEnabled, setWaFallbackEnabled] = useState(false);
   const [adminWaNumber, setAdminWaNumber] = useState("");
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
