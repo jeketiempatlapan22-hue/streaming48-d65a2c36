@@ -20,6 +20,7 @@ import {
   Loader2,
   Plus,
   Save,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import MediaPickerDialog from "./MediaPickerDialog";
 import { parseYoutubeId } from "@/lib/youtubeUrl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { parseShowImport, type ParsedShow, type ParsedTeam } from "@/lib/parseShowImport";
+import { findBestMediaMatch, fileNameToLabel } from "@/lib/mediaNaming";
 
 interface Show {
   id: string;
@@ -526,6 +528,41 @@ const ShowManager = () => {
     updateDraft({ [galleryTarget === "bg" ? "background_image_url" : "qris_image_url"]: url } as Partial<Show>);
   };
 
+  const autoDetectBackground = async () => {
+    if (!draft) return;
+    const query = draft.title.trim();
+    if (!query) {
+      toast({ title: "Isi judul show terlebih dahulu", variant: "destructive" });
+      return;
+    }
+    const { data, error } = await supabase.storage.from("admin-media").list("", {
+      limit: 200,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error) {
+      toast({ title: "Gagal memuat galeri", description: error.message, variant: "destructive" });
+      return;
+    }
+    const candidates = (data || [])
+      .filter((f) => f.name && !f.name.startsWith("."))
+      .map((f) => {
+        const { data: u } = supabase.storage.from("admin-media").getPublicUrl(f.name);
+        return { name: f.name, url: u.publicUrl, label: fileNameToLabel(f.name) };
+      });
+    const best = findBestMediaMatch(query, candidates);
+    if (!best) {
+      toast({
+        title: "Tidak ada foto yang cocok",
+        description: "Coba beri nama foto di galeri agar mirip dengan judul show, atau pilih manual.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateDraft({ background_image_url: best.file.url });
+    toast({ title: `Background dipilih otomatis`, description: best.file.label || best.file.name });
+  };
+
+
   const selectedCategory = CATEGORY_OPTIONS.find((option) => option.value === (draft?.category || "regular")) || CATEGORY_OPTIONS[0];
 
   return (
@@ -987,7 +1024,13 @@ const ShowManager = () => {
                   <Button variant="outline" className="h-auto gap-1.5 py-3" onClick={() => openGallery("bg")}>
                     <Image className="h-4 w-4" /> Galeri
                   </Button>
+                  <Button variant="outline" className="h-auto gap-1.5 py-3" onClick={autoDetectBackground} title="Cari foto di galeri yang cocok dengan judul show">
+                    <Sparkles className="h-4 w-4" /> Auto
+                  </Button>
                 </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  💡 "Auto" akan mencari foto di galeri yang namanya cocok dengan judul show.
+                </p>
               </div>
 
               <div>
@@ -1015,7 +1058,12 @@ const ShowManager = () => {
         )}
       </div>
 
-      <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={handleGallerySelect} />
+      <MediaPickerDialog
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={handleGallerySelect}
+        suggestQuery={galleryTarget === "bg" ? draft?.title : undefined}
+      />
 
       <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) resetImport(); }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
