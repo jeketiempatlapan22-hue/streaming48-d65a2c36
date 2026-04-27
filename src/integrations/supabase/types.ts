@@ -198,6 +198,7 @@ export type Database = {
         Row: {
           coin_amount: number
           created_at: string
+          expires_at: string | null
           id: string
           package_id: string | null
           payment_gateway_order_id: string | null
@@ -211,6 +212,7 @@ export type Database = {
         Insert: {
           coin_amount: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           package_id?: string | null
           payment_gateway_order_id?: string | null
@@ -224,6 +226,7 @@ export type Database = {
         Update: {
           coin_amount?: number
           created_at?: string
+          expires_at?: string | null
           id?: string
           package_id?: string | null
           payment_gateway_order_id?: string | null
@@ -1388,6 +1391,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          expires_at: string | null
           id: string
           payment_gateway_order_id: string | null
           payment_method: string | null
@@ -1403,6 +1407,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          expires_at?: string | null
           id?: string
           payment_gateway_order_id?: string | null
           payment_method?: string | null
@@ -1418,6 +1423,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          expires_at?: string | null
           id?: string
           payment_gateway_order_id?: string | null
           payment_method?: string | null
@@ -1760,6 +1766,10 @@ export type Database = {
         Args: { _amount: number; _quiz_id: string; _user_id: string }
         Returns: undefined
       }
+      cancel_pending_qris_order: {
+        Args: { _order_id: string; _order_kind?: string }
+        Returns: Json
+      }
       change_poll_vote: {
         Args: { _new_option_index: number; _poll_id: string; _voter_id: string }
         Returns: undefined
@@ -1770,6 +1780,7 @@ export type Database = {
       }
       check_user_replay_access: { Args: { _show_id: string }; Returns: Json }
       claim_referral: { Args: { _code: string }; Returns: Json }
+      cleanup_expired_qris_orders: { Args: never; Returns: Json }
       cleanup_live_chat_daily: { Args: never; Returns: Json }
       cleanup_old_logs: { Args: never; Returns: undefined }
       cleanup_rate_limits: { Args: never; Returns: undefined }
