@@ -369,6 +369,7 @@ const ShowManager = () => {
     setImportOpen(false);
   };
 
+  const saveShow = async () => {
     if (!draft) return;
 
     const cleanShortId = sanitizeShortId(draft.short_id);
