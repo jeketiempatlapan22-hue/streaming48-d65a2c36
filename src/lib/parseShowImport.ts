@@ -68,10 +68,7 @@ export function parseShowImport(text: string): ParsedShow[] {
 
   for (const rawLine of lines) {
     const line = stripBold(rawLine);
-    if (!line) {
-      flush();
-      continue;
-    }
+    if (!line) continue;
 
     const titleMatch = line.match(TITLE_RE);
     if (titleMatch) {
