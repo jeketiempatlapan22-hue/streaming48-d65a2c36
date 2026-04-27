@@ -600,6 +600,20 @@ const MembershipPage = () => {
                     <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
                     <p className="text-sm text-muted-foreground">Token membership akan dikirim via WhatsApp.</p>
                   </div>
+                ) : dynamicExpired ? (
+                  <div className="space-y-4 text-center py-2">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-[hsl(var(--warning))]" />
+                    <p className="font-semibold text-foreground">QRIS Kedaluwarsa</p>
+                    <p className="text-sm text-muted-foreground">
+                      Tidak ada konfirmasi pembayaran dalam 10 menit. Silakan buat QRIS baru dan coba bayar lagi.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Jika kamu sudah membayar, jangan bayar lagi — hubungi admin untuk konfirmasi manual.
+                    </p>
+                    <Button onClick={() => { resetDynamicQris(); handleStartDynamicQris(); }} disabled={dynamicLoading || !phone || !email} className="w-full">
+                      {dynamicLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Membuat QRIS...</> : "🔄 Coba Lagi"}
+                    </Button>
+                  </div>
                 ) : dynamicQrString && QRCodeSVG ? (
                   <>
                     <p className="text-sm text-muted-foreground text-center">Scan QRIS di bawah untuk membayar:</p>
@@ -608,7 +622,7 @@ const MembershipPage = () => {
                     </div>
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Menunggu pembayaran...
+                      Menunggu pembayaran... ({Math.floor(dynamicSecondsLeft / 60)}:{String(dynamicSecondsLeft % 60).padStart(2, "0")})
                     </div>
                     <div className="rounded-xl border border-border bg-card p-4">
                       <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
