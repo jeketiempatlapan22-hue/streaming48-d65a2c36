@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Crown, Sparkles, CheckCircle, Star, Users, Calendar, Coins, AlertTriangle, Clock, Copy, ExternalLink } from "lucide-react";
+import { Crown, Sparkles, CheckCircle, Star, Users, Calendar, Coins, AlertTriangle, Clock, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -32,7 +32,7 @@ const MembershipPage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "qris" | "upload" | "done">("coin_info");
+  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "qris" | "upload" | "qris_dynamic" | "done">("coin_info");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
@@ -40,7 +40,14 @@ const MembershipPage = () => {
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
   const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
   const [coinOnly, setCoinOnly] = useState(true);
+  const [useDynamicQris, setUseDynamicQris] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  // Dynamic QRIS state
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
     expires_at?: string;
@@ -62,7 +69,7 @@ const MembershipPage = () => {
   const fetchData = async () => {
     const [showsRes, settingsRes] = await Promise.all([
       supabase.rpc("get_public_shows"),
-      supabase.from("site_settings").select("key, value").in("key", ["membership_coin_only"]),
+      supabase.from("site_settings").select("key, value").in("key", ["membership_coin_only", "use_dynamic_qris"]),
     ]);
     const allShows = showsRes.data;
     const data = (allShows || []).filter((s: any) => s.is_subscription);
@@ -72,6 +79,7 @@ const MembershipPage = () => {
     const settingsMap: Record<string, string> = {};
     (settingsRes.data || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
     setCoinOnly(settingsMap["membership_coin_only"] !== "false");
+    setUseDynamicQris(settingsMap["use_dynamic_qris"] === "true");
 
     const counts: Record<string, number> = {};
     for (const s of subShows) {
@@ -120,6 +128,34 @@ const MembershipPage = () => {
     };
   }, []);
 
+  // Lazy-load QR component for dynamic QRIS
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
+
+  // Poll dynamic QRIS payment status
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("subscription_orders")
+        .select("payment_status, status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast({ title: "✅ Pembayaran berhasil dikonfirmasi!" });
+        setTimeout(() => {
+          setPurchaseStep("done");
+          fetchMyOrders();
+          fetchData();
+        }, 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
+
   const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -131,7 +167,6 @@ const MembershipPage = () => {
 
     const { data: count } = await supabase.rpc("get_confirmed_order_count" as any, { _show_id: show.id });
     const confirmed = (count as number) || 0;
-    // Update the subscriber count in real-time
     setSubscriberCounts(prev => ({ ...prev, [show.id]: confirmed }));
     const isFull = (show.max_subscribers > 0 && confirmed >= show.max_subscribers) || show.is_order_closed;
     if (isFull) { setClosedPopup(show); return; }
@@ -140,9 +175,19 @@ const MembershipPage = () => {
     setPhone("");
     setEmail("");
     setMembershipResult(null);
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicPaid(false);
+    setDynamicLoading(false);
 
     if (mode === "qris") {
-      setPurchaseStep("qris");
+      // Use dynamic QRIS if admin enabled it (auto-confirm via callback).
+      // Otherwise fallback to static QRIS (manual upload bukti).
+      if (useDynamicQris) {
+        setPurchaseStep("qris_dynamic");
+      } else {
+        setPurchaseStep("qris");
+      }
     } else {
       if (show.coin_price <= 0) {
         toast({ title: "Membership ini belum bisa dibeli dengan koin", variant: "destructive" });
@@ -154,6 +199,51 @@ const MembershipPage = () => {
       setCoinBalance(currentBalance);
       setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
     }
+  };
+
+  const handleStartDynamicQris = async () => {
+    if (!selectedShow) return;
+    if (!phone.trim() || !email.trim()) {
+      toast({ title: "Harap isi nomor WhatsApp dan email", variant: "destructive" });
+      return;
+    }
+    if (!/^(08|\+62|62)\d{7,13}$/.test(phone.replace(/[\s-]/g, ""))) {
+      toast({ title: "Format nomor WhatsApp tidak valid", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({ title: "Format email tidak valid", variant: "destructive" });
+      return;
+    }
+    setDynamicLoading(true);
+    try {
+      const priceNum = parseInt((selectedShow.price || "").replace(/[^\d]/g, "")) || 0;
+      if (priceNum <= 0) {
+        toast({ title: "Harga membership tidak valid", variant: "destructive" });
+        setDynamicLoading(false);
+        return;
+      }
+      const normalizedPhone = phone.replace(/[\s-]/g, "").replace(/^\+/, "").replace(/^0/, "62");
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: {
+          show_id: selectedShow.id,
+          amount: priceNum,
+          phone: normalizedPhone,
+          email: email.trim(),
+          order_type: "membership",
+        },
+      });
+      if (error || !data?.success) {
+        toast({ title: data?.error || "Gagal membuat QRIS dinamis", variant: "destructive" });
+        setDynamicLoading(false);
+        return;
+      }
+      setDynamicQrString(data.qr_string);
+      setDynamicOrderId(data.order_id);
+    } catch (err: any) {
+      toast({ title: "Gagal membuat QRIS: " + (err?.message || "Coba lagi"), variant: "destructive" });
+    }
+    setDynamicLoading(false);
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,10 +454,10 @@ const MembershipPage = () => {
                             {show.is_order_closed ? "🔒 Ditutup" : isFull ? "🔒 Penuh" : `Tukar ${show.coin_price} Koin`}
                           </button>
                         )}
-                        {!coinOnly && show.qris_image_url && (
+                        {!coinOnly && (useDynamicQris || show.qris_image_url) && (
                           <button onClick={() => handleBuy(show, "qris")} disabled={isFull}
                             className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all border ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "border-primary bg-primary/10 text-primary hover:bg-primary/20"}`}>
-                            💳 Beli via QRIS
+                            💳 Beli via QRIS {useDynamicQris ? "Dinamis" : "Statis"}
                           </button>
                         )}
                       </div>
@@ -414,7 +504,7 @@ const MembershipPage = () => {
             className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground flex items-center gap-1.5">
-              {purchaseStep === "qris" || purchaseStep === "upload"
+              {purchaseStep === "qris" || purchaseStep === "upload" || purchaseStep === "qris_dynamic"
                 ? <>{selectedShow.price} · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
                 : <><Coins className="h-4 w-4" /> {selectedShow.coin_price} Koin · Durasi {formatDuration(selectedShow.membership_duration_days || 30)}</>
               }
@@ -451,6 +541,59 @@ const MembershipPage = () => {
                   {submitting ? "Mengirim..." : "Kirim Pesanan"}
                 </Button>
                 <p className="text-[10px] text-center text-muted-foreground">Admin akan mengkonfirmasi pesanan kamu</p>
+              </div>
+            )}
+
+            {/* Dynamic QRIS Step (auto-confirm via Pak Kasir callback) */}
+            {purchaseStep === "qris_dynamic" && (
+              <div className="space-y-4">
+                {!dynamicOrderId ? (
+                  <>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                      💳 Bayar dengan QRIS Dinamis. Pesanan otomatis dikonfirmasi setelah pembayaran berhasil.
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label>
+                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
+                      <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
+                    </div>
+                    <Button onClick={handleStartDynamicQris} disabled={dynamicLoading || !phone || !email} className="w-full">
+                      {dynamicLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Membuat QRIS...</> : "Lanjut Bayar"}
+                    </Button>
+                  </>
+                ) : dynamicPaid ? (
+                  <div className="space-y-3 text-center py-4">
+                    <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                    <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
+                    <p className="text-sm text-muted-foreground">Token membership akan dikirim via WhatsApp.</p>
+                  </div>
+                ) : dynamicQrString && QRCodeSVG ? (
+                  <>
+                    <p className="text-sm text-muted-foreground text-center">Scan QRIS di bawah untuk membayar:</p>
+                    <div className="flex justify-center rounded-lg border border-border bg-white p-4">
+                      <QRCodeSVG value={dynamicQrString} size={240} level="M" />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Menunggu pembayaran...
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>👑 {selectedShow.title}</p>
+                        <p>💰 {selectedShow.price}</p>
+                        <p>⏱ Durasi: {formatDuration(selectedShow.membership_duration_days || 30)}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                    QRIS gagal dimuat
+                  </div>
+                )}
               </div>
             )}
 
