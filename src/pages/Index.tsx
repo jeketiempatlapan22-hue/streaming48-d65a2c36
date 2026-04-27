@@ -330,11 +330,10 @@ const Index = () => {
 
   const handleSubmitRegular = async () => {
     if (!selectedShow) return;
-    let signedUrl = "";
-    if (proofFilePath) {
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-      signedUrl = urlData?.signedUrl || "";
-    }
+    // Use the signed URL we already received from the upload edge function.
+    // Re-creating it client-side fails for anonymous (guest) checkouts because
+    // storage RLS blocks anon reads on payment-proofs.
+    const signedUrl = proofUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
