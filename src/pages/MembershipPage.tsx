@@ -160,14 +160,15 @@ const MembershipPage = () => {
     if (!e.target.files?.[0] || !selectedShow) return;
     setUploadingProof(true);
     const file = e.target.files[0];
-    const ext = file.name.split(".").pop();
-    const path = `membership/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-    if (error) { toast({ title: "Gagal upload", variant: "destructive" }); setUploadingProof(false); return; }
-    setPurchaseStep("upload");
+    try {
+      const { path, signed_url } = await uploadPaymentProof(file, { type: "show", show_id: selectedShow.id });
+      setPurchaseStep("upload");
+      (window as any).__membershipProofPath = path;
+      (window as any).__membershipProofSignedUrl = signed_url || null;
+    } catch (err: any) {
+      toast({ title: "Gagal upload: " + (err?.message || "coba lagi"), variant: "destructive" });
+    }
     setUploadingProof(false);
-    // Store the path for submission
-    (window as any).__membershipProofPath = path;
   };
 
   const handleSubmitQris = async () => {
