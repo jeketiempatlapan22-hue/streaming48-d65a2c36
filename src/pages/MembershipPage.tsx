@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import SharedNavbar from "@/components/SharedNavbar";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { parsePriceToNumber } from "@/lib/parsePrice";
 
 interface Show {
   id: string;
@@ -247,7 +248,12 @@ const MembershipPage = () => {
     }
     setDynamicLoading(true);
     try {
-      const priceNum = parseInt((selectedShow.price || "").replace(/[^\d]/g, "")) || 0;
+      // Prioritas: qris_price (sudah include fee) → parse selectedShow.price
+      const qrisPrice = (selectedShow as any).qris_price;
+      const priceNum =
+        typeof qrisPrice === "number" && qrisPrice > 0
+          ? Math.round(qrisPrice)
+          : parsePriceToNumber(selectedShow.price);
       if (priceNum <= 0) {
         toast({ title: "Harga membership tidak valid", variant: "destructive" });
         setDynamicLoading(false);
