@@ -257,10 +257,34 @@ const CoinShop = () => {
   };
 
   const switchToStaticQris = () => {
+    // Batalkan QRIS dinamis pending agar tidak menumpuk di DB/admin panel
+    if (dynamicOrderId && !dynamicPaid) {
+      supabase.rpc("cancel_pending_qris_order" as any, {
+        _order_id: dynamicOrderId,
+        _order_kind: "coin",
+      }).then(() => {});
+    }
+    setDynamicOrderId("");
+    setDynamicQrString("");
     setPurchaseStep("static");
     setDynamicFailed(false);
+    setDynamicExpired(false);
   };
 
+  const cancelPendingDynamicCoin = () => {
+    if (dynamicOrderId && !dynamicPaid && !dynamicExpired) {
+      supabase.rpc("cancel_pending_qris_order" as any, {
+        _order_id: dynamicOrderId,
+        _order_kind: "coin",
+      }).then(() => {});
+    }
+  };
+
+  const formatTime = (s: number) => {
+    const mm = Math.floor(s / 60).toString().padStart(2, "0");
+    const ss = (s % 60).toString().padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
     if (!rawFile || !selectedPkg || !user) return;
