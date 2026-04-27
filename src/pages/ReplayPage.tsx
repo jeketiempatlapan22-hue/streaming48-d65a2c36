@@ -199,28 +199,20 @@ const ReplayPage = () => {
     if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (error) throw error;
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
-      setProofUrl(urlData?.signedUrl || "");
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: purchaseShow.id });
+      setProofUrl(signed_url || "");
       setProofFilePath(path);
       setQrisStep("upload");
-    } catch {
-      toast({ title: "Upload gagal, coba lagi", variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Upload gagal: " + (err?.message || "coba lagi"), variant: "destructive" });
     }
     setUploadingProof(false);
   };
 
   const handleSubmitReplayOrder = async () => {
     if (!purchaseShow) return;
-    let signedUrl = "";
-    if (proofFilePath) {
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-      signedUrl = urlData?.signedUrl || "";
-    }
+    // Use signed URL already obtained from upload (anon users cannot re-sign).
+    const signedUrl = proofUrl || "";
     let orderId: string | null = null;
     try {
       const { data, error } = await supabase.rpc("create_show_order", {
