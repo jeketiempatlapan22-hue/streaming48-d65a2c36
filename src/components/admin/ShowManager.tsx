@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import MediaPickerDialog from "./MediaPickerDialog";
 import { parseYoutubeId } from "@/lib/youtubeUrl";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { parseShowImport, type ParsedShow, type ParsedTeam } from "@/lib/parseShowImport";
 
 interface Show {
   id: string;
@@ -177,6 +179,10 @@ const ShowManager = () => {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [uploadingTarget, setUploadingTarget] = useState<"bg" | "qris" | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<Array<ParsedShow & { selected: boolean }>>([]);
+  const [importing, setImporting] = useState(false);
   const { toast } = useToast();
 
   const filteredShows = useMemo(() => {
@@ -284,6 +290,83 @@ const ShowManager = () => {
     setDraft(created);
     setDirty(false);
     toast({ title: "Show ditambahkan" });
+  };
+
+  const handleImportPreview = () => {
+    const parsed = parseShowImport(importText);
+    if (parsed.length === 0) {
+      toast({ title: "Tidak ada show terdeteksi", description: "Pastikan format pesan benar (🎪 judul, 🗓️ tanggal, dst).", variant: "destructive" });
+      return;
+    }
+    setImportPreview(parsed.map((p) => ({ ...p, selected: true })));
+  };
+
+  const updateImportItem = (index: number, patch: Partial<ParsedShow & { selected: boolean }>) => {
+    setImportPreview((current) => current.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  };
+
+  const removeImportItem = (index: number) => {
+    setImportPreview((current) => current.filter((_, i) => i !== index));
+  };
+
+  const resetImport = () => {
+    setImportText("");
+    setImportPreview([]);
+  };
+
+  const handleImportCreate = async () => {
+    const toCreate = importPreview.filter((p) => p.selected && p.title.trim());
+    if (toCreate.length === 0) {
+      toast({ title: "Tidak ada show yang dipilih", variant: "destructive" });
+      return;
+    }
+    setImporting(true);
+    const payload = toCreate.map((p) => ({
+      title: p.title.trim(),
+      price: "Rp 0",
+      lineup: p.lineup.trim(),
+      schedule_date: p.schedule_date.trim(),
+      schedule_time: p.schedule_time.trim(),
+      background_image_url: null,
+      qris_image_url: null,
+      is_active: true,
+      is_subscription: false,
+      max_subscribers: 0,
+      subscription_benefits: "",
+      group_link: "",
+      is_order_closed: false,
+      category: "regular",
+      category_member: "",
+      coin_price: 0,
+      replay_coin_price: 0,
+      access_password: "",
+      is_replay: false,
+      qris_price: 0,
+      replay_qris_price: 0,
+      membership_duration_days: 30,
+      short_id: null,
+      external_show_id: null,
+      team: p.team || null,
+      is_bundle: false,
+      bundle_description: "",
+      bundle_duration_days: 30,
+      bundle_replay_passwords: [],
+      bundle_replay_info: "",
+    }));
+
+    const { data, error } = await supabase.from("shows").insert(payload).select();
+    setImporting(false);
+
+    if (error) {
+      toast({ title: "Gagal mengimpor show", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    const created = ((data as Show[] | null) ?? []).map((s) => normalizeShow(s));
+    setShows((current) => [...created, ...current]);
+    toast({ title: `${created.length} show berhasil dibuat`, description: "Lengkapi harga & koin di tiap show." });
+    resetImport();
+    setImportOpen(false);
   };
 
   const saveShow = async () => {
@@ -452,9 +535,14 @@ const ShowManager = () => {
           <h2 className="text-xl font-bold text-foreground">🎭 Show Manager</h2>
           <p className="text-sm text-muted-foreground">Form edit sekarang memakai draft + simpan manual agar tidak error saat autosave.</p>
         </div>
-        <Button onClick={createShow} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> Tambah Show
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setImportOpen(true)} size="sm" variant="outline">
+            <Upload className="mr-1 h-4 w-4" /> Impor Cepat
+          </Button>
+          <Button onClick={createShow} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> Tambah Show
+          </Button>
+        </div>
       </div>
 
       <Tabs value={showTab} onValueChange={(value) => setShowTab(value as "active" | "replay")}>
@@ -928,6 +1016,104 @@ const ShowManager = () => {
       </div>
 
       <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={handleGallerySelect} />
+
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) resetImport(); }}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📥 Impor Cepat Show</DialogTitle>
+            <DialogDescription>
+              Tempel pesan jadwal (format WhatsApp) — judul (🎪), tanggal (🗓️), jam (🕖/🕑), dan lineup (👥). Harga & koin diisi nanti per show.
+            </DialogDescription>
+          </DialogHeader>
+
+          {importPreview.length === 0 ? (
+            <div className="space-y-3">
+              <Textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                rows={12}
+                placeholder={"*🎪 Cara Meminum Ramune - Team Love*\n*🗓️ Jumat, 1 Mei 2026*\n*🕖 19.00 WIB*\n*👥 Alya, Anindya, ...*\n\n*🎪 Pajama Drive*\n*🗓️ Sabtu, 2 Mei 2026*\n*🕖 19.00 WIB*\n*👥 -*"}
+                className="bg-background font-mono text-xs"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>Batal</Button>
+                <Button size="sm" onClick={handleImportPreview} disabled={!importText.trim()}>Pratinjau</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                {importPreview.filter((p) => p.selected).length} dari {importPreview.length} show akan dibuat. Edit jika perlu.
+              </p>
+              <div className="space-y-2">
+                {importPreview.map((item, idx) => (
+                  <div key={idx} className={`rounded-lg border p-3 ${item.selected ? "border-primary/40 bg-primary/5" : "border-border bg-muted/30 opacity-60"}`}>
+                    <div className="mb-2 flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={item.selected}
+                        onChange={(e) => updateImportItem(idx, { selected: e.target.checked })}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <Input
+                        value={item.title}
+                        onChange={(e) => updateImportItem(idx, { title: e.target.value })}
+                        placeholder="Judul show"
+                        className="flex-1 bg-background font-semibold"
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => removeImportItem(idx)} className="h-8 w-8 shrink-0">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        value={item.schedule_date}
+                        onChange={(e) => updateImportItem(idx, { schedule_date: e.target.value })}
+                        placeholder="Tanggal"
+                        className="bg-background text-xs"
+                      />
+                      <Input
+                        value={item.schedule_time}
+                        onChange={(e) => updateImportItem(idx, { schedule_time: e.target.value })}
+                        placeholder="Jam"
+                        className="bg-background text-xs"
+                      />
+                    </div>
+                    <Textarea
+                      value={item.lineup}
+                      onChange={(e) => updateImportItem(idx, { lineup: e.target.value })}
+                      placeholder="Lineup (kosongkan jika belum ada)"
+                      rows={2}
+                      className="mt-2 bg-background text-xs"
+                    />
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(["", "passion", "dream", "love"] as ParsedTeam[]).map((t) => (
+                        <button
+                          key={t || "none"}
+                          type="button"
+                          onClick={() => updateImportItem(idx, { team: t })}
+                          className={`rounded-md border px-2 py-1 text-xs ${item.team === t ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground"}`}
+                        >
+                          {t === "" ? "Tanpa Tim" : t === "passion" ? "🔥 Passion" : t === "dream" ? "☁️ Dream" : "💗 Love"}
+                        </button>
+                      ))}
+                    </div>
+                    {item.warnings.length > 0 && (
+                      <p className="mt-2 text-[11px] text-yellow-500">⚠️ {item.warnings.join(", ")}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" size="sm" onClick={resetImport}>← Edit Pesan</Button>
+                <Button size="sm" onClick={handleImportCreate} disabled={importing}>
+                  {importing ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" /> Membuat...</> : `Buat ${importPreview.filter((p) => p.selected).length} Show`}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
