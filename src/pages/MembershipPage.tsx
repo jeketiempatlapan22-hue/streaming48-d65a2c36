@@ -135,10 +135,27 @@ const MembershipPage = () => {
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
-  // Poll dynamic QRIS payment status
+  // Poll dynamic QRIS payment status with 10-minute timeout
   useEffect(() => {
-    if (!dynamicOrderId || dynamicPaid) return;
-    const interval = setInterval(async () => {
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
+    const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+    const startedAt = Date.now();
+    setDynamicSecondsLeft(Math.ceil(TIMEOUT_MS / 1000));
+
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((TIMEOUT_MS - (Date.now() - startedAt)) / 1000));
+      setDynamicSecondsLeft(remaining);
+      if (remaining <= 0) {
+        setDynamicExpired(true);
+      }
+    }, 1000);
+
+    const poll = setInterval(async () => {
+      if (Date.now() - startedAt >= TIMEOUT_MS) {
+        clearInterval(poll);
+        setDynamicExpired(true);
+        return;
+      }
       const { data } = await supabase
         .from("subscription_orders")
         .select("payment_status, status")
@@ -146,7 +163,8 @@ const MembershipPage = () => {
         .maybeSingle();
       if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
         setDynamicPaid(true);
-        clearInterval(interval);
+        clearInterval(poll);
+        clearInterval(tick);
         toast({ title: "✅ Pembayaran berhasil dikonfirmasi!" });
         setTimeout(() => {
           setPurchaseStep("done");
@@ -155,8 +173,21 @@ const MembershipPage = () => {
         }, 1500);
       }
     }, 3000);
-    return () => clearInterval(interval);
-  }, [dynamicOrderId, dynamicPaid]);
+
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
+
+  const resetDynamicQris = () => {
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicPaid(false);
+    setDynamicExpired(false);
+    setDynamicLoading(false);
+    setDynamicSecondsLeft(0);
+  };
 
   const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
