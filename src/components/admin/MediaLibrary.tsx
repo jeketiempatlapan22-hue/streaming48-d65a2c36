@@ -2,16 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { compressImage } from "@/lib/imageCompressor";
 import { toast } from "sonner";
-import { Upload, Trash2, Copy, Image, Search, RefreshCw } from "lucide-react";
+import { Upload, Trash2, Copy, Image, Search, RefreshCw, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { buildMediaFileName, fileNameToLabel, renameFile, getExt } from "@/lib/mediaNaming";
 
 interface MediaFile {
   name: string;
   url: string;
   created_at: string;
   size: number;
+  label: string;
 }
 
 const MediaLibrary = () => {
@@ -20,6 +22,8 @@ const MediaLibrary = () => {
   const [uploading, setUploading] = useState(false);
   const [search, setSearch] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
+  const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const fetchFiles = useCallback(async () => {
     setLoading(true);
@@ -41,6 +45,7 @@ const MediaLibrary = () => {
           url: urlData.publicUrl,
           created_at: f.created_at || "",
           size: (f.metadata as any)?.size || 0,
+          label: fileNameToLabel(f.name),
         };
       });
     setFiles(mediaFiles);
@@ -62,9 +67,15 @@ const MediaLibrary = () => {
         toast.error(`${rawFile.name} terlalu besar (max 10MB)`);
         continue;
       }
+      const defaultLabel = rawFile.name.replace(/\.[^.]+$/, "");
+      const label = window.prompt(
+        `Beri nama foto "${rawFile.name}" (akan dipakai untuk pencarian & auto-detect background show):`,
+        defaultLabel,
+      );
+      if (label === null) continue; // batal
       const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const safeName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const ext = getExt(file.name) || "png";
+      const safeName = buildMediaFileName(label || defaultLabel, ext);
       const { error } = await supabase.storage.from("admin-media").upload(safeName, file);
       if (error) {
         toast.error(`Gagal upload ${file.name}`);
@@ -91,14 +102,45 @@ const MediaLibrary = () => {
     }
   };
 
+  const startRename = (file: MediaFile) => {
+    setRenamingName(file.name);
+    setRenameValue(file.label || file.name.replace(/\.[^.]+$/, ""));
+  };
+
+  const cancelRename = () => {
+    setRenamingName(null);
+    setRenameValue("");
+  };
+
+  const submitRename = async (oldName: string) => {
+    if (!renameValue.trim()) {
+      toast.error("Nama tidak boleh kosong");
+      return;
+    }
+    const newName = renameFile(oldName, renameValue);
+    if (newName === oldName) {
+      cancelRename();
+      return;
+    }
+    const { error } = await supabase.storage.from("admin-media").move(oldName, newName);
+    if (error) {
+      toast.error(`Gagal mengganti nama: ${error.message}`);
+      return;
+    }
+    toast.success("Nama foto diperbarui");
+    cancelRename();
+    fetchFiles();
+  };
+
   const copyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast.success("URL disalin ke clipboard!");
   };
 
-  const filtered = files.filter((f) =>
-    f.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = files.filter((f) => {
+    const q = search.toLowerCase();
+    return f.name.toLowerCase().includes(q) || f.label.toLowerCase().includes(q);
+  });
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "—";
@@ -140,13 +182,13 @@ const MediaLibrary = () => {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari file..."
+          placeholder="Cari berdasarkan nama foto..."
           className="pl-10"
         />
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Upload gambar QRIS, background show, atau aset lain di sini. Salin URL untuk digunakan di Show Manager atau pengaturan lain.
+        💡 Beri nama deskriptif (contoh: "Pajama Drive Team Love") agar foto bisa dikenali otomatis sebagai background kartu show dengan judul yang mirip.
       </p>
 
       {loading ? (
@@ -162,48 +204,84 @@ const MediaLibrary = () => {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {filtered.map((file) => (
-            <div
-              key={file.name}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-primary/40 hover:shadow-md"
-            >
-              <button
-                onClick={() => setPreviewUrl(file.url)}
-                className="block w-full"
+          {filtered.map((file) => {
+            const isRenaming = renamingName === file.name;
+            return (
+              <div
+                key={file.name}
+                className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-primary/40 hover:shadow-md"
               >
-                <div className="aspect-square overflow-hidden bg-secondary/50">
-                  <img
-                    src={file.url}
-                    alt={file.name}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </div>
-              </button>
-              <div className="p-2">
-                <p className="truncate text-[10px] font-medium text-foreground" title={file.name}>
-                  {file.name}
-                </p>
-                <p className="text-[10px] text-muted-foreground">{formatSize(file.size)}</p>
-                <div className="mt-1.5 flex gap-1">
-                  <button
-                    onClick={() => copyUrl(file.url)}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary transition hover:bg-primary/20"
-                    title="Salin URL"
-                  >
-                    <Copy className="h-3 w-3" /> URL
-                  </button>
-                  <button
-                    onClick={() => handleDelete(file.name)}
-                    className="flex items-center justify-center rounded-md bg-destructive/10 px-2 py-1 text-destructive transition hover:bg-destructive/20"
-                    title="Hapus"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                <button
+                  onClick={() => setPreviewUrl(file.url)}
+                  className="block w-full"
+                >
+                  <div className="aspect-square overflow-hidden bg-secondary/50">
+                    <img
+                      src={file.url}
+                      alt={file.label || file.name}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                </button>
+                <div className="p-2">
+                  {isRenaming ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") submitRename(file.name);
+                          if (e.key === "Escape") cancelRename();
+                        }}
+                        className="h-7 text-[11px]"
+                      />
+                      <button onClick={() => submitRename(file.name)} className="rounded bg-primary/20 p-1 text-primary" title="Simpan">
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button onClick={cancelRename} className="rounded bg-muted p-1 text-muted-foreground" title="Batal">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <p
+                        className={`truncate text-[11px] font-medium ${file.label ? "text-foreground" : "italic text-muted-foreground"}`}
+                        title={file.label || file.name}
+                      >
+                        {file.label || "(belum diberi nama)"}
+                      </p>
+                      <button
+                        onClick={() => startRename(file)}
+                        className="ml-auto shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        title="Ganti nama"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">{formatSize(file.size)}</p>
+                  <div className="mt-1.5 flex gap-1">
+                    <button
+                      onClick={() => copyUrl(file.url)}
+                      className="flex flex-1 items-center justify-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary transition hover:bg-primary/20"
+                      title="Salin URL"
+                    >
+                      <Copy className="h-3 w-3" /> URL
+                    </button>
+                    <button
+                      onClick={() => handleDelete(file.name)}
+                      className="flex items-center justify-center rounded-md bg-destructive/10 px-2 py-1 text-destructive transition hover:bg-destructive/20"
+                      title="Hapus"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
