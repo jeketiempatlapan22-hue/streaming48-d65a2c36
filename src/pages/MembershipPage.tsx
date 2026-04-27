@@ -69,7 +69,7 @@ const MembershipPage = () => {
   const fetchData = async () => {
     const [showsRes, settingsRes] = await Promise.all([
       supabase.rpc("get_public_shows"),
-      supabase.from("site_settings").select("key, value").in("key", ["membership_coin_only"]),
+      supabase.from("site_settings").select("key, value").in("key", ["membership_coin_only", "use_dynamic_qris"]),
     ]);
     const allShows = showsRes.data;
     const data = (allShows || []).filter((s: any) => s.is_subscription);
@@ -79,6 +79,7 @@ const MembershipPage = () => {
     const settingsMap: Record<string, string> = {};
     (settingsRes.data || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
     setCoinOnly(settingsMap["membership_coin_only"] !== "false");
+    setUseDynamicQris(settingsMap["use_dynamic_qris"] === "true");
 
     const counts: Record<string, number> = {};
     for (const s of subShows) {
