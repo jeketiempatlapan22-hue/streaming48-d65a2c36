@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
-import { compressImage } from "@/lib/imageCompressor";
+import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
 import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2, Coins } from "lucide-react";
@@ -34,6 +34,7 @@ const SchedulePage = () => {
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("info");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofFilePath, setProofFilePath] = useState("");
+  const [proofSignedUrl, setProofSignedUrl] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [orderShortId, setOrderShortId] = useState("");
@@ -225,26 +226,19 @@ const SchedulePage = () => {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (error) throw error;
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
       setProofFilePath(path);
+      setProofSignedUrl(signed_url || "");
       if (selectedShow.is_subscription) setPurchaseStep("info");
-    } catch {
-      toast.error("Upload gagal, coba lagi");
+    } catch (err: any) {
+      toast.error("Upload gagal: " + (err?.message || "coba lagi"));
     }
     setUploadingProof(false);
   };
 
   const handleSubmitRegular = async () => {
     if (!selectedShow) return;
-    let signedUrl = "";
-    if (proofFilePath) {
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-      signedUrl = urlData?.signedUrl || "";
-    }
+    const signedUrl = proofSignedUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
@@ -276,8 +270,7 @@ const SchedulePage = () => {
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
-    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
+    const signedUrl = proofSignedUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { compressImage } from "@/lib/imageCompressor";
+import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import type { Show } from "@/types/show";
 
 export function useShowPurchase() {
@@ -9,6 +9,7 @@ export function useShowPurchase() {
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("info");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofFilePath, setProofFilePath] = useState("");
+  const [proofSignedUrl, setProofSignedUrl] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
@@ -144,12 +145,9 @@ export function useShowPurchase() {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (upErr) throw upErr;
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
       setProofFilePath(path);
+      setProofSignedUrl(signed_url || "");
       if (selectedShow.is_subscription) setPurchaseStep("info");
     } catch (err: any) {
       toast.error("Upload gagal: " + (err?.message || "Coba lagi"));
@@ -159,8 +157,7 @@ export function useShowPurchase() {
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
-    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
+    const signedUrl = proofSignedUrl || "";
     let orderId: string | null = null;
     let insertSuccess = false;
     try {

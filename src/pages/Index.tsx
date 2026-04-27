@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { compressImage } from "@/lib/imageCompressor";
+import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { motion, AnimatePresence } from "framer-motion";
 import { cachedQuery, invalidateCache, preloadLandingData, fetchCachedEndpoint } from "@/lib/queryCache";
 import {
@@ -330,11 +330,10 @@ const Index = () => {
 
   const handleSubmitRegular = async () => {
     if (!selectedShow) return;
-    let signedUrl = "";
-    if (proofFilePath) {
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-      signedUrl = urlData?.signedUrl || "";
-    }
+    // Use the signed URL we already received from the upload edge function.
+    // Re-creating it client-side fails for anonymous (guest) checkouts because
+    // storage RLS blocks anon reads on payment-proofs.
+    const signedUrl = proofUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
@@ -370,25 +369,19 @@ const Index = () => {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (error) throw error;
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(path, 86400);
-      setProofUrl(urlData?.signedUrl || "");
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
+      setProofUrl(signed_url || "");
       setProofFilePath(path);
       setPurchaseStep("info");
-    } catch {
-      toast.error("Upload gagal, coba lagi");
+    } catch (err: any) {
+      toast.error("Upload gagal: " + (err?.message || "coba lagi"));
     }
     setUploadingProof(false);
   };
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
-    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
+    const signedUrl = proofUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
