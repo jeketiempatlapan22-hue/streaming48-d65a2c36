@@ -462,7 +462,7 @@ const CoinShop = () => {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={!!selectedPkg && purchaseStep !== "done"} onOpenChange={() => setSelectedPkg(null)}>
+      <Dialog open={!!selectedPkg && purchaseStep !== "done"} onOpenChange={(open) => { if (!open) { cancelPendingDynamicCoin(); setSelectedPkg(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Beli {selectedPkg?.coin_amount} Koin</DialogTitle><DialogDescription>{selectedPkg?.price}</DialogDescription></DialogHeader>
 
