@@ -682,7 +682,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(["pending", "confirmed", "rejected", "all"] as const).map((f) => (
           <button key={f} onClick={() => { setFilter(f); setDeleteSelectedIds(new Set()); }}
             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${filter === f ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80"}`}>
@@ -690,7 +690,18 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
             {f !== "all" && ` (${showFiltered.filter((o) => o.status === f).length})`}
           </button>
         ))}
+        <label className="ml-auto flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showDynamicPending}
+            onChange={(e) => setShowDynamicPending(e.target.checked)}
+          />
+          <span className="text-foreground">Tampilkan QRIS Dinamis pending</span>
+        </label>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-1">
+        ℹ️ Pesanan QRIS Dinamis pending disembunyikan secara default karena dikonfirmasi otomatis (atau auto-hapus setelah 10 menit). Hanya QRIS Statis yang perlu konfirmasi manual.
+      </p>
 
       {/* Bulk action bar - always visible when there are orders */}
       {filteredOrders.length > 0 && (
