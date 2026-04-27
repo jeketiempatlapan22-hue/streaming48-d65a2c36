@@ -1024,7 +1024,13 @@ const ShowManager = () => {
                   <Button variant="outline" className="h-auto gap-1.5 py-3" onClick={() => openGallery("bg")}>
                     <Image className="h-4 w-4" /> Galeri
                   </Button>
+                  <Button variant="outline" className="h-auto gap-1.5 py-3" onClick={autoDetectBackground} title="Cari foto di galeri yang cocok dengan judul show">
+                    <Sparkles className="h-4 w-4" /> Auto
+                  </Button>
                 </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  💡 "Auto" akan mencari foto di galeri yang namanya cocok dengan judul show.
+                </p>
               </div>
 
               <div>
