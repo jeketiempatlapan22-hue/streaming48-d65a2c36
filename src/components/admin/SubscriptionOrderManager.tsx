@@ -67,13 +67,22 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const { toast } = useToast();
 
+  const [showDynamicPending, setShowDynamicPending] = useState(false);
+
   const fetchOrders = async () => {
     const { data: ordersData } = await (supabase as any).from("subscription_orders").select("*").order("created_at", { ascending: false });
     const { data: showsData } = await supabase.from("shows").select("id, title, group_link, is_subscription, access_password, is_replay, schedule_date, schedule_time");
     const showMap: Record<string, ShowInfo> = {};
     showsData?.forEach((s: any) => { showMap[s.id] = { title: s.title, group_link: s.group_link || "", is_subscription: s.is_subscription, access_password: s.access_password || "", is_replay: s.is_replay || false, schedule_date: s.schedule_date || "", schedule_time: s.schedule_time || "" }; });
     setShows(showMap);
-    setOrders((ordersData as Order[]) || []);
+    // Default: sembunyikan QRIS dinamis pending dari list (otomatis akan auto-confirm
+    // via callback Pak Kasir atau auto-delete setelah 10 menit). Admin bisa toggle.
+    const filtered = ((ordersData as Order[]) || []).filter((o: any) => {
+      if (showDynamicPending) return true;
+      const isPendingDynamic = o.payment_method === "qris_dynamic" && (o.status === "pending" || o.payment_status === "pending");
+      return !isPendingDynamic;
+    });
+    setOrders(filtered);
 
     // Fetch tokens for confirmed orders to enable quick-send buttons
     const confirmedOrders = (ordersData as Order[] || []).filter(o => o.status === "confirmed");
