@@ -528,6 +528,41 @@ const ShowManager = () => {
     updateDraft({ [galleryTarget === "bg" ? "background_image_url" : "qris_image_url"]: url } as Partial<Show>);
   };
 
+  const autoDetectBackground = async () => {
+    if (!draft) return;
+    const query = draft.title.trim();
+    if (!query) {
+      toast({ title: "Isi judul show terlebih dahulu", variant: "destructive" });
+      return;
+    }
+    const { data, error } = await supabase.storage.from("admin-media").list("", {
+      limit: 200,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error) {
+      toast({ title: "Gagal memuat galeri", description: error.message, variant: "destructive" });
+      return;
+    }
+    const candidates = (data || [])
+      .filter((f) => f.name && !f.name.startsWith("."))
+      .map((f) => {
+        const { data: u } = supabase.storage.from("admin-media").getPublicUrl(f.name);
+        return { name: f.name, url: u.publicUrl, label: fileNameToLabel(f.name) };
+      });
+    const best = findBestMediaMatch(query, candidates);
+    if (!best) {
+      toast({
+        title: "Tidak ada foto yang cocok",
+        description: "Coba beri nama foto di galeri agar mirip dengan judul show, atau pilih manual.",
+        variant: "destructive",
+      });
+      return;
+    }
+    updateDraft({ background_image_url: best.file.url });
+    toast({ title: `Background dipilih otomatis`, description: best.file.label || best.file.name });
+  };
+
+
   const selectedCategory = CATEGORY_OPTIONS.find((option) => option.value === (draft?.category || "regular")) || CATEGORY_OPTIONS[0];
 
   return (
