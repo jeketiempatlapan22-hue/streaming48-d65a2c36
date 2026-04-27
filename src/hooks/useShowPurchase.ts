@@ -144,11 +144,7 @@ export function useShowPurchase() {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (upErr) throw upErr;
+      const { path } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
       setProofFilePath(path);
       if (selectedShow.is_subscription) setPurchaseStep("info");
     } catch (err: any) {
