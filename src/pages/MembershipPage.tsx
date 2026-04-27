@@ -141,12 +141,17 @@ const MembershipPage = () => {
     if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
     const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
     const startedAt = Date.now();
-    setDynamicSecondsLeft(Math.ceil(TIMEOUT_MS / 1000));
+    setDynamicSecondsLeft(Math.floor(TIMEOUT_MS / 1000));
+
+    const computeRemaining = () =>
+      Math.max(0, Math.floor((startedAt + TIMEOUT_MS - Date.now()) / 1000));
 
     const tick = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil((TIMEOUT_MS - (Date.now() - startedAt)) / 1000));
+      const remaining = computeRemaining();
       setDynamicSecondsLeft(remaining);
       if (remaining <= 0) {
+        clearInterval(tick);
+        clearInterval(poll);
         setDynamicExpired(true);
       }
     }, 1000);
@@ -154,6 +159,8 @@ const MembershipPage = () => {
     const poll = setInterval(async () => {
       if (Date.now() - startedAt >= TIMEOUT_MS) {
         clearInterval(poll);
+        clearInterval(tick);
+        setDynamicSecondsLeft(0);
         setDynamicExpired(true);
         return;
       }
@@ -180,6 +187,9 @@ const MembershipPage = () => {
       clearInterval(tick);
     };
   }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
+
+  const formatMmSs = (s: number) =>
+    `${Math.floor(Math.max(0, s) / 60)}:${String(Math.max(0, s) % 60).padStart(2, "0")}`;
 
   const resetDynamicQris = () => {
     setDynamicQrString("");
