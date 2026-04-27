@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import SharedNavbar from "@/components/SharedNavbar";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { parsePriceToNumber } from "@/lib/parsePrice";
 
 interface Show {
   id: string;
