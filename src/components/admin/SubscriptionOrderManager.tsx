@@ -124,7 +124,7 @@ const SubscriptionOrderManager = ({ mode = "membership" }: SubscriptionOrderMana
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => { fetchOrders(); }, [showDynamicPending]);
 
   const updateStatus = async (id: string, status: string) => {
     if (status === "confirmed") {
