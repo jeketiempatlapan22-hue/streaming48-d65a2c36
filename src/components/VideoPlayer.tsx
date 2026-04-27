@@ -1158,12 +1158,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       onDragStart={(e) => e.preventDefault()}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
-      {/* M3U8 / HLS video element */}
+      {/* M3U8 / HLS video element — tap pada layar TIDAK memicu pause; gunakan tombol di navbar */}
       {playlistType === "m3u8" && (
         <video
           ref={videoRef}
-          onClick={handlePlayPause}
-          className={`h-full w-full object-contain cursor-pointer bg-black ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
+          className={`h-full w-full object-contain cursor-default bg-black ${isFullscreen ? "max-h-screen" : "absolute inset-0"}`}
           playsInline
           autoPlay
           muted

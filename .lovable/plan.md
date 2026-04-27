@@ -1,50 +1,54 @@
-# Bulk Import Show dari Pesan WhatsApp
+## Goals
 
-Tambahkan fitur di **Show Manager** agar admin bisa membuat banyak show sekaligus hanya dengan menempelkan blok pesan format WhatsApp (judul, tanggal, jam, lineup). Show otomatis dibuat sebagai draft, lalu admin tinggal melengkapi harga, koin, dan tim untuk masing-masing.
+1. Player m3u8 tidak terpause saat layar tidak sengaja tersentuh — hanya tombol pause di navbar yang menjeda.
+2. Hapus tombol skip ±10s di seekbar DVR. Seekbar dan navbar lain tetap dipertahankan.
+3. Tambahkan animasi loading saat berpindah halaman (route transition) agar lebih menarik.
 
-## Yang akan dibangun
+---
 
-1. **Tombol baru "Impor Cepat"** di header daftar show (di samping tombol "Tambah Show").
-2. **Dialog Impor**: textarea besar untuk paste pesan, tombol **Pratinjau**, lalu daftar hasil parsing yang bisa di-edit/buang sebelum disimpan.
-3. **Parser** yang mengenali baris berformat:
-   - `🎪 <Judul> [- Team Love/Dream/Passion]` (judul wajib; team opsional, di-deteksi dari kata "Team Love/Dream/Passion")
-   - `🗓️ <Hari, DD Bulan YYYY>` → disimpan apa adanya ke `schedule_date` (mengikuti pola yang dipakai sekarang, mis. "1 Mei 2026" atau "Jumat, 1 Mei 2026")
-   - `🕖 / 🕑 <HH.MM WIB>` → `schedule_time` apa adanya
-   - `👥 <nama1, nama2, ...>` atau `👥 -` → `lineup` (kalau "-" jadi string kosong)
-   - Pemisah antar show: baris kosong **atau** kemunculan emoji 🎪 berikutnya. Tanda `*...*` (bold WhatsApp) di-strip.
-4. **Pratinjau editable**: tiap show muncul sebagai card kecil dengan field Judul, Tanggal, Jam, Lineup, dan dropdown **Team** (Passion/Dream/Love/–) yang sudah di-prefill jika terdeteksi dari judul. Admin bisa centang/uncentang show yang akan dibuat.
-5. **Aksi "Buat Semua"**: insert batch ke tabel `shows` memakai default yang sama dengan `createShow` saat ini (`price: "Rp 0"`, `coin_price: 0`, `replay_coin_price: 0`, `qris_price: 0`, `replay_qris_price: 0`, `category: "regular"`, `is_active: true`, dst). Field harga/koin sengaja **tidak** ditanyakan di dialog—admin mengisinya lewat editor show seperti biasa.
-6. **Setelah sukses**: dialog ditutup, daftar show di-refresh, toast "X show berhasil dibuat. Lengkapi harga & koin di tiap show."
+## 1. M3U8: Layar tidak sensitif terhadap tap
 
-## Aturan parser (detail teknis)
+File: `src/components/VideoPlayer.tsx`
 
-- Strip karakter bold `*` dan whitespace berlebih per baris.
-- Deteksi judul: baris yang diawali `🎪`. Jika mengandung ` - Team <X>` di akhir, ekstrak team (`love|dream|passion`, case-insensitive) → set `team`, dan buang potongan team dari judul.
-- Tanggal: baris diawali `🗓️`.
-- Jam: baris diawali jam emoji apapun di rentang 🕐–🕧 (regex `/^[\u{1F550}-\u{1F567}]/u`) → ambil teks setelah emoji.
-- Lineup: baris diawali `👥`. Jika isi `-` → kosong. Selain itu disimpan sebagai teks (koma-separated).
-- Show dianggap valid jika minimal punya judul. Tanggal/jam/lineup boleh kosong (akan ditandai kuning di pratinjau sebagai pengingat).
-- Tidak ada show yang di-skip diam-diam—blok yang gagal di-parse tetap ditampilkan dengan pesan error agar admin bisa perbaiki manual.
+- Hapus `onClick={handlePlayPause}` dari elemen `<video>` m3u8 (line 1165) sehingga tap di area video TIDAK lagi memicu pause/play.
+- Ganti `cursor-pointer` → `cursor-default` pada className video m3u8 (line 1166) supaya UI sesuai.
+- Tetap tambahkan `onContextMenu` & `onDragStart` blocker (sudah ada di container) untuk anti-pencurian.
+- Tombol play/pause besar di overlay loading/error (sekitar line 1319) tetap berfungsi karena pengguna eksplisit mengkliknya.
+- Untuk YouTube/Cloudflare overlay tetap memakai `handlePlayPause` (tidak diubah) — perubahan hanya berlaku untuk `playlistType === "m3u8"`.
+- Catatan: `handlePlayPause` di tempat lain (tombol di navbar bawah, line 1196 & 1225, dan tombol kontrol line 1319) tetap dipertahankan; ini satu-satunya cara user menjeda.
 
-## Alur singkat
+## 2. Hapus tombol skip ±10s di DVR seekbar
 
-```text
-[Tombol "Impor Cepat"]
-        |
-        v
-[Dialog: textarea pesan WA] ---Pratinjau--> [List card editable + checkbox]
-                                                   |
-                                                   v
-                                         [Buat Semua] --> insert batch --> refresh
-```
+File: `src/components/VideoPlayer.tsx` (blok line 1349-1425)
 
-## File yang diubah
+- Hapus tombol "Skip back 10s" (line 1351-1366) dan "Skip forward 10s" (line 1404-1423).
+- Pertahankan:
+  - Elapsed watch time (line 1368-1371)
+  - Slider seekbar (line 1373-1397) — masih bisa di-drag manual untuk navigasi.
+  - Live offset indicator (line 1399-1402)
+- Sesuaikan `flex` gap container agar layout tetap rapi setelah tombol dihapus.
 
-- `src/components/admin/ShowManager.tsx` — tambah state dialog, tombol header, dialog pratinjau, dan handler insert batch.
-- `src/lib/parseShowImport.ts` *(baru)* — fungsi murni `parseShowImport(text): ParsedShow[]` + tipe, mudah diuji ulang.
+## 3. Animasi loading saat berpindah halaman
 
-## Yang TIDAK termasuk
+File: `src/App.tsx`
 
-- Tidak menambah field DB baru.
-- Tidak menyentuh alur reseller / WhatsApp bot.
-- Tidak mengisi harga/koin/QRIS otomatis—itu tetap dilakukan admin per-show seperti sekarang (sesuai permintaan).
+- Buat komponen baru `RouteTransitionLoader` yang:
+  - Memantau `useLocation().pathname` dan menampilkan overlay loading singkat (~400ms) setiap kali path berubah.
+  - Menggunakan style yang konsisten dengan `PageLoader` existing (logo + dots neon cyan/magenta) namun versi overlay full-screen dengan `animate-fade-in`/`animate-fade-out`.
+  - Menggunakan `position: fixed inset-0 z-[9999]` dengan backdrop blur agar terlihat menarik tetapi cepat hilang.
+- Pasang komponen ini di dalam `<BrowserRouter>` bersama `VisitorTracker`, sebelum `MaintenanceGate`.
+- Suspense fallback `PageLoader` yang sudah ada tetap dipertahankan untuk lazy-load chunk pertama; overlay baru ini menambah feedback visual untuk navigasi antar route yang sudah ter-cache.
+
+### Detail animasi
+- Durasi tampil: 350-500ms (cukup untuk efek polesan, tidak mengganggu navigasi).
+- Animasi: kombinasi `animate-fade-in` + dot pulse (sudah tersedia di tailwind config).
+- Ringan: tidak memblokir route render — overlay muncul di atas content baru.
+
+---
+
+## Files Affected
+
+- `src/components/VideoPlayer.tsx` — hapus tap-to-pause m3u8, hapus tombol ±10s.
+- `src/App.tsx` — tambah `RouteTransitionLoader` overlay.
+
+Tidak ada perubahan database, edge function, atau dependency baru.
