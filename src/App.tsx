@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -141,6 +141,55 @@ const VisitorTracker = () => {
   return null;
 };
 
+/** Overlay loading singkat setiap kali pathname berubah, untuk transisi antar halaman yang lebih hidup. */
+const RouteTransitionLoader = () => {
+  const location = useLocation();
+  const [visible, setVisible] = useState(false);
+  const [fadingOut, setFadingOut] = useState(false);
+  const firstRender = useRef(true);
+
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    setVisible(true);
+    setFadingOut(false);
+    const fadeTimer = setTimeout(() => setFadingOut(true), 300);
+    const hideTimer = setTimeout(() => setVisible(false), 550);
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [location.pathname]);
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background/70 backdrop-blur-md pointer-events-none ${fadingOut ? "animate-fade-out" : "animate-fade-in"}`}
+      aria-hidden="true"
+    >
+      <div className="relative">
+        <div className="h-16 w-16 rounded-full border border-[hsl(var(--neon-cyan)/0.4)] overflow-hidden shadow-[0_0_24px_hsl(var(--neon-cyan)/0.35)] animate-float">
+          <img src="/logo.png" alt="" className="h-full w-full object-cover" />
+        </div>
+        <div className="absolute -inset-2 rounded-full border border-[hsl(var(--neon-cyan)/0.25)] animate-ping opacity-30" />
+        <div className="absolute -inset-4 rounded-full border border-[hsl(var(--neon-magenta)/0.15)] animate-pulse opacity-20" />
+      </div>
+      <div className="mt-4 flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--neon-cyan))] animate-pulse shadow-[0_0_6px_hsl(var(--neon-cyan)/0.6)]"
+            style={{ animationDelay: `${i * 150}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   return (
     <ErrorBoundary>
@@ -150,6 +199,7 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <VisitorTracker />
+            <RouteTransitionLoader />
             <MaintenanceGate>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
