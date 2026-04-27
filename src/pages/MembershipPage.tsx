@@ -544,6 +544,59 @@ const MembershipPage = () => {
               </div>
             )}
 
+            {/* Dynamic QRIS Step (auto-confirm via Pak Kasir callback) */}
+            {purchaseStep === "qris_dynamic" && (
+              <div className="space-y-4">
+                {!dynamicOrderId ? (
+                  <>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+                      💳 Bayar dengan QRIS Dinamis. Pesanan otomatis dikonfirmasi setelah pembayaran berhasil.
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">No. WhatsApp *</label>
+                      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08xxxxxxxx" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
+                      <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
+                    </div>
+                    <Button onClick={handleStartDynamicQris} disabled={dynamicLoading || !phone || !email} className="w-full">
+                      {dynamicLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Membuat QRIS...</> : "Lanjut Bayar"}
+                    </Button>
+                  </>
+                ) : dynamicPaid ? (
+                  <div className="space-y-3 text-center py-4">
+                    <CheckCircle className="mx-auto h-12 w-12 text-[hsl(var(--success))]" />
+                    <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
+                    <p className="text-sm text-muted-foreground">Token membership akan dikirim via WhatsApp.</p>
+                  </div>
+                ) : dynamicQrString && QRCodeSVG ? (
+                  <>
+                    <p className="text-sm text-muted-foreground text-center">Scan QRIS di bawah untuk membayar:</p>
+                    <div className="flex justify-center rounded-lg border border-border bg-white p-4">
+                      <QRCodeSVG value={dynamicQrString} size={240} level="M" />
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Menunggu pembayaran...
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p>👑 {selectedShow.title}</p>
+                        <p>💰 {selectedShow.price}</p>
+                        <p>⏱ Durasi: {formatDuration(selectedShow.membership_duration_days || 30)}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">
+                    QRIS gagal dimuat
+                  </div>
+                )}
+              </div>
+            )}
+
             {purchaseStep === "coin_info" && (
               <div className="space-y-4">
                 <div className="rounded-lg bg-primary/10 p-3 text-sm text-primary">
