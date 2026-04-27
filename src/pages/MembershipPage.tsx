@@ -636,9 +636,29 @@ const MembershipPage = () => {
                     <div className="flex justify-center rounded-lg border border-border bg-white p-4">
                       <QRCodeSVG value={dynamicQrString} size={240} level="M" />
                     </div>
-                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Menunggu pembayaran... ({Math.floor(dynamicSecondsLeft / 60)}:{String(dynamicSecondsLeft % 60).padStart(2, "0")})
+                    <div
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-3 py-2 text-center ${
+                        dynamicSecondsLeft <= 60
+                          ? "border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10"
+                          : "border-border bg-secondary/40"
+                      }`}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Menunggu konfirmasi pembayaran…
+                      </div>
+                      <div
+                        className={`font-mono text-lg font-bold tabular-nums ${
+                          dynamicSecondsLeft <= 60 ? "text-[hsl(var(--warning))]" : "text-primary"
+                        }`}
+                      >
+                        {formatMmSs(dynamicSecondsLeft)}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        QRIS otomatis kedaluwarsa saat hitung mundur habis
+                      </p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-4">
                       <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
