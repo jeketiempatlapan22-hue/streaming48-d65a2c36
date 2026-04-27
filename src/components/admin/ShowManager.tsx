@@ -1058,7 +1058,12 @@ const ShowManager = () => {
         )}
       </div>
 
-      <MediaPickerDialog open={galleryOpen} onOpenChange={setGalleryOpen} onSelect={handleGallerySelect} />
+      <MediaPickerDialog
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={handleGallerySelect}
+        suggestQuery={galleryTarget === "bg" ? draft?.title : undefined}
+      />
 
       <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) resetImport(); }}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
