@@ -535,9 +535,14 @@ const ShowManager = () => {
           <h2 className="text-xl font-bold text-foreground">🎭 Show Manager</h2>
           <p className="text-sm text-muted-foreground">Form edit sekarang memakai draft + simpan manual agar tidak error saat autosave.</p>
         </div>
-        <Button onClick={createShow} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> Tambah Show
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setImportOpen(true)} size="sm" variant="outline">
+            <Upload className="mr-1 h-4 w-4" /> Impor Cepat
+          </Button>
+          <Button onClick={createShow} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> Tambah Show
+          </Button>
+        </div>
       </div>
 
       <Tabs value={showTab} onValueChange={(value) => setShowTab(value as "active" | "replay")}>
