@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { compressImage } from "@/lib/imageCompressor";
+import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import type { Show } from "@/types/show";
 
 export function useShowPurchase() {
