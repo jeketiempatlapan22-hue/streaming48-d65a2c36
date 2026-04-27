@@ -32,7 +32,7 @@ const MembershipPage = () => {
   const [shows, setShows] = useState<Show[]>([]);
   const [subscriberCounts, setSubscriberCounts] = useState<Record<string, number>>({});
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
-  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "qris" | "upload" | "done">("coin_info");
+  const [purchaseStep, setPurchaseStep] = useState<"coin_info" | "coin_insufficient" | "qris" | "upload" | "qris_dynamic" | "done">("coin_info");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [coinBalance, setCoinBalance] = useState(0);
@@ -40,7 +40,14 @@ const MembershipPage = () => {
   const [closedPopup, setClosedPopup] = useState<Show | null>(null);
   const [myOrderedShows, setMyOrderedShows] = useState<Set<string>>(new Set());
   const [coinOnly, setCoinOnly] = useState(true);
+  const [useDynamicQris, setUseDynamicQris] = useState(false);
   const [uploadingProof, setUploadingProof] = useState(false);
+  // Dynamic QRIS state
+  const [dynamicQrString, setDynamicQrString] = useState("");
+  const [dynamicOrderId, setDynamicOrderId] = useState("");
+  const [dynamicLoading, setDynamicLoading] = useState(false);
+  const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
     expires_at?: string;
