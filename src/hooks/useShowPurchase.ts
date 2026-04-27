@@ -9,6 +9,7 @@ export function useShowPurchase() {
   const [purchaseStep, setPurchaseStep] = useState<"qris" | "upload" | "info" | "done">("info");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofFilePath, setProofFilePath] = useState("");
+  const [proofSignedUrl, setProofSignedUrl] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
