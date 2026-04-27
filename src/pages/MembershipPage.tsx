@@ -128,6 +128,34 @@ const MembershipPage = () => {
     };
   }, []);
 
+  // Lazy-load QR component for dynamic QRIS
+  useEffect(() => {
+    import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
+  }, []);
+
+  // Poll dynamic QRIS payment status
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid) return;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("subscription_orders")
+        .select("payment_status, status")
+        .eq("id", dynamicOrderId)
+        .maybeSingle();
+      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+        setDynamicPaid(true);
+        clearInterval(interval);
+        toast({ title: "✅ Pembayaran berhasil dikonfirmasi!" });
+        setTimeout(() => {
+          setPurchaseStep("done");
+          fetchMyOrders();
+          fetchData();
+        }, 1500);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dynamicOrderId, dynamicPaid]);
+
   const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
 
@@ -139,7 +167,6 @@ const MembershipPage = () => {
 
     const { data: count } = await supabase.rpc("get_confirmed_order_count" as any, { _show_id: show.id });
     const confirmed = (count as number) || 0;
-    // Update the subscriber count in real-time
     setSubscriberCounts(prev => ({ ...prev, [show.id]: confirmed }));
     const isFull = (show.max_subscribers > 0 && confirmed >= show.max_subscribers) || show.is_order_closed;
     if (isFull) { setClosedPopup(show); return; }
@@ -148,9 +175,19 @@ const MembershipPage = () => {
     setPhone("");
     setEmail("");
     setMembershipResult(null);
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicPaid(false);
+    setDynamicLoading(false);
 
     if (mode === "qris") {
-      setPurchaseStep("qris");
+      // Use dynamic QRIS if admin enabled it (auto-confirm via callback).
+      // Otherwise fallback to static QRIS (manual upload bukti).
+      if (useDynamicQris) {
+        setPurchaseStep("qris_dynamic");
+      } else {
+        setPurchaseStep("qris");
+      }
     } else {
       if (show.coin_price <= 0) {
         toast({ title: "Membership ini belum bisa dibeli dengan koin", variant: "destructive" });
@@ -162,6 +199,51 @@ const MembershipPage = () => {
       setCoinBalance(currentBalance);
       setPurchaseStep(currentBalance < show.coin_price ? "coin_insufficient" : "coin_info");
     }
+  };
+
+  const handleStartDynamicQris = async () => {
+    if (!selectedShow) return;
+    if (!phone.trim() || !email.trim()) {
+      toast({ title: "Harap isi nomor WhatsApp dan email", variant: "destructive" });
+      return;
+    }
+    if (!/^(08|\+62|62)\d{7,13}$/.test(phone.replace(/[\s-]/g, ""))) {
+      toast({ title: "Format nomor WhatsApp tidak valid", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({ title: "Format email tidak valid", variant: "destructive" });
+      return;
+    }
+    setDynamicLoading(true);
+    try {
+      const priceNum = parseInt((selectedShow.price || "").replace(/[^\d]/g, "")) || 0;
+      if (priceNum <= 0) {
+        toast({ title: "Harga membership tidak valid", variant: "destructive" });
+        setDynamicLoading(false);
+        return;
+      }
+      const normalizedPhone = phone.replace(/[\s-]/g, "").replace(/^\+/, "").replace(/^0/, "62");
+      const { data, error } = await supabase.functions.invoke("create-dynamic-qris", {
+        body: {
+          show_id: selectedShow.id,
+          amount: priceNum,
+          phone: normalizedPhone,
+          email: email.trim(),
+          order_type: "membership",
+        },
+      });
+      if (error || !data?.success) {
+        toast({ title: data?.error || "Gagal membuat QRIS dinamis", variant: "destructive" });
+        setDynamicLoading(false);
+        return;
+      }
+      setDynamicQrString(data.qr_string);
+      setDynamicOrderId(data.order_id);
+    } catch (err: any) {
+      toast({ title: "Gagal membuat QRIS: " + (err?.message || "Coba lagi"), variant: "destructive" });
+    }
+    setDynamicLoading(false);
   };
 
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
