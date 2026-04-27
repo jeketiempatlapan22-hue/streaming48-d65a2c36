@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import MediaPickerDialog from "./MediaPickerDialog";
 import { parseYoutubeId } from "@/lib/youtubeUrl";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { parseShowImport, type ParsedShow, type ParsedTeam } from "@/lib/parseShowImport";
 
 interface Show {
   id: string;
