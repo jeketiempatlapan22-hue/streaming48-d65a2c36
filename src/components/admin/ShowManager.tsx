@@ -179,6 +179,10 @@ const ShowManager = () => {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [uploadingTarget, setUploadingTarget] = useState<"bg" | "qris" | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<Array<ParsedShow & { selected: boolean }>>([]);
+  const [importing, setImporting] = useState(false);
   const { toast } = useToast();
 
   const filteredShows = useMemo(() => {
