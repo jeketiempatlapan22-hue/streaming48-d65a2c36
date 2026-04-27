@@ -152,6 +152,7 @@ Deno.serve(async (req) => {
           payment_method: "qris_dynamic",
           status: "pending",
           payment_status: "pending",
+          expires_at: expiresAt,
         })
         .select("id, short_id")
         .single();
