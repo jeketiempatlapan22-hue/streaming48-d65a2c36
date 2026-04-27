@@ -454,10 +454,10 @@ const MembershipPage = () => {
                             {show.is_order_closed ? "🔒 Ditutup" : isFull ? "🔒 Penuh" : `Tukar ${show.coin_price} Koin`}
                           </button>
                         )}
-                        {!coinOnly && show.qris_image_url && (
+                        {!coinOnly && (useDynamicQris || show.qris_image_url) && (
                           <button onClick={() => handleBuy(show, "qris")} disabled={isFull}
                             className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all border ${isFull ? "bg-muted text-muted-foreground cursor-not-allowed" : "border-primary bg-primary/10 text-primary hover:bg-primary/20"}`}>
-                            💳 Beli via QRIS
+                            💳 Beli via QRIS {useDynamicQris ? "Dinamis" : "Statis"}
                           </button>
                         )}
                       </div>
