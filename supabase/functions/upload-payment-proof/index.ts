@@ -27,41 +27,38 @@ Deno.serve(async (req) => {
   }
 
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  if (!edgeRL(`upload:${ip}`, 10, 60_000)) {
+  if (!edgeRL(`upload:${ip}`, 15, 60_000)) {
     return new Response(JSON.stringify({ error: "Terlalu banyak upload. Tunggu sebentar." }), {
       status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   try {
-    // Require authentication
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const anonClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-    const { data: { user }, error: authError } = await anonClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Rate limit: 10 uploads per hour per user
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
+
+    // Auth is OPTIONAL: guest checkout (QRIS dinamis & anonim) must work.
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const anonClient = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_ANON_KEY")!,
+          { global: { headers: { Authorization: authHeader } } }
+        );
+        const { data: { user } } = await anonClient.auth.getUser();
+        if (user) userId = user.id;
+      } catch (_e) { /* ignore — treat as guest */ }
+    }
+
+    // Per-identity rate limit (user OR ip): 15 uploads / hour
+    const rlKey = userId ? `upload:user:${userId}` : `upload:ip:${ip}`;
     const { data: allowed } = await supabaseAdmin.rpc("check_rate_limit", {
-      _key: "upload:" + user.id,
-      _max_requests: 10,
+      _key: rlKey,
+      _max_requests: 15,
       _window_seconds: 3600,
     });
     if (allowed === false) {
@@ -69,6 +66,7 @@ Deno.serve(async (req) => {
         status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
     let formData: FormData;
     try {
       formData = await req.formData();
@@ -118,21 +116,14 @@ Deno.serve(async (req) => {
 
     const supabase = supabaseAdmin;
 
-    // For non-coin uploads, validate show_id
-    if (uploadType !== "coin") {
-      if (!showId) {
-        return new Response(
-          JSON.stringify({ error: "show_id is required" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
+    // For non-coin uploads, validate show_id (when provided)
+    if (uploadType !== "coin" && showId) {
       const { data: show, error: showError } = await supabase
         .from("shows")
         .select("id")
         .eq("id", showId)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
 
       if (showError || !show) {
         return new Response(
@@ -142,10 +133,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Coin proofs require an authenticated user (real account is needed to credit balance).
+    if (uploadType === "coin" && !userId) {
+      return new Response(JSON.stringify({ error: "Login diperlukan untuk membeli koin." }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const extMap: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "jpg", "image/heif": "jpg" };
     const ext = extMap[fileType] || "jpg";
     const bucketName = uploadType === "coin" ? "coin-proofs" : "payment-proofs";
-    const fileName = `${crypto.randomUUID()}.${ext}`;
+    // Folder convention matches storage RLS: <uid>/ for auth users, guest/ for anon.
+    const folder = userId ? userId : "guest";
+    const fileName = `${folder}/${crypto.randomUUID()}.${ext}`;
     const contentType = (fileType === "image/heic" || fileType === "image/heif") ? "image/jpeg" : fileType;
 
     const arrayBuffer = await file.arrayBuffer();
@@ -161,8 +161,11 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Return both raw path and signed URL — callers usually need both.
+    const { data: signed } = await supabase.storage.from(bucketName).createSignedUrl(fileName, 86400);
+
     return new Response(
-      JSON.stringify({ path: fileName }),
+      JSON.stringify({ path: fileName, bucket: bucketName, signed_url: signed?.signedUrl || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
