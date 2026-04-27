@@ -126,7 +126,7 @@ const CoinShop = () => {
 
   // Poll dynamic QRIS payment status for coin orders
   useEffect(() => {
-    if (!dynamicOrderId || dynamicPaid) return;
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("coin_orders")
@@ -143,7 +143,27 @@ const CoinShop = () => {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [dynamicOrderId, dynamicPaid]);
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
+
+  // Countdown 10 menit untuk QRIS dinamis koin
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
+    const timer = setInterval(() => {
+      setDynamicSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timer);
+          setDynamicExpired(true);
+          supabase.rpc("cancel_pending_qris_order" as any, {
+            _order_id: dynamicOrderId,
+            _order_kind: "coin",
+          }).then(() => {});
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
 
   const fetchData = async (userId: string) => {
     const cachedShows = fetchCachedEndpoint("shows").catch(() => null);
