@@ -169,6 +169,7 @@ export function useShowPurchase() {
       if (uid) {
         const { data: orderData, error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: uid,
+          payment_method: "qris_static",
         }).select("id").single();
         if (insertErr) {
           console.error("Order insert error:", insertErr.message);
@@ -180,6 +181,7 @@ export function useShowPurchase() {
       } else {
         const { error: insertErr } = await supabase.from("subscription_orders").insert({
           show_id: selectedShow.id, phone, email, payment_proof_url: signedUrl, user_id: null,
+          payment_method: "qris_static",
         });
         if (insertErr) {
           console.error("Order insert error:", insertErr.message);

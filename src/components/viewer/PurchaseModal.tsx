@@ -30,12 +30,16 @@ interface PurchaseModalProps {
   useDynamicQris?: boolean;
 }
 
+const QRIS_DURATION_SECONDS = 10 * 60; // 10 menit
+
 const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { show: Show; phone: string; onClose: () => void; onDone: () => void; onFallbackStatic: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [qrString, setQrString] = useState("");
   const [orderId, setOrderId] = useState("");
   const [paid, setPaid] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(QRIS_DURATION_SECONDS);
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
 
   // Dynamically import QR component
@@ -60,6 +64,10 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
   const tryCreate = async () => {
     setLoading(true);
     setFailed(false);
+    setExpired(false);
+    setQrString("");
+    setOrderId("");
+    setSecondsLeft(QRIS_DURATION_SECONDS);
     // Hard client-side timeout (28s) agar konsisten dengan edge function (22s + retry)
     const hardTimeout = setTimeout(() => {
       toast.error("QRIS dinamis lambat. Coba QRIS Statis sebagai cadangan.");
@@ -96,9 +104,31 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show.id, show.price, show.is_replay, show.replay_qris_price, phone, show.is_subscription]);
 
+  // Countdown 10 menit
+  useEffect(() => {
+    if (!orderId || paid || expired) return;
+    const timer = setInterval(() => {
+      setSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timer);
+          setExpired(true);
+          // Server cron juga akan menghapus, tapi kita panggil cancel agar
+          // data hilang segera dari panel admin.
+          supabase.rpc("cancel_pending_qris_order" as any, {
+            _order_id: orderId,
+            _order_kind: "subscription",
+          }).then(() => {});
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [orderId, paid, expired]);
+
   // Poll payment status every 3s
   useEffect(() => {
-    if (!orderId || paid) return;
+    if (!orderId || paid || expired) return;
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("subscription_orders")
@@ -113,7 +143,26 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [orderId, paid, onDone]);
+  }, [orderId, paid, expired, onDone]);
+
+  // Cancel order saat user tutup tanpa membayar
+  const handleClose = () => {
+    if (orderId && !paid && !expired) {
+      supabase.rpc("cancel_pending_qris_order" as any, {
+        _order_id: orderId,
+        _order_kind: "subscription",
+      }).then(() => {});
+    }
+    onClose();
+  };
+
+  // Expose handleClose ke parent via window event tidak praktis — gunakan tombol internal di bawah.
+
+  const formatTime = (s: number) => {
+    const mm = Math.floor(s / 60).toString().padStart(2, "0");
+    const ss = (s % 60).toString().padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
 
   if (loading) {
     return (
@@ -135,6 +184,23 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
     );
   }
 
+  if (expired) {
+    return (
+      <div className="space-y-3">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+          ⏰ QRIS dinamis sudah kadaluarsa (10 menit).
+          <p className="mt-1 text-xs opacity-80">Pesanan otomatis dibatalkan. Buat baru jika ingin mencoba lagi.</p>
+        </div>
+        <Button className="w-full" onClick={tryCreate}>🔄 Buat QRIS Baru</Button>
+        {show.qris_image_url && (
+          <Button variant="outline" className="w-full" onClick={onFallbackStatic}>
+            📷 Gunakan QRIS Statis (cadangan)
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   if (failed) {
     return (
       <div className="space-y-3">
@@ -152,6 +218,8 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
     );
   }
 
+  const lowTime = secondsLeft <= 60;
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
@@ -164,10 +232,16 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
           QRIS gagal dimuat
         </div>
       )}
+      <div className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-mono font-semibold ${lowTime ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/5 text-primary"}`}>
+        ⏱ Berlaku: {formatTime(secondsLeft)}
+      </div>
       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <Loader2 className="h-3 w-3 animate-spin" />
-        Menunggu pembayaran...
+        Menunggu pembayaran otomatis...
       </div>
+      <p className="text-[10px] text-center text-muted-foreground px-2">
+        QRIS dinamis berlaku 10 menit. Jika tidak dibayar, akan kadaluarsa otomatis dan dapat dibuat ulang.
+      </p>
       {show.qris_image_url && (
         <Button variant="outline" size="sm" className="w-full text-xs" onClick={onFallbackStatic}>
           📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
@@ -181,6 +255,12 @@ const DynamicQrisView = ({ show, phone, onClose, onDone, onFallbackStatic }: { s
           {show.schedule_date && <p>📅 {show.schedule_date} {show.schedule_time}</p>}
         </div>
       </div>
+      <button
+        onClick={handleClose}
+        className="w-full rounded-xl bg-secondary py-2 text-xs font-medium text-secondary-foreground transition hover:bg-secondary/80"
+      >
+        Batalkan & Tutup
+      </button>
     </div>
   );
 };

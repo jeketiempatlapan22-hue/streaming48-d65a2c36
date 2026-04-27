@@ -44,6 +44,8 @@ const CoinShop = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [dynamicExpired, setDynamicExpired] = useState(false);
+  const [dynamicSecondsLeft, setDynamicSecondsLeft] = useState(600);
   const [waFallbackEnabled, setWaFallbackEnabled] = useState(false);
   const [adminWaNumber, setAdminWaNumber] = useState("");
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
@@ -124,7 +126,7 @@ const CoinShop = () => {
 
   // Poll dynamic QRIS payment status for coin orders
   useEffect(() => {
-    if (!dynamicOrderId || dynamicPaid) return;
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("coin_orders")
@@ -141,7 +143,27 @@ const CoinShop = () => {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [dynamicOrderId, dynamicPaid]);
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
+
+  // Countdown 10 menit untuk QRIS dinamis koin
+  useEffect(() => {
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
+    const timer = setInterval(() => {
+      setDynamicSecondsLeft((s) => {
+        if (s <= 1) {
+          clearInterval(timer);
+          setDynamicExpired(true);
+          supabase.rpc("cancel_pending_qris_order" as any, {
+            _order_id: dynamicOrderId,
+            _order_kind: "coin",
+          }).then(() => {});
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
 
   const fetchData = async (userId: string) => {
     const cachedShows = fetchCachedEndpoint("shows").catch(() => null);
@@ -176,12 +198,18 @@ const CoinShop = () => {
     setDynamicPaid(false);
     setDynamicLoading(false);
     setDynamicFailed(false);
+    setDynamicExpired(false);
+    setDynamicSecondsLeft(600);
   };
 
   const handleStartDynamicQris = async () => {
     if (!selectedPkg || !user) return;
     setDynamicLoading(true);
     setDynamicFailed(false);
+    setDynamicExpired(false);
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicSecondsLeft(600);
     setPurchaseStep("qris");
 
     // Hard client-side timeout (28s) — slightly longer than edge function (22s+retry)
@@ -229,10 +257,34 @@ const CoinShop = () => {
   };
 
   const switchToStaticQris = () => {
+    // Batalkan QRIS dinamis pending agar tidak menumpuk di DB/admin panel
+    if (dynamicOrderId && !dynamicPaid) {
+      supabase.rpc("cancel_pending_qris_order" as any, {
+        _order_id: dynamicOrderId,
+        _order_kind: "coin",
+      }).then(() => {});
+    }
+    setDynamicOrderId("");
+    setDynamicQrString("");
     setPurchaseStep("static");
     setDynamicFailed(false);
+    setDynamicExpired(false);
   };
 
+  const cancelPendingDynamicCoin = () => {
+    if (dynamicOrderId && !dynamicPaid && !dynamicExpired) {
+      supabase.rpc("cancel_pending_qris_order" as any, {
+        _order_id: dynamicOrderId,
+        _order_kind: "coin",
+      }).then(() => {});
+    }
+  };
+
+  const formatTime = (s: number) => {
+    const mm = Math.floor(s / 60).toString().padStart(2, "0");
+    const ss = (s % 60).toString().padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
   const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawFile = e.target.files?.[0];
     if (!rawFile || !selectedPkg || !user) return;
@@ -410,7 +462,7 @@ const CoinShop = () => {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={!!selectedPkg && purchaseStep !== "done"} onOpenChange={() => setSelectedPkg(null)}>
+      <Dialog open={!!selectedPkg && purchaseStep !== "done"} onOpenChange={(open) => { if (!open) { cancelPendingDynamicCoin(); setSelectedPkg(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Beli {selectedPkg?.coin_amount} Koin</DialogTitle><DialogDescription>{selectedPkg?.price}</DialogDescription></DialogHeader>
 
@@ -448,21 +500,51 @@ const CoinShop = () => {
                   <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
                   <p className="text-sm text-muted-foreground">Koin sedang ditambahkan ke akun Anda...</p>
                 </div>
+              ) : dynamicExpired ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+                    ⏰ QRIS dinamis sudah kadaluarsa (10 menit).
+                    <p className="mt-1 text-xs opacity-80">Pesanan otomatis dibatalkan. Buat baru jika ingin mencoba lagi.</p>
+                  </div>
+                  <Button className="w-full" onClick={handleStartDynamicQris}>🔄 Buat QRIS Baru</Button>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full" onClick={switchToStaticQris}>
+                      📷 Gunakan QRIS Statis (cadangan)
+                    </Button>
+                  )}
+                </div>
               ) : dynamicQrString && QRCodeSVG ? (
                 <>
                   <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
                   <div className="flex justify-center rounded-lg border border-border bg-white p-4">
                     <QRCodeSVG value={dynamicQrString} size={240} level="M" />
                   </div>
+                  <div className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-mono font-semibold ${dynamicSecondsLeft <= 60 ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/5 text-primary"}`}>
+                    ⏱ Berlaku: {formatTime(dynamicSecondsLeft)}
+                  </div>
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Menunggu pembayaran...
+                    Menunggu pembayaran otomatis...
                   </div>
+                  <p className="text-[10px] text-center text-muted-foreground px-2">
+                    QRIS dinamis berlaku 10 menit. Jika tidak dibayar, akan kadaluarsa otomatis.
+                  </p>
                   {selectedPkg?.qris_image_url && (
                     <Button variant="outline" className="w-full text-xs" onClick={switchToStaticQris}>
                       📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      cancelPendingDynamicCoin();
+                      setSelectedPkg(null);
+                      setPurchaseStep("phone");
+                    }}
+                  >
+                    Batalkan & Tutup
+                  </Button>
                 </>
               ) : (
                 <div className="space-y-3">
@@ -480,7 +562,6 @@ const CoinShop = () => {
               )}
             </div>
           )}
-
           {(purchaseStep === "static" || (purchaseStep === "qris" && !useDynamicQris)) && (
             <div className="space-y-3">
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
