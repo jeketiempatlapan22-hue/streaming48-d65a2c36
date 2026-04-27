@@ -226,26 +226,19 @@ const SchedulePage = () => {
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
     try {
-      const file = await compressImage(rawFile);
-      const ext = file.name.split(".").pop();
-      const path = `${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("payment-proofs").upload(path, file);
-      if (error) throw error;
+      const { path, signed_url } = await uploadPaymentProof(rawFile, { type: "show", show_id: selectedShow.id });
       setProofFilePath(path);
+      setProofSignedUrl(signed_url || "");
       if (selectedShow.is_subscription) setPurchaseStep("info");
-    } catch {
-      toast.error("Upload gagal, coba lagi");
+    } catch (err: any) {
+      toast.error("Upload gagal: " + (err?.message || "coba lagi"));
     }
     setUploadingProof(false);
   };
 
   const handleSubmitRegular = async () => {
     if (!selectedShow) return;
-    let signedUrl = "";
-    if (proofFilePath) {
-      const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-      signedUrl = urlData?.signedUrl || "";
-    }
+    const signedUrl = proofSignedUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
@@ -277,8 +270,7 @@ const SchedulePage = () => {
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
-    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
+    const signedUrl = proofSignedUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
