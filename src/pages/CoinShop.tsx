@@ -500,21 +500,51 @@ const CoinShop = () => {
                   <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
                   <p className="text-sm text-muted-foreground">Koin sedang ditambahkan ke akun Anda...</p>
                 </div>
+              ) : dynamicExpired ? (
+                <div className="space-y-3">
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center text-sm text-destructive">
+                    ⏰ QRIS dinamis sudah kadaluarsa (10 menit).
+                    <p className="mt-1 text-xs opacity-80">Pesanan otomatis dibatalkan. Buat baru jika ingin mencoba lagi.</p>
+                  </div>
+                  <Button className="w-full" onClick={handleStartDynamicQris}>🔄 Buat QRIS Baru</Button>
+                  {selectedPkg?.qris_image_url && (
+                    <Button variant="outline" className="w-full" onClick={switchToStaticQris}>
+                      📷 Gunakan QRIS Statis (cadangan)
+                    </Button>
+                  )}
+                </div>
               ) : dynamicQrString && QRCodeSVG ? (
                 <>
                   <p className="text-sm text-muted-foreground">Scan QRIS di bawah untuk membayar:</p>
                   <div className="flex justify-center rounded-lg border border-border bg-white p-4">
                     <QRCodeSVG value={dynamicQrString} size={240} level="M" />
                   </div>
+                  <div className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-mono font-semibold ${dynamicSecondsLeft <= 60 ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/5 text-primary"}`}>
+                    ⏱ Berlaku: {formatTime(dynamicSecondsLeft)}
+                  </div>
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    Menunggu pembayaran...
+                    Menunggu pembayaran otomatis...
                   </div>
+                  <p className="text-[10px] text-center text-muted-foreground px-2">
+                    QRIS dinamis berlaku 10 menit. Jika tidak dibayar, akan kadaluarsa otomatis.
+                  </p>
                   {selectedPkg?.qris_image_url && (
                     <Button variant="outline" className="w-full text-xs" onClick={switchToStaticQris}>
                       📷 QRIS dinamis tidak terbaca? Coba QRIS Statis
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    className="w-full text-xs"
+                    onClick={() => {
+                      cancelPendingDynamicCoin();
+                      setSelectedPkg(null);
+                      setPurchaseStep("phone");
+                    }}
+                  >
+                    Batalkan & Tutup
+                  </Button>
                 </>
               ) : (
                 <div className="space-y-3">
@@ -532,7 +562,6 @@ const CoinShop = () => {
               )}
             </div>
           )}
-
           {(purchaseStep === "static" || (purchaseStep === "qris" && !useDynamicQris)) && (
             <div className="space-y-3">
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
