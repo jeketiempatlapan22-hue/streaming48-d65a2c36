@@ -198,12 +198,18 @@ const CoinShop = () => {
     setDynamicPaid(false);
     setDynamicLoading(false);
     setDynamicFailed(false);
+    setDynamicExpired(false);
+    setDynamicSecondsLeft(600);
   };
 
   const handleStartDynamicQris = async () => {
     if (!selectedPkg || !user) return;
     setDynamicLoading(true);
     setDynamicFailed(false);
+    setDynamicExpired(false);
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicSecondsLeft(600);
     setPurchaseStep("qris");
 
     // Hard client-side timeout (28s) — slightly longer than edge function (22s+retry)
