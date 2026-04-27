@@ -381,8 +381,7 @@ const Index = () => {
 
   const handleSubmitSubscription = async () => {
     if (!selectedShow || !proofFilePath) return;
-    const { data: urlData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofFilePath, 86400);
-    const signedUrl = urlData?.signedUrl || "";
+    const signedUrl = proofUrl || "";
     let orderId: string | null = null;
     let shortId: string | null = null;
     try {
