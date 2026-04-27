@@ -47,6 +47,8 @@ const MembershipPage = () => {
   const [dynamicOrderId, setDynamicOrderId] = useState("");
   const [dynamicLoading, setDynamicLoading] = useState(false);
   const [dynamicPaid, setDynamicPaid] = useState(false);
+  const [dynamicExpired, setDynamicExpired] = useState(false);
+  const [dynamicSecondsLeft, setDynamicSecondsLeft] = useState(0);
   const [QRCodeSVG, setQRCodeSVG] = useState<any>(null);
   const [membershipResult, setMembershipResult] = useState<{
     token_code?: string;
@@ -133,10 +135,27 @@ const MembershipPage = () => {
     import("qrcode.react").then(mod => setQRCodeSVG(() => mod.QRCodeSVG));
   }, []);
 
-  // Poll dynamic QRIS payment status
+  // Poll dynamic QRIS payment status with 10-minute timeout
   useEffect(() => {
-    if (!dynamicOrderId || dynamicPaid) return;
-    const interval = setInterval(async () => {
+    if (!dynamicOrderId || dynamicPaid || dynamicExpired) return;
+    const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+    const startedAt = Date.now();
+    setDynamicSecondsLeft(Math.ceil(TIMEOUT_MS / 1000));
+
+    const tick = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((TIMEOUT_MS - (Date.now() - startedAt)) / 1000));
+      setDynamicSecondsLeft(remaining);
+      if (remaining <= 0) {
+        setDynamicExpired(true);
+      }
+    }, 1000);
+
+    const poll = setInterval(async () => {
+      if (Date.now() - startedAt >= TIMEOUT_MS) {
+        clearInterval(poll);
+        setDynamicExpired(true);
+        return;
+      }
       const { data } = await supabase
         .from("subscription_orders")
         .select("payment_status, status")
@@ -144,7 +163,8 @@ const MembershipPage = () => {
         .maybeSingle();
       if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
         setDynamicPaid(true);
-        clearInterval(interval);
+        clearInterval(poll);
+        clearInterval(tick);
         toast({ title: "✅ Pembayaran berhasil dikonfirmasi!" });
         setTimeout(() => {
           setPurchaseStep("done");
@@ -153,8 +173,21 @@ const MembershipPage = () => {
         }, 1500);
       }
     }, 3000);
-    return () => clearInterval(interval);
-  }, [dynamicOrderId, dynamicPaid]);
+
+    return () => {
+      clearInterval(poll);
+      clearInterval(tick);
+    };
+  }, [dynamicOrderId, dynamicPaid, dynamicExpired]);
+
+  const resetDynamicQris = () => {
+    setDynamicQrString("");
+    setDynamicOrderId("");
+    setDynamicPaid(false);
+    setDynamicExpired(false);
+    setDynamicLoading(false);
+    setDynamicSecondsLeft(0);
+  };
 
   const handleBuy = async (show: Show, mode: "coin" | "qris" = "coin") => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -175,10 +208,7 @@ const MembershipPage = () => {
     setPhone("");
     setEmail("");
     setMembershipResult(null);
-    setDynamicQrString("");
-    setDynamicOrderId("");
-    setDynamicPaid(false);
-    setDynamicLoading(false);
+    resetDynamicQris();
 
     if (mode === "qris") {
       // Use dynamic QRIS if admin enabled it (auto-confirm via callback).
@@ -570,6 +600,20 @@ const MembershipPage = () => {
                     <p className="font-semibold text-foreground">Pembayaran Berhasil!</p>
                     <p className="text-sm text-muted-foreground">Token membership akan dikirim via WhatsApp.</p>
                   </div>
+                ) : dynamicExpired ? (
+                  <div className="space-y-4 text-center py-2">
+                    <AlertTriangle className="mx-auto h-12 w-12 text-[hsl(var(--warning))]" />
+                    <p className="font-semibold text-foreground">QRIS Kedaluwarsa</p>
+                    <p className="text-sm text-muted-foreground">
+                      Tidak ada konfirmasi pembayaran dalam 10 menit. Silakan buat QRIS baru dan coba bayar lagi.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Jika kamu sudah membayar, jangan bayar lagi — hubungi admin untuk konfirmasi manual.
+                    </p>
+                    <Button onClick={() => { resetDynamicQris(); handleStartDynamicQris(); }} disabled={dynamicLoading || !phone || !email} className="w-full">
+                      {dynamicLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Membuat QRIS...</> : "🔄 Coba Lagi"}
+                    </Button>
+                  </div>
                 ) : dynamicQrString && QRCodeSVG ? (
                   <>
                     <p className="text-sm text-muted-foreground text-center">Scan QRIS di bawah untuk membayar:</p>
@@ -578,7 +622,7 @@ const MembershipPage = () => {
                     </div>
                     <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Menunggu pembayaran...
+                      Menunggu pembayaran... ({Math.floor(dynamicSecondsLeft / 60)}:{String(dynamicSecondsLeft % 60).padStart(2, "0")})
                     </div>
                     <div className="rounded-xl border border-border bg-card p-4">
                       <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
