@@ -114,6 +114,9 @@ Deno.serve(async (req) => {
     let shortId: string;
     let orderTable: string;
 
+    // QRIS dinamis kadaluarsa 10 menit setelah dibuat
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
     if (isCoinOrder) {
       // userId already validated above
 
@@ -126,6 +129,7 @@ Deno.serve(async (req) => {
           phone: phone || null,
           price: `Rp ${Math.round(amount).toLocaleString("id-ID")}`,
           status: "pending",
+          expires_at: expiresAt,
         })
         .select("id, short_id")
         .single();
