@@ -185,12 +185,9 @@ const MembershipPage = () => {
       return;
     }
     setSubmitting(true);
-    const proofPath = (window as any).__membershipProofPath;
-    let proofUrl = null;
-    if (proofPath) {
-      const { data: signedData } = await supabase.storage.from("payment-proofs").createSignedUrl(proofPath, 31536000);
-      proofUrl = signedData?.signedUrl || null;
-    }
+    // Use the signed URL we already received from the upload edge function.
+    // Anonymous (guest) users cannot re-sign storage objects via RLS.
+    const proofUrl: string | null = (window as any).__membershipProofSignedUrl || null;
 
     const { data, error } = await supabase.rpc("create_show_order" as any, {
       _show_id: selectedShow.id, _phone: phone, _email: email, _payment_proof_url: proofUrl, _payment_method: "qris",
