@@ -31,6 +31,7 @@ export interface Show {
   has_replay_media?: boolean;
   replay_month?: string | null;
   replay_youtube_url?: string | null;
+  exclude_from_membership?: boolean;
 }
 
 export const SHOW_CATEGORIES: Record<string, { label: string; color: string }> = {
