@@ -1,54 +1,48 @@
-## Goals
+## Tujuan
 
-1. Player m3u8 tidak terpause saat layar tidak sengaja tersentuh — hanya tombol pause di navbar yang menjeda.
-2. Hapus tombol skip ±10s di seekbar DVR. Seekbar dan navbar lain tetap dipertahankan.
-3. Tambahkan animasi loading saat berpindah halaman (route transition) agar lebih menarik.
+Memungkinkan admin menandai show sebagai **eksklusif**, di mana pemilik token membership (MBR-/MRD-), bundle (BDL-), dan custom (RT48-) **TIDAK otomatis mendapat akses**. Akses hanya melalui pembelian show satuan (token per-show, ORD-, koin redeem, dsb).
 
----
+## Perubahan Database (migration)
 
-## 1. M3U8: Layar tidak sensitif terhadap tap
+1. **Tambah kolom baru di `public.shows`**:
+   - `exclude_from_membership boolean NOT NULL DEFAULT false` — jika `true`, show ini tidak bisa diakses pakai MBR/MRD/BDL/RT48.
 
-File: `src/components/VideoPlayer.tsx`
+2. **Update RPC `get_membership_show_passwords()`**:
+   - Tambah filter `AND s.exclude_from_membership = false` saat memilih `access_password` show.
+   - Hasilnya: token universal tidak akan menerima password show eksklusif.
 
-- Hapus `onClick={handlePlayPause}` dari elemen `<video>` m3u8 (line 1165) sehingga tap di area video TIDAK lagi memicu pause/play.
-- Ganti `cursor-pointer` → `cursor-default` pada className video m3u8 (line 1166) supaya UI sesuai.
-- Tetap tambahkan `onContextMenu` & `onDragStart` blocker (sudah ada di container) untuk anti-pencurian.
-- Tombol play/pause besar di overlay loading/error (sekitar line 1319) tetap berfungsi karena pengguna eksplisit mengkliknya.
-- Untuk YouTube/Cloudflare overlay tetap memakai `handlePlayPause` (tidak diubah) — perubahan hanya berlaku untuk `playlistType === "m3u8"`.
-- Catatan: `handlePlayPause` di tempat lain (tombol di navbar bawah, line 1196 & 1225, dan tombol kontrol line 1319) tetap dipertahankan; ini satu-satunya cara user menjeda.
+3. **Update RPC `get_public_shows()`**:
+   - Sertakan kolom `exclude_from_membership` agar UI viewer bisa menampilkan badge "Eksklusif — tidak include membership".
 
-## 2. Hapus tombol skip ±10s di DVR seekbar
+4. **(Opsional safety) Update logic di `confirm_membership_order` / fungsi pembuatan token MBR/BDL** — tidak perlu diubah karena pengecekan dilakukan di `get_membership_show_passwords`. Cukup di satu titik.
 
-File: `src/components/VideoPlayer.tsx` (blok line 1349-1425)
+## Perubahan Frontend
 
-- Hapus tombol "Skip back 10s" (line 1351-1366) dan "Skip forward 10s" (line 1404-1423).
-- Pertahankan:
-  - Elapsed watch time (line 1368-1371)
-  - Slider seekbar (line 1373-1397) — masih bisa di-drag manual untuk navigasi.
-  - Live offset indicator (line 1399-1402)
-- Sesuaikan `flex` gap container agar layout tetap rapi setelah tombol dihapus.
+### `src/components/admin/ShowManager.tsx`
+- Tambah toggle/Switch **"Eksklusif (tidak include membership/bundle)"** pada form create/edit show.
+- Field disimpan ke kolom `exclude_from_membership`.
+- Tampilkan badge kecil di list show admin saat aktif.
 
-## 3. Animasi loading saat berpindah halaman
+### `src/hooks/usePurchasedShows.ts`
+- Tetap memanggil `get_membership_show_passwords` (sudah otomatis filter di sisi DB), tidak perlu perubahan logic — DB sudah jadi source of truth.
 
-File: `src/App.tsx`
+### `src/components/viewer/ShowCard.tsx` & `BundleShowCard.tsx`
+- Jika `show.exclude_from_membership === true`, tampilkan badge **"Eksklusif"** (warna magenta neon) pada card.
+- Jika user punya membership tapi show eksklusif → tetap tampilkan tombol "Beli" (bukan "Tonton"), karena `accessPasswords[show.id]` tidak akan berisi password.
 
-- Buat komponen baru `RouteTransitionLoader` yang:
-  - Memantau `useLocation().pathname` dan menampilkan overlay loading singkat (~400ms) setiap kali path berubah.
-  - Menggunakan style yang konsisten dengan `PageLoader` existing (logo + dots neon cyan/magenta) namun versi overlay full-screen dengan `animate-fade-in`/`animate-fade-out`.
-  - Menggunakan `position: fixed inset-0 z-[9999]` dengan backdrop blur agar terlihat menarik tetapi cepat hilang.
-- Pasang komponen ini di dalam `<BrowserRouter>` bersama `VisitorTracker`, sebelum `MaintenanceGate`.
-- Suspense fallback `PageLoader` yang sudah ada tetap dipertahankan untuk lazy-load chunk pertama; overlay baru ini menambah feedback visual untuk navigasi antar route yang sudah ter-cache.
+### `src/types/show.ts`
+- Tambah `exclude_from_membership?: boolean` pada interface Show.
 
-### Detail animasi
-- Durasi tampil: 350-500ms (cukup untuk efek polesan, tidak mengganggu navigasi).
-- Animasi: kombinasi `animate-fade-in` + dot pulse (sudah tersedia di tailwind config).
-- Ringan: tidak memblokir route render — overlay muncul di atas content baru.
+### Memory update
+- Update `mem://index.md` Core: "Show dengan `exclude_from_membership=true` tidak diakses MBR/MRD/BDL/RT48 — wajib beli satuan."
 
----
+## Perilaku Akhir
 
-## Files Affected
+| Token | Show normal | Show eksklusif |
+|-------|-------------|----------------|
+| MBR-/MRD- (membership) | ✅ akses | ❌ harus beli satuan |
+| BDL- (bundle) | ✅ akses | ❌ harus beli satuan |
+| RT48- (custom) | ✅ akses | ❌ harus beli satuan |
+| ORD-/redeem koin per-show | ✅ akses | ✅ akses |
 
-- `src/components/VideoPlayer.tsx` — hapus tap-to-pause m3u8, hapus tombol ±10s.
-- `src/App.tsx` — tambah `RouteTransitionLoader` overlay.
-
-Tidak ada perubahan database, edge function, atau dependency baru.
+Admin cukup centang satu toggle saat membuat/edit show.
