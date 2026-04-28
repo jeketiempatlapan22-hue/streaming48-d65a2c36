@@ -1225,6 +1225,7 @@ export type Database = {
           category_member: string | null
           coin_price: number
           created_at: string
+          exclude_from_membership: boolean
           external_show_id: string | null
           group_link: string | null
           id: string
@@ -1263,6 +1264,7 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
+          exclude_from_membership?: boolean
           external_show_id?: string | null
           group_link?: string | null
           id?: string
@@ -1301,6 +1303,7 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
+          exclude_from_membership?: boolean
           external_show_id?: string | null
           group_link?: string | null
           id?: string
