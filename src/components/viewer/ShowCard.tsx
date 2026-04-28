@@ -248,6 +248,14 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {/* Team badge - full width below lineup */}
         {show.team && <TeamBadge team={show.team} size="md" />}
 
+        {/* Exclusive badge - membership tidak include */}
+        {show.exclude_from_membership && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-fuchsia-300">
+            <span>🔒</span>
+            <span>Eksklusif — Tidak include Membership/Bundle. Wajib beli show ini.</span>
+          </div>
+        )}
+
         {/* Show replay/access password for membership/bundle users */}
         {isUniversalAccess && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
