@@ -624,6 +624,7 @@ const ShowManager = () => {
                       </span>
                       {show.is_subscription ? <Crown className="h-3 w-3 text-primary" /> : null}
                       {show.is_replay ? <Film className="h-3 w-3 text-primary" /> : null}
+                      {show.exclude_from_membership ? <span title="Eksklusif" className="rounded-sm bg-fuchsia-500/20 px-1 text-[9px] font-bold text-fuchsia-300">🔒</span> : null}
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="text-xs text-muted-foreground">{show.price} · {show.schedule_date || "Belum ada jadwal"}</p>
