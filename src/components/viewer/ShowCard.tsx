@@ -1,11 +1,12 @@
 import { useState, useEffect, forwardRef } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
+  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff, Info,
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import ExclusiveShowDetailDialog from "@/components/viewer/ExclusiveShowDetailDialog";
 import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
