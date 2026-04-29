@@ -29,15 +29,15 @@ interface ShowCardProps {
   isUniversalAccess?: boolean;
 }
 
-function parseShowDateTime(dateStr: string, timeStr: string): number | null {
-  return parseWIBDateTime(dateStr, timeStr);
+function parseShowDateTime(dateStr: string, timeStr: string, timezone?: string): number | null {
+  return parseWIBDateTime(dateStr, timeStr, timezone || "WIB");
 }
 
-function useCountdown(dateStr: string, timeStr: string) {
+function useCountdown(dateStr: string, timeStr: string, timezone?: string) {
   const [parts, setParts] = useState<{ d: number; h: number; m: number; s: number; live: boolean } | null>(null);
 
   useEffect(() => {
-    const target = parseShowDateTime(dateStr, timeStr);
+    const target = parseShowDateTime(dateStr, timeStr, timezone);
     if (!target) return;
     const update = () => {
       const diff = target - Date.now();
@@ -53,7 +53,7 @@ function useCountdown(dateStr: string, timeStr: string) {
     update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
-  }, [dateStr, timeStr]);
+  }, [dateStr, timeStr, timezone]);
 
   return parts;
 }
@@ -62,9 +62,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
 }, ref) => {
-  const countdown = useCountdown(show.schedule_date, show.schedule_time);
+  const countdown = useCountdown(show.schedule_date, show.schedule_time, show.schedule_timezone);
   const userZone = getUserZoneLabel();
-  const scheduleTs = parseShowDateTime(show.schedule_date, show.schedule_time);
+  const scheduleTs = parseShowDateTime(show.schedule_date, show.schedule_time, show.schedule_timezone);
   const outsideWIB = scheduleTs != null && isUserOutsideWIB();
   const rawPw = accessPassword || replayPassword;
   const pw = rawPw && rawPw !== "__universal_access__" ? rawPw : undefined;
