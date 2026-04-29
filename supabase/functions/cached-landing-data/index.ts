@@ -67,13 +67,18 @@ const SHOW_CARD_FIELDS = "id,title,price,lineup,schedule_date,schedule_time,back
 async function getPublicShows(sb: any) {
   if (showsCache && Date.now() - showsCache.ts < SHOWS_TTL) return showsCache.data;
 
-  const { data } = await withTimeout(
+  const res: any = await withTimeout(
     sb.from("shows").select(SHOW_CARD_FIELDS).eq("is_active", true).order("created_at", { ascending: false }),
     5000,
-    { data: showsCache?.data ?? [] } as any
+    { data: showsCache?.data ?? [], error: { message: "timeout" } } as any
   );
+  if (res?.error) {
+    console.error("[cached-landing-data] shows query error:", JSON.stringify(res.error));
+  } else {
+    console.log("[cached-landing-data] shows fetched:", (res.data || []).length);
+  }
   // Strip access_password from response (security + smaller payload)
-  const shows = (data || []).map((s: any) => ({ ...s, access_password: null }));
+  const shows = (res.data || []).map((s: any) => ({ ...s, access_password: null }));
   showsCache = { data: shows, ts: Date.now() };
   return shows;
 }
