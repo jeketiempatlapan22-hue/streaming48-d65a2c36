@@ -250,9 +250,18 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
+  const isPauseMember = /^\/pause(member|membership)$/i.test(rawText);
+  const isResumeMember = /^\/(resume|unpause)(member|membership)$/i.test(rawText);
+  const isMemberStatus = /^\/memberstatus$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
+  } else if (isPauseMember) {
+    await handleMembershipPauseTg(supabase, botToken, chatId, true);
+  } else if (isResumeMember) {
+    await handleMembershipPauseTg(supabase, botToken, chatId, false);
+  } else if (isMemberStatus) {
+    await handleMembershipStatusTg(supabase, botToken, chatId);
   } else if (isShows) {
     await handleShowsCommand(supabase, botToken, chatId);
   } else if (isStatus) {
