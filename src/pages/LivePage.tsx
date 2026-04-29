@@ -553,7 +553,7 @@ const LivePage = () => {
             const sDate = result?.token_show_date || "";
             const sTime = result?.token_show_time || "";
             setTokenNotStarted({
-              startsAt: result.starts_at,
+              startsAt: result.starts_at || null,
               showTitle: sTitle,
               showDate: sDate,
               showTime: sTime,
