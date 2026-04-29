@@ -224,6 +224,7 @@ const App = () => {
                   <Route path="/reseller" element={<ResellerPage />} />
                   <Route path="/restream" element={<RestreamPage />} />
                   <Route path="/test-token-access" element={<TokenAccessTest />} />
+                  <Route path="/admin/access-test" element={<TokenAccessTest />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
