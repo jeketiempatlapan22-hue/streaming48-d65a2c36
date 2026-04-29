@@ -58,6 +58,11 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
+const isUniversalTokenCode = (token?: string | null) => {
+  const code = String(token || "").toUpperCase();
+  return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
+};
+
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
@@ -74,7 +79,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
   const isExclusive = Boolean(show.exclude_from_membership);
-  const showToken = isExclusive && isUniversalAccess ? undefined : redeemedToken;
+  const showToken = isExclusive && isUniversalTokenCode(redeemedToken) ? undefined : redeemedToken;
 
   // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
   const replayQrisPrice = show.replay_qris_price || 0;
@@ -322,7 +327,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   <Copy className="h-3.5 w-3.5" /> {hasPw ? "Salin Sandi" : "Tonton Replay"}
                 </button>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                 >
                   <Copy className="h-3 w-3" /> Salin Link
