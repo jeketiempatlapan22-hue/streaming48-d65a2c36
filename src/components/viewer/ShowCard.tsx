@@ -371,6 +371,11 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
               >
                 <MessageCircle className="h-3.5 w-3.5" /> {hasCoin ? "Beli via QRIS" : "Beli Tiket"}
               </button>
+
+              {/* Akses replay via sandi langsung — hanya untuk replay yang punya media */}
+              {isReplayMode && show.is_replay && show.has_replay_media && (
+                <ReplayPasswordEntry show={show} />
+              )}
             </>
           )}
         </div>
