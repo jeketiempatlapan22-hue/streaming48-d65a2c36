@@ -277,7 +277,6 @@ const ShowManager = () => {
         bundle_duration_days: 30,
         bundle_replay_passwords: [],
         bundle_replay_info: "",
-        exclude_from_membership: false,
       })
       .select()
       .single();
