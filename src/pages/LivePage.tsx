@@ -667,8 +667,10 @@ const LivePage = () => {
           normalizedTokenCode.startsWith("MRD-");
         // Bundle tokens: detect by validate_token response, show flag, OR code prefix
         const isBundleToken = Boolean(result.is_bundle) || Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
-        // Custom tokens (RT48-) created via bot command - universal access
-        const isCustomToken = normalizedTokenCode.startsWith("RT48-");
+        // Custom tokens (RT48-) created via bot command - HANYA universal jika
+        // benar-benar tidak terikat show_id. Token RT48- yang punya show_id tetap
+        // diperlakukan sebagai token reguler (terikat jadwal show-nya).
+        const isCustomToken = normalizedTokenCode.startsWith("RT48-") && !result.show_id;
 
         // Tampilkan metadata show: prioritas show pilihan admin (active_show_id),
         // fallback ke show milik token agar countdown/judul/jadwal tetap muncul
