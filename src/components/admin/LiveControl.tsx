@@ -53,7 +53,7 @@ const LiveControl = () => {
       const [streamRes, settingsRes, showsRes] = await Promise.all([
         supabase.from("streams").select("*").limit(1).single(),
         supabase.from("site_settings").select("*"),
-        supabase.from("shows").select("id, title, is_active, is_replay, is_bundle, schedule_date").order("created_at", { ascending: false }),
+        supabase.from("shows").select("id, title, is_active, is_replay, is_bundle, is_subscription, schedule_date, schedule_time, background_image_url").order("created_at", { ascending: false }),
       ]);
       if (streamRes.data) {
         setStream(streamRes.data);
