@@ -2057,6 +2057,11 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
       }
+      test_token_all_shows: { Args: { _token_code: string }; Returns: Json }
+      test_token_show_access: {
+        Args: { _show_id: string; _token_code: string }
+        Returns: Json
+      }
       touch_restream_code_usage: { Args: { _code: string }; Returns: undefined }
       validate_active_live_token: { Args: { _code: string }; Returns: Json }
       validate_replay_access: {
