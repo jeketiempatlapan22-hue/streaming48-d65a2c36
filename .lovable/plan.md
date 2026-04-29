@@ -1,97 +1,103 @@
-## Masalah
+# Audit: Konversi Token Show → Replay & Status Fitur
 
-Saat ini durasi token tidak konsisten mengikuti jadwal show:
+## Ringkasan Temuan
 
-- **`reseller_create_token` & `reseller_create_token_by_id`**: kalau jadwal show ada di masa depan, `expires_at = schedule + N hari` (benar). Tapi kalau jadwal di masa lalu / kosong, fallback ke `now() + N hari` — token tetap aktif walau show sudah lewat.
-- **`confirm_regular_order` & `redeem_coins_for_token`**: `expires_at` di-set ke akhir hari (23:59 WIB) dari `schedule_date`. Kalau jadwal lusa, ini sudah dekat dengan benar, tapi **start time tidak dibatasi** — token bisa dipakai sebelum jadwal mulai. Selain itu fallback `now() + 24h` membuat token aktif walau show belum/tidak punya jadwal.
-- Tidak ada kolom `valid_from` / `starts_at` pada tabel `tokens`, jadi sistem hanya cek `expires_at < now()`. Token yang dibuat hari ini untuk show lusa tetap "aktif" sekarang dan, kalau admin memilih show lain sebagai active show, sudah ditolak (oleh patch sebelumnya) — tapi kalau show jadwal lusa itu yang dipilih admin sekarang, token bisa dipakai lebih awal.
+**Jawaban langsung:** Sistem **sudah** mengkonversi token live menjadi akses replay 14 hari **secara otomatis** ketika admin menandai show sebagai replay (`is_replay = true`) — tetapi **hanya jika user menggunakan token-nya dari halaman replay** (`/replay`). Jika user masih membuka `/live`, mereka akan melihat layar "Show Telah Berakhir" tanpa auto-redirect membawa token ke replay player.
 
-User minta: **durasi token harus persis mengikuti jadwal show** — token untuk show lusa hanya valid mulai jadwal lusa tsb, bukan sejak dibuat.
+Saya juga menemukan beberapa fitur yang **masih utuh** (tidak terhapus) dan satu **gap UX** yang perlu diperbaiki.
 
-## Solusi
+---
 
-### 1. Tambah kolom `valid_from` di tabel `tokens` (migrasi)
+## Bagaimana Konversi Replay Bekerja Sekarang
 
-```sql
-ALTER TABLE public.tokens ADD COLUMN IF NOT EXISTS valid_from timestamptz;
-CREATE INDEX IF NOT EXISTS idx_tokens_valid_from ON public.tokens(valid_from);
+### Alur otomatis (sudah ada di `validate_replay_access` RPC)
+
+```text
+User punya token live (tabel: tokens) → admin set show.is_replay = true
+                              ↓
+User akses /replay + masukkan token
+                              ↓
+RPC validate_replay_access mendeteksi token live + show.is_replay = true
+                              ↓
+1. INSERT ke replay_tokens dengan expires_at = now() + 14 days
+2. created_via = 'live_upgrade_validate'
+3. DELETE token dari tabel tokens (token live dihapus)
+                              ↓
+User dapat akses replay selama 14 hari penuh
 ```
 
-Backfill untuk token existing non-universal yang punya `show_id`:
-- Set `valid_from = parse_show_datetime(schedule_date, schedule_time)` jika ada.
-- Untuk membership/bundle/RT48-/MBR-/MRD-/BDL- tetap NULL (universal, langsung berlaku).
+**Bukti kode (`validate_replay_access` baris 110-138):**
+- Cek apakah token ada di `tokens` + show punya `is_replay = true`
+- Jika ya: buat entry `replay_tokens` dengan `expires_at = now() + interval '14 days'`
+- Hapus token live dari tabel `tokens` (mencegah dipakai lagi sebagai live)
 
-### 2. Update RPC pembuat token agar selalu anchor ke jadwal show
+### Alur jika sudah ada di `replay_tokens` (baris 84-91)
+- Jika `expires_at` masih NULL → di-set jadi `now() + 14 days` saat akses pertama
+- Jika sudah punya `expires_at` → tetap dipakai (tidak di-reset)
 
-**`reseller_create_token` & `reseller_create_token_by_id`** (non-membership):
-- Wajibkan show punya `schedule_date` + `schedule_time` valid; kalau tidak, tolak (`error: 'Show belum punya jadwal lengkap, tidak bisa membuat token.'`).
-- Set `valid_from = parse_show_datetime(...)`.
-- Set `expires_at = valid_from + N hari` (atau `schedule + 24h` default reseller).
-- Hapus fallback `now() + N hari`.
+### Pengamanan tambahan (`validate_token` baris 47-50)
+- Token live yang show-nya sudah jadi replay → diblokir di `/live` dengan pesan "Show ini telah dijadikan replay"
+- Pengecualian: token universal (MBR-, BDL-, RT48-) dan token bundle tetap boleh
 
-**`confirm_regular_order` & `redeem_coins_for_token`**:
-- Sama: hitung `valid_from` dari schedule; `expires_at = end of show day (23:59 WIB)`.
-- Hapus fallback `now() + 24h` untuk show non-bundle yang tidak punya schedule (tolak/log error).
-- Untuk bundle: tetap `now() + bundle_duration_days` (universal), `valid_from = NULL`.
+---
 
-### 3. Update `validate_token` agar enforce `valid_from`
+## Gap yang Ditemukan
 
-Tambah blok setelah cek expired:
+### 1. Tidak ada auto-redirect dari /live → /replay
+Di `LivePage.tsx` baris 870-872 + 1123, ketika realtime subscription mendeteksi `is_replay = true`, UI langsung tampilkan layar "Show Telah Berakhir" + tombol "Ke Beranda". **Token user tidak otomatis di-upgrade** kecuali user inisiatif sendiri ke `/replay`.
 
-```sql
-IF NOT _is_universal AND t.valid_from IS NOT NULL AND t.valid_from > now() THEN
-  RETURN jsonb_build_object(
-    'valid', false,
-    'error', 'Token belum berlaku. Akses dimulai sesuai jadwal show.',
-    'starts_at', t.valid_from,
-    'show_title', (SELECT title FROM shows WHERE id = t.show_id),
-    'schedule_date', (SELECT schedule_date FROM shows WHERE id = t.show_id),
-    'schedule_time', (SELECT schedule_time FROM shows WHERE id = t.show_id)
-  );
-END IF;
-```
+Padahal di baris 587-590 sudah ada logika: saat validasi token live gagal karena show jadi replay, kode mencoba `validate_replay_access`. Tapi ini **hanya jalan saat first-load**, bukan saat live subscription mendeteksi perubahan show real-time.
 
-Universal tokens (MBR-/MRD-/BDL-/RT48-) di-skip seperti sebelumnya.
+### 2. Tidak ada notifikasi 14-hari ke user
+Saat token di-upgrade ke replay, user tidak diberitahu bahwa mereka punya **akses 14 hari** dengan token yang sama. Mereka harus tebak sendiri atau buka halaman replay.
 
-### 4. UI feedback di `LivePage.tsx`
+---
 
-Saat `validate_token` mengembalikan `starts_at`:
-- Tampilkan card "Token belum aktif" dengan countdown ke `starts_at` (gunakan komponen countdown yang sudah ada).
-- Tampilkan judul show + jadwal yang ditunggu.
-- Toast informatif: "Token kamu untuk *{show}*, baru aktif {tanggal} {jam}."
+## Status Fitur (Audit Lengkap)
 
-### 5. Admin panel — tampilkan `valid_from`
-
-Di komponen daftar token (`TokenManagement` / panel reseller), tampilkan kolom "Aktif Mulai" agar admin bisa lihat token belum berlaku.
-
-## Detail teknis
-
-**Files yang berubah:**
-- Migrasi SQL baru: tambah kolom `valid_from` + backfill + update 4 RPC + `validate_token`.
-- `src/pages/LivePage.tsx`: handle response `starts_at`, render countdown "menunggu jadwal".
-- `src/components/admin/TokenManagement.tsx` (atau yang relevan): kolom "Aktif Mulai".
-- `src/components/reseller/*` jika ada list token reseller: tampilkan `valid_from`.
-
-**Aturan ringkasan durasi token setelah perubahan:**
-
-| Tipe token | valid_from | expires_at |
+| Fitur | Status | Catatan |
 |---|---|---|
-| Reseller regular (RSL-) | schedule_ts | schedule_ts + N hari |
-| Order regular (TKN-) | schedule_ts | end of schedule day 23:59 WIB |
-| Coin redeem regular | schedule_ts | end of schedule day 23:59 WIB |
-| Membership (MBR-/MRD-) | NULL (universal) | now() + membership_duration_days |
-| Bundle (BDL-) | NULL (universal) | now() + bundle_duration_days |
-| Custom bot (RT48-) | NULL (universal) | sesuai input admin |
+| Konversi token live → replay 14 hari | ✅ Aktif | Via `validate_replay_access` RPC |
+| Token live diblokir di /live saat show jadi replay | ✅ Aktif | `validate_token` baris 47-50 |
+| Realtime detection saat admin flip is_replay | ✅ Aktif | `LivePage.tsx` baris 870-872 |
+| Universal tokens (MBR/BDL/RT48) bypass blokir | ✅ Aktif | Logic `_is_universal` |
+| Bundle tokens akses multi-show + replay | ✅ Aktif | Logic `_is_bundle` |
+| Reseller audit log lengkap (rejection reasons) | ✅ Pulih | Di-restore migration 20260429135646 |
+| Token `valid_from` mengikuti jadwal show | ✅ Aktif | Migration 20260429135231 |
+| Countdown "Token Belum Aktif" di LivePage | ✅ Aktif | tokenNotStarted state |
+| Side-by-side mismatch overlay (token vs show aktif) | ✅ Aktif | LivePage |
+| Admin pilih active_show_id manual | ✅ Aktif | LiveControl.tsx |
+| Auto-redirect /live → /replay player | ❌ Tidak ada | Gap yang perlu diperbaiki |
+| Notifikasi "14 hari akses replay" ke user | ❌ Tidak ada | Gap UX |
+| WhatsApp bot toggle is_replay | ✅ Aktif | whatsapp-webhook baris 1206 |
 
-**Edge cases:**
-- Show tanpa schedule → tolak pembuatan token regular (paksa admin lengkapi jadwal).
-- Schedule lewat saat token dibuat → `valid_from = now()` (bisa langsung dipakai, expires sesuai schedule day).
-- Admin ubah `schedule_date` setelah token dibuat → token existing **tidak** ikut bergerak (immutable). Catat ini di rilis notes; kalau perlu, sediakan tombol admin "Sinkronkan ulang token ke jadwal" di kemudian hari.
+**Tidak ada fitur yang terhapus** dari hasil audit ini. Semua perubahan terbaru bersifat additive.
 
-## Hasil akhir
+---
 
-Token yang dibuat hari ini untuk show lusa akan: 
-1. Tersimpan dengan `valid_from = lusa 19:00 WIB` (misal), `expires_at = lusa 23:59 WIB`. 
-2. Kalau dipakai sekarang → ditolak oleh `validate_token` dengan pesan + countdown "Aktif mulai lusa 19:00". 
-3. Otomatis aktif tepat saat jadwal show dimulai. 
-4. Otomatis expired di akhir hari show.
+## Rencana Perbaikan (Yang Akan Diimplementasikan)
+
+### A. Auto-upgrade & redirect di LivePage
+Modifikasi `LivePage.tsx`:
+- Saat realtime subscription mendeteksi `is_replay` berubah jadi `true` **dan** user punya `tokenCode` aktif:
+  1. Panggil `supabase.rpc('validate_replay_access', { _token: tokenCode })` otomatis
+  2. Jika berhasil: tampilkan dialog "🎬 Show telah berakhir — token kamu sudah otomatis berlaku untuk replay 14 hari" dengan tombol "Tonton Replay Sekarang" → redirect ke `/replay/{show_short_id}` dengan token pre-filled
+  3. Jika gagal (token universal/bundle): tetap tampilkan layar "Show Telah Berakhir" lama
+
+### B. Notifikasi durasi replay
+- Tambah informasi `expires_at` di response upgrade dialog: "Berlaku sampai: 13 Mei 2026 14:00 WIB"
+- Toast sukses saat upgrade berhasil
+
+### C. Pre-fill token di ReplayPlayPage
+- Pastikan `/replay/{short_id}?token={code}` mengisi otomatis input token (cek apakah sudah ada)
+
+### Files yang dimodifikasi
+- `src/pages/LivePage.tsx` — auto-upgrade flow saat realtime detect is_replay
+- `src/pages/ReplayPlayPage.tsx` — pre-fill token dari query string (jika belum)
+- Tidak perlu migration database — RPC `validate_replay_access` sudah handle semua logika 14-hari
+
+### Yang TIDAK diubah
+- RPC `validate_replay_access` — sudah benar, expires_at = 14 hari
+- RPC `validate_token` — blokir token live saat show jadi replay sudah benar
+- Tabel `replay_tokens` — schema sudah lengkap
+- Logika token universal & bundle — tetap bypass seperti sekarang
