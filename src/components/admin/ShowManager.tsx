@@ -37,6 +37,7 @@ interface Show {
   lineup: string;
   schedule_date: string;
   schedule_time: string;
+  schedule_timezone: string;
   background_image_url: string | null;
   qris_image_url: string | null;
   is_active: boolean;
@@ -97,6 +98,7 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   lineup: show.lineup ?? "",
   schedule_date: show.schedule_date ?? "",
   schedule_time: show.schedule_time ?? "",
+  schedule_timezone: show.schedule_timezone ?? "WIB",
   background_image_url: show.background_image_url ?? null,
   qris_image_url: show.qris_image_url ?? null,
   is_active: show.is_active ?? true,
@@ -252,6 +254,7 @@ const ShowManager = () => {
         lineup: "",
         schedule_date: "",
         schedule_time: "",
+        schedule_timezone: "WIB",
         background_image_url: null,
         qris_image_url: null,
         is_active: true,
@@ -329,6 +332,7 @@ const ShowManager = () => {
       lineup: p.lineup.trim(),
       schedule_date: p.schedule_date.trim(),
       schedule_time: p.schedule_time.trim(),
+      schedule_timezone: "WIB",
       background_image_url: null,
       qris_image_url: null,
       is_active: true,
@@ -422,6 +426,7 @@ const ShowManager = () => {
       lineup: draft.lineup.trim(),
       schedule_date: draft.schedule_date.trim(),
       schedule_time: draft.schedule_time.trim(),
+      schedule_timezone: (draft.schedule_timezone || "WIB").trim().toUpperCase(),
       background_image_url: draft.background_image_url || null,
       qris_image_url: draft.qris_image_url || null,
       is_active: draft.is_active,
