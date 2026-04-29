@@ -28,6 +28,12 @@ const SchedulePage = () => {
   const [isStreamLive, setIsStreamLive] = useState(false);
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const universalToken = membershipToken || bundleToken || customToken || null;
+  const getShowAccessToken = (show: Show) =>
+    redeemedTokens[show.id] || (!show.is_replay && !show.exclude_from_membership ? universalToken : null) || undefined;
+  const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;
+  const liveAccessToken = activeShowId
+    ? redeemedTokens[activeShowId] || (activeShow && !activeShow.exclude_from_membership ? universalToken : null) || null
+    : universalToken;
 
   // Purchase modal state
   const [selectedShow, setSelectedShow] = useState<Show | null>(null);
@@ -351,7 +357,7 @@ const SchedulePage = () => {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredShows.map((show, i) => (
               <motion.div id={`show-${show.id}`} key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }} className="scroll-mt-24">
-                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={redeemedTokens[show.id] || universalToken || undefined} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive && show.id === activeShowId} isUniversalAccess={!!universalToken} />
+                <ShowCard show={show} index={i} isReplayMode={false} redeemedToken={getShowAccessToken(show)} accessPassword={accessPasswords[show.id]} replayPassword={replayPasswords[show.id]} onBuy={handleBuy} onCoinBuy={handleCoinBuy} showCountdown={true} isLive={isStreamLive && show.id === activeShowId} isUniversalAccess={!!universalToken} />
               </motion.div>
             ))}
           </div>
@@ -624,7 +630,7 @@ const SchedulePage = () => {
       <MobileBottomNav
         isLive={isStreamLive}
         loading={loading}
-        liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+        liveAccessToken={liveAccessToken}
         activeShowId={activeShowId}
         activeShowTitle={activeShowId ? (shows.find((s) => s.id === activeShowId)?.title ?? null) : null}
       />
