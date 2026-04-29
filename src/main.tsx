@@ -84,13 +84,13 @@ try {
   }
 } catch {}
 
-// PWA: Listen for service worker updates — only reload on user-initiated navigation, not during streaming
+// PWA: Pastikan user selalu dapat versi terbaru secepatnya tanpa harus menutup app.
 if ("serviceWorker" in navigator) {
   let controllerChanged = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (controllerChanged) return;
     controllerChanged = true;
-    // Don't reload if user is on the live page (would interrupt streaming)
+    // Jangan reload kalau sedang nonton live — tunggu navigasi berikutnya.
     if (window.location.pathname === "/live") {
       console.log("[SW] New service worker active, will apply on next navigation");
       return;
@@ -98,14 +98,49 @@ if ("serviceWorker" in navigator) {
     window.location.reload();
   });
 
-  // Aggressively poll for SW updates every 60s on non-live pages so stale browsers
-  // pick up new builds (PiP, countdown, background fixes) without waiting for full close.
+  // Helper: cek update + paksa SW yang waiting untuk aktif segera.
+  const checkForUpdate = () => {
+    navigator.serviceWorker.getRegistrations().then((regs) => {
+      regs.forEach((reg) => {
+        reg.update().catch(() => {});
+        // Jika ada SW baru yang sudah ter-install dan menunggu, suruh aktif sekarang.
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+        reg.addEventListener("updatefound", () => {
+          const next = reg.installing;
+          if (!next) return;
+          next.addEventListener("statechange", () => {
+            if (next.state === "installed" && navigator.serviceWorker.controller) {
+              // Versi baru siap — aktifkan segera.
+              next.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
+      });
+    });
+  };
+
+  // 1) Cek setiap 60 detik di halaman non-live.
   setInterval(() => {
     if (window.location.pathname === "/live") return;
-    navigator.serviceWorker.getRegistrations().then((regs) => {
-      regs.forEach((reg) => reg.update().catch(() => {}));
-    });
+    checkForUpdate();
   }, 60_000);
+
+  // 2) Cek saat tab kembali fokus / PWA dibuka kembali — momen paling berharga
+  //    untuk menarik update karena user baru saja kembali ke app.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && window.location.pathname !== "/live") {
+      checkForUpdate();
+    }
+  });
+  window.addEventListener("focus", () => {
+    if (window.location.pathname !== "/live") checkForUpdate();
+  });
+  // 3) Saat koneksi pulih dari offline, langsung cek update.
+  window.addEventListener("online", () => {
+    if (window.location.pathname !== "/live") checkForUpdate();
+  });
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
