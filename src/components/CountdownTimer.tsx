@@ -6,10 +6,11 @@ import { parseWIBDateTime } from "@/lib/timeFormat";
 interface CountdownTimerProps {
   dateStr: string;
   timeStr: string;
+  timezone?: string;
 }
 
-const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
-  const ts = parseWIBDateTime(dateStr, timeStr);
+const parseDateTime = (dateStr: string, timeStr: string, timezone?: string): Date | null => {
+  const ts = parseWIBDateTime(dateStr, timeStr, timezone || "WIB");
   if (ts != null) return new Date(ts);
   const d = new Date(`${dateStr} ${timeStr}`);
   if (!isNaN(d.getTime())) return d;
