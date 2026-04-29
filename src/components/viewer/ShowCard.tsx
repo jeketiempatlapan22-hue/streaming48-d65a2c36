@@ -356,7 +356,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   onClick={() => onCoinBuy(show)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--warning))]/90"
                 >
-                  <Coins className="h-3.5 w-3.5" /> {isExclusive ? `Beli Eksklusif ${coinPrice} Koin` : `Beli ${coinPrice} Koin`}
+                  <Coins className="h-3.5 w-3.5" /> {`Beli ${coinPrice} Koin`}
                 </button>
               )}
               <button
@@ -367,21 +367,12 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }`}
               >
-                <MessageCircle className="h-3.5 w-3.5" /> {isExclusive ? "Beli Eksklusif via QRIS" : hasCoin ? "Beli via QRIS" : "Beli Tiket"}
+                <MessageCircle className="h-3.5 w-3.5" /> {hasCoin ? "Beli via QRIS" : "Beli Tiket"}
               </button>
             </>
           )}
         </div>
       </div>
-      <ExclusiveShowDetailDialog
-        show={show}
-        open={exclusiveOpen}
-        onOpenChange={setExclusiveOpen}
-        onBuy={onBuy}
-        onCoinBuy={onCoinBuy}
-        isReplayMode={isReplayMode}
-        isUniversalAccess={isUniversalAccess}
-      />
     </motion.div>
   );
 });
