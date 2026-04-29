@@ -69,7 +69,9 @@ const FlipNumber = ({ value }: { value: number }) => {
 
 const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedule_time?: string | null } | null) => {
   if (!show?.schedule_date) return null;
-  return parseWIBDateTime(show.schedule_date, show.schedule_time || "23:59");
+  // Default ke 19:00 WIB (jam show paling umum) jika admin belum set jam.
+  // Lebih baik daripada 00:00 (countdown habis di tengah malam) atau 23:59 (terlalu jauh).
+  return parseWIBDateTime(show.schedule_date, show.schedule_time || "19:00");
 };
 
 const resolveDisplayShow = (
