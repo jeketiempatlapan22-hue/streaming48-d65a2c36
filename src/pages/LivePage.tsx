@@ -940,6 +940,41 @@ const LivePage = () => {
 
   if (loading || redirecting) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">{redirecting ? "Mengarahkan ke replay..." : "Memvalidasi akses..."}</p></div></div>);
 
+  if (membershipPaused) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/40 bg-card p-8 text-center shadow-lg">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+          <span className="text-4xl">⏸️</span>
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-foreground">Akses Membership Sedang Dijeda</h2>
+        <p className="mb-2 text-sm text-muted-foreground">
+          Admin sedang menjeda layanan membership untuk sementara.
+        </p>
+        <p className="mb-6 text-xs text-muted-foreground">
+          Token kamu <strong>tetap aktif</strong> dan akan otomatis bisa digunakan kembali ketika admin mengaktifkan layanan.
+        </p>
+        <div className="flex flex-col gap-3">
+          {whatsappNumber && (
+            <a
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin, saya mendapat pesan akses membership sedang dijeda. Mohon info kapan layanan kembali aktif.\n\nToken: " + tokenCode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:bg-[hsl(var(--success))]/90 active:scale-[0.97] transition-transform"
+            >
+              💬 Hubungi Admin
+            </a>
+          )}
+          <button onClick={() => navigate("/schedule")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">
+            📅 Lihat Jadwal Show
+          </button>
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">
+            🏠 Kembali ke Beranda
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (blocked) return (
     <div className="flex min-h-screen items-center justify-center bg-destructive/5 px-4">
       <div className="w-full max-w-lg rounded-2xl border-2 border-destructive bg-card p-8 text-center shadow-[0_0_40px_hsl(var(--destructive)/0.3)]">
