@@ -94,12 +94,28 @@ const ID_MONTHS: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 };
 
-export function parseWIBDateTime(dateStr: string, timeStr: string): number | null {
+/** Offset in minutes for Indonesian timezone codes. */
+const TZ_OFFSETS: Record<string, number> = {
+  WIB: 7 * 60,
+  WITA: 8 * 60,
+  WIT: 9 * 60,
+};
+
+export function parseWIBDateTime(
+  dateStr: string,
+  timeStr: string,
+  timezone: string = "WIB"
+): number | null {
   if (!dateStr) return null;
 
   // ----- Time -----
   // Accept "19:00", "19.00", "19:00 WIB", "7 PM", "7pm", "19", "" (=> 00:00).
-  let cleanTime = (timeStr || "00:00")
+  // If timeStr contains an explicit zone (WITA/WIT/WIB), it overrides the timezone arg.
+  const rawTime = timeStr || "00:00";
+  let zoneOverride: string | null = null;
+  const zoneMatch = rawTime.match(/\b(WIB|WITA|WIT)\b/i);
+  if (zoneMatch) zoneOverride = zoneMatch[1].toUpperCase();
+  let cleanTime = rawTime
     .replace(/\s*WIB\s*/i, "")
     .replace(/\s*WITA\s*/i, "")
     .replace(/\s*WIT\s*/i, "")
