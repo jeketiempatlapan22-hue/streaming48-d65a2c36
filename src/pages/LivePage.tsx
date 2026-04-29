@@ -548,7 +548,7 @@ const LivePage = () => {
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
           // Token belum aktif (jadwal show belum tiba)
-          if (result?.token_not_started === true && result?.starts_at) {
+          if (result?.token_not_started === true) {
             const sTitle = result?.token_show_title || "Show Kamu";
             const sDate = result?.token_show_date || "";
             const sTime = result?.token_show_time || "";
