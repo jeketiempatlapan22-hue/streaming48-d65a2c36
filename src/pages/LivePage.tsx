@@ -750,8 +750,15 @@ const LivePage = () => {
       const { data: streamData } = await (supabase.rpc as any)("get_stream_status");
       const { activeShow } = await fetchDisplayShow(showId, Boolean(streamData?.[0]?.is_live));
       applyActiveShowMetadata(activeShow);
+      if (tokenCode) {
+        const { data: accessData, error: accessErr } = await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode });
+        const accessResult = accessData as any;
+        if (accessErr || !accessResult?.valid) {
+          setError(accessResult?.error || "Akses live tidak valid untuk show aktif.");
+        }
+      }
     } catch {}
-  }, [applyActiveShowMetadata, syncPlaylists]);
+  }, [applyActiveShowMetadata, syncPlaylists, tokenCode]);
 
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
