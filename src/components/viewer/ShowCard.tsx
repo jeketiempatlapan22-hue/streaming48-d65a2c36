@@ -73,6 +73,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
+  const isExclusive = Boolean(show.exclude_from_membership);
+  const showToken = isExclusive && isUniversalAccess ? undefined : redeemedToken;
 
   // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
   const replayQrisPrice = show.replay_qris_price || 0;
@@ -129,7 +131,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 {cat.label}
               </span>
             )}
-            {show.exclude_from_membership && (
+            {isExclusive && (
               <span className="flex items-center gap-1 rounded-full bg-fuchsia-500/90 backdrop-blur-sm px-2 py-0.5 text-[9px] font-extrabold text-white border border-fuchsia-300/40 shadow-lg shadow-fuchsia-500/40">
                 🔒 EKSKLUSIF
               </span>
@@ -159,7 +161,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         </div>
 
         {/* Countdown - bottom of image */}
-        {showCountdown && countdown && !countdown.live && !show.is_replay && redeemedToken && (
+        {showCountdown && countdown && !countdown.live && !show.is_replay && showToken && (
           <div className="absolute bottom-1.5 left-2">
             <div className="flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1">
               <Timer className="h-2.5 w-2.5 text-primary animate-pulse shrink-0" />
@@ -256,7 +258,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {show.team && <TeamBadge team={show.team} size="md" />}
 
         {/* Exclusive badge - membership tidak include */}
-        {show.exclude_from_membership && (
+        {isExclusive && (
           <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
               <span>🔒</span>
