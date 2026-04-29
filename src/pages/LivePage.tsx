@@ -992,6 +992,32 @@ const LivePage = () => {
     return () => clearInterval(i);
   }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime]);
 
+  // Countdown khusus saat token belum aktif (jadwal show belum tiba)
+  const [notStartedCountdown, setNotStartedCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  useEffect(() => {
+    if (!tokenNotStarted?.startsAt) { setNotStartedCountdown(null); return; }
+    const target = new Date(tokenNotStarted.startsAt).getTime();
+    if (isNaN(target)) { setNotStartedCountdown(null); return; }
+    const tick = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) {
+        setNotStartedCountdown({ d: 0, h: 0, m: 0, s: 0 });
+        // Token sudah aktif → reload agar validate ulang
+        try { window.location.reload(); } catch {}
+        return;
+      }
+      setNotStartedCountdown({
+        d: Math.floor(diff / 86400000),
+        h: Math.floor((diff % 86400000) / 3600000),
+        m: Math.floor((diff % 3600000) / 60000),
+        s: Math.floor((diff % 60000) / 1000),
+      });
+    };
+    tick();
+    const i = setInterval(tick, 1000);
+    return () => clearInterval(i);
+  }, [tokenNotStarted?.startsAt]);
+
   useEffect(() => { const h = (e: MouseEvent) => { if ((e.target as HTMLElement).closest(".player-area")) e.preventDefault(); }; document.addEventListener("contextmenu", h); return () => document.removeEventListener("contextmenu", h); }, []);
 
   const handleUsernameSet = async (name: string) => { setUsername(name); safeStorageSet(typeof window !== "undefined" ? window.localStorage : undefined, "rt48_username", name); setShowUsernameModal(false); const { data: { session } } = await supabase.auth.getSession(); if (session?.user) await supabase.from("profiles").upsert({ id: session.user.id, username: name }, { onConflict: "id" }); };
