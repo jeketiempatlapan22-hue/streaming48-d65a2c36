@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Trash2, Ban, RefreshCw, Plus, Search, Globe, Lock, ClipboardList, CheckCircle, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import MembershipPauseControl from "./MembershipPauseControl";
 
 const DURATION_TABS = [
   { key: "daily", label: "Harian", emoji: "📅" },
