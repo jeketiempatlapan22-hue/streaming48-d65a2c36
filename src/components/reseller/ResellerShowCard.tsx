@@ -40,7 +40,8 @@ const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
 
 const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
   const [maxDevices, setMaxDevices] = useState("1");
-  const [duration, setDuration] = useState("7");
+  const membershipDuration = Math.max(1, Math.min(90, Number(show.membership_duration_days) || 30));
+  const [duration, setDuration] = useState(String(membershipDuration));
   const [generating, setGenerating] = useState(false);
   const [lastToken, setLastToken] = useState<{
     code: string;
