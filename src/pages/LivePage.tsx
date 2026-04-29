@@ -542,13 +542,19 @@ const LivePage = () => {
           // Token milik show lain — server sudah memvalidasi & memblokir.
           // Tampilkan layar "Show Mismatch" agar user paham token tidak berlaku.
           if (result?.show_mismatch === true) {
+            const tTitle = result?.token_show_title || "Show Lain";
+            const aTitle = result?.active_show_title || "Show Lain";
             setShowMismatch(true);
             setMismatchShowTitle(JSON.stringify({
-              tokenShowTitle: result?.token_show_title || "Show Lain",
+              tokenShowTitle: tTitle,
               tokenShowDate: "",
               tokenShowTime: "",
-              activeShowTitle: result?.active_show_title || "Show Lain",
+              activeShowTitle: aTitle,
             }));
+            toast.error("Token tidak sesuai jadwal", {
+              description: `Token kamu untuk "${tTitle}", tapi yang sedang live adalah "${aTitle}".`,
+              duration: 8000,
+            });
             setLoading(false);
             return;
           }
