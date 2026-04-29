@@ -74,8 +74,6 @@ async function getPublicShows(sb: any) {
   );
   if (res?.error) {
     console.error("[cached-landing-data] shows query error:", JSON.stringify(res.error));
-  } else {
-    console.log("[cached-landing-data] shows fetched:", (res.data || []).length);
   }
   // Strip access_password from response (security + smaller payload)
   const shows = (res.data || []).map((s: any) => ({ ...s, access_password: null }));
