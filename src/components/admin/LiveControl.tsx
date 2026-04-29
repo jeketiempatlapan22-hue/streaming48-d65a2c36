@@ -93,13 +93,65 @@ const LiveControl = () => {
   };
 
   const saveActiveShow = async (showId: string) => {
-    setActiveShowId(showId);
-    await supabase
+    // "__none__" → kosongkan active show
+    const valueToSave = showId === "__none__" ? "" : showId;
+    setActiveShowId(valueToSave);
+    const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "active_show_id", value: showId } as any, { onConflict: "key" });
-    const show = shows.find((s) => s.id === showId);
-    toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
+      .upsert({ key: "active_show_id", value: valueToSave } as any, { onConflict: "key" });
+    if (error) {
+      toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (!valueToSave) {
+      toast({ title: "Show aktif dikosongkan" });
+      return;
+    }
+    const show = shows.find((s) => s.id === valueToSave);
+    if (show?.is_replay) {
+      toast({
+        title: "⚠️ Show ini berstatus REPLAY",
+        description: "Token live regular tidak akan bisa mengakses. Pastikan ini disengaja.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
+    }
   };
+
+  // Live countdown preview untuk show yang dipilih (memantul realtime).
+  useEffect(() => {
+    const show = shows.find((s) => s.id === activeShowId);
+    if (!show) {
+      setShowCountdown(null);
+      setShowStartedAgoMs(null);
+      return;
+    }
+    const target = parseWIBDateTime(show.schedule_date || "", show.schedule_time || "00:00");
+    if (target == null) {
+      setShowCountdown(null);
+      setShowStartedAgoMs(null);
+      return;
+    }
+    const tick = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) {
+        setShowCountdown(null);
+        setShowStartedAgoMs(-diff);
+        return;
+      }
+      setShowStartedAgoMs(null);
+      setShowCountdown({
+        d: Math.floor(diff / 86_400_000),
+        h: Math.floor((diff % 86_400_000) / 3_600_000),
+        m: Math.floor((diff % 3_600_000) / 60_000),
+        s: Math.floor((diff % 60_000) / 1000),
+      });
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [activeShowId, shows]);
 
   const saveDetails = async () => {
     if (!stream) return;
