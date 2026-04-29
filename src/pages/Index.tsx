@@ -463,13 +463,12 @@ const Index = () => {
   };
 
   // Universal access token for membership/bundle/custom users.
-  // Exclusive shows must be opened only with a per-show purchased token.
   const universalToken = membershipToken || bundleToken || customToken || null;
   const getShowAccessToken = (show: Show) =>
-    redeemedTokens[show.id] || (!show.is_replay && !show.exclude_from_membership ? universalToken : null) || undefined;
+    redeemedTokens[show.id] || (!show.is_replay ? universalToken : null) || undefined;
   const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;
   const liveAccessToken = activeShowId
-    ? redeemedTokens[activeShowId] || (activeShow && !activeShow.exclude_from_membership ? universalToken : null) || null
+    ? redeemedTokens[activeShowId] || universalToken || null
     : universalToken;
 
   const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));

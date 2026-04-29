@@ -1,12 +1,11 @@
 import { useState, useEffect, forwardRef } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff, Info,
+  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
-import ExclusiveShowDetailDialog from "@/components/viewer/ExclusiveShowDetailDialog";
 import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
@@ -58,11 +57,6 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
-const isUniversalTokenCode = (token?: string | null) => {
-  const code = String(token || "").toUpperCase();
-  return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
-};
-
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
@@ -74,12 +68,10 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
-  const [exclusiveOpen, setExclusiveOpen] = useState(false);
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
-  const isExclusive = Boolean(show.exclude_from_membership);
-  const showToken = isExclusive && isUniversalTokenCode(redeemedToken) ? undefined : redeemedToken;
+  const showToken = redeemedToken;
 
   // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
   const replayQrisPrice = show.replay_qris_price || 0;
@@ -134,11 +126,6 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
             {cat && (
               <span className="rounded-full bg-black/50 backdrop-blur-sm px-2 py-0.5 text-[9px] font-bold text-white border border-white/10">
                 {cat.label}
-              </span>
-            )}
-            {isExclusive && (
-              <span className="flex items-center gap-1 rounded-full bg-fuchsia-500/90 backdrop-blur-sm px-2 py-0.5 text-[9px] font-extrabold text-white border border-fuchsia-300/40 shadow-lg shadow-fuchsia-500/40">
-                🔒 EKSKLUSIF
               </span>
             )}
           </div>
@@ -262,39 +249,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {/* Team badge - full width below lineup */}
         {show.team && <TeamBadge team={show.team} size="md" />}
 
-        {/* Exclusive badge - membership tidak include */}
-        {isExclusive && (
-          <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
-              <span>🔒</span>
-              <span>Show Eksklusif</span>
-            </div>
-            <p className="text-[10px] leading-snug text-fuchsia-100/85">
-              Show ini <strong className="text-fuchsia-200">tidak termasuk</strong> dalam Membership, Bundle, Mader, atau RT48.
-            </p>
-            {isUniversalAccess ? (
-              <p className="text-[10px] leading-snug text-amber-200/90 font-semibold border-t border-fuchsia-500/30 pt-1.5">
-                ⚠️ Token membership/bundle Anda <u>tidak berlaku</u> di sini. Wajib beli ulang via{" "}
-                {hasCoin && <span className="text-amber-300">Koin</span>}
-                {hasCoin && " atau "}
-                <span className="text-amber-300">QRIS</span> di bawah.
-              </p>
-            ) : (
-              <p className="text-[10px] leading-snug text-fuchsia-100/85">
-                Wajib <strong className="text-fuchsia-200">beli show ini secara terpisah</strong> untuk dapat menonton.
-              </p>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); setExclusiveOpen(true); }}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 py-1.5 text-[10px] font-bold text-fuchsia-200 transition-all hover:bg-fuchsia-500/20 active:scale-[0.98]"
-            >
-              <Info className="h-3 w-3" /> Pelajari & Lihat Opsi Pembelian
-            </button>
-          </div>
-        )}
-
         {/* Show replay/access password for membership/bundle users */}
-        {isUniversalAccess && !isExclusive && show.access_password && (
+        {isUniversalAccess && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
             <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
             <div className="flex items-center justify-between">
@@ -400,7 +356,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   onClick={() => onCoinBuy(show)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--warning))]/90"
                 >
-                  <Coins className="h-3.5 w-3.5" /> {isExclusive ? `Beli Eksklusif ${coinPrice} Koin` : `Beli ${coinPrice} Koin`}
+                  <Coins className="h-3.5 w-3.5" /> {`Beli ${coinPrice} Koin`}
                 </button>
               )}
               <button
@@ -411,21 +367,12 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }`}
               >
-                <MessageCircle className="h-3.5 w-3.5" /> {isExclusive ? "Beli Eksklusif via QRIS" : hasCoin ? "Beli via QRIS" : "Beli Tiket"}
+                <MessageCircle className="h-3.5 w-3.5" /> {hasCoin ? "Beli via QRIS" : "Beli Tiket"}
               </button>
             </>
           )}
         </div>
       </div>
-      <ExclusiveShowDetailDialog
-        show={show}
-        open={exclusiveOpen}
-        onOpenChange={setExclusiveOpen}
-        onBuy={onBuy}
-        onCoinBuy={onCoinBuy}
-        isReplayMode={isReplayMode}
-        isUniversalAccess={isUniversalAccess}
-      />
     </motion.div>
   );
 });

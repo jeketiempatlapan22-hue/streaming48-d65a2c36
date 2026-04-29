@@ -26,7 +26,7 @@ const FaqPage = lazy(() => import("./pages/FaqPage"));
 const AboutPage = lazy(() => import("./pages/AboutPage"));
 const ResellerPage = lazy(() => import("./pages/ResellerPage"));
 const RestreamPage = lazy(() => import("./pages/RestreamPage"));
-const TokenAccessTest = lazy(() => import("./pages/TokenAccessTest"));
+
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -223,8 +223,6 @@ const App = () => {
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/reseller" element={<ResellerPage />} />
                   <Route path="/restream" element={<RestreamPage />} />
-                  <Route path="/test-token-access" element={<TokenAccessTest />} />
-                  <Route path="/admin/access-test" element={<TokenAccessTest />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

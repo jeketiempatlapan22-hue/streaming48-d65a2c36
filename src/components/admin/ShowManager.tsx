@@ -65,7 +65,6 @@ interface Show {
   replay_m3u8_url: string;
   replay_youtube_url: string;
   replay_month: string;
-  exclude_from_membership: boolean;
 }
 
 const CATEGORY_OPTIONS = [
@@ -126,7 +125,6 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   replay_m3u8_url: (show as any).replay_m3u8_url ?? "",
   replay_youtube_url: (show as any).replay_youtube_url ?? "",
   replay_month: (show as any).replay_month ?? "",
-  exclude_from_membership: (show as any).exclude_from_membership ?? false,
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
@@ -279,7 +277,6 @@ const ShowManager = () => {
         bundle_duration_days: 30,
         bundle_replay_passwords: [],
         bundle_replay_info: "",
-        exclude_from_membership: false,
       })
       .select()
       .single();
@@ -357,7 +354,6 @@ const ShowManager = () => {
       bundle_duration_days: 30,
       bundle_replay_passwords: [],
       bundle_replay_info: "",
-      exclude_from_membership: false,
     }));
 
     const { data, error } = await supabase.from("shows").insert(payload).select();
@@ -454,7 +450,6 @@ const ShowManager = () => {
       replay_m3u8_url: draft.replay_m3u8_url.trim() || null,
       replay_youtube_url: normalizedYoutubeId,
       replay_month: draft.replay_month.trim() || null,
-      exclude_from_membership: Boolean(draft.exclude_from_membership),
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
@@ -624,7 +619,7 @@ const ShowManager = () => {
                       </span>
                       {show.is_subscription ? <Crown className="h-3 w-3 text-primary" /> : null}
                       {show.is_replay ? <Film className="h-3 w-3 text-primary" /> : null}
-                      {show.exclude_from_membership ? <span title="Eksklusif" className="rounded-sm bg-fuchsia-500/20 px-1 text-[9px] font-bold text-fuchsia-300">🔒</span> : null}
+                      
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="text-xs text-muted-foreground">{show.price} · {show.schedule_date || "Belum ada jadwal"}</p>
@@ -702,16 +697,6 @@ const ShowManager = () => {
                 <Switch checked={draft.is_bundle} onCheckedChange={(value) => updateDraft({ is_bundle: value })} />
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/5 p-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-sm">🔒</span>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Eksklusif (tidak include membership)</div>
-                    <div className="text-[11px] text-muted-foreground">Membership / Bundle / Token universal TIDAK bisa menonton — wajib beli show ini secara satuan.</div>
-                  </div>
-                </div>
-                <Switch checked={draft.exclude_from_membership} onCheckedChange={(value) => updateDraft({ exclude_from_membership: value })} />
-              </div>
             </div>
 
             {draft.is_bundle && (
