@@ -194,6 +194,39 @@ export function getUserZoneLabel(): string {
 }
 
 /**
+ * Detect viewer's IANA timezone from the browser/device.
+ * Returns e.g. "Asia/Jakarta", "Asia/Makassar", "America/New_York".
+ * Falls back to "Asia/Jakarta" when not available (SSR / very old browsers).
+ */
+export function getDeviceTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (tz && typeof tz === "string") return tz;
+  } catch {
+    // ignore
+  }
+  return "Asia/Jakarta";
+}
+
+/**
+ * Map the device IANA timezone to the closest Indonesian zone code (WIB/WITA/WIT)
+ * for use as default in show countdowns when an admin hasn't set one.
+ * Anything outside Indonesia falls back to WIB so behavior matches the original site.
+ */
+export function getDeviceZoneCode(): "WIB" | "WITA" | "WIT" {
+  const tz = getDeviceTimezone();
+  // Direct IANA matches for Indonesian zones
+  if (/^Asia\/(Jakarta|Pontianak)$/.test(tz)) return "WIB";
+  if (/^Asia\/(Makassar|Ujung_Pandang)$/.test(tz)) return "WITA";
+  if (/^Asia\/Jayapura$/.test(tz)) return "WIT";
+  // Fallback: derive from current offset (handles non-ID viewers / unusual zones)
+  const offset = getUserOffsetMin();
+  if (offset === 8 * 60) return "WITA";
+  if (offset === 9 * 60) return "WIT";
+  return "WIB";
+}
+
+/**
  * Given a WIB date+time string (e.g. dateStr "1 maret 2024", timeStr "19:00"),
  * return formatted times for WIB, WITA, and WIT zones.
  * Useful for show schedule cards so viewers in any Indonesian zone know the start time.

@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
-import { parseWIBDateTime, getUserZoneLabel, isUserOutsideWIB, formatLocal } from "@/lib/timeFormat";
+import { parseWIBDateTime, getUserZoneLabel, isUserOutsideWIB, formatLocal, getDeviceZoneCode } from "@/lib/timeFormat";
 
 interface ShowCardProps {
   show: Show;
@@ -30,7 +30,8 @@ interface ShowCardProps {
 }
 
 function parseShowDateTime(dateStr: string, timeStr: string, timezone?: string): number | null {
-  return parseWIBDateTime(dateStr, timeStr, timezone || "WIB");
+  // Default timezone = device-detected zone if show has none configured.
+  return parseWIBDateTime(dateStr, timeStr, timezone || getDeviceZoneCode());
 }
 
 function useCountdown(dateStr: string, timeStr: string, timezone?: string) {
