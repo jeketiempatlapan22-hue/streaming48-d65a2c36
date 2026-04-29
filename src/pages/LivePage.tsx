@@ -545,6 +545,25 @@ const LivePage = () => {
           if (result?.membership_paused === true || errText.includes("dijeda")) { setMembershipPaused(true); return; }
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
+          // Token belum aktif (jadwal show belum tiba)
+          if (result?.token_not_started === true && result?.starts_at) {
+            const sTitle = result?.token_show_title || "Show Kamu";
+            const sDate = result?.token_show_date || "";
+            const sTime = result?.token_show_time || "";
+            setTokenNotStarted({
+              startsAt: result.starts_at,
+              showTitle: sTitle,
+              showDate: sDate,
+              showTime: sTime,
+            });
+            toast.error("Token belum aktif", {
+              description: `Token kamu untuk "${sTitle}" baru aktif ${sDate} ${sTime}.`,
+              duration: 8000,
+            });
+            setLoading(false);
+            return;
+          }
+
           // Token milik show lain — server sudah memvalidasi & memblokir.
           // Tampilkan layar "Show Mismatch" agar user paham token tidak berlaku.
           if (result?.show_mismatch === true) {
