@@ -828,6 +828,32 @@ const LivePage = () => {
     return () => { supabase.removeChannel(ch); };
   }, [tokenData?.id]);
 
+  // Membership pause: jika token ini membership (MBR-/MRD-), dengar event jeda global.
+  // Cover via broadcast (instan) + postgres_changes site_settings (cadangan).
+  useEffect(() => {
+    if (!tokenData?.is_membership) return;
+    const broadcastCh = supabase
+      .channel("membership-control")
+      .on("broadcast", { event: "membership_paused" }, () => setMembershipPaused(true))
+      .on("broadcast", { event: "membership_resumed" }, () => setMembershipPaused(false))
+      .subscribe();
+    const dbCh = supabase
+      .channel(`membership-pause-db-${tokenData.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "site_settings", filter: "key=eq.membership_paused" },
+        (payload: any) => {
+          const v = payload.new?.value ?? "false";
+          setMembershipPaused(v === "true");
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(broadcastCh);
+      supabase.removeChannel(dbCh);
+    };
+  }, [tokenData?.is_membership, tokenData?.id]);
+
   // Periodic playlist polling (realtime on playlists table blocked by RLS for non-admin viewers)
   useEffect(() => {
     if (!tokenData?.id) return;
