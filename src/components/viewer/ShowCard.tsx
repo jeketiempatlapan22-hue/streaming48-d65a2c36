@@ -65,7 +65,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const userZone = getUserZoneLabel();
   const scheduleTs = parseShowDateTime(show.schedule_date, show.schedule_time);
   const outsideWIB = scheduleTs != null && isUserOutsideWIB();
-  const pw = accessPassword || replayPassword;
+  const rawPw = accessPassword || replayPassword;
+  const pw = rawPw && rawPw !== "__universal_access__" ? rawPw : undefined;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
