@@ -42,25 +42,20 @@ export function usePurchasedShows() {
     dbAccessPw: Record<string, string>,
     dbReplayPw: Record<string, string>,
   ) => {
-    // Read localStorage
-    let lsTokens: Record<string, string> = {};
-    let lsAccessPw: Record<string, string> = {};
-    let lsReplayPw: Record<string, string> = {};
-    try { lsTokens = JSON.parse(localStorage.getItem(`redeemed_tokens_${userId}`) || "{}"); } catch {}
-    try { lsAccessPw = JSON.parse(localStorage.getItem(`access_passwords_${userId}`) || "{}"); } catch {}
-    try { lsReplayPw = JSON.parse(localStorage.getItem(`replay_passwords_${userId}`) || "{}"); } catch {}
+    // DB is the SINGLE SOURCE OF TRUTH for access passwords.
+    // We must NOT merge stale localStorage values, otherwise a show that the admin
+    // later marks as "Eksklusif" would still be openable by membership users whose
+    // browser cached the old password.
+    // localStorage is only refreshed FROM the DB, never read back into state.
+    localStorage.setItem(`redeemed_tokens_${userId}`, JSON.stringify(dbTokens));
+    localStorage.setItem(`access_passwords_${userId}`, JSON.stringify(dbAccessPw));
+    localStorage.setItem(`replay_passwords_${userId}`, JSON.stringify(dbReplayPw));
 
-    // Merge: DB overrides localStorage
-    const mergedTokens = { ...lsTokens, ...dbTokens };
-    const mergedAccessPw = { ...lsAccessPw, ...dbAccessPw };
-    const mergedReplayPw = { ...lsReplayPw, ...dbReplayPw };
-
-    // Persist merged data back to localStorage
-    localStorage.setItem(`redeemed_tokens_${userId}`, JSON.stringify(mergedTokens));
-    localStorage.setItem(`access_passwords_${userId}`, JSON.stringify(mergedAccessPw));
-    localStorage.setItem(`replay_passwords_${userId}`, JSON.stringify(mergedReplayPw));
-
-    return { mergedTokens, mergedAccessPw, mergedReplayPw };
+    return {
+      mergedTokens: dbTokens,
+      mergedAccessPw: dbAccessPw,
+      mergedReplayPw: dbReplayPw,
+    };
   }, []);
 
   const loadFromDB = useCallback(async (user: User) => {
