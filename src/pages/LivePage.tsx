@@ -379,6 +379,12 @@ const LivePage = () => {
   const [playerAnimation, setPlayerAnimation] = useState<AnimationType>("none");
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
+  const [tokenNotStarted, setTokenNotStarted] = useState<null | {
+    startsAt: string;
+    showTitle: string;
+    showDate: string;
+    showTime: string;
+  }>(null);
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
