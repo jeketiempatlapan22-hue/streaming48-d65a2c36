@@ -340,10 +340,11 @@ const LiveControl = () => {
       {/* Active Show Selector — controls LIVE access, COUNTDOWN, and OFFLINE BACKGROUND */}
       {(() => {
         const activeShow = shows.find((s) => s.id === activeShowId);
-        const parsedTs = activeShow ? parseWIBDateTime(activeShow.schedule_date || "", activeShow.schedule_time || "00:00") : null;
+        const showTz = (activeShow as any)?.schedule_timezone || "WIB";
+        const parsedTs = activeShow ? parseWIBDateTime(activeShow.schedule_date || "", activeShow.schedule_time || "00:00", showTz) : null;
         const hasSchedule = parsedTs != null;
         const dateLabel = hasSchedule ? formatDateWIB(parsedTs!) : (activeShow?.schedule_date || "Tidak ada jadwal");
-        const timeLabel = activeShow?.schedule_time ? `${activeShow.schedule_time.replace(/\./g, ":")} WIB` : "";
+        const timeLabel = activeShow?.schedule_time ? `${activeShow.schedule_time.replace(/\./g, ":")} ${showTz}` : "";
 
         return (
           <div className="space-y-4 rounded-xl border border-primary/40 bg-primary/5 p-6">
