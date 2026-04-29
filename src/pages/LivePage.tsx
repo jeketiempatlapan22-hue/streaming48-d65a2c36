@@ -526,7 +526,7 @@ const LivePage = () => {
         }
 
         const validationResult = await runWithTimeoutRetry(
-          async () => await supabase.rpc("validate_token", { _code: tokenCode }),
+          async () => await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode }),
           10_000,
           1
         );
