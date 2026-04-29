@@ -2058,6 +2058,7 @@ export type Database = {
         Returns: Json
       }
       touch_restream_code_usage: { Args: { _code: string }; Returns: undefined }
+      validate_active_live_token: { Args: { _code: string }; Returns: Json }
       validate_replay_access: {
         Args: {
           _password?: string
