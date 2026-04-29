@@ -1997,6 +1997,10 @@ export type Database = {
         Args: { _date: string; _time: string }
         Returns: string
       }
+      parse_show_schedule: {
+        Args: { _date: string; _time: string; _tz?: string }
+        Returns: string
+      }
       record_rate_limit_violation: {
         Args: {
           _endpoint: string

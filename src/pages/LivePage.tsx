@@ -564,7 +564,7 @@ const LivePage = () => {
               showTime: sTime,
             });
             toast.error("Token belum aktif", {
-              description: `Token kamu untuk "${sTitle}" baru aktif ${sDate} ${sTime}.`,
+              description: `Token "${sTitle}" — akses dibuka 6 jam sebelum jadwal (${sDate} ${sTime}).`,
               duration: 8000,
             });
             setLoading(false);
