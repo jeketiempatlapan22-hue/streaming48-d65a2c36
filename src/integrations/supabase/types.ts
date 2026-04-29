@@ -1587,6 +1587,7 @@ export type Database = {
           show_id: string | null
           status: string
           user_id: string | null
+          valid_from: string | null
         }
         Insert: {
           code: string
@@ -1600,6 +1601,7 @@ export type Database = {
           show_id?: string | null
           status?: string
           user_id?: string | null
+          valid_from?: string | null
         }
         Update: {
           code?: string
@@ -1613,6 +1615,7 @@ export type Database = {
           show_id?: string | null
           status?: string
           user_id?: string | null
+          valid_from?: string | null
         }
         Relationships: [
           {
@@ -1719,6 +1722,7 @@ export type Database = {
           show_id: string | null
           status: string
           user_id: string | null
+          valid_from: string | null
         }
         SetofOptions: {
           from: "*"

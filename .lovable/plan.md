@@ -1,61 +1,97 @@
+## Masalah
 
-## Tujuan
+Saat ini durasi token tidak konsisten mengikuti jadwal show:
 
-1. **Kunci jadwal hanya untuk token non-universal** (reseller `RSL-` & regular tanpa prefix khusus). Token-token ini hanya boleh menonton ketika `show_id` token = `active_show_id` admin.
-2. **Membership (`MBR-`/`MRD-`), Custom bot (`RT48-`), dan Bundle (`BDL-`) TETAP universal** — boleh menonton show apa pun yang sedang live (sesuai desain awal membership/bundle).
-3. **Kembalikan countdown + judul + jadwal show** di tampilan offline halaman `/live` untuk semua user (termasuk membership), seperti sebelumnya.
+- **`reseller_create_token` & `reseller_create_token_by_id`**: kalau jadwal show ada di masa depan, `expires_at = schedule + N hari` (benar). Tapi kalau jadwal di masa lalu / kosong, fallback ke `now() + N hari` — token tetap aktif walau show sudah lewat.
+- **`confirm_regular_order` & `redeem_coins_for_token`**: `expires_at` di-set ke akhir hari (23:59 WIB) dari `schedule_date`. Kalau jadwal lusa, ini sudah dekat dengan benar, tapi **start time tidak dibatasi** — token bisa dipakai sebelum jadwal mulai. Selain itu fallback `now() + 24h` membuat token aktif walau show belum/tidak punya jadwal.
+- Tidak ada kolom `valid_from` / `starts_at` pada tabel `tokens`, jadi sistem hanya cek `expires_at < now()`. Token yang dibuat hari ini untuk show lusa tetap "aktif" sekarang dan, kalau admin memilih show lain sebagai active show, sudah ditolak (oleh patch sebelumnya) — tapi kalau show jadwal lusa itu yang dipilih admin sekarang, token bisa dipakai lebih awal.
 
-## Perubahan Database (migration baru)
+User minta: **durasi token harus persis mengikuti jadwal show** — token untuk show lusa hanya valid mulai jadwal lusa tsb, bukan sejak dibuat.
 
-### `validate_token(_code)`
-Logika sudah hampir benar — saat ini sudah memblokir token non-universal yang `show_id`-nya beda dengan `active_show_id`. Yang perlu dipastikan/diperbaiki:
+## Solusi
 
-- Daftar prefix **universal** dipertahankan: `MBR-`, `MRD-`, `BDL-`, `RT48-`, plus token tanpa `show_id`.
-- Tidak ada perubahan logika mismatch — sudah sesuai permintaan.
-- (Tidak perlu migration baru jika logika ini sudah sama persis seperti versi terakhir; akan diverifikasi saat eksekusi. Jika sudah identik, skip.)
+### 1. Tambah kolom `valid_from` di tabel `tokens` (migrasi)
 
-## Perubahan Frontend — `src/pages/LivePage.tsx`
+```sql
+ALTER TABLE public.tokens ADD COLUMN IF NOT EXISTS valid_from timestamptz;
+CREATE INDEX IF NOT EXISTS idx_tokens_valid_from ON public.tokens(valid_from);
+```
 
-### A. Bersihkan logika mismatch client (defense-in-depth)
-Logika client di sekitar baris 651 sudah benar (mengecualikan membership/bundle/custom). Pastikan tetap konsisten dengan server: hanya tampilkan `setShowMismatch` ketika `!isMembershipToken && !isBundleToken && !isCustomToken`. Tidak perlu diubah, hanya dipastikan.
+Backfill untuk token existing non-universal yang punya `show_id`:
+- Set `valid_from = parse_show_datetime(schedule_date, schedule_time)` jika ada.
+- Untuk membership/bundle/RT48-/MBR-/MRD-/BDL- tetap NULL (universal, langsung berlaku).
 
-### B. Kembalikan countdown saat offline untuk user membership/custom
-Akar masalah: ketika user membership login, `active_show_id` mungkin kosong (admin belum pilih show), sehingga `applyActiveShowMetadata(activeShow)` tidak men-set `activeShowDate/activeShowTime`. Akibatnya `useEffect` countdown (baris 907–941) tidak punya target waktu → countdown hilang.
+### 2. Update RPC pembuat token agar selalu anchor ke jadwal show
 
-Perbaikan:
+**`reseller_create_token` & `reseller_create_token_by_id`** (non-membership):
+- Wajibkan show punya `schedule_date` + `schedule_time` valid; kalau tidak, tolak (`error: 'Show belum punya jadwal lengkap, tidak bisa membuat token.'`).
+- Set `valid_from = parse_show_datetime(...)`.
+- Set `expires_at = valid_from + N hari` (atau `schedule + 24h` default reseller).
+- Hapus fallback `now() + N hari`.
 
-1. **Tambah fallback show milik token** sebagai sumber jadwal countdown. Setelah `applyActiveShowMetadata(activeShow)` di sekitar baris 613, jika `activeShow` kosong/tanpa schedule, pakai `tokenShow` (hasil fetch by id di baris 615–629) untuk set `activeShowTitle/Date/Time/Image`.
+**`confirm_regular_order` & `redeem_coins_for_token`**:
+- Sama: hitung `valid_from` dari schedule; `expires_at = end of show day (23:59 WIB)`.
+- Hapus fallback `now() + 24h` untuk show non-bundle yang tidak punya schedule (tolak/log error).
+- Untuk bundle: tetap `now() + bundle_duration_days` (universal), `valid_from = NULL`.
 
-   ```text
-   if (!activeShow && tokenShow) {
-     applyActiveShowMetadata(tokenShow);
-   } else if (activeShow && !activeShow.schedule_date && tokenShow?.schedule_date) {
-     // lengkapi metadata jadwal dari show milik token
-     setActiveShowDate(tokenShow.schedule_date);
-     setActiveShowTime(tokenShow.schedule_time);
-   }
-   ```
+### 3. Update `validate_token` agar enforce `valid_from`
 
-2. **Pastikan `fetchDisplayShow` mengembalikan show terdekat** untuk user membership ketika `active_show_id` kosong — sudah benar via `resolveDisplayShow` (PRIORITAS 2). Tidak perlu diubah.
+Tambah blok setelah cek expired:
 
-3. **Verifikasi efek countdown** (baris 907) tidak menonaktifkan diri ketika token universal — saat ini hanya bergantung pada `activeShowDate/activeShowTime` dan `nextShowTime`, jadi cukup pastikan minimal salah satu ter-isi (lihat poin 1).
+```sql
+IF NOT _is_universal AND t.valid_from IS NOT NULL AND t.valid_from > now() THEN
+  RETURN jsonb_build_object(
+    'valid', false,
+    'error', 'Token belum berlaku. Akses dimulai sesuai jadwal show.',
+    'starts_at', t.valid_from,
+    'show_title', (SELECT title FROM shows WHERE id = t.show_id),
+    'schedule_date', (SELECT schedule_date FROM shows WHERE id = t.show_id),
+    'schedule_time', (SELECT schedule_time FROM shows WHERE id = t.show_id)
+  );
+END IF;
+```
 
-### C. Tampilan offline (player area)
-Block render countdown di baris 1244–1308 sudah ada dan tidak perlu diubah — selama state `countdown`, `activeShowTitle`, `activeShowDate`, `activeShowTime` ter-isi (dijamin oleh poin B), tampilannya akan kembali muncul seperti sebelumnya: judul show, tanggal & jam, plus digital countdown HARI/JAM/MENIT/DETIK.
+Universal tokens (MBR-/MRD-/BDL-/RT48-) di-skip seperti sebelumnya.
 
-## Detail Teknis Tambahan
+### 4. UI feedback di `LivePage.tsx`
 
-- **Tidak menyentuh** RPC pause membership, RPC reseller, alur token bot, atau pembuatan token.
-- **Tidak menyentuh** layar `ShowMismatch` yang sudah ada — tetap dipakai untuk token reseller/regular yang salah show.
-- **Bundle (`BDL-`)** tetap universal (sesuai desain bundle multi-show); jika nanti diinginkan bundle dikunci ke daftar show tertentu, itu pekerjaan terpisah.
+Saat `validate_token` mengembalikan `starts_at`:
+- Tampilkan card "Token belum aktif" dengan countdown ke `starts_at` (gunakan komponen countdown yang sudah ada).
+- Tampilkan judul show + jadwal yang ditunggu.
+- Toast informatif: "Token kamu untuk *{show}*, baru aktif {tanggal} {jam}."
 
-## File yang Diubah
+### 5. Admin panel — tampilkan `valid_from`
 
-1. **`src/pages/LivePage.tsx`** — tambahkan fallback metadata show dari `tokenShow` ketika `activeShow` kosong/tidak punya jadwal, supaya countdown offline tetap muncul untuk user membership/custom.
-2. **(Opsional)** Migration verifikasi `validate_token` — hanya jika ditemukan deviasi dari logika yang diinginkan saat verifikasi.
+Di komponen daftar token (`TokenManagement` / panel reseller), tampilkan kolom "Aktif Mulai" agar admin bisa lihat token belum berlaku.
 
-## Hasil Akhir
+## Detail teknis
 
-- Token reseller/regular: dikunci ke `show_id` masing-masing — tidak bisa dipakai untuk show lain (server + client).
-- Token Membership / Custom (RT48) / Bundle: tetap bisa menonton show apa pun yang sedang live.
-- Halaman `/live` saat offline: kembali menampilkan judul show, tanggal, jam, dan countdown digital untuk semua user.
+**Files yang berubah:**
+- Migrasi SQL baru: tambah kolom `valid_from` + backfill + update 4 RPC + `validate_token`.
+- `src/pages/LivePage.tsx`: handle response `starts_at`, render countdown "menunggu jadwal".
+- `src/components/admin/TokenManagement.tsx` (atau yang relevan): kolom "Aktif Mulai".
+- `src/components/reseller/*` jika ada list token reseller: tampilkan `valid_from`.
+
+**Aturan ringkasan durasi token setelah perubahan:**
+
+| Tipe token | valid_from | expires_at |
+|---|---|---|
+| Reseller regular (RSL-) | schedule_ts | schedule_ts + N hari |
+| Order regular (TKN-) | schedule_ts | end of schedule day 23:59 WIB |
+| Coin redeem regular | schedule_ts | end of schedule day 23:59 WIB |
+| Membership (MBR-/MRD-) | NULL (universal) | now() + membership_duration_days |
+| Bundle (BDL-) | NULL (universal) | now() + bundle_duration_days |
+| Custom bot (RT48-) | NULL (universal) | sesuai input admin |
+
+**Edge cases:**
+- Show tanpa schedule → tolak pembuatan token regular (paksa admin lengkapi jadwal).
+- Schedule lewat saat token dibuat → `valid_from = now()` (bisa langsung dipakai, expires sesuai schedule day).
+- Admin ubah `schedule_date` setelah token dibuat → token existing **tidak** ikut bergerak (immutable). Catat ini di rilis notes; kalau perlu, sediakan tombol admin "Sinkronkan ulang token ke jadwal" di kemudian hari.
+
+## Hasil akhir
+
+Token yang dibuat hari ini untuk show lusa akan: 
+1. Tersimpan dengan `valid_from = lusa 19:00 WIB` (misal), `expires_at = lusa 23:59 WIB`. 
+2. Kalau dipakai sekarang → ditolak oleh `validate_token` dengan pesan + countdown "Aktif mulai lusa 19:00". 
+3. Otomatis aktif tepat saat jadwal show dimulai. 
+4. Otomatis expired di akhir hari show.
