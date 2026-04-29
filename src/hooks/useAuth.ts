@@ -79,8 +79,10 @@ export const useAuth = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // CRITICAL: handle TOKEN_REFRESH failure / SIGNED_OUT to clear stale data
-        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {
+        // Only clear local auth storage on EXPLICIT sign-out.
+        // Do NOT clear on TOKEN_REFRESHED failures or transient network issues —
+        // Supabase will retry refresh, and wiping tokens here would log the user out permanently.
+        if (event === 'SIGNED_OUT') {
           clearStaleAuth();
         }
 
@@ -137,8 +139,8 @@ export const useAuth = () => {
         cacheReady = true;
         setLoading(false);
       }).catch(() => {
-        // If getSession itself fails (e.g., bad refresh token), clear it
-        clearStaleAuth();
+        // getSession failed (likely network/timeout). Do NOT wipe stored tokens —
+        // they may still be valid; the next refresh will recover the session.
         cacheReady = true;
         setLoading(false);
       });
