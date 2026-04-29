@@ -200,9 +200,10 @@ export function getUserZoneLabel(): string {
  */
 export function formatScheduleAllZones(
   dateStr: string,
-  timeStr: string
+  timeStr: string,
+  timezone: string = "WIB"
 ): { wib: string; wita: string; wit: string } | null {
-  const ts = parseWIBDateTime(dateStr, timeStr);
+  const ts = parseWIBDateTime(dateStr, timeStr, timezone);
   if (ts == null) return null;
   const fmt = (tz: string) =>
     new Date(ts).toLocaleTimeString("id-ID", {
