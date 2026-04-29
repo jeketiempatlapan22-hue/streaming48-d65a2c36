@@ -538,8 +538,11 @@ const TokenFactory = () => {
           <TabsContent key={key} value={key} className="mt-4">{renderTokenList(key)}</TabsContent>
         ))}
         <TabsContent value="coin" className="mt-4">{renderTokenList("coin")}</TabsContent>
-        <TabsContent value="membership" className="mt-4">
-          <div className="mb-3 rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
+        <TabsContent value="membership" className="mt-4 space-y-4">
+          <MembershipPauseControl
+            affectedCount={membershipTokens.filter((t: any) => t.status !== "blocked" && (!t.expires_at || new Date(t.expires_at) > new Date())).length}
+          />
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
             <p className="text-xs text-yellow-500 font-semibold">👑 Token Membership Terpisah</p>
             <p className="text-[10px] text-muted-foreground mt-1">
               Token ini dibuat otomatis dari pembelian membership (QRIS / Koin) dan terisolasi dari token lain
