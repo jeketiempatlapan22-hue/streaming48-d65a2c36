@@ -139,8 +139,8 @@ export const useAuth = () => {
         cacheReady = true;
         setLoading(false);
       }).catch(() => {
-        // If getSession itself fails (e.g., bad refresh token), clear it
-        clearStaleAuth();
+        // getSession failed (likely network/timeout). Do NOT wipe stored tokens —
+        // they may still be valid; the next refresh will recover the session.
         cacheReady = true;
         setLoading(false);
       });
