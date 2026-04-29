@@ -538,6 +538,20 @@ const LivePage = () => {
           if (result?.membership_paused === true || errText.includes("dijeda")) { setMembershipPaused(true); return; }
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
+          // Token milik show lain — server sudah memvalidasi & memblokir.
+          // Tampilkan layar "Show Mismatch" agar user paham token tidak berlaku.
+          if (result?.show_mismatch === true) {
+            setShowMismatch(true);
+            setMismatchShowTitle(JSON.stringify({
+              tokenShowTitle: result?.token_show_title || "Show Lain",
+              tokenShowDate: "",
+              tokenShowTime: "",
+              activeShowTitle: result?.active_show_title || "Show Lain",
+            }));
+            setLoading(false);
+            return;
+          }
+
           // Token mungkin sudah dipindah ke replay (show is_replay = true).
           // Coba validate_replay_access; jika berhasil → redirect ke pemain replay internal.
           try {
