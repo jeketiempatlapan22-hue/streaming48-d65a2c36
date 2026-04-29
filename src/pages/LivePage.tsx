@@ -903,7 +903,7 @@ const LivePage = () => {
 
     ch.subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [tokenData?.show_id, tokenData?.id, refreshPlaylists]);
+  }, [tokenData?.show_id, tokenData?.id, refreshPlaylists, tokenCode, upgradingToReplay]);
 
   // Force-logout broadcast: admin or another device reset this token's sessions
   // → terminate playback immediately on this device.
