@@ -127,7 +127,7 @@ const LiveControl = () => {
       setShowStartedAgoMs(null);
       return;
     }
-    const target = parseWIBDateTime(show.schedule_date || "", show.schedule_time || "00:00");
+    const target = parseWIBDateTime(show.schedule_date || "", show.schedule_time || "00:00", (show as any).schedule_timezone || "WIB");
     if (target == null) {
       setShowCountdown(null);
       setShowStartedAgoMs(null);
