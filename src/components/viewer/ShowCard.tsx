@@ -1,11 +1,12 @@
 import { useState, useEffect, forwardRef } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff,
+  Calendar, Clock, Users, Ticket, Coins, Copy, Radio, Film, Timer, MessageCircle, Bell, BellOff, Info,
 } from "lucide-react";
 import type { Show } from "@/types/show";
 import { SHOW_CATEGORIES } from "@/types/show";
 import TeamBadge from "@/components/viewer/TeamBadge";
+import ExclusiveShowDetailDialog from "@/components/viewer/ExclusiveShowDetailDialog";
 import { toast } from "sonner";
 import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
@@ -68,6 +69,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
+  const [exclusiveOpen, setExclusiveOpen] = useState(false);
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
@@ -275,6 +277,12 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 Wajib <strong className="text-fuchsia-200">beli show ini secara terpisah</strong> untuk dapat menonton.
               </p>
             )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setExclusiveOpen(true); }}
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 py-1.5 text-[10px] font-bold text-fuchsia-200 transition-all hover:bg-fuchsia-500/20 active:scale-[0.98]"
+            >
+              <Info className="h-3 w-3" /> Pelajari & Lihat Opsi Pembelian
+            </button>
           </div>
         )}
 
@@ -402,6 +410,15 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           )}
         </div>
       </div>
+      <ExclusiveShowDetailDialog
+        show={show}
+        open={exclusiveOpen}
+        onOpenChange={setExclusiveOpen}
+        onBuy={onBuy}
+        onCoinBuy={onCoinBuy}
+        isReplayMode={isReplayMode}
+        isUniversalAccess={isUniversalAccess}
+      />
     </motion.div>
   );
 });
