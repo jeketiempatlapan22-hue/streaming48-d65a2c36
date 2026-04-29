@@ -610,7 +610,6 @@ const LivePage = () => {
           activeShowId || null,
           Boolean(streamRes.status === "fulfilled" && streamRes.value.data?.[0]?.is_live)
         );
-        applyActiveShowMetadata(activeShow);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
