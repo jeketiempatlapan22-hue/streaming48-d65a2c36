@@ -697,16 +697,6 @@ const ShowManager = () => {
                 <Switch checked={draft.is_bundle} onCheckedChange={(value) => updateDraft({ is_bundle: value })} />
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/5 p-3">
-                <div className="flex items-start gap-2">
-                  <span className="text-sm">🔒</span>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Eksklusif (tidak include membership)</div>
-                    <div className="text-[11px] text-muted-foreground">Membership / Bundle / Token universal TIDAK bisa menonton — wajib beli show ini secara satuan.</div>
-                  </div>
-                </div>
-                <Switch checked={draft.exclude_from_membership} onCheckedChange={(value) => updateDraft({ exclude_from_membership: value })} />
-              </div>
             </div>
 
             {draft.is_bundle && (
