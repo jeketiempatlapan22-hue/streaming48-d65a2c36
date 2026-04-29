@@ -535,6 +535,7 @@ const LivePage = () => {
         const result = validationResult.data as any;
         if (validationResult.error || !result?.valid) {
           const errText = String(result?.error || validationResult.error?.message || "").toLowerCase();
+          if (result?.membership_paused === true || errText.includes("dijeda")) { setMembershipPaused(true); return; }
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
           // Token mungkin sudah dipindah ke replay (show is_replay = true).
