@@ -380,7 +380,7 @@ const LivePage = () => {
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
   const [tokenNotStarted, setTokenNotStarted] = useState<null | {
-    startsAt: string;
+    startsAt: string | null;
     showTitle: string;
     showDate: string;
     showTime: string;
