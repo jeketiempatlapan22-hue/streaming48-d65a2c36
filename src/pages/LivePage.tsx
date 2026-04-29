@@ -395,6 +395,7 @@ const LivePage = () => {
   const [activeShowImage, setActiveShowImage] = useState<string | null>(null);
   const [activeShowDate, setActiveShowDate] = useState<string | null>(null);
   const [activeShowTime, setActiveShowTime] = useState<string | null>(null);
+  const [activeShowTimezone, setActiveShowTimezone] = useState<string | null>(null);
   const [offlineBackgroundOverride, setOfflineBackgroundOverride] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
@@ -440,6 +441,7 @@ const LivePage = () => {
     setActiveShowImage(show?.background_image_url || null);
     setActiveShowDate(show?.schedule_date || null);
     setActiveShowTime(show?.schedule_time || null);
+    setActiveShowTimezone(show?.schedule_timezone || null);
   }, []);
 
   const runWithTimeoutRetry = async <T,>(
@@ -986,7 +988,7 @@ const LivePage = () => {
     // Target time = WIB wall-clock yang dikonversi ke UTC ms.
     // Countdown menampilkan DURASI sampai event (sama untuk semua zona waktu user).
     let targetUtcMs: number | null = null;
-    const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime });
+    const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime, schedule_timezone: activeShowTimezone });
     if (scheduledShowMs != null) {
       targetUtcMs = scheduledShowMs;
     } else if (nextShowTime) {
@@ -1016,7 +1018,7 @@ const LivePage = () => {
     update();
     const i = setInterval(update, 1000);
     return () => clearInterval(i);
-  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime]);
+  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime, activeShowTimezone]);
 
   // Countdown khusus saat token belum aktif (jadwal show belum tiba)
   const [notStartedCountdown, setNotStartedCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
@@ -1532,7 +1534,8 @@ const LivePage = () => {
                       </p>
                     )}
                     {(activeShowDate || activeShowTime) && (() => {
-                      const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00");
+                      const tzLabel = (activeShowTimezone || "WIB").toUpperCase();
+                      const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00", tzLabel);
                       const outsideWIB = parsedTs != null && isUserOutsideWIB();
                       const userZoneLabel = getUserZoneLabel();
                       const dateLabel = parsedTs != null
