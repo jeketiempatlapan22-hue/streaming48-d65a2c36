@@ -410,7 +410,7 @@ const LivePage = () => {
 
   // For proxy: call hanabira48 API directly (domain whitelisted, no CORS)
   const { playbackUrl: proxyUrl, customHeadersRef: proxyHeadersRef, loading: proxyLoading } = useProxyStream(
-    isProxyPlaylist,
+    isProxyPlaylist && !loading && !error && !showMismatch && !showReplayBlocked && !blocked,
     externalShowId
   );
 
