@@ -946,6 +946,28 @@ TOLAK_RESET <id> - Tolak reset password
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
 }
 
+async function handleMembershipPauseWa(supabase: any, paused: boolean): Promise<string> {
+  try {
+    const { data, error } = await supabase.rpc('set_membership_pause_bot', { _paused: paused, _source: 'whatsapp' });
+    if (error) return `⚠️ Gagal: ${error.message}`;
+    if (paused) {
+      const sessions = (data as any)?.sessions_terminated ?? 0;
+      return `⏸️ *Membership Dijeda*\n\nSemua token MBR-/MRD- diblokir dari halaman live.\n${sessions} sesi aktif diputus.\nKartu show kembali ke mode "Beli" untuk user membership.\n\n💡 Aktifkan lagi: /resumemember`;
+    }
+    return `▶️ *Membership Diaktifkan*\n\nToken membership kembali bisa mengakses live.\n\n💡 Cek status: /memberstatus`;
+  } catch (e: any) {
+    return `⚠️ Error: ${e?.message || 'unknown'}`;
+  }
+}
+
+async function handleMembershipStatusWa(supabase: any): Promise<string> {
+  const { data } = await supabase.from('site_settings').select('value').eq('key', 'membership_paused').maybeSingle();
+  const paused = (data?.value || 'false') === 'true';
+  return paused
+    ? '⏸️ *Status Membership: DIJEDA*\n\nToken membership tidak bisa akses live.\nGunakan /resumemember untuk mengaktifkan.'
+    : '▶️ *Status Membership: AKTIF*\n\nToken membership bisa akses live normal.\nGunakan /pausemember untuk menjeda.';
+}
+
 async function handleStatus(supabase: any): Promise<string> {
   try {
     const { data: coinOrders } = await supabase.from('coin_orders').select('id, coin_amount, price, created_at, user_id, short_id').eq('status', 'pending').order('created_at', { ascending: false }).limit(10);
