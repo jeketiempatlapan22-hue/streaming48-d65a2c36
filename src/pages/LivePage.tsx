@@ -386,6 +386,8 @@ const LivePage = () => {
     showTime: string;
   }>(null);
   const [showReplayBlocked, setShowReplayBlocked] = useState(false);
+  const [replayUpgrade, setReplayUpgrade] = useState<{ expiresAt: string | null; showTitle: string } | null>(null);
+  const [upgradingToReplay, setUpgradingToReplay] = useState(false);
   const [externalShowId, setExternalShowId] = useState<string | null>(null);
   const [activeShowTeam, setActiveShowTeam] = useState<string | null>(null);
   const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
