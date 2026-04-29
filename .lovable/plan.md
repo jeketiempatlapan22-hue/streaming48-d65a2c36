@@ -1,103 +1,57 @@
-# Audit: Konversi Token Show → Replay & Status Fitur
+# Fitur: Akses Replay via Sandi Langsung di Kartu Show
 
-## Ringkasan Temuan
+## Tujuan
+User dapat memasukkan sandi (yang sudah diatur admin di `access_password` show, atau global password) langsung di kartu replay tanpa harus pergi ke halaman `/replay-play` terlebih dahulu. Fitur ini hanya muncul di kartu replay yang punya media (m3u8 atau YouTube).
 
-**Jawaban langsung:** Sistem **sudah** mengkonversi token live menjadi akses replay 14 hari **secara otomatis** ketika admin menandai show sebagai replay (`is_replay = true`) — tetapi **hanya jika user menggunakan token-nya dari halaman replay** (`/replay`). Jika user masih membuka `/live`, mereka akan melihat layar "Show Telah Berakhir" tanpa auto-redirect membawa token ke replay player.
+## Lokasi UI
+- File: `src/components/viewer/ShowCard.tsx`
+- Posisi: **di bawah tombol "Beli Replay (Koin)" / "Beli via QRIS"** pada bagian action buttons.
+- Kondisi tampil: `isReplayMode === true` **DAN** `show.is_replay === true` **DAN** `show.has_replay_media === true` **DAN** user belum punya token (`!showToken`).
 
-Saya juga menemukan beberapa fitur yang **masih utuh** (tidak terhapus) dan satu **gap UX** yang perlu diperbaiki.
+## Komponen Baru: `ReplayPasswordEntry`
+Sub-komponen kecil di file yang sama (`ShowCard.tsx`) berisi:
 
----
+1. Tombol toggle "🔓 Sudah punya sandi? Masuk di sini" (collapsed by default agar tidak crowded).
+2. Saat dibuka:
+   - Input field `password` (type=password, max 50 char, trim).
+   - Tombol **"Tonton Replay"** (loading state saat submit).
+3. Validasi via RPC `validate_replay_access`:
+   ```ts
+   supabase.rpc('validate_replay_access', {
+     _password: pw,
+     _short_id: show.short_id || null,
+     _show_id: show.short_id ? null : show.id,
+   })
+   ```
+4. Jika `success: true` → redirect ke `/replay-play?show={short_id}&password={encoded_pw}` (ReplayPlayPage sudah auto-attempt saat ada `?show=&password=` di URL — sudah dicek di useEffect baris 143-148).
+5. Jika gagal → toast error "Sandi salah atau tidak berlaku untuk show ini".
 
-## Bagaimana Konversi Replay Bekerja Sekarang
+## Validasi & Keamanan
+- Trim & length check (1-50 char) sebelum submit (zod-style inline check).
+- Tidak menyimpan password di localStorage.
+- Tidak log password ke console.
+- Encoding URL: `encodeURIComponent(pw)` saat redirect.
+- Rate limit sudah di-handle server-side oleh RPC `validate_replay_access`.
 
-### Alur otomatis (sudah ada di `validate_replay_access` RPC)
+## Aturan yang DIPATUHI
+- **Tidak muncul di kartu live** (hanya `isReplayMode`).
+- **Tidak muncul di kartu replay tanpa media** (`has_replay_media` filter).
+- **Tidak muncul jika user sudah pegang token** untuk show tersebut (`!showToken`).
+- **Tidak mengubah** flow tombol beli yang sudah ada.
 
-```text
-User punya token live (tabel: tokens) → admin set show.is_replay = true
-                              ↓
-User akses /replay + masukkan token
-                              ↓
-RPC validate_replay_access mendeteksi token live + show.is_replay = true
-                              ↓
-1. INSERT ke replay_tokens dengan expires_at = now() + 14 days
-2. created_via = 'live_upgrade_validate'
-3. DELETE token dari tabel tokens (token live dihapus)
-                              ↓
-User dapat akses replay selama 14 hari penuh
-```
+## Testing Checklist (Setelah Implementasi)
+- [ ] Kartu replay dengan media → tombol "Sudah punya sandi?" muncul di bawah tombol beli.
+- [ ] Kartu replay tanpa media → fitur tidak muncul.
+- [ ] Kartu live (regular show) → fitur tidak muncul.
+- [ ] User dengan token aktif → fitur tidak muncul (sudah pakai token).
+- [ ] Password benar → redirect sukses ke ReplayPlayPage dan langsung play.
+- [ ] Password salah → toast error, input tetap terbuka.
 
-**Bukti kode (`validate_replay_access` baris 110-138):**
-- Cek apakah token ada di `tokens` + show punya `is_replay = true`
-- Jika ya: buat entry `replay_tokens` dengan `expires_at = now() + interval '14 days'`
-- Hapus token live dari tabel `tokens` (mencegah dipakai lagi sebagai live)
+## Files yang Dimodifikasi
+- `src/components/viewer/ShowCard.tsx` — tambah sub-komponen `ReplayPasswordEntry` + integrasi ke action buttons.
 
-### Alur jika sudah ada di `replay_tokens` (baris 84-91)
-- Jika `expires_at` masih NULL → di-set jadi `now() + 14 days` saat akses pertama
-- Jika sudah punya `expires_at` → tetap dipakai (tidak di-reset)
-
-### Pengamanan tambahan (`validate_token` baris 47-50)
-- Token live yang show-nya sudah jadi replay → diblokir di `/live` dengan pesan "Show ini telah dijadikan replay"
-- Pengecualian: token universal (MBR-, BDL-, RT48-) dan token bundle tetap boleh
-
----
-
-## Gap yang Ditemukan
-
-### 1. Tidak ada auto-redirect dari /live → /replay
-Di `LivePage.tsx` baris 870-872 + 1123, ketika realtime subscription mendeteksi `is_replay = true`, UI langsung tampilkan layar "Show Telah Berakhir" + tombol "Ke Beranda". **Token user tidak otomatis di-upgrade** kecuali user inisiatif sendiri ke `/replay`.
-
-Padahal di baris 587-590 sudah ada logika: saat validasi token live gagal karena show jadi replay, kode mencoba `validate_replay_access`. Tapi ini **hanya jalan saat first-load**, bukan saat live subscription mendeteksi perubahan show real-time.
-
-### 2. Tidak ada notifikasi 14-hari ke user
-Saat token di-upgrade ke replay, user tidak diberitahu bahwa mereka punya **akses 14 hari** dengan token yang sama. Mereka harus tebak sendiri atau buka halaman replay.
-
----
-
-## Status Fitur (Audit Lengkap)
-
-| Fitur | Status | Catatan |
-|---|---|---|
-| Konversi token live → replay 14 hari | ✅ Aktif | Via `validate_replay_access` RPC |
-| Token live diblokir di /live saat show jadi replay | ✅ Aktif | `validate_token` baris 47-50 |
-| Realtime detection saat admin flip is_replay | ✅ Aktif | `LivePage.tsx` baris 870-872 |
-| Universal tokens (MBR/BDL/RT48) bypass blokir | ✅ Aktif | Logic `_is_universal` |
-| Bundle tokens akses multi-show + replay | ✅ Aktif | Logic `_is_bundle` |
-| Reseller audit log lengkap (rejection reasons) | ✅ Pulih | Di-restore migration 20260429135646 |
-| Token `valid_from` mengikuti jadwal show | ✅ Aktif | Migration 20260429135231 |
-| Countdown "Token Belum Aktif" di LivePage | ✅ Aktif | tokenNotStarted state |
-| Side-by-side mismatch overlay (token vs show aktif) | ✅ Aktif | LivePage |
-| Admin pilih active_show_id manual | ✅ Aktif | LiveControl.tsx |
-| Auto-redirect /live → /replay player | ❌ Tidak ada | Gap yang perlu diperbaiki |
-| Notifikasi "14 hari akses replay" ke user | ❌ Tidak ada | Gap UX |
-| WhatsApp bot toggle is_replay | ✅ Aktif | whatsapp-webhook baris 1206 |
-
-**Tidak ada fitur yang terhapus** dari hasil audit ini. Semua perubahan terbaru bersifat additive.
-
----
-
-## Rencana Perbaikan (Yang Akan Diimplementasikan)
-
-### A. Auto-upgrade & redirect di LivePage
-Modifikasi `LivePage.tsx`:
-- Saat realtime subscription mendeteksi `is_replay` berubah jadi `true` **dan** user punya `tokenCode` aktif:
-  1. Panggil `supabase.rpc('validate_replay_access', { _token: tokenCode })` otomatis
-  2. Jika berhasil: tampilkan dialog "🎬 Show telah berakhir — token kamu sudah otomatis berlaku untuk replay 14 hari" dengan tombol "Tonton Replay Sekarang" → redirect ke `/replay/{show_short_id}` dengan token pre-filled
-  3. Jika gagal (token universal/bundle): tetap tampilkan layar "Show Telah Berakhir" lama
-
-### B. Notifikasi durasi replay
-- Tambah informasi `expires_at` di response upgrade dialog: "Berlaku sampai: 13 Mei 2026 14:00 WIB"
-- Toast sukses saat upgrade berhasil
-
-### C. Pre-fill token di ReplayPlayPage
-- Pastikan `/replay/{short_id}?token={code}` mengisi otomatis input token (cek apakah sudah ada)
-
-### Files yang dimodifikasi
-- `src/pages/LivePage.tsx` — auto-upgrade flow saat realtime detect is_replay
-- `src/pages/ReplayPlayPage.tsx` — pre-fill token dari query string (jika belum)
-- Tidak perlu migration database — RPC `validate_replay_access` sudah handle semua logika 14-hari
-
-### Yang TIDAK diubah
-- RPC `validate_replay_access` — sudah benar, expires_at = 14 hari
-- RPC `validate_token` — blokir token live saat show jadi replay sudah benar
-- Tabel `replay_tokens` — schema sudah lengkap
-- Logika token universal & bundle — tetap bypass seperti sekarang
+## Files yang TIDAK Diubah
+- Database (RPC `validate_replay_access` sudah lengkap menerima password).
+- `ReplayPlayPage.tsx` (sudah auto-attempt dari query string).
+- `Show` type (`has_replay_media` & `short_id` sudah ada).
+- `get_public_shows()` RPC (sudah return `has_replay_media`).
