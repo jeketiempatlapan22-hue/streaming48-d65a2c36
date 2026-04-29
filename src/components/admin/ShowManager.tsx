@@ -65,7 +65,6 @@ interface Show {
   replay_m3u8_url: string;
   replay_youtube_url: string;
   replay_month: string;
-  exclude_from_membership: boolean;
 }
 
 const CATEGORY_OPTIONS = [
