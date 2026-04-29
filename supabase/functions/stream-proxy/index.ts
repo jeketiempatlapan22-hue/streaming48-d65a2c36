@@ -705,6 +705,16 @@ Deno.serve(async (req) => {
         }
 
         const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+        const { data: validation, error: valErr } = await supabase.rpc("validate_active_live_token", { _code: token_code });
+        if (valErr || !(validation as any)?.valid) {
+          const errMsg = (validation as any)?.error || "Token tidak valid atau expired";
+          const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay") || errMsg.includes("eksklusif");
+          if (!isLegitFailure) trackAbuse(clientIp);
+          return new Response(
+            JSON.stringify({ error: errMsg, exclusive: (validation as any)?.exclusive === true }),
+            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
 
         if (fingerprint) {
           const { data: sessResult, error: sessErr } = await supabase.rpc("create_token_session", {
@@ -719,17 +729,6 @@ Deno.serve(async (req) => {
             if (!isLegitFailure) trackAbuse(clientIp);
             return new Response(
               JSON.stringify({ error: errMsg, max_devices: sr?.max_devices, active_devices: sr?.active_devices }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-        } else {
-          const { data: validation, error: valErr } = await supabase.rpc("validate_token", { _code: token_code });
-          if (valErr || !(validation as any)?.valid) {
-            const errMsg = (validation as any)?.error || "";
-            const isLegitFailure = errMsg.includes("kedaluwarsa") || errMsg.includes("expired") || errMsg.includes("replay");
-            if (!isLegitFailure) trackAbuse(clientIp);
-            return new Response(
-              JSON.stringify({ error: errMsg || "Token tidak valid atau expired" }),
               { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
