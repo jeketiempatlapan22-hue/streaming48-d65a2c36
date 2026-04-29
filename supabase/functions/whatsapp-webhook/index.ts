@@ -797,6 +797,13 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   // Admin confirms reseller payment for a specific token: /{prefix}paid {short_id}
   // Example: /Wpaid 01b  → mark token AB01 (or short '01b') of reseller with prefix 'W' as paid
   const resellerPaidMatch = rawText.match(/^\/([A-Za-z]{1,3})paid\s+(\S+)(?:\s+(.+))?$/i);
+  const isPauseMember = /^\/pause(member|membership)$/i.test(rawText);
+  const isResumeMember = /^\/(resume|unpause)(member|membership)$/i.test(rawText);
+  const isMemberStatus = /^\/memberstatus$/i.test(rawText);
+
+  if (isPauseMember) return await handleMembershipPauseWa(supabase, true);
+  if (isResumeMember) return await handleMembershipPauseWa(supabase, false);
+  if (isMemberStatus) return await handleMembershipStatusWa(supabase);
 
   if (resellerPaidMatch) {
     return await handleAdminMarkResellerPaid(
