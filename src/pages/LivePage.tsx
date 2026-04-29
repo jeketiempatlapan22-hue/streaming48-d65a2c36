@@ -1085,35 +1085,74 @@ const LivePage = () => {
     const defaultMismatch = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
     const mismatchInfo = safeJsonParse<typeof defaultMismatch>(mismatchShowTitle, defaultMismatch);
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/30 bg-card p-8 text-center shadow-lg">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
-            <span className="text-4xl">🎫</span>
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--warning))]/40 bg-card p-6 sm:p-8 shadow-[0_0_40px_hsl(var(--warning)/0.15)]">
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--warning))]/15 ring-2 ring-[hsl(var(--warning))]/30">
+              <AlertTriangle className="h-8 w-8 text-[hsl(var(--warning))]" />
+            </div>
+            <h2 className="mb-1.5 text-xl sm:text-2xl font-bold text-foreground">
+              Token Tidak Sesuai Jadwal
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Token yang kamu pakai tidak berlaku untuk show yang sedang live saat ini.
+            </p>
           </div>
-          <h2 className="mb-3 text-xl font-bold text-foreground">Token Kamu Berbeda</h2>
-          <div className="mb-4 rounded-xl bg-[hsl(var(--warning))]/5 border border-[hsl(var(--warning))]/20 p-4 space-y-2">
-            <p className="text-sm font-semibold text-foreground">
-              Token kamu adalah untuk show:
-            </p>
-            <p className="text-lg font-bold text-primary">
-              🎭 {mismatchInfo.tokenShowTitle}
-            </p>
-            {mismatchInfo.tokenShowDate && (
-              <p className="text-sm text-muted-foreground">
-                📅 {mismatchInfo.tokenShowDate} {mismatchInfo.tokenShowTime ? `• 🕐 ${mismatchInfo.tokenShowTime}` : ""}
+
+          <div className="my-6 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-left">
+              <p className="text-[10px] font-bold tracking-widest text-primary/80 uppercase mb-1.5">
+                Show Token Kamu
               </p>
-            )}
+              <p className="text-base font-bold text-foreground leading-tight line-clamp-2">
+                🎭 {mismatchInfo.tokenShowTitle}
+              </p>
+              {(mismatchInfo.tokenShowDate || mismatchInfo.tokenShowTime) && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  📅 {mismatchInfo.tokenShowDate || "-"}
+                  {mismatchInfo.tokenShowTime ? ` • 🕐 ${mismatchInfo.tokenShowTime}` : ""}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center">
+              <div className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                <ArrowRight className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <div className="sm:hidden flex w-full items-center gap-2 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                vs
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-left">
+              <p className="text-[10px] font-bold tracking-widest text-destructive/80 uppercase mb-1.5 flex items-center gap-1.5">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
+                Sedang Live
+              </p>
+              <p className="text-base font-bold text-foreground leading-tight line-clamp-2">
+                🔴 {mismatchInfo.activeShowTitle}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Token kamu tidak berlaku di sini
+              </p>
+            </div>
           </div>
-          <div className="mb-4 rounded-lg bg-secondary p-3">
-            <p className="text-xs text-muted-foreground mb-1">Show yang sedang live saat ini:</p>
-            <p className="text-sm font-semibold text-foreground">🔴 {mismatchInfo.activeShowTitle}</p>
+
+          <div className="rounded-lg bg-muted/50 border border-border p-3 mb-5">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              💡 Token streaming hanya berlaku untuk show sesuai jadwal yang kamu beli. Silakan kembali pada tanggal & jam show kamu, atau beli token baru untuk show yang sedang live.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mb-6">
-            Kembali lagi untuk menonton live show-mu sesuai tanggalnya. Token hanya berlaku untuk show yang kamu beli.
-          </p>
-          <div className="flex flex-col gap-3">
-            <button onClick={() => navigate("/schedule")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">📅 Lihat Jadwal Show</button>
-            <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80 active:scale-[0.97] transition-transform">🏠 Kembali ke Beranda</button>
+
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button onClick={() => navigate("/schedule")} className="flex-1 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
+              📅 Lihat Jadwal Show
+            </button>
+            <button onClick={() => navigate("/")} className="flex-1 rounded-full bg-secondary px-5 py-3 text-sm font-semibold text-secondary-foreground hover:bg-secondary/80 active:scale-[0.97] transition-transform">
+              🏠 Beranda
+            </button>
           </div>
         </div>
       </div>
