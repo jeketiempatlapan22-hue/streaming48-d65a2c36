@@ -73,10 +73,9 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     setGenerating(true);
     try {
       const md = Math.max(1, Math.min(10, parseInt(maxDevices) || 1));
-      // Non-membership shows are forced to 1 day server-side; only membership uses custom duration
-      const dd = isMembership
-        ? Math.max(1, Math.min(90, parseInt(duration) || 7))
-        : 1;
+      // Membership shows ALWAYS use the admin-defined duration (server enforces this too).
+      // Non-membership shows are forced to 1 day server-side.
+      const dd = isMembership ? membershipDuration : 1;
       const { data, error } = await supabase.rpc("reseller_create_token", {
         _session_token: sessionToken,
         _show_id: show.id,
