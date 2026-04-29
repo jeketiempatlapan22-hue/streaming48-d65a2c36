@@ -171,8 +171,11 @@ export function parseWIBDateTime(
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
 
-  // Build UTC ms for the WIB wall-clock time: subtract 7h offset.
-  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - WIB_OFFSET_MIN * 60 * 1000;
+  // Resolve effective timezone: explicit zone in time string wins, else `timezone` arg, else WIB.
+  const effectiveZone = (zoneOverride ?? timezone ?? "WIB").toUpperCase();
+  const offsetMin = TZ_OFFSETS[effectiveZone] ?? WIB_OFFSET_MIN;
+  // Build UTC ms for the wall-clock time in the target zone: subtract that zone's offset.
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - offsetMin * 60 * 1000;
   if (isNaN(utcMs)) return null;
   return utcMs;
 }
