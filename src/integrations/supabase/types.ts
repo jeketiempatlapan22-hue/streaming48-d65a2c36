@@ -2084,6 +2084,10 @@ export type Database = {
         Returns: Json
       }
       set_membership_pause: { Args: { _paused: boolean }; Returns: Json }
+      set_membership_pause_bot: {
+        Args: { _paused: boolean; _source?: string }
+        Returns: Json
+      }
       test_token_all_shows: { Args: { _token_code: string }; Returns: Json }
       test_token_show_access: {
         Args: { _show_id: string; _token_code: string }

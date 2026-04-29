@@ -797,6 +797,13 @@ async function processCommand(supabase: any, rawText: string): Promise<string | 
   // Admin confirms reseller payment for a specific token: /{prefix}paid {short_id}
   // Example: /Wpaid 01b  → mark token AB01 (or short '01b') of reseller with prefix 'W' as paid
   const resellerPaidMatch = rawText.match(/^\/([A-Za-z]{1,3})paid\s+(\S+)(?:\s+(.+))?$/i);
+  const isPauseMember = /^\/pause(member|membership)$/i.test(rawText);
+  const isResumeMember = /^\/(resume|unpause)(member|membership)$/i.test(rawText);
+  const isMemberStatus = /^\/memberstatus$/i.test(rawText);
+
+  if (isPauseMember) return await handleMembershipPauseWa(supabase, true);
+  if (isResumeMember) return await handleMembershipPauseWa(supabase, false);
+  if (isMemberStatus) return await handleMembershipStatusWa(supabase);
 
   if (resellerPaidMatch) {
     return await handleAdminMarkResellerPaid(
@@ -936,7 +943,34 @@ TOLAK_RESET <id> - Tolak reset password
 /perpanjang <4digit> <durasi> - Perpanjang token
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
+👑 *Kontrol Membership Global:*
+/pausemember - Jeda akses semua token membership
+/resumemember - Aktifkan kembali akses membership
+/memberstatus - Cek status pause membership
+
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
+}
+
+async function handleMembershipPauseWa(supabase: any, paused: boolean): Promise<string> {
+  try {
+    const { data, error } = await supabase.rpc('set_membership_pause_bot', { _paused: paused, _source: 'whatsapp' });
+    if (error) return `⚠️ Gagal: ${error.message}`;
+    if (paused) {
+      const sessions = (data as any)?.sessions_terminated ?? 0;
+      return `⏸️ *Membership Dijeda*\n\nSemua token MBR-/MRD- diblokir dari halaman live.\n${sessions} sesi aktif diputus.\nKartu show kembali ke mode "Beli" untuk user membership.\n\n💡 Aktifkan lagi: /resumemember`;
+    }
+    return `▶️ *Membership Diaktifkan*\n\nToken membership kembali bisa mengakses live.\n\n💡 Cek status: /memberstatus`;
+  } catch (e: any) {
+    return `⚠️ Error: ${e?.message || 'unknown'}`;
+  }
+}
+
+async function handleMembershipStatusWa(supabase: any): Promise<string> {
+  const { data } = await supabase.from('site_settings').select('value').eq('key', 'membership_paused').maybeSingle();
+  const paused = (data?.value || 'false') === 'true';
+  return paused
+    ? '⏸️ *Status Membership: DIJEDA*\n\nToken membership tidak bisa akses live.\nGunakan /resumemember untuk mengaktifkan.'
+    : '▶️ *Status Membership: AKTIF*\n\nToken membership bisa akses live normal.\nGunakan /pausemember untuk menjeda.';
 }
 
 async function handleStatus(supabase: any): Promise<string> {

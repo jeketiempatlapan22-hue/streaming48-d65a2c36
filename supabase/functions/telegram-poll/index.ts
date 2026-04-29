@@ -250,9 +250,18 @@ async function processAdminMessage(supabase: any, botToken: string, chatId: stri
   const tokenallMatch = rawText.match(/^\/tokenall\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?$/i);
   const maketokenMatch = rawText.match(/^\/maketoken\s+(.+?)\s+(\d+\s*(?:hari|minggu|bulan|tahun))(?:\s+(\d+))?(?:\s+(.+))?$/i);
   const perpanjangMatch = rawText.match(/^\/perpanjang\s+(\S+)\s+(\d+\s*(?:hari|minggu|bulan|tahun))$/i);
+  const isPauseMember = /^\/pause(member|membership)$/i.test(rawText);
+  const isResumeMember = /^\/(resume|unpause)(member|membership)$/i.test(rawText);
+  const isMemberStatus = /^\/memberstatus$/i.test(rawText);
 
   if (isHelp) {
     await handleHelpCommand(botToken, chatId);
+  } else if (isPauseMember) {
+    await handleMembershipPauseTg(supabase, botToken, chatId, true);
+  } else if (isResumeMember) {
+    await handleMembershipPauseTg(supabase, botToken, chatId, false);
+  } else if (isMemberStatus) {
+    await handleMembershipStatusTg(supabase, botToken, chatId);
   } else if (isShows) {
     await handleShowsCommand(supabase, botToken, chatId);
   } else if (isStatus) {
@@ -457,7 +466,46 @@ async function handleHelpCommand(botToken: string, chatId: string) {
     `\`/tokenall <durasi> <max>\` \\- Token ALL show \\+ max device\n` +
     `\`/perpanjang <4digit> <durasi>\` \\- Perpanjang durasi token\n` +
     `  Durasi: 30hari, 1minggu, 2bulan, 1tahun\n\n` +
+    `👑 *Kontrol Membership Global:*\n` +
+    `\`/pausemember\` \\- Jeda akses semua token membership\n` +
+    `\`/resumemember\` \\- Aktifkan kembali akses membership\n` +
+    `\`/memberstatus\` \\- Cek status pause membership\n\n` +
     `💡 _Gunakan \\#ID \\(6 digit hex\\) atau custom ID untuk show, 4 digit belakang untuk token\\._`;
+  await sendTelegramMessage(botToken, chatId, msg);
+}
+
+async function handleMembershipPauseTg(supabase: any, botToken: string, chatId: string, paused: boolean) {
+  try {
+    const { data, error } = await supabase.rpc('set_membership_pause_bot', { _paused: paused, _source: 'telegram' });
+    if (error) {
+      await sendTelegramMessage(botToken, chatId, `⚠️ Gagal: ${escapeMarkdown(error.message)}`);
+      return;
+    }
+    if (paused) {
+      const sessions = (data as any)?.sessions_terminated ?? 0;
+      await sendTelegramMessage(botToken, chatId,
+        `⏸️ *Membership Dijeda*\n\n` +
+        `Semua token MBR\\-/MRD\\- diblokir dari halaman live\\.\n` +
+        `${sessions} sesi aktif diputus\\.\n` +
+        `Kartu show kembali ke mode "Beli" untuk user membership\\.\n\n` +
+        `💡 Aktifkan lagi: \`/resumemember\``);
+    } else {
+      await sendTelegramMessage(botToken, chatId,
+        `▶️ *Membership Diaktifkan*\n\n` +
+        `Token membership kembali bisa mengakses live\\.\n\n` +
+        `💡 Cek status: \`/memberstatus\``);
+    }
+  } catch (e: any) {
+    await sendTelegramMessage(botToken, chatId, `⚠️ Error: ${escapeMarkdown(e?.message || 'unknown')}`);
+  }
+}
+
+async function handleMembershipStatusTg(supabase: any, botToken: string, chatId: string) {
+  const { data } = await supabase.from('site_settings').select('value').eq('key', 'membership_paused').maybeSingle();
+  const paused = (data?.value || 'false') === 'true';
+  const msg = paused
+    ? `⏸️ *Status Membership: DIJEDA*\n\nToken membership tidak bisa akses live\\.\nGunakan \`/resumemember\` untuk mengaktifkan\\.`
+    : `▶️ *Status Membership: AKTIF*\n\nToken membership bisa akses live normal\\.\nGunakan \`/pausemember\` untuk menjeda\\.`;
   await sendTelegramMessage(botToken, chatId, msg);
 }
 
