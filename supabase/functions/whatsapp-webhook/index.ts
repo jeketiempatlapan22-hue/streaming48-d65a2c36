@@ -943,6 +943,11 @@ TOLAK_RESET <id> - Tolak reset password
 /perpanjang <4digit> <durasi> - Perpanjang token
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
+👑 *Kontrol Membership Global:*
+/pausemember - Jeda akses semua token membership
+/resumemember - Aktifkan kembali akses membership
+/memberstatus - Cek status pause membership
+
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
 }
 
