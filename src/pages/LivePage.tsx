@@ -21,7 +21,7 @@ import { useSignedStreamUrl } from "@/hooks/useSignedStreamUrl";
 import { useProxyStream } from "@/hooks/useProxyStream";
 import { withRetry, withTimeout } from "@/lib/queryCache";
 import { createClientId, safeStorageGet, safeStorageSet, safeJsonParse } from "@/lib/clientId";
-import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal } from "@/lib/timeFormat";
+import { parseWIBDateTime, formatDateWIB, isUserOutsideWIB, getUserZoneLabel, formatLocal, getDeviceZoneCode } from "@/lib/timeFormat";
 import SectionBoundary from "@/components/SectionBoundary";
 import LiveChatBoundary from "@/components/viewer/LiveChatBoundary";
 
@@ -69,8 +69,10 @@ const FlipNumber = ({ value }: { value: number }) => {
 
 const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedule_time?: string | null; schedule_timezone?: string | null } | null) => {
   if (!show?.schedule_date) return null;
-  // Default ke 19:00 jika admin belum set jam — pakai timezone show (WIB/WITA/WIT).
-  return parseWIBDateTime(show.schedule_date, show.schedule_time || "19:00", show.schedule_timezone || "WIB");
+  // Default ke 19:00 jika admin belum set jam.
+  // Timezone: pakai dari show; jika kosong, auto-detect dari device viewer.
+  const tz = show.schedule_timezone || getDeviceZoneCode();
+  return parseWIBDateTime(show.schedule_date, show.schedule_time || "19:00", tz);
 };
 
 const resolveDisplayShow = (
@@ -1534,7 +1536,7 @@ const LivePage = () => {
                       </p>
                     )}
                     {(activeShowDate || activeShowTime) && (() => {
-                      const tzLabel = (activeShowTimezone || "WIB").toUpperCase();
+                      const tzLabel = (activeShowTimezone || getDeviceZoneCode()).toUpperCase();
                       const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00", tzLabel);
                       const outsideWIB = parsedTs != null && isUserOutsideWIB();
                       const userZoneLabel = getUserZoneLabel();
