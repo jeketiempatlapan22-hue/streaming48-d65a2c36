@@ -17,7 +17,6 @@ export const useActiveLiveAccess = () => {
   const [isLive, setIsLive] = useState(false);
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
-  const [activeShowExclusive, setActiveShowExclusive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,30 +32,24 @@ export const useActiveLiveAccess = () => {
         setActiveShowId(showId);
         setIsLive(Boolean(streamRes.data?.is_live));
 
-        // Resolve judul show aktif untuk pesan toast yang lebih informatif.
-        // Fallback ke judul stream jika RPC tidak menemukan.
         let title: string | null = (streamRes.data as any)?.title || null;
         if (showId) {
           try {
             const { data: rows } = await (supabase as any).rpc("get_public_shows");
             const match = (rows || []).find((s: any) => s?.id === showId);
             if (match?.title) title = match.title;
-            setActiveShowExclusive(Boolean(match?.exclude_from_membership));
           } catch {
-            // Abaikan; gunakan fallback
+            // ignore
           }
-        } else {
-          setActiveShowExclusive(false);
         }
         if (!cancelled) setActiveShowTitle(title);
       } catch {
-        // Diam — bottom nav tetap berfungsi sebagai link biasa
+        // ignore
       }
     };
 
     load();
 
-    // Realtime: ikut update ketika admin toggle stream is_live
     const channel = supabase
       .channel("mobile-nav-live")
       .on(
@@ -78,7 +71,7 @@ export const useActiveLiveAccess = () => {
   }, []);
 
   const universalToken = membershipToken || bundleToken || customToken || null;
-  const liveAccessToken = (activeShowId ? redeemedTokens[activeShowId] : null) || (!activeShowExclusive ? universalToken : null) || null;
+  const liveAccessToken = (activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null;
 
   return { isLive, activeShowId, activeShowTitle, liveAccessToken };
 };
