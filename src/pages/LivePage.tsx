@@ -1130,6 +1130,93 @@ const LivePage = () => {
 
   const isLive = stream?.is_live || false;
 
+  if (tokenNotStarted) {
+    const cd = notStartedCountdown;
+    const ready = cd && cd.d === 0 && cd.h === 0 && cd.m === 0 && cd.s === 0;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+        <div className="w-full max-w-lg rounded-2xl border border-primary/40 bg-card p-6 sm:p-8 shadow-[0_0_40px_hsl(var(--primary)/0.15)]">
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 ring-2 ring-primary/30">
+              <AlertTriangle className="h-8 w-8 text-primary" />
+            </div>
+            <h2 className="mb-1.5 text-xl sm:text-2xl font-bold text-foreground">
+              Token Belum Aktif
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Token kamu hanya berlaku sesuai jadwal show. Silakan kembali saat jadwal mulai.
+            </p>
+          </div>
+
+          <div className="my-6 rounded-xl border border-primary/30 bg-primary/5 p-4 text-center">
+            <p className="text-[10px] font-bold tracking-widest text-primary/80 uppercase mb-1.5">
+              Show Kamu
+            </p>
+            <p className="text-base font-bold text-foreground leading-tight">
+              🎭 {tokenNotStarted.showTitle}
+            </p>
+            {(tokenNotStarted.showDate || tokenNotStarted.showTime) && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                📅 {tokenNotStarted.showDate || "-"}
+                {tokenNotStarted.showTime ? ` • 🕐 ${tokenNotStarted.showTime}` : ""}
+              </p>
+            )}
+          </div>
+
+          {ready ? (
+            <div className="mb-5 rounded-lg bg-primary/10 border border-primary/30 p-4 text-center">
+              <p className="text-sm font-semibold text-primary mb-2">✨ Token sudah aktif!</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                🔄 Masuk Sekarang
+              </button>
+            </div>
+          ) : cd ? (
+            <div className="mb-5">
+              <p className="text-center text-xs uppercase tracking-widest text-muted-foreground mb-3">
+                Aktif dalam
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { v: cd.d, l: "Hari" },
+                  { v: cd.h, l: "Jam" },
+                  { v: cd.m, l: "Menit" },
+                  { v: cd.s, l: "Detik" },
+                ].map((b, i) => (
+                  <div key={i} className="rounded-lg bg-muted/50 border border-border p-2 text-center">
+                    <p className="text-xl sm:text-2xl font-bold text-foreground tabular-nums">
+                      {String(b.v).padStart(2, "0")}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                      {b.l}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="rounded-lg bg-muted/50 border border-border p-3 mb-5">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              💡 Token streaming dibuat dengan masa berlaku mengikuti jadwal show. Token baru akan otomatis aktif saat jam show kamu tiba.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button onClick={() => navigate("/schedule")} className="flex-1 rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 active:scale-[0.97] transition-transform">
+              📅 Lihat Jadwal Show
+            </button>
+            <button onClick={() => navigate("/")} className="flex-1 rounded-full bg-secondary px-5 py-3 text-sm font-semibold text-secondary-foreground hover:bg-secondary/80 active:scale-[0.97] transition-transform">
+              🏠 Beranda
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (showMismatch) {
     const defaultMismatch = { tokenShowTitle: "Show Lain", tokenShowDate: "", tokenShowTime: "", activeShowTitle: "Show Lain" };
     const mismatchInfo = safeJsonParse<typeof defaultMismatch>(mismatchShowTitle, defaultMismatch);
