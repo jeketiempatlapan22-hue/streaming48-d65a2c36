@@ -96,24 +96,54 @@ const ID_MONTHS: Record<string, number> = {
 
 export function parseWIBDateTime(dateStr: string, timeStr: string): number | null {
   if (!dateStr) return null;
-  const cleanTime = (timeStr || "00:00").replace(/\s*WIB\s*/i, "").trim().replace(/\./g, ":");
+
+  // ----- Time -----
+  // Accept "19:00", "19.00", "19:00 WIB", "7 PM", "7pm", "19", "" (=> 00:00).
+  let cleanTime = (timeStr || "00:00")
+    .replace(/\s*WIB\s*/i, "")
+    .replace(/\s*WITA\s*/i, "")
+    .replace(/\s*WIT\s*/i, "")
+    .trim();
+  let isPm = false;
+  let isAm = false;
+  if (/pm$/i.test(cleanTime)) { isPm = true; cleanTime = cleanTime.replace(/pm$/i, "").trim(); }
+  if (/am$/i.test(cleanTime)) { isAm = true; cleanTime = cleanTime.replace(/am$/i, "").trim(); }
+  cleanTime = cleanTime.replace(/\./g, ":");
   const tParts = cleanTime.split(":");
-  const hour = parseInt(tParts[0]) || 0;
-  const minute = parseInt(tParts[1]) || 0;
+  let hour = parseInt(tParts[0]);
+  let minute = parseInt(tParts[1]);
+  if (isNaN(hour)) hour = 0;
+  if (isNaN(minute)) minute = 0;
+  if (isPm && hour < 12) hour += 12;
+  if (isAm && hour === 12) hour = 0;
+
+  // ----- Date -----
+  // Strip leading day-of-week ("Jumat,", "minggu", "sabtu, ", etc.) and normalize whitespace.
+  const cleanDate = String(dateStr)
+    .replace(/^\s*(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu|mon|tue|wed|thu|fri|sat|sun)\.?\s*,?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   let year: number | null = null;
   let month: number | null = null;
   let day: number | null = null;
 
-  // ISO format YYYY-MM-DD
-  const iso = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  // ISO YYYY-MM-DD
+  const iso = cleanDate.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  // DD/MM/YYYY or DD-MM-YYYY (slash/dash separated, day first)
+  const dmySlash = cleanDate.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   if (iso) {
     year = parseInt(iso[1]);
     month = parseInt(iso[2]);
     day = parseInt(iso[3]);
+  } else if (dmySlash) {
+    day = parseInt(dmySlash[1]);
+    month = parseInt(dmySlash[2]);
+    year = parseInt(dmySlash[3]);
+    if (year < 100) year += 2000;
   } else {
-    // Indonesian format "1 maret 2024"
-    const parts = dateStr.toLowerCase().trim().split(/\s+/);
+    // Indonesian/English textual: "1 maret 2024", "07 Mei 2026", "1 Mar 2026"
+    const parts = cleanDate.toLowerCase().split(/\s+/).filter(Boolean);
     if (parts.length >= 3) {
       day = parseInt(parts[0]);
       month = ID_MONTHS[parts[1]] ?? null;
@@ -122,6 +152,9 @@ export function parseWIBDateTime(dateStr: string, timeStr: string): number | nul
   }
 
   if (!year || !month || !day) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
   // Build UTC ms for the WIB wall-clock time: subtract 7h offset.
   const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - WIB_OFFSET_MIN * 60 * 1000;
   if (isNaN(utcMs)) return null;
