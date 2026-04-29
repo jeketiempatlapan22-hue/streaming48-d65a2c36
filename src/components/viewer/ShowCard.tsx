@@ -255,9 +255,15 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
 
         {/* Exclusive badge - membership tidak include */}
         {show.exclude_from_membership && (
-          <div className="flex items-center gap-1.5 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-fuchsia-300">
-            <span>🔒</span>
-            <span>Eksklusif — Tidak include Membership/Bundle. Wajib beli show ini.</span>
+          <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1">
+            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
+              <span>🔒</span>
+              <span>Show Eksklusif</span>
+            </div>
+            <p className="text-[10px] leading-snug text-fuchsia-100/80">
+              Show ini <strong className="text-fuchsia-200">tidak termasuk</strong> dalam Membership, Bundle, Mader, atau RT48.
+              Anda <strong className="text-fuchsia-200">wajib membeli show ini secara terpisah</strong> untuk dapat menonton.
+            </p>
           </div>
         )}
 
