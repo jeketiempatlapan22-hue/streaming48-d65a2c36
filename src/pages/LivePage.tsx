@@ -11,7 +11,8 @@ import SecurityAlert from "@/components/viewer/SecurityAlert";
 import LiveViewerCount from "@/components/viewer/LiveViewerCount";
 import type { AnimationType } from "@/components/viewer/PlayerAnimations";
 import ViewerBroadcast from "@/components/viewer/ViewerBroadcast";
-import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer, Calendar, MessageSquare } from "lucide-react";
+import { Menu, X, MessageCircle, Home, Phone, Lock, RotateCcw, Timer, Calendar, MessageSquare, AlertTriangle, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
 } from "@/components/ui/sheet";
