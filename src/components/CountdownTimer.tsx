@@ -85,7 +85,7 @@ const CountdownTimer = ({ dateStr, timeStr, timezone }: CountdownTimerProps) => 
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [dateStr, timeStr]);
+  }, [dateStr, timeStr, timezone]);
 
   if (isPast) {
     return (
