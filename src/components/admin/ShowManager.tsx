@@ -450,7 +450,6 @@ const ShowManager = () => {
       replay_m3u8_url: draft.replay_m3u8_url.trim() || null,
       replay_youtube_url: normalizedYoutubeId,
       replay_month: draft.replay_month.trim() || null,
-      exclude_from_membership: Boolean(draft.exclude_from_membership),
     };
 
     const { data, error } = await supabase.from("shows").update(payload).eq("id", draft.id).select().single();
