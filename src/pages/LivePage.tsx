@@ -67,11 +67,10 @@ const FlipNumber = ({ value }: { value: number }) => {
   );
 };
 
-const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedule_time?: string | null } | null) => {
+const getShowScheduleTimestamp = (show?: { schedule_date?: string | null; schedule_time?: string | null; schedule_timezone?: string | null } | null) => {
   if (!show?.schedule_date) return null;
-  // Default ke 19:00 WIB (jam show paling umum) jika admin belum set jam.
-  // Lebih baik daripada 00:00 (countdown habis di tengah malam) atau 23:59 (terlalu jauh).
-  return parseWIBDateTime(show.schedule_date, show.schedule_time || "19:00");
+  // Default ke 19:00 jika admin belum set jam — pakai timezone show (WIB/WITA/WIT).
+  return parseWIBDateTime(show.schedule_date, show.schedule_time || "19:00", show.schedule_timezone || "WIB");
 };
 
 const resolveDisplayShow = (
@@ -396,6 +395,7 @@ const LivePage = () => {
   const [activeShowImage, setActiveShowImage] = useState<string | null>(null);
   const [activeShowDate, setActiveShowDate] = useState<string | null>(null);
   const [activeShowTime, setActiveShowTime] = useState<string | null>(null);
+  const [activeShowTimezone, setActiveShowTimezone] = useState<string | null>(null);
   const [offlineBackgroundOverride, setOfflineBackgroundOverride] = useState<string | null>(null);
   const playerRef = useRef<VideoPlayerHandle>(null);
 
@@ -441,6 +441,7 @@ const LivePage = () => {
     setActiveShowImage(show?.background_image_url || null);
     setActiveShowDate(show?.schedule_date || null);
     setActiveShowTime(show?.schedule_time || null);
+    setActiveShowTimezone(show?.schedule_timezone || null);
   }, []);
 
   const runWithTimeoutRetry = async <T,>(
@@ -987,7 +988,7 @@ const LivePage = () => {
     // Target time = WIB wall-clock yang dikonversi ke UTC ms.
     // Countdown menampilkan DURASI sampai event (sama untuk semua zona waktu user).
     let targetUtcMs: number | null = null;
-    const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime });
+    const scheduledShowMs = getShowScheduleTimestamp({ schedule_date: activeShowDate, schedule_time: activeShowTime, schedule_timezone: activeShowTimezone });
     if (scheduledShowMs != null) {
       targetUtcMs = scheduledShowMs;
     } else if (nextShowTime) {
@@ -1017,7 +1018,7 @@ const LivePage = () => {
     update();
     const i = setInterval(update, 1000);
     return () => clearInterval(i);
-  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime]);
+  }, [nextShowTime, stream?.is_live, activeShowDate, activeShowTime, activeShowTimezone]);
 
   // Countdown khusus saat token belum aktif (jadwal show belum tiba)
   const [notStartedCountdown, setNotStartedCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
@@ -1533,7 +1534,8 @@ const LivePage = () => {
                       </p>
                     )}
                     {(activeShowDate || activeShowTime) && (() => {
-                      const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00");
+                      const tzLabel = (activeShowTimezone || "WIB").toUpperCase();
+                      const parsedTs = parseWIBDateTime(activeShowDate || "", activeShowTime || "00:00", tzLabel);
                       const outsideWIB = parsedTs != null && isUserOutsideWIB();
                       const userZoneLabel = getUserZoneLabel();
                       const dateLabel = parsedTs != null
@@ -1541,13 +1543,15 @@ const LivePage = () => {
                             ? formatLocal(parsedTs, { day: "numeric", month: "long", year: "numeric" })
                             : formatDateWIB(parsedTs))
                         : (activeShowDate || "");
+                      const tzMap: Record<string, string> = { WIB: "Asia/Jakarta", WITA: "Asia/Makassar", WIT: "Asia/Jayapura" };
+                      const showTzName = tzMap[tzLabel] || "Asia/Jakarta";
                       const primaryTimeLabel = parsedTs != null
                         ? (outsideWIB
                             ? `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit" })} ${userZoneLabel}`
-                            : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)} WIB`)
-                        : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "");
-                      const wibHint = outsideWIB && parsedTs != null
-                        ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)
+                            : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: showTzName } as any)} ${tzLabel}`)
+                        : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} ${tzLabel}` : "");
+                      const showTzHint = outsideWIB && parsedTs != null
+                        ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: showTzName } as any)
                         : "";
                       return (
                         <>
@@ -1556,9 +1560,9 @@ const LivePage = () => {
                             {dateLabel && primaryTimeLabel ? " • 🕐 " : ""}
                             {primaryTimeLabel}
                           </p>
-                          {outsideWIB && wibHint && (
+                          {outsideWIB && showTzHint && (
                             <p className="text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-                              🌐 Jadwal asli: <span className="font-semibold">{wibHint} WIB</span>
+                              🌐 Jadwal asli: <span className="font-semibold">{showTzHint} {tzLabel}</span>
                             </p>
                           )}
                         </>

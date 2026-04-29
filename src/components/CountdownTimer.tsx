@@ -6,10 +6,11 @@ import { parseWIBDateTime } from "@/lib/timeFormat";
 interface CountdownTimerProps {
   dateStr: string;
   timeStr: string;
+  timezone?: string;
 }
 
-const parseDateTime = (dateStr: string, timeStr: string): Date | null => {
-  const ts = parseWIBDateTime(dateStr, timeStr);
+const parseDateTime = (dateStr: string, timeStr: string, timezone?: string): Date | null => {
+  const ts = parseWIBDateTime(dateStr, timeStr, timezone || "WIB");
   if (ts != null) return new Date(ts);
   const d = new Date(`${dateStr} ${timeStr}`);
   if (!isNaN(d.getTime())) return d;
@@ -33,13 +34,13 @@ const AnimatedDigit = ({ value, label }: { value: number; label: string }) => (
   </div>
 );
 
-const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
+const CountdownTimer = ({ dateStr, timeStr, timezone }: CountdownTimerProps) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isLive, setIsLive] = useState(false);
   const [isPast, setIsPast] = useState(false);
 
   useEffect(() => {
-    const target = parseDateTime(dateStr, timeStr);
+    const target = parseDateTime(dateStr, timeStr, timezone);
     if (!target) return;
 
     // Patokan target = WIB. Tampilan countdown digeser ke wall-clock zona user
@@ -84,7 +85,7 @@ const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [dateStr, timeStr]);
+  }, [dateStr, timeStr, timezone]);
 
   if (isPast) {
     return (

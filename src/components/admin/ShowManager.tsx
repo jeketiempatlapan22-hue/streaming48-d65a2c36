@@ -37,6 +37,7 @@ interface Show {
   lineup: string;
   schedule_date: string;
   schedule_time: string;
+  schedule_timezone: string;
   background_image_url: string | null;
   qris_image_url: string | null;
   is_active: boolean;
@@ -97,6 +98,7 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   lineup: show.lineup ?? "",
   schedule_date: show.schedule_date ?? "",
   schedule_time: show.schedule_time ?? "",
+  schedule_timezone: show.schedule_timezone ?? "WIB",
   background_image_url: show.background_image_url ?? null,
   qris_image_url: show.qris_image_url ?? null,
   is_active: show.is_active ?? true,
@@ -252,6 +254,7 @@ const ShowManager = () => {
         lineup: "",
         schedule_date: "",
         schedule_time: "",
+        schedule_timezone: "WIB",
         background_image_url: null,
         qris_image_url: null,
         is_active: true,
@@ -329,6 +332,7 @@ const ShowManager = () => {
       lineup: p.lineup.trim(),
       schedule_date: p.schedule_date.trim(),
       schedule_time: p.schedule_time.trim(),
+      schedule_timezone: "WIB",
       background_image_url: null,
       qris_image_url: null,
       is_active: true,
@@ -422,6 +426,7 @@ const ShowManager = () => {
       lineup: draft.lineup.trim(),
       schedule_date: draft.schedule_date.trim(),
       schedule_time: draft.schedule_time.trim(),
+      schedule_timezone: (draft.schedule_timezone || "WIB").trim().toUpperCase(),
       background_image_url: draft.background_image_url || null,
       qris_image_url: draft.qris_image_url || null,
       is_active: draft.is_active,
@@ -873,8 +878,22 @@ const ShowManager = () => {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Jam</label>
-                <Input value={draft.schedule_time} onChange={(event) => updateDraft({ schedule_time: event.target.value })} className="bg-background" placeholder="19:00 WIB" />
+                <Input value={draft.schedule_time} onChange={(event) => updateDraft({ schedule_time: event.target.value })} className="bg-background" placeholder="19:00" />
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Zona Waktu</label>
+              <select
+                value={draft.schedule_timezone || "WIB"}
+                onChange={(event) => updateDraft({ schedule_timezone: event.target.value })}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="WIB">WIB (UTC+7) — Jakarta</option>
+                <option value="WITA">WITA (UTC+8) — Makassar</option>
+                <option value="WIT">WIT (UTC+9) — Jayapura</option>
+              </select>
+              <p className="mt-1 text-[10px] text-muted-foreground">Countdown akan dihitung sesuai zona waktu yang dipilih, bukan asumsi WIB.</p>
             </div>
 
             <div>

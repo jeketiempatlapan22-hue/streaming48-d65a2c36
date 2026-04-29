@@ -5,6 +5,7 @@ export interface Show {
   lineup: string;
   schedule_date: string;
   schedule_time: string;
+  schedule_timezone?: string;
   background_image_url: string | null;
   qris_image_url: string | null;
   is_subscription: boolean;

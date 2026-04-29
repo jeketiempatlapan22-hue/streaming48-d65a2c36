@@ -1246,6 +1246,7 @@ export type Database = {
           replay_youtube_url: string | null
           schedule_date: string | null
           schedule_time: string | null
+          schedule_timezone: string
           short_id: string | null
           subscription_benefits: string | null
           team: string | null
@@ -1284,6 +1285,7 @@ export type Database = {
           replay_youtube_url?: string | null
           schedule_date?: string | null
           schedule_time?: string | null
+          schedule_timezone?: string
           short_id?: string | null
           subscription_benefits?: string | null
           team?: string | null
@@ -1322,6 +1324,7 @@ export type Database = {
           replay_youtube_url?: string | null
           schedule_date?: string | null
           schedule_time?: string | null
+          schedule_timezone?: string
           short_id?: string | null
           subscription_benefits?: string | null
           team?: string | null
@@ -1910,6 +1913,7 @@ export type Database = {
           replay_youtube_url: string
           schedule_date: string
           schedule_time: string
+          schedule_timezone: string
           short_id: string
           subscription_benefits: string
           team: string

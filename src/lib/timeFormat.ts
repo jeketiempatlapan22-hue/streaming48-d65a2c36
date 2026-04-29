@@ -94,12 +94,28 @@ const ID_MONTHS: Record<string, number> = {
   jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
 };
 
-export function parseWIBDateTime(dateStr: string, timeStr: string): number | null {
+/** Offset in minutes for Indonesian timezone codes. */
+const TZ_OFFSETS: Record<string, number> = {
+  WIB: 7 * 60,
+  WITA: 8 * 60,
+  WIT: 9 * 60,
+};
+
+export function parseWIBDateTime(
+  dateStr: string,
+  timeStr: string,
+  timezone: string = "WIB"
+): number | null {
   if (!dateStr) return null;
 
   // ----- Time -----
   // Accept "19:00", "19.00", "19:00 WIB", "7 PM", "7pm", "19", "" (=> 00:00).
-  let cleanTime = (timeStr || "00:00")
+  // If timeStr contains an explicit zone (WITA/WIT/WIB), it overrides the timezone arg.
+  const rawTime = timeStr || "00:00";
+  let zoneOverride: string | null = null;
+  const zoneMatch = rawTime.match(/\b(WIB|WITA|WIT)\b/i);
+  if (zoneMatch) zoneOverride = zoneMatch[1].toUpperCase();
+  let cleanTime = rawTime
     .replace(/\s*WIB\s*/i, "")
     .replace(/\s*WITA\s*/i, "")
     .replace(/\s*WIT\s*/i, "")
@@ -155,8 +171,11 @@ export function parseWIBDateTime(dateStr: string, timeStr: string): number | nul
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
 
-  // Build UTC ms for the WIB wall-clock time: subtract 7h offset.
-  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - WIB_OFFSET_MIN * 60 * 1000;
+  // Resolve effective timezone: explicit zone in time string wins, else `timezone` arg, else WIB.
+  const effectiveZone = (zoneOverride ?? timezone ?? "WIB").toUpperCase();
+  const offsetMin = TZ_OFFSETS[effectiveZone] ?? WIB_OFFSET_MIN;
+  // Build UTC ms for the wall-clock time in the target zone: subtract that zone's offset.
+  const utcMs = Date.UTC(year, month - 1, day, hour, minute, 0) - offsetMin * 60 * 1000;
   if (isNaN(utcMs)) return null;
   return utcMs;
 }
@@ -181,9 +200,10 @@ export function getUserZoneLabel(): string {
  */
 export function formatScheduleAllZones(
   dateStr: string,
-  timeStr: string
+  timeStr: string,
+  timezone: string = "WIB"
 ): { wib: string; wita: string; wit: string } | null {
-  const ts = parseWIBDateTime(dateStr, timeStr);
+  const ts = parseWIBDateTime(dateStr, timeStr, timezone);
   if (ts == null) return null;
   const fmt = (tz: string) =>
     new Date(ts).toLocaleTimeString("id-ID", {
