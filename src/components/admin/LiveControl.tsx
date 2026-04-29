@@ -338,29 +338,139 @@ const LiveControl = () => {
       </div>
 
       {/* Active Show Selector — controls LIVE access, COUNTDOWN, and OFFLINE BACKGROUND */}
-      <div className="space-y-3 rounded-xl border border-primary/40 bg-primary/5 p-6">
-        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang / Akan Live</h3>
-        <p className="text-xs text-muted-foreground">
-          Pilih satu show. <span className="font-semibold text-primary">Countdown, jadwal, dan background offline player otomatis ikut show ini.</span> Token hanya bisa akses show yang sesuai.
-        </p>
-        <Select value={activeShowId} onValueChange={saveActiveShow}>
-          <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
-          <SelectContent>
-            {shows.filter(s => !s.is_replay && !s.is_bundle).map((show) => (
-              <SelectItem key={show.id} value={show.id}>
-                {show.title}
-                {!show.is_active ? " (Nonaktif)" : ""}
-                {show.schedule_date ? ` - ${show.schedule_date}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {activeShowId && (
-          <p className="text-xs text-muted-foreground">
-            Show aktif: <span className="font-semibold text-primary">{shows.find(s => s.id === activeShowId)?.title || "Unknown"}</span>
-          </p>
-        )}
-      </div>
+      {(() => {
+        const activeShow = shows.find((s) => s.id === activeShowId);
+        const parsedTs = activeShow ? parseWIBDateTime(activeShow.schedule_date || "", activeShow.schedule_time || "00:00") : null;
+        const hasSchedule = parsedTs != null;
+        const dateLabel = hasSchedule ? formatDateWIB(parsedTs!) : (activeShow?.schedule_date || "Tidak ada jadwal");
+        const timeLabel = activeShow?.schedule_time ? `${activeShow.schedule_time.replace(/\./g, ":")} WIB` : "";
+
+        return (
+          <div className="space-y-4 rounded-xl border border-primary/40 bg-primary/5 p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">🎭 Show Aktif (Active Show)</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pilih satu show. <span className="font-semibold text-primary">Countdown, judul, jadwal, dan background offline di player viewer langsung berubah.</span>
+                </p>
+              </div>
+              {activeShowId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                  onClick={() => saveActiveShow("__none__")}
+                >
+                  <Eraser className="mr-1 h-4 w-4" /> Kosongkan
+                </Button>
+              )}
+            </div>
+
+            <Select value={activeShowId || "__none__"} onValueChange={saveActiveShow}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Tidak ada show aktif —</SelectItem>
+                {shows.filter((s) => !s.is_replay && !s.is_bundle).map((show) => (
+                  <SelectItem key={show.id} value={show.id}>
+                    {show.title}
+                    {!show.is_active ? " (Nonaktif)" : ""}
+                    {show.is_subscription ? " [Membership]" : ""}
+                    {show.schedule_date ? ` — ${show.schedule_date}${show.schedule_time ? ` ${show.schedule_time}` : ""}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Validasi peringatan */}
+            {activeShow?.is_replay && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini berstatus <b>REPLAY</b>. Token live regular akan ditolak. Gunakan kanal replay untuk akses.</span>
+              </div>
+            )}
+            {activeShow && !activeShow.is_active && (
+              <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10 p-3 text-xs text-[hsl(var(--warning))]">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini <b>NONAKTIF</b> di Show Manager. Viewer mungkin tidak bisa melihat metadata publik.</span>
+              </div>
+            )}
+            {activeShow && !hasSchedule && (
+              <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10 p-3 text-xs text-[hsl(var(--warning))]">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini belum punya tanggal/jam jadwal. Countdown di player tidak akan tampil.</span>
+              </div>
+            )}
+
+            {/* Kartu preview show terpilih */}
+            {activeShow && (
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="flex gap-3 p-3">
+                  {activeShow.background_image_url ? (
+                    <img
+                      src={activeShow.background_image_url}
+                      alt={activeShow.title}
+                      className="h-20 w-20 shrink-0 rounded-lg object-cover border border-border"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 shrink-0 rounded-lg bg-gradient-to-br from-primary/20 to-secondary flex items-center justify-center text-2xl">
+                      🎭
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold tracking-widest text-primary uppercase">Show Aktif</p>
+                    <p className="text-sm font-bold text-foreground line-clamp-2 leading-tight mt-0.5">{activeShow.title}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3" /> {dateLabel}{timeLabel ? ` • ${timeLabel}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live countdown preview — sama dengan yang muncul di player viewer */}
+                {hasSchedule && (
+                  <div className="border-t border-border bg-secondary/30 p-3">
+                    <p className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase mb-2 text-center">
+                      Preview Countdown di Player Viewer
+                    </p>
+                    {showCountdown ? (
+                      <div className="flex items-center justify-center gap-2">
+                        {[
+                          { v: showCountdown.d, l: "HARI" },
+                          { v: showCountdown.h, l: "JAM" },
+                          { v: showCountdown.m, l: "MENIT" },
+                          { v: showCountdown.s, l: "DETIK" },
+                        ].map((seg, i, arr) => (
+                          <div key={seg.l} className="flex items-center gap-2">
+                            <div className="flex flex-col items-center min-w-[40px]">
+                              <span className="font-mono text-xl font-extrabold text-primary tabular-nums leading-none">
+                                {String(seg.v).padStart(2, "0")}
+                              </span>
+                              <span className="mt-1 text-[8px] font-semibold tracking-widest text-muted-foreground">{seg.l}</span>
+                            </div>
+                            {i < arr.length - 1 && <span className="text-primary/50 font-bold pb-3">:</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs font-semibold text-[hsl(var(--success))]">
+                        ✅ Jadwal sudah lewat
+                        {showStartedAgoMs != null && showStartedAgoMs < 86_400_000
+                          ? ` (${Math.floor(showStartedAgoMs / 60_000)} menit yang lalu)`
+                          : ""}
+                        — siap di-LIVE-kan.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] text-muted-foreground border-t border-border/50 pt-3">
+              💡 Token reseller/regular hanya bisa mengakses show yang dipilih di sini. Token Membership / Bundle / Custom bot tetap universal.
+            </p>
+          </div>
+        );
+      })()}
+
 
       {/* Offline Player Background Override */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
