@@ -289,7 +289,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         )}
 
         {/* Show replay/access password for membership/bundle users */}
-        {isUniversalAccess && !show.exclude_from_membership && show.access_password && (
+        {isUniversalAccess && !isExclusive && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
             <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
             <div className="flex items-center justify-between">
@@ -306,7 +306,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
 
         {/* Action buttons - slimmer */}
         <div className="flex flex-col gap-1.5 pt-1">
-          {redeemedToken ? (
+          {showToken ? (
             isReplayMode ? (
               <div className="space-y-1.5">
                 {hasPw && (
@@ -336,13 +336,13 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                     return (
                       <>
                         <a
-                          href={`/live?t=${redeemedToken}`}
+                          href={`/live?t=${showToken}`}
                           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90 animate-pulse"
                         >
                           <Radio className="h-3.5 w-3.5" /> 🔴 Tonton Live
                         </a>
                         <button
-                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                         >
                           <Copy className="h-3 w-3" /> Salin Link
@@ -372,13 +372,13 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                         </div>
                       )}
                       <a
-                        href={`/live?t=${redeemedToken}`}
+                        href={`/live?t=${showToken}`}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90"
                       >
                         <Radio className="h-3.5 w-3.5" /> Tonton Live
                       </a>
                       <button
-                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                       >
                         <Copy className="h-3 w-3" /> Salin Link
