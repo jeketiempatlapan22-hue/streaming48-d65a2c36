@@ -161,15 +161,15 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
 
 
 
-        <div className={isMembership ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
+        <div className="grid grid-cols-1 gap-2">
           <div>
             <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Max Device</label>
             <Input type="number" min={1} max={10} value={maxDevices} onChange={(e) => setMaxDevices(e.target.value)} className="h-9" />
           </div>
           {isMembership ? (
-            <div>
-              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Durasi (hari)</label>
-              <Input type="number" min={1} max={90} value={duration} onChange={(e) => setDuration(e.target.value)} className="h-9" />
+            <div className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-md px-2 py-1.5 flex items-center gap-1.5">
+              <Clock className="h-3 w-3" />
+              Durasi membership: <span className="font-semibold">{membershipDuration} hari</span> (diatur admin)
             </div>
           ) : (
             <div className="text-[10px] text-muted-foreground bg-muted/30 border border-border rounded-md px-2 py-1.5 flex items-center gap-1.5">
@@ -182,9 +182,15 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
         <div className="text-[10px] text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-2 py-1.5 flex items-start gap-1.5">
           <Calendar className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
           <span>
-            Berlaku: <span className="font-semibold text-foreground">jadwal show + {isMembership ? `${Math.max(1, Math.min(90, parseInt(duration) || 7))} hari` : "1 hari"}</span>
-            {(show.schedule_date || show.schedule_time) && (
-              <> (mulai {[show.schedule_date, show.schedule_time].filter(Boolean).join(" • ")} WIB)</>
+            {isMembership ? (
+              <>Token <span className="font-semibold text-foreground">MBR-</span> berlaku <span className="font-semibold text-foreground">{membershipDuration} hari</span> sejak dibuat</>
+            ) : (
+              <>
+                Berlaku: <span className="font-semibold text-foreground">jadwal show + 1 hari</span>
+                {(show.schedule_date || show.schedule_time) && (
+                  <> (mulai {[show.schedule_date, show.schedule_time].filter(Boolean).join(" • ")} WIB)</>
+                )}
+              </>
             )}
           </span>
         </div>
