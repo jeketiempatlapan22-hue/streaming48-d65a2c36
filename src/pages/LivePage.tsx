@@ -1543,13 +1543,15 @@ const LivePage = () => {
                             ? formatLocal(parsedTs, { day: "numeric", month: "long", year: "numeric" })
                             : formatDateWIB(parsedTs))
                         : (activeShowDate || "");
+                      const tzMap: Record<string, string> = { WIB: "Asia/Jakarta", WITA: "Asia/Makassar", WIT: "Asia/Jayapura" };
+                      const showTzName = tzMap[tzLabel] || "Asia/Jakarta";
                       const primaryTimeLabel = parsedTs != null
                         ? (outsideWIB
                             ? `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit" })} ${userZoneLabel}`
-                            : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)} WIB`)
-                        : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} WIB` : "");
-                      const wibHint = outsideWIB && parsedTs != null
-                        ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" } as any)
+                            : `${formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: showTzName } as any)} ${tzLabel}`)
+                        : (activeShowTime ? `${activeShowTime.replace(/\./g, ":")} ${tzLabel}` : "");
+                      const showTzHint = outsideWIB && parsedTs != null
+                        ? formatLocal(parsedTs, { hour: "2-digit", minute: "2-digit", timeZone: showTzName } as any)
                         : "";
                       return (
                         <>
@@ -1558,9 +1560,9 @@ const LivePage = () => {
                             {dateLabel && primaryTimeLabel ? " • 🕐 " : ""}
                             {primaryTimeLabel}
                           </p>
-                          {outsideWIB && wibHint && (
+                          {outsideWIB && showTzHint && (
                             <p className="text-center text-[11px] sm:text-xs text-primary/90 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">
-                              🌐 Jadwal asli: <span className="font-semibold">{wibHint} WIB</span>
+                              🌐 Jadwal asli: <span className="font-semibold">{showTzHint} {tzLabel}</span>
                             </p>
                           )}
                         </>
