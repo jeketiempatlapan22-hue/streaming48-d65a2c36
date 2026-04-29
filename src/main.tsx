@@ -25,8 +25,9 @@ async function resetLegacyServiceWorkerCache() {
 
       localStorage.setItem("rt48-cache-version", CACHE_RESET_VERSION);
 
-      // Only reload if there were actual caches/SWs to clear
-      if (cacheKeys.length > 0) {
+      // Only reload if there were actual caches/SWs to clear AND user is not mid-stream.
+      // Reloading on /live would interrupt playback; user account/session in localStorage is preserved either way.
+      if (cacheKeys.length > 0 && window.location.pathname !== "/live") {
         window.location.reload();
         return;
       }
