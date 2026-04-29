@@ -26,6 +26,7 @@ interface Show {
   replay_m3u8_url?: string | null;
   replay_youtube_url?: string | null;
   has_replay_media?: boolean;
+  membership_duration_days?: number;
 }
 
 interface Props {
