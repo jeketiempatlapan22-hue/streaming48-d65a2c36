@@ -463,9 +463,10 @@ const Index = () => {
   };
 
   // Universal access token for membership/bundle/custom users.
+  // Berlaku untuk SEMUA show aktif (live & replay) selama token belum kedaluwarsa.
   const universalToken = membershipToken || bundleToken || customToken || null;
   const getShowAccessToken = (show: Show) =>
-    redeemedTokens[show.id] || (!show.is_replay ? universalToken : null) || undefined;
+    redeemedTokens[show.id] || universalToken || undefined;
   const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;
   const liveAccessToken = activeShowId
     ? redeemedTokens[activeShowId] || universalToken || null
