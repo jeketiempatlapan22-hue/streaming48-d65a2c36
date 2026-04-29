@@ -255,15 +255,26 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
 
         {/* Exclusive badge - membership tidak include */}
         {show.exclude_from_membership && (
-          <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1">
+          <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
               <span>🔒</span>
               <span>Show Eksklusif</span>
             </div>
-            <p className="text-[10px] leading-snug text-fuchsia-100/80">
+            <p className="text-[10px] leading-snug text-fuchsia-100/85">
               Show ini <strong className="text-fuchsia-200">tidak termasuk</strong> dalam Membership, Bundle, Mader, atau RT48.
-              Anda <strong className="text-fuchsia-200">wajib membeli show ini secara terpisah</strong> untuk dapat menonton.
             </p>
+            {isUniversalAccess ? (
+              <p className="text-[10px] leading-snug text-amber-200/90 font-semibold border-t border-fuchsia-500/30 pt-1.5">
+                ⚠️ Token membership/bundle Anda <u>tidak berlaku</u> di sini. Wajib beli ulang via{" "}
+                {hasCoin && <span className="text-amber-300">Koin</span>}
+                {hasCoin && " atau "}
+                <span className="text-amber-300">QRIS</span> di bawah.
+              </p>
+            ) : (
+              <p className="text-[10px] leading-snug text-fuchsia-100/85">
+                Wajib <strong className="text-fuchsia-200">beli show ini secara terpisah</strong> untuk dapat menonton.
+              </p>
+            )}
           </div>
         )}
 
