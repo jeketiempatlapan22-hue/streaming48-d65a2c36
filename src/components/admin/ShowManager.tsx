@@ -125,7 +125,6 @@ const normalizeShow = (show: Partial<Show> & { id: string; title: string }): Sho
   replay_m3u8_url: (show as any).replay_m3u8_url ?? "",
   replay_youtube_url: (show as any).replay_youtube_url ?? "",
   replay_month: (show as any).replay_month ?? "",
-  exclude_from_membership: (show as any).exclude_from_membership ?? false,
 });
 
 const sanitizeShortId = (value: string | null | undefined) => {
