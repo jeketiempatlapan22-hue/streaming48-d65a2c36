@@ -1143,7 +1143,59 @@ const LivePage = () => {
     </div>
   );
 
-  if (showReplayBlocked) return (<div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="w-full max-w-md rounded-2xl border border-accent/30 bg-card p-8 text-center"><div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-accent/10"><span className="text-4xl">🎬</span></div><h2 className="mb-2 text-xl font-bold text-foreground">Show Telah Berakhir</h2><p className="text-sm text-muted-foreground mb-4">Show ini telah dijadikan replay. Akses streaming langsung tidak tersedia lagi.</p><p className="text-xs text-muted-foreground mb-6">Kamu bisa menonton replay dengan menukarkan koin di halaman utama.</p><button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">🏠 Ke Beranda</button></div></div>);
+  if (showReplayBlocked) {
+    const fmtExpires = (iso: string | null) => {
+      if (!iso) return "";
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString("id-ID", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jakarta" }) + " WIB";
+      } catch { return ""; }
+    };
+    const goReplay = () => {
+      try { window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode || "")}`); } catch {}
+    };
+    if (replayUpgrade) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <div className="w-full max-w-md rounded-2xl border border-primary/30 bg-card p-8 text-center">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10"><span className="text-4xl">🎬</span></div>
+            <h2 className="mb-2 text-xl font-bold text-foreground">Show Telah Berakhir</h2>
+            <p className="text-sm text-foreground mb-2">Tenang! Token kamu <span className="font-semibold text-primary">otomatis diupgrade</span> untuk akses replay.</p>
+            <div className="my-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-left">
+              <div className="text-xs text-muted-foreground mb-1">Show</div>
+              <div className="text-sm font-semibold text-foreground mb-2">{replayUpgrade.showTitle}</div>
+              <div className="text-xs text-muted-foreground mb-1">Berlaku 14 hari sampai</div>
+              <div className="text-sm font-semibold text-primary">{fmtExpires(replayUpgrade.expiresAt)}</div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button onClick={goReplay} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">▶️ Tonton Replay Sekarang</button>
+              <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Ke Beranda</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md rounded-2xl border border-accent/30 bg-card p-8 text-center">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-accent/10"><span className="text-4xl">🎬</span></div>
+          <h2 className="mb-2 text-xl font-bold text-foreground">Show Telah Berakhir</h2>
+          <p className="text-sm text-muted-foreground mb-4">Show ini telah dijadikan replay. Akses streaming langsung tidak tersedia lagi.</p>
+          {upgradingToReplay ? (
+            <p className="text-xs text-primary mb-6 animate-pulse">Memeriksa upgrade replay token…</p>
+          ) : (
+            <p className="text-xs text-muted-foreground mb-6">Coba tonton replay dengan token kamu, atau tukar koin di beranda.</p>
+          )}
+          <div className="flex flex-col gap-2">
+            {tokenCode && !upgradingToReplay && (
+              <button onClick={goReplay} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">▶️ Coba Akses Replay</button>
+            )}
+            <button onClick={() => navigate("/")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">🏠 Ke Beranda</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error === "device_limit") return (<DeviceLimitScreen tokenCode={tokenCode} getFingerprint={getFingerprint} navigate={navigate} maxDevices={tokenData?.max_devices} />);
 
