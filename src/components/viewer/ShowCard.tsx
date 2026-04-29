@@ -249,39 +249,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {/* Team badge - full width below lineup */}
         {show.team && <TeamBadge team={show.team} size="md" />}
 
-        {/* Exclusive badge - membership tidak include */}
-        {isExclusive && (
-          <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
-              <span>🔒</span>
-              <span>Show Eksklusif</span>
-            </div>
-            <p className="text-[10px] leading-snug text-fuchsia-100/85">
-              Show ini <strong className="text-fuchsia-200">tidak termasuk</strong> dalam Membership, Bundle, Mader, atau RT48.
-            </p>
-            {isUniversalAccess ? (
-              <p className="text-[10px] leading-snug text-amber-200/90 font-semibold border-t border-fuchsia-500/30 pt-1.5">
-                ⚠️ Token membership/bundle Anda <u>tidak berlaku</u> di sini. Wajib beli ulang via{" "}
-                {hasCoin && <span className="text-amber-300">Koin</span>}
-                {hasCoin && " atau "}
-                <span className="text-amber-300">QRIS</span> di bawah.
-              </p>
-            ) : (
-              <p className="text-[10px] leading-snug text-fuchsia-100/85">
-                Wajib <strong className="text-fuchsia-200">beli show ini secara terpisah</strong> untuk dapat menonton.
-              </p>
-            )}
-            <button
-              onClick={(e) => { e.stopPropagation(); setExclusiveOpen(true); }}
-              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 py-1.5 text-[10px] font-bold text-fuchsia-200 transition-all hover:bg-fuchsia-500/20 active:scale-[0.98]"
-            >
-              <Info className="h-3 w-3" /> Pelajari & Lihat Opsi Pembelian
-            </button>
-          </div>
-        )}
-
         {/* Show replay/access password for membership/bundle users */}
-        {isUniversalAccess && !isExclusive && show.access_password && (
+        {isUniversalAccess && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
             <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
             <div className="flex items-center justify-between">
