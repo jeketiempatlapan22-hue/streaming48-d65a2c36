@@ -672,13 +672,19 @@ const LivePage = () => {
         if (result.show_id && activeShowId && result.show_id !== activeShowId && !isMembershipToken && !isBundleToken && !isCustomToken) {
           // HARD-BLOCK: Token milik show lain tidak boleh masuk ke show yang sedang live.
           // Token reseller/regular hanya berlaku untuk show yang dibuat berdasarkan jadwalnya.
+          const tTitle = tokenShow?.title || "Show Lain";
+          const aTitle = activeShow?.title || "Show Lain";
           setShowMismatch(true);
           setMismatchShowTitle(JSON.stringify({
-            tokenShowTitle: tokenShow?.title || "Show Lain",
+            tokenShowTitle: tTitle,
             tokenShowDate: tokenShow?.schedule_date || "",
             tokenShowTime: tokenShow?.schedule_time || "",
-            activeShowTitle: activeShow?.title || "Show Lain",
+            activeShowTitle: aTitle,
           }));
+          toast.error("Token tidak sesuai jadwal", {
+            description: `Token kamu untuk "${tTitle}", tapi yang sedang live adalah "${aTitle}".`,
+            duration: 8000,
+          });
         } else {
           setShowMismatch(false);
           setMismatchShowTitle("");
