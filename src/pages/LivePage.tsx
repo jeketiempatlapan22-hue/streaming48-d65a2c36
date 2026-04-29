@@ -689,6 +689,13 @@ const LivePage = () => {
     const interval = window.setInterval(() => {
       void (async () => {
         try {
+          const { data: accessData, error: accessErr } = await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode });
+          const accessResult = accessData as any;
+          if (accessErr || !accessResult?.valid) {
+            setError(accessResult?.error || "Akses live tidak valid untuk show aktif.");
+            return;
+          }
+
           const { data } = await supabase.rpc("create_token_session", {
             _token_code: tokenCode,
             _fingerprint: fpVal,
