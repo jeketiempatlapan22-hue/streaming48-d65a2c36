@@ -57,11 +57,6 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
-const isUniversalTokenCode = (token?: string | null) => {
-  const code = String(token || "").toUpperCase();
-  return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
-};
-
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
@@ -73,12 +68,10 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const pw = accessPassword || replayPassword;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
-  const [exclusiveOpen, setExclusiveOpen] = useState(false);
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
-  const isExclusive = Boolean(show.exclude_from_membership);
-  const showToken = isExclusive && isUniversalTokenCode(redeemedToken) ? undefined : redeemedToken;
+  const showToken = redeemedToken;
 
   // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
   const replayQrisPrice = show.replay_qris_price || 0;
