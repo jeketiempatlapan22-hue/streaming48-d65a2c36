@@ -1830,13 +1830,21 @@ export type Database = {
         }[]
       }
       get_confirmed_order_count: { Args: { _show_id: string }; Returns: number }
-      get_membership_show_passwords: {
-        Args: never
-        Returns: {
-          access_password: string
-          show_id: string
-        }[]
-      }
+      get_membership_show_passwords:
+        | {
+            Args: never
+            Returns: {
+              access_password: string
+              show_id: string
+            }[]
+          }
+        | {
+            Args: { _token_code: string }
+            Returns: {
+              password: string
+              show_id: string
+            }[]
+          }
       get_my_password_reset_status: { Args: never; Returns: Json }
       get_my_replay_tokens: {
         Args: never
@@ -1949,6 +1957,7 @@ export type Database = {
       }
       hash_token: { Args: { _token: string }; Returns: string }
       is_ip_blocked: { Args: { _ip: string }; Returns: boolean }
+      is_membership_paused: { Args: never; Returns: boolean }
       is_user_banned: { Args: { _user_id: string }; Returns: boolean }
       log_reseller_audit: {
         Args: {
@@ -2060,6 +2069,7 @@ export type Database = {
         Args: { _fingerprint: string; _token_code: string }
         Returns: Json
       }
+      set_membership_pause: { Args: { _paused: boolean }; Returns: Json }
       test_token_all_shows: { Args: { _token_code: string }; Returns: Json }
       test_token_show_access: {
         Args: { _show_id: string; _token_code: string }
