@@ -1002,8 +1002,6 @@ const LivePage = () => {
       const diff = target - Date.now();
       if (diff <= 0) {
         setNotStartedCountdown({ d: 0, h: 0, m: 0, s: 0 });
-        // Token sudah aktif → reload agar validate ulang
-        try { window.location.reload(); } catch {}
         return;
       }
       setNotStartedCountdown({
