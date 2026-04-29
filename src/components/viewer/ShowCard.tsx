@@ -127,6 +127,11 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 {cat.label}
               </span>
             )}
+            {show.exclude_from_membership && (
+              <span className="flex items-center gap-1 rounded-full bg-fuchsia-500/90 backdrop-blur-sm px-2 py-0.5 text-[9px] font-extrabold text-white border border-fuchsia-300/40 shadow-lg shadow-fuchsia-500/40">
+                🔒 EKSKLUSIF
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {((showCountdown && countdown?.live) || isLive) && !show.is_replay && (
