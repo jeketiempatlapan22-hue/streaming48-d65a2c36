@@ -277,6 +277,12 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 Wajib <strong className="text-fuchsia-200">beli show ini secara terpisah</strong> untuk dapat menonton.
               </p>
             )}
+            <button
+              onClick={(e) => { e.stopPropagation(); setExclusiveOpen(true); }}
+              className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 py-1.5 text-[10px] font-bold text-fuchsia-200 transition-all hover:bg-fuchsia-500/20 active:scale-[0.98]"
+            >
+              <Info className="h-3 w-3" /> Pelajari & Lihat Opsi Pembelian
+            </button>
           </div>
         )}
 
