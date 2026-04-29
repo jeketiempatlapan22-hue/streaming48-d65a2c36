@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown, Upload, ImageOff } from "lucide-react";
+import { Plus, Trash2, Pencil, Check, X, Sparkles, ArrowUp, ArrowDown, Upload, ImageOff, AlertTriangle, CalendarClock, Eraser } from "lucide-react";
 import { ANIMATION_OPTIONS, type AnimationType } from "@/components/viewer/PlayerAnimations";
 import { encryptEmbedId, decryptEmbedId } from "@/lib/embedCrypto";
 import { compressImage } from "@/lib/imageCompressor";
+import { parseWIBDateTime, formatDateWIB } from "@/lib/timeFormat";
 
 const LiveControl = () => {
   const [stream, setStream] = useState<any>(null);
@@ -42,6 +43,8 @@ const LiveControl = () => {
   // Active show selection
   const [shows, setShows] = useState<any[]>([]);
   const [activeShowId, setActiveShowId] = useState("");
+  const [showCountdown, setShowCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  const [showStartedAgoMs, setShowStartedAgoMs] = useState<number | null>(null);
 
   const fetchPlaylists = async () => {
     const { data } = await supabase.from("playlists").select("*").order("sort_order");
@@ -53,7 +56,7 @@ const LiveControl = () => {
       const [streamRes, settingsRes, showsRes] = await Promise.all([
         supabase.from("streams").select("*").limit(1).single(),
         supabase.from("site_settings").select("*"),
-        supabase.from("shows").select("id, title, is_active, is_replay, is_bundle, schedule_date").order("created_at", { ascending: false }),
+        supabase.from("shows").select("id, title, is_active, is_replay, is_bundle, is_subscription, schedule_date, schedule_time, background_image_url").order("created_at", { ascending: false }),
       ]);
       if (streamRes.data) {
         setStream(streamRes.data);
@@ -90,13 +93,65 @@ const LiveControl = () => {
   };
 
   const saveActiveShow = async (showId: string) => {
-    setActiveShowId(showId);
-    await supabase
+    // "__none__" → kosongkan active show
+    const valueToSave = showId === "__none__" ? "" : showId;
+    setActiveShowId(valueToSave);
+    const { error } = await supabase
       .from("site_settings")
-      .upsert({ key: "active_show_id", value: showId } as any, { onConflict: "key" });
-    const show = shows.find((s) => s.id === showId);
-    toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
+      .upsert({ key: "active_show_id", value: valueToSave } as any, { onConflict: "key" });
+    if (error) {
+      toast({ title: "Gagal menyimpan", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (!valueToSave) {
+      toast({ title: "Show aktif dikosongkan" });
+      return;
+    }
+    const show = shows.find((s) => s.id === valueToSave);
+    if (show?.is_replay) {
+      toast({
+        title: "⚠️ Show ini berstatus REPLAY",
+        description: "Token live regular tidak akan bisa mengakses. Pastikan ini disengaja.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Show aktif: ${show?.title || "Tidak ada"}` });
+    }
   };
+
+  // Live countdown preview untuk show yang dipilih (memantul realtime).
+  useEffect(() => {
+    const show = shows.find((s) => s.id === activeShowId);
+    if (!show) {
+      setShowCountdown(null);
+      setShowStartedAgoMs(null);
+      return;
+    }
+    const target = parseWIBDateTime(show.schedule_date || "", show.schedule_time || "00:00");
+    if (target == null) {
+      setShowCountdown(null);
+      setShowStartedAgoMs(null);
+      return;
+    }
+    const tick = () => {
+      const diff = target - Date.now();
+      if (diff <= 0) {
+        setShowCountdown(null);
+        setShowStartedAgoMs(-diff);
+        return;
+      }
+      setShowStartedAgoMs(null);
+      setShowCountdown({
+        d: Math.floor(diff / 86_400_000),
+        h: Math.floor((diff % 86_400_000) / 3_600_000),
+        m: Math.floor((diff % 3_600_000) / 60_000),
+        s: Math.floor((diff % 60_000) / 1000),
+      });
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [activeShowId, shows]);
 
   const saveDetails = async () => {
     if (!stream) return;
@@ -283,29 +338,139 @@ const LiveControl = () => {
       </div>
 
       {/* Active Show Selector — controls LIVE access, COUNTDOWN, and OFFLINE BACKGROUND */}
-      <div className="space-y-3 rounded-xl border border-primary/40 bg-primary/5 p-6">
-        <h3 className="text-sm font-semibold text-foreground">🎭 Show yang Sedang / Akan Live</h3>
-        <p className="text-xs text-muted-foreground">
-          Pilih satu show. <span className="font-semibold text-primary">Countdown, jadwal, dan background offline player otomatis ikut show ini.</span> Token hanya bisa akses show yang sesuai.
-        </p>
-        <Select value={activeShowId} onValueChange={saveActiveShow}>
-          <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
-          <SelectContent>
-            {shows.filter(s => !s.is_replay && !s.is_bundle).map((show) => (
-              <SelectItem key={show.id} value={show.id}>
-                {show.title}
-                {!show.is_active ? " (Nonaktif)" : ""}
-                {show.schedule_date ? ` - ${show.schedule_date}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {activeShowId && (
-          <p className="text-xs text-muted-foreground">
-            Show aktif: <span className="font-semibold text-primary">{shows.find(s => s.id === activeShowId)?.title || "Unknown"}</span>
-          </p>
-        )}
-      </div>
+      {(() => {
+        const activeShow = shows.find((s) => s.id === activeShowId);
+        const parsedTs = activeShow ? parseWIBDateTime(activeShow.schedule_date || "", activeShow.schedule_time || "00:00") : null;
+        const hasSchedule = parsedTs != null;
+        const dateLabel = hasSchedule ? formatDateWIB(parsedTs!) : (activeShow?.schedule_date || "Tidak ada jadwal");
+        const timeLabel = activeShow?.schedule_time ? `${activeShow.schedule_time.replace(/\./g, ":")} WIB` : "";
+
+        return (
+          <div className="space-y-4 rounded-xl border border-primary/40 bg-primary/5 p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">🎭 Show Aktif (Active Show)</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pilih satu show. <span className="font-semibold text-primary">Countdown, judul, jadwal, dan background offline di player viewer langsung berubah.</span>
+                </p>
+              </div>
+              {activeShowId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                  onClick={() => saveActiveShow("__none__")}
+                >
+                  <Eraser className="mr-1 h-4 w-4" /> Kosongkan
+                </Button>
+              )}
+            </div>
+
+            <Select value={activeShowId || "__none__"} onValueChange={saveActiveShow}>
+              <SelectTrigger className="bg-background"><SelectValue placeholder="Pilih show..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Tidak ada show aktif —</SelectItem>
+                {shows.filter((s) => !s.is_replay && !s.is_bundle).map((show) => (
+                  <SelectItem key={show.id} value={show.id}>
+                    {show.title}
+                    {!show.is_active ? " (Nonaktif)" : ""}
+                    {show.is_subscription ? " [Membership]" : ""}
+                    {show.schedule_date ? ` — ${show.schedule_date}${show.schedule_time ? ` ${show.schedule_time}` : ""}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Validasi peringatan */}
+            {activeShow?.is_replay && (
+              <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini berstatus <b>REPLAY</b>. Token live regular akan ditolak. Gunakan kanal replay untuk akses.</span>
+              </div>
+            )}
+            {activeShow && !activeShow.is_active && (
+              <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10 p-3 text-xs text-[hsl(var(--warning))]">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini <b>NONAKTIF</b> di Show Manager. Viewer mungkin tidak bisa melihat metadata publik.</span>
+              </div>
+            )}
+            {activeShow && !hasSchedule && (
+              <div className="flex items-start gap-2 rounded-lg border border-[hsl(var(--warning))]/40 bg-[hsl(var(--warning))]/10 p-3 text-xs text-[hsl(var(--warning))]">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <span>Show ini belum punya tanggal/jam jadwal. Countdown di player tidak akan tampil.</span>
+              </div>
+            )}
+
+            {/* Kartu preview show terpilih */}
+            {activeShow && (
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="flex gap-3 p-3">
+                  {activeShow.background_image_url ? (
+                    <img
+                      src={activeShow.background_image_url}
+                      alt={activeShow.title}
+                      className="h-20 w-20 shrink-0 rounded-lg object-cover border border-border"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 shrink-0 rounded-lg bg-gradient-to-br from-primary/20 to-secondary flex items-center justify-center text-2xl">
+                      🎭
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold tracking-widest text-primary uppercase">Show Aktif</p>
+                    <p className="text-sm font-bold text-foreground line-clamp-2 leading-tight mt-0.5">{activeShow.title}</p>
+                    <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3" /> {dateLabel}{timeLabel ? ` • ${timeLabel}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Live countdown preview — sama dengan yang muncul di player viewer */}
+                {hasSchedule && (
+                  <div className="border-t border-border bg-secondary/30 p-3">
+                    <p className="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase mb-2 text-center">
+                      Preview Countdown di Player Viewer
+                    </p>
+                    {showCountdown ? (
+                      <div className="flex items-center justify-center gap-2">
+                        {[
+                          { v: showCountdown.d, l: "HARI" },
+                          { v: showCountdown.h, l: "JAM" },
+                          { v: showCountdown.m, l: "MENIT" },
+                          { v: showCountdown.s, l: "DETIK" },
+                        ].map((seg, i, arr) => (
+                          <div key={seg.l} className="flex items-center gap-2">
+                            <div className="flex flex-col items-center min-w-[40px]">
+                              <span className="font-mono text-xl font-extrabold text-primary tabular-nums leading-none">
+                                {String(seg.v).padStart(2, "0")}
+                              </span>
+                              <span className="mt-1 text-[8px] font-semibold tracking-widest text-muted-foreground">{seg.l}</span>
+                            </div>
+                            {i < arr.length - 1 && <span className="text-primary/50 font-bold pb-3">:</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-xs font-semibold text-[hsl(var(--success))]">
+                        ✅ Jadwal sudah lewat
+                        {showStartedAgoMs != null && showStartedAgoMs < 86_400_000
+                          ? ` (${Math.floor(showStartedAgoMs / 60_000)} menit yang lalu)`
+                          : ""}
+                        — siap di-LIVE-kan.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p className="text-[11px] text-muted-foreground border-t border-border/50 pt-3">
+              💡 Token reseller/regular hanya bisa mengakses show yang dipilih di sini. Token Membership / Bundle / Custom bot tetap universal.
+            </p>
+          </div>
+        );
+      })()}
+
 
       {/* Offline Player Background Override */}
       <div className="space-y-3 rounded-xl border border-border bg-card p-6">
