@@ -11,6 +11,7 @@ import {
   isAppInstalled,
 } from "@/lib/installPrompt";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
+import { useMembershipPaused } from "@/hooks/useMembershipPaused";
 import LandingFloatingEmojis from "@/components/viewer/LandingFloatingEmojis";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import HeroVideoBackground from "@/components/viewer/HeroVideoBackground";
@@ -464,7 +465,10 @@ const Index = () => {
 
   // Universal access token for membership/bundle/custom users.
   // Berlaku untuk SEMUA show aktif (live & replay) selama token belum kedaluwarsa.
-  const universalToken = membershipToken || bundleToken || customToken || null;
+  const isMembershipPaused = useMembershipPaused();
+  const universalToken = isMembershipPaused
+    ? (bundleToken || customToken || null)
+    : (membershipToken || bundleToken || customToken || null);
   const getShowAccessToken = (show: Show) =>
     redeemedTokens[show.id] || universalToken || undefined;
   const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;

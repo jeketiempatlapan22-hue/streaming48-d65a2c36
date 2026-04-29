@@ -15,6 +15,7 @@ import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
+import { useMembershipPaused } from "@/hooks/useMembershipPaused";
 
 const SchedulePage = () => {
   const [shows, setShows] = useState<Show[]>([]);
