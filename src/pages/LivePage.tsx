@@ -361,6 +361,7 @@ const LivePage = () => {
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [forcedOut, setForcedOut] = useState(false);
+  const [membershipPaused, setMembershipPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const [stream, setStream] = useState<any>(null);
@@ -534,6 +535,7 @@ const LivePage = () => {
         const result = validationResult.data as any;
         if (validationResult.error || !result?.valid) {
           const errText = String(result?.error || validationResult.error?.message || "").toLowerCase();
+          if (result?.membership_paused === true || errText.includes("dijeda")) { setMembershipPaused(true); return; }
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
           // Token mungkin sudah dipindah ke replay (show is_replay = true).
@@ -826,6 +828,32 @@ const LivePage = () => {
     return () => { supabase.removeChannel(ch); };
   }, [tokenData?.id]);
 
+  // Membership pause: jika token ini membership (MBR-/MRD-), dengar event jeda global.
+  // Cover via broadcast (instan) + postgres_changes site_settings (cadangan).
+  useEffect(() => {
+    if (!tokenData?.is_membership) return;
+    const broadcastCh = supabase
+      .channel("membership-control")
+      .on("broadcast", { event: "membership_paused" }, () => setMembershipPaused(true))
+      .on("broadcast", { event: "membership_resumed" }, () => setMembershipPaused(false))
+      .subscribe();
+    const dbCh = supabase
+      .channel(`membership-pause-db-${tokenData.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "site_settings", filter: "key=eq.membership_paused" },
+        (payload: any) => {
+          const v = payload.new?.value ?? "false";
+          setMembershipPaused(v === "true");
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(broadcastCh);
+      supabase.removeChannel(dbCh);
+    };
+  }, [tokenData?.is_membership, tokenData?.id]);
+
   // Periodic playlist polling (realtime on playlists table blocked by RLS for non-admin viewers)
   useEffect(() => {
     if (!tokenData?.id) return;
@@ -911,6 +939,41 @@ const LivePage = () => {
   // === RENDER SECTION (after all hooks) ===
 
   if (loading || redirecting) return (<div className="flex min-h-screen items-center justify-center bg-background"><div className="text-center"><div className="mx-auto mb-4 h-16 w-16 rounded-full overflow-hidden shadow-[0_0_16px_hsl(var(--primary)/0.4)] animate-float"><img src={logo} alt="RT48" className="h-full w-full object-cover" /></div><p className="text-muted-foreground">{redirecting ? "Mengarahkan ke replay..." : "Memvalidasi akses..."}</p></div></div>);
+
+  if (membershipPaused) return (
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md rounded-2xl border border-[hsl(var(--warning))]/40 bg-card p-8 text-center shadow-lg">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--warning))]/10">
+          <span className="text-4xl">⏸️</span>
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-foreground">Akses Membership Sedang Dijeda</h2>
+        <p className="mb-2 text-sm text-muted-foreground">
+          Admin sedang menjeda layanan membership untuk sementara.
+        </p>
+        <p className="mb-6 text-xs text-muted-foreground">
+          Token kamu <strong>tetap aktif</strong> dan akan otomatis bisa digunakan kembali ketika admin mengaktifkan layanan.
+        </p>
+        <div className="flex flex-col gap-3">
+          {whatsappNumber && (
+            <a
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Halo admin, saya mendapat pesan akses membership sedang dijeda. Mohon info kapan layanan kembali aktif.\n\nToken: " + tokenCode)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[hsl(var(--success))] px-6 py-3 font-semibold text-primary-foreground hover:bg-[hsl(var(--success))]/90 active:scale-[0.97] transition-transform"
+            >
+              💬 Hubungi Admin
+            </a>
+          )}
+          <button onClick={() => navigate("/schedule")} className="rounded-full bg-secondary px-6 py-3 font-semibold text-secondary-foreground hover:bg-secondary/80">
+            📅 Lihat Jadwal Show
+          </button>
+          <button onClick={() => navigate("/")} className="rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground hover:bg-primary/90">
+            🏠 Kembali ke Beranda
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   if (blocked) return (
     <div className="flex min-h-screen items-center justify-center bg-destructive/5 px-4">

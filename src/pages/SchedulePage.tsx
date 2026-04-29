@@ -15,6 +15,7 @@ import BundleShowCard from "@/components/viewer/BundleShowCard";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { usePurchasedShows } from "@/hooks/usePurchasedShows";
+import { useMembershipPaused } from "@/hooks/useMembershipPaused";
 
 const SchedulePage = () => {
   const [shows, setShows] = useState<Show[]>([]);
@@ -27,7 +28,10 @@ const SchedulePage = () => {
   } = usePurchasedShows();
   const [isStreamLive, setIsStreamLive] = useState(false);
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
-  const universalToken = membershipToken || bundleToken || customToken || null;
+  const isMembershipPaused = useMembershipPaused();
+  const universalToken = isMembershipPaused
+    ? (bundleToken || customToken || null)
+    : (membershipToken || bundleToken || customToken || null);
   const getShowAccessToken = (show: Show) =>
     redeemedTokens[show.id] || universalToken || undefined;
   const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;
