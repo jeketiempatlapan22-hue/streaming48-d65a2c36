@@ -878,8 +878,22 @@ const ShowManager = () => {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Jam</label>
-                <Input value={draft.schedule_time} onChange={(event) => updateDraft({ schedule_time: event.target.value })} className="bg-background" placeholder="19:00 WIB" />
+                <Input value={draft.schedule_time} onChange={(event) => updateDraft({ schedule_time: event.target.value })} className="bg-background" placeholder="19:00" />
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Zona Waktu</label>
+              <select
+                value={draft.schedule_timezone || "WIB"}
+                onChange={(event) => updateDraft({ schedule_timezone: event.target.value })}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="WIB">WIB (UTC+7) — Jakarta</option>
+                <option value="WITA">WITA (UTC+8) — Makassar</option>
+                <option value="WIT">WIT (UTC+9) — Jayapura</option>
+              </select>
+              <p className="mt-1 text-[10px] text-muted-foreground">Countdown akan dihitung sesuai zona waktu yang dipilih, bukan asumsi WIB.</p>
             </div>
 
             <div>
