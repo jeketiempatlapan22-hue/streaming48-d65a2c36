@@ -610,7 +610,6 @@ const LivePage = () => {
           activeShowId || null,
           Boolean(streamRes.status === "fulfilled" && streamRes.value.data?.[0]?.is_live)
         );
-        applyActiveShowMetadata(activeShow);
 
         const tokenShowFallbackRes =
           result.show_id && !allShows?.some((s: any) => s.id === result.show_id)
@@ -636,6 +635,21 @@ const LivePage = () => {
         const isBundleToken = Boolean(result.is_bundle) || Boolean(tokenShow?.is_bundle) || normalizedTokenCode.startsWith("BDL-");
         // Custom tokens (RT48-) created via bot command - universal access
         const isCustomToken = normalizedTokenCode.startsWith("RT48-");
+
+        // Tampilkan metadata show: prioritas show pilihan admin (active_show_id),
+        // fallback ke show milik token agar countdown/judul/jadwal tetap muncul
+        // untuk user membership/custom/bundle saat admin belum memilih show aktif.
+        const displayShow = activeShow || tokenShow;
+        applyActiveShowMetadata(displayShow);
+        // Lengkapi jadwal jika activeShow tidak punya schedule tapi tokenShow punya
+        if (activeShow && tokenShow) {
+          if (!activeShow.schedule_date && tokenShow.schedule_date) {
+            setActiveShowDate(tokenShow.schedule_date);
+          }
+          if (!activeShow.schedule_time && tokenShow.schedule_time) {
+            setActiveShowTime(tokenShow.schedule_time);
+          }
+        }
 
         setTokenData({
           id: result.id,
