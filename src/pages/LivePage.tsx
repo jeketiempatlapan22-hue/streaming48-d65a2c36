@@ -361,6 +361,7 @@ const LivePage = () => {
   const [error, setError] = useState("");
   const [blocked, setBlocked] = useState(false);
   const [forcedOut, setForcedOut] = useState(false);
+  const [membershipPaused, setMembershipPaused] = useState(false);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const [stream, setStream] = useState<any>(null);
