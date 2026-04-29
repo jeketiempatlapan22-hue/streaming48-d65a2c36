@@ -462,8 +462,15 @@ const Index = () => {
     });
   };
 
-  // Universal access token for membership/bundle/custom users
+  // Universal access token for membership/bundle/custom users.
+  // Exclusive shows must be opened only with a per-show purchased token.
   const universalToken = membershipToken || bundleToken || customToken || null;
+  const getShowAccessToken = (show: Show) =>
+    redeemedTokens[show.id] || (!show.is_replay && !show.exclude_from_membership ? universalToken : null) || undefined;
+  const activeShow = activeShowId ? shows.find((s) => s.id === activeShowId) : null;
+  const liveAccessToken = activeShowId
+    ? redeemedTokens[activeShowId] || (activeShow && !activeShow.exclude_from_membership ? universalToken : null) || null
+    : universalToken;
 
   const regularShows = sortBySchedule(shows.filter((s) => !s.is_subscription && !s.is_replay && !s.is_bundle));
   const replayShows = sortBySchedule(shows.filter((s) => !s.is_subscription && s.is_replay && s.replay_coin_price > 0 && !s.is_bundle));
@@ -844,7 +851,7 @@ const Index = () => {
                   show={show}
                   index={i}
                   isReplayMode={show.is_replay}
-                  redeemedToken={redeemedTokens[show.id] || (!show.is_replay ? universalToken : null) || undefined}
+                  redeemedToken={getShowAccessToken(show)}
                   accessPassword={accessPasswords[show.id]}
                   replayPassword={replayPasswords[show.id]}
                   onBuy={handleBuy}
@@ -1391,7 +1398,7 @@ const Index = () => {
       <InstallBanner />
       <MobileBottomNav
         isLive={isStreamLive}
-        liveAccessToken={(activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null}
+        liveAccessToken={liveAccessToken}
         activeShowId={activeShowId}
         activeShowTitle={activeShowId ? (shows.find((s) => s.id === activeShowId)?.title ?? null) : null}
       />

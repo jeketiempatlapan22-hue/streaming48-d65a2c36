@@ -17,6 +17,7 @@ export const useActiveLiveAccess = () => {
   const [isLive, setIsLive] = useState(false);
   const [activeShowId, setActiveShowId] = useState<string | null>(null);
   const [activeShowTitle, setActiveShowTitle] = useState<string | null>(null);
+  const [activeShowExclusive, setActiveShowExclusive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,9 +41,12 @@ export const useActiveLiveAccess = () => {
             const { data: rows } = await (supabase as any).rpc("get_public_shows");
             const match = (rows || []).find((s: any) => s?.id === showId);
             if (match?.title) title = match.title;
+            setActiveShowExclusive(Boolean(match?.exclude_from_membership));
           } catch {
             // Abaikan; gunakan fallback
           }
+        } else {
+          setActiveShowExclusive(false);
         }
         if (!cancelled) setActiveShowTitle(title);
       } catch {
@@ -74,7 +78,7 @@ export const useActiveLiveAccess = () => {
   }, []);
 
   const universalToken = membershipToken || bundleToken || customToken || null;
-  const liveAccessToken = (activeShowId ? redeemedTokens[activeShowId] : null) || universalToken || null;
+  const liveAccessToken = (activeShowId ? redeemedTokens[activeShowId] : null) || (!activeShowExclusive ? universalToken : null) || null;
 
   return { isLive, activeShowId, activeShowTitle, liveAccessToken };
 };

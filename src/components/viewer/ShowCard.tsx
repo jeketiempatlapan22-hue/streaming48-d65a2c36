@@ -257,7 +257,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         )}
 
         {/* Show replay/access password for membership/bundle users */}
-        {isUniversalAccess && show.access_password && (
+        {isUniversalAccess && !show.exclude_from_membership && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
             <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
             <div className="flex items-center justify-between">

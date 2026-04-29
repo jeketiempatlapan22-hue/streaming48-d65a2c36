@@ -54,7 +54,11 @@ export function useSignedStreamUrl(
         throw new Error(response.error.message || "Failed to generate signed URL");
       }
 
-      const data = response.data as { signed_url: string; expires_in: number; type: string };
+      const data = response.data as { signed_url?: string; expires_in?: number; type?: string; error?: string };
+
+      if (!data?.signed_url) {
+        throw new Error(data?.error || "Akses stream ditolak");
+      }
 
       if (!isMounted.current) return;
 
@@ -62,7 +66,7 @@ export function useSignedStreamUrl(
       setProxyType(data.type || null);
       setLoading(false);
 
-      const refreshIn = Math.max((data.expires_in - 90) * 1000, 30000);
+      const refreshIn = Math.max(((data.expires_in || 1800) - 90) * 1000, 30000);
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       refreshTimerRef.current = setTimeout(() => {
         if (isMounted.current) generateSignedUrl();

@@ -410,7 +410,7 @@ const LivePage = () => {
 
   // For proxy: call hanabira48 API directly (domain whitelisted, no CORS)
   const { playbackUrl: proxyUrl, customHeadersRef: proxyHeadersRef, loading: proxyLoading } = useProxyStream(
-    isProxyPlaylist,
+    isProxyPlaylist && !loading && !error && !showMismatch && !showReplayBlocked && !blocked,
     externalShowId
   );
 
@@ -526,7 +526,7 @@ const LivePage = () => {
         }
 
         const validationResult = await runWithTimeoutRetry(
-          async () => await supabase.rpc("validate_token", { _code: tokenCode }),
+          async () => await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode }),
           10_000,
           1
         );
@@ -689,6 +689,13 @@ const LivePage = () => {
     const interval = window.setInterval(() => {
       void (async () => {
         try {
+          const { data: accessData, error: accessErr } = await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode });
+          const accessResult = accessData as any;
+          if (accessErr || !accessResult?.valid) {
+            setError(accessResult?.error || "Akses live tidak valid untuk show aktif.");
+            return;
+          }
+
           const { data } = await supabase.rpc("create_token_session", {
             _token_code: tokenCode,
             _fingerprint: fpVal,
@@ -743,8 +750,15 @@ const LivePage = () => {
       const { data: streamData } = await (supabase.rpc as any)("get_stream_status");
       const { activeShow } = await fetchDisplayShow(showId, Boolean(streamData?.[0]?.is_live));
       applyActiveShowMetadata(activeShow);
+      if (tokenCode) {
+        const { data: accessData, error: accessErr } = await (supabase.rpc as any)("validate_active_live_token", { _code: tokenCode });
+        const accessResult = accessData as any;
+        if (accessErr || !accessResult?.valid) {
+          setError(accessResult?.error || "Akses live tidak valid untuk show aktif.");
+        }
+      }
     } catch {}
-  }, [applyActiveShowMetadata, syncPlaylists]);
+  }, [applyActiveShowMetadata, syncPlaylists, tokenCode]);
 
   // Consolidated realtime channel: streams + site_settings + shows + tokens
   useEffect(() => {
