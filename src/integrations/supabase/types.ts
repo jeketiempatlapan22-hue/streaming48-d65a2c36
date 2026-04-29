@@ -1225,7 +1225,6 @@ export type Database = {
           category_member: string | null
           coin_price: number
           created_at: string
-          exclude_from_membership: boolean
           external_show_id: string | null
           group_link: string | null
           id: string
@@ -1264,7 +1263,6 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
-          exclude_from_membership?: boolean
           external_show_id?: string | null
           group_link?: string | null
           id?: string
@@ -1303,7 +1301,6 @@ export type Database = {
           category_member?: string | null
           coin_price?: number
           created_at?: string
-          exclude_from_membership?: boolean
           external_show_id?: string | null
           group_link?: string | null
           id?: string
@@ -1833,7 +1830,13 @@ export type Database = {
         }[]
       }
       get_confirmed_order_count: { Args: { _show_id: string }; Returns: number }
-      get_membership_show_passwords: { Args: never; Returns: Json }
+      get_membership_show_passwords: {
+        Args: never
+        Returns: {
+          access_password: string
+          show_id: string
+        }[]
+      }
       get_my_password_reset_status: { Args: never; Returns: Json }
       get_my_replay_tokens: {
         Args: never
@@ -1860,7 +1863,6 @@ export type Database = {
           category_member: string
           coin_price: number
           created_at: string
-          exclude_from_membership: boolean
           external_show_id: string
           group_link: string
           has_replay_media: boolean
