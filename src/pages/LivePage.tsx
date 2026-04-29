@@ -380,7 +380,7 @@ const LivePage = () => {
   const [showMismatch, setShowMismatch] = useState(false);
   const [mismatchShowTitle, setMismatchShowTitle] = useState("");
   const [tokenNotStarted, setTokenNotStarted] = useState<null | {
-    startsAt: string;
+    startsAt: string | null;
     showTitle: string;
     showDate: string;
     showTime: string;
@@ -548,12 +548,12 @@ const LivePage = () => {
           if (errText.includes("diblokir")) { setBlocked(true); return; }
 
           // Token belum aktif (jadwal show belum tiba)
-          if (result?.token_not_started === true && result?.starts_at) {
+          if (result?.token_not_started === true) {
             const sTitle = result?.token_show_title || "Show Kamu";
             const sDate = result?.token_show_date || "";
             const sTime = result?.token_show_time || "";
             setTokenNotStarted({
-              startsAt: result.starts_at,
+              startsAt: result.starts_at || null,
               showTitle: sTitle,
               showDate: sDate,
               showTime: sTime,
