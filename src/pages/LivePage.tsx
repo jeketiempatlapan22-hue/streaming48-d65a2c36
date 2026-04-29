@@ -870,8 +870,29 @@ const LivePage = () => {
 
     // Only add show/token filters if we have token data
     if (tokenData?.show_id) {
-      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows", filter: `id=eq.${tokenData.show_id}` }, (p: any) => {
-        if (p.new?.is_replay === true) setShowReplayBlocked(true);
+      ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: "shows", filter: `id=eq.${tokenData.show_id}` }, async (p: any) => {
+        if (p.new?.is_replay === true) {
+          setShowReplayBlocked(true);
+          // Auto-upgrade: coba konversi token live → replay token (14 hari)
+          if (tokenCode && !upgradingToReplay) {
+            setUpgradingToReplay(true);
+            try {
+              const { data: replayData } = await supabase.rpc("validate_replay_access" as any, { _token: tokenCode });
+              const r = replayData as any;
+              if (r?.success) {
+                setReplayUpgrade({
+                  expiresAt: r.expires_at || null,
+                  showTitle: r.show_title || p.new?.title || "Show",
+                });
+                toast.success("Token kamu otomatis diupgrade ke replay!", {
+                  description: "Berlaku 14 hari ke depan.",
+                  duration: 6000,
+                });
+              }
+            } catch { /* ignore */ }
+            finally { setUpgradingToReplay(false); }
+          }
+        }
       });
     }
     if (tokenData?.id) {
