@@ -410,6 +410,15 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
           )}
         </div>
       </div>
+      <ExclusiveShowDetailDialog
+        show={show}
+        open={exclusiveOpen}
+        onOpenChange={setExclusiveOpen}
+        onBuy={onBuy}
+        onCoinBuy={onCoinBuy}
+        isReplayMode={isReplayMode}
+        isUniversalAccess={isUniversalAccess}
+      />
     </motion.div>
   );
 });
