@@ -98,12 +98,12 @@ const fetchDisplayShow = async (activeShowId: string | null, isLive: boolean) =>
   // PRIORITAS 1: Kalau admin sudah pilih show, ambil LANGSUNG dari `shows` by id.
   // Ini bypass filter is_active/is_replay — admin yang pilih, admin yang tahu.
   if (activeShowId) {
+    // Gunakan RPC SECURITY DEFINER agar non-admin (membership / regular) tetap dapat
+    // membaca metadata show yang dipilih admin (RLS tabel `shows` block non-admin).
     const directRes = await withTimeout(
       (async () =>
         await supabase
-          .from("shows")
-          .select("id, title, schedule_date, schedule_time, background_image_url, team, external_show_id, is_replay, is_active")
-          .eq("id", activeShowId)
+          .rpc("get_active_show_minimal", { p_show_id: activeShowId })
           .maybeSingle())(),
       8_000,
       "Active show timeout"

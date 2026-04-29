@@ -1815,6 +1815,20 @@ export type Database = {
       }
       end_expired_quizzes: { Args: never; Returns: number }
       get_active_show_external_id: { Args: never; Returns: string }
+      get_active_show_minimal: {
+        Args: { p_show_id: string }
+        Returns: {
+          background_image_url: string
+          external_show_id: string
+          id: string
+          is_active: boolean
+          is_replay: boolean
+          schedule_date: string
+          schedule_time: string
+          team: string
+          title: string
+        }[]
+      }
       get_ban_info: { Args: { _user_id: string }; Returns: Json }
       get_chat_messages: {
         Args: { _limit?: number }
