@@ -43,6 +43,8 @@ const LiveControl = () => {
   // Active show selection
   const [shows, setShows] = useState<any[]>([]);
   const [activeShowId, setActiveShowId] = useState("");
+  const [showCountdown, setShowCountdown] = useState<{ d: number; h: number; m: number; s: number } | null>(null);
+  const [showStartedAgoMs, setShowStartedAgoMs] = useState<number | null>(null);
 
   const fetchPlaylists = async () => {
     const { data } = await supabase.from("playlists").select("*").order("sort_order");
