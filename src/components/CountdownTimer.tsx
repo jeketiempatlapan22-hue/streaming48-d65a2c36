@@ -34,13 +34,13 @@ const AnimatedDigit = ({ value, label }: { value: number; label: string }) => (
   </div>
 );
 
-const CountdownTimer = ({ dateStr, timeStr }: CountdownTimerProps) => {
+const CountdownTimer = ({ dateStr, timeStr, timezone }: CountdownTimerProps) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isLive, setIsLive] = useState(false);
   const [isPast, setIsPast] = useState(false);
 
   useEffect(() => {
-    const target = parseDateTime(dateStr, timeStr);
+    const target = parseDateTime(dateStr, timeStr, timezone);
     if (!target) return;
 
     // Patokan target = WIB. Tampilan countdown digeser ke wall-clock zona user
