@@ -58,6 +58,11 @@ function useCountdown(dateStr: string, timeStr: string) {
   return parts;
 }
 
+const isUniversalTokenCode = (token?: string | null) => {
+  const code = String(token || "").toUpperCase();
+  return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
+};
+
 const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   show, index, isReplayMode, redeemedToken, accessPassword, replayPassword,
   onBuy, onCoinBuy, showCountdown = true, isLive = false, isUniversalAccess = false,
@@ -73,6 +78,8 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
+  const isExclusive = Boolean(show.exclude_from_membership);
+  const showToken = isExclusive && isUniversalTokenCode(redeemedToken) ? undefined : redeemedToken;
 
   // Harga uang (QRIS) — gunakan replay_qris_price bila mode replay
   const replayQrisPrice = show.replay_qris_price || 0;
@@ -129,7 +136,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                 {cat.label}
               </span>
             )}
-            {show.exclude_from_membership && (
+            {isExclusive && (
               <span className="flex items-center gap-1 rounded-full bg-fuchsia-500/90 backdrop-blur-sm px-2 py-0.5 text-[9px] font-extrabold text-white border border-fuchsia-300/40 shadow-lg shadow-fuchsia-500/40">
                 🔒 EKSKLUSIF
               </span>
@@ -159,7 +166,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         </div>
 
         {/* Countdown - bottom of image */}
-        {showCountdown && countdown && !countdown.live && !show.is_replay && redeemedToken && (
+        {showCountdown && countdown && !countdown.live && !show.is_replay && showToken && (
           <div className="absolute bottom-1.5 left-2">
             <div className="flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-sm px-2.5 py-1">
               <Timer className="h-2.5 w-2.5 text-primary animate-pulse shrink-0" />
@@ -256,7 +263,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         {show.team && <TeamBadge team={show.team} size="md" />}
 
         {/* Exclusive badge - membership tidak include */}
-        {show.exclude_from_membership && (
+        {isExclusive && (
           <div className="rounded-lg border border-fuchsia-500/40 bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-fuchsia-500/15 px-3 py-2 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-fuchsia-300 uppercase tracking-wide">
               <span>🔒</span>
@@ -287,7 +294,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
         )}
 
         {/* Show replay/access password for membership/bundle users */}
-        {isUniversalAccess && !show.exclude_from_membership && show.access_password && (
+        {isUniversalAccess && !isExclusive && show.access_password && (
           <div className="rounded-lg border border-[hsl(var(--warning))]/20 bg-[hsl(var(--warning))]/5 px-3 py-2">
             <p className="text-[9px] text-muted-foreground mb-0.5">🔐 Sandi Replay</p>
             <div className="flex items-center justify-between">
@@ -304,7 +311,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
 
         {/* Action buttons - slimmer */}
         <div className="flex flex-col gap-1.5 pt-1">
-          {redeemedToken ? (
+          {showToken ? (
             isReplayMode ? (
               <div className="space-y-1.5">
                 {hasPw && (
@@ -320,7 +327,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   <Copy className="h-3.5 w-3.5" /> {hasPw ? "Salin Sandi" : "Tonton Replay"}
                 </button>
                 <button
-                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                  onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                 >
                   <Copy className="h-3 w-3" /> Salin Link
@@ -334,13 +341,13 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                     return (
                       <>
                         <a
-                          href={`/live?t=${redeemedToken}`}
+                          href={`/live?t=${showToken}`}
                           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90 animate-pulse"
                         >
                           <Radio className="h-3.5 w-3.5" /> 🔴 Tonton Live
                         </a>
                         <button
-                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                         >
                           <Copy className="h-3 w-3" /> Salin Link
@@ -370,13 +377,13 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                         </div>
                       )}
                       <a
-                        href={`/live?t=${redeemedToken}`}
+                        href={`/live?t=${showToken}`}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--success))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--success))]/90"
                       >
                         <Radio className="h-3.5 w-3.5" /> Tonton Live
                       </a>
                       <button
-                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${redeemedToken}`); toast.success("Link disalin!"); }}
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/live?t=${showToken}`); toast.success("Link disalin!"); }}
                         className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80"
                       >
                         <Copy className="h-3 w-3" /> Salin Link
@@ -393,7 +400,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                   onClick={() => onCoinBuy(show)}
                   className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[hsl(var(--warning))] py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-[hsl(var(--warning))]/90"
                 >
-                  <Coins className="h-3.5 w-3.5" /> Beli {coinPrice} Koin
+                  <Coins className="h-3.5 w-3.5" /> {isExclusive ? `Beli Eksklusif ${coinPrice} Koin` : `Beli ${coinPrice} Koin`}
                 </button>
               )}
               <button
@@ -404,7 +411,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }`}
               >
-                <MessageCircle className="h-3.5 w-3.5" /> {hasCoin ? "Beli via QRIS" : "Beli Tiket"}
+                <MessageCircle className="h-3.5 w-3.5" /> {isExclusive ? "Beli Eksklusif via QRIS" : hasCoin ? "Beli via QRIS" : "Beli Tiket"}
               </button>
             </>
           )}

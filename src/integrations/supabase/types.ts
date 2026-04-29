@@ -1860,6 +1860,7 @@ export type Database = {
           category_member: string
           coin_price: number
           created_at: string
+          exclude_from_membership: boolean
           external_show_id: string
           group_link: string
           has_replay_media: boolean
