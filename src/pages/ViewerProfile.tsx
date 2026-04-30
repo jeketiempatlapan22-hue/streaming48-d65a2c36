@@ -37,6 +37,7 @@ const ViewerProfile = () => {
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const [membershipShowCount, setMembershipShowCount] = useState(0);
   const [membershipPrice, setMembershipPrice] = useState<string | null>(null);
+  const [membershipMetaLoading, setMembershipMetaLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
