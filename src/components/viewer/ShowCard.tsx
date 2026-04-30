@@ -71,6 +71,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const pw = rawPw && rawPw !== "__universal_access__" ? rawPw : undefined;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
+  const [imgError, setImgError] = useState(false);
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
