@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
+import ShowCardImage from "@/components/viewer/ShowCardImage";
 import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
@@ -362,11 +363,12 @@ const ReplayPage = () => {
                 <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}
                   className="group relative overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5">
                   <div className="relative h-44 overflow-hidden">
-                    {show.background_image_url ? (
-                      <img src={show.background_image_url} alt={show.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                    ) : (
-                      <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/20 to-accent/10"><Play className="h-16 w-16 text-primary/30" /></div>
-                    )}
+                    <ShowCardImage
+                      src={show.background_image_url}
+                      alt={show.title}
+                      fallbackIcon="play"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
                     <div className="absolute top-3 left-3 flex flex-col gap-1">
                       {show.category && show.category !== "regular" && (() => {

@@ -71,6 +71,7 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
   const pw = rawPw && rawPw !== "__universal_access__" ? rawPw : undefined;
   const hasPw = pw && pw !== "__purchased__";
   const [reminded, setReminded] = useState(() => hasReminder(show.id));
+  const [imgError, setImgError] = useState(false);
   const cat = show.category ? (SHOW_CATEGORIES[show.category] || SHOW_CATEGORIES.regular) : null;
   const coinPrice = isReplayMode ? show.replay_coin_price : show.coin_price;
   const hasCoin = coinPrice > 0;
@@ -113,8 +114,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
     >
       {/* Compact image area */}
       <div className="relative h-[300px] overflow-hidden">
-        {show.background_image_url ? (
+        {show.background_image_url && !imgError ? (
           <img src={show.background_image_url} alt={show.title} loading="lazy" decoding="async"
+            onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/10 to-accent/5">

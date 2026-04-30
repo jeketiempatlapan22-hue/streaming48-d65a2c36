@@ -159,11 +159,11 @@ const MediaPickerDialog = ({ open, onOpenChange, onSelect, suggestQuery }: Media
                 🔍 Mencari foto untuk: <strong className="text-foreground">{suggestQuery}</strong>
               </span>
               {best ? (
-                <Button size="sm" variant="default" className="h-7 gap-1" onClick={handleAutoPick}>
-                  <Sparkles className="h-3 w-3" /> Pakai "{best.file.label || best.file.name}"
+                <Button size="sm" variant="default" className="h-7 gap-1" onClick={handleAutoPick} title="Pakai saran ini (akan menimpa pilihan saat ini)">
+                  <Sparkles className="h-3 w-3" /> Saran: "{best.file.label || best.file.name}"
                 </Button>
               ) : (
-                <span className="text-muted-foreground italic">Tidak ada foto yang cocok</span>
+                <span className="text-muted-foreground italic">Tidak ada foto yang cocok — pilih manual di bawah</span>
               )}
             </div>
           </div>

@@ -447,10 +447,18 @@ const MembershipPage = () => {
                 </div>
                 <div className="relative h-48 overflow-hidden">
                   {show.background_image_url ? (
-                    <img src={show.background_image_url} alt={show.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-yellow-500/20 to-primary/10"><Crown className="h-16 w-16 text-yellow-500/30" /></div>
-                  )}
+                    <img
+                      src={show.background_image_url}
+                      alt={show.title}
+                      loading="lazy"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                  ) : null}
+                  {/* Fallback shown behind image; if image fails it hides itself revealing this */}
+                  <div className="absolute inset-0 -z-10 flex items-center justify-center bg-gradient-to-br from-yellow-500/20 to-primary/10">
+                    <Crown className="h-16 w-16 text-yellow-500/30" />
+                  </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
                   <div className="absolute bottom-3 left-4 right-4"><h3 className="text-xl font-bold text-foreground">{show.title}</h3></div>
                 </div>
