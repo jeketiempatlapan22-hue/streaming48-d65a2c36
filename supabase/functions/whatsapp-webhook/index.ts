@@ -945,9 +945,9 @@ TOLAK_RESET <id> - Tolak reset password
   Durasi: 30hari, 1minggu, 2bulan, 1tahun, dll
 
 👑 *Kontrol Membership Global:*
-/pausemember - Jeda akses semua token membership
-/resumemember - Aktifkan kembali akses membership
-/memberstatus - Cek status pause membership
+/pausemember (alias: /jedamember) - Jeda akses semua token membership
+/resumemember (alias: /aktifkanmember) - Aktifkan kembali akses
+/memberstatus (alias: /statusmember) - Cek status pause membership
 
 💡 *Tips:* Semua command show mendukung nama, #hexid (6 digit UUID), short_id, atau full UUID.`;
 }
