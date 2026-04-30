@@ -37,6 +37,7 @@ const ViewerProfile = () => {
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
   const [membershipShowCount, setMembershipShowCount] = useState(0);
   const [membershipPrice, setMembershipPrice] = useState<string | null>(null);
+  const [membershipMetaLoading, setMembershipMetaLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -86,32 +87,37 @@ const ViewerProfile = () => {
           }
         }
 
-        // Hitung jumlah show yang dapat diakses oleh membership (untuk kartu detail)
-        try {
-          const { data: pwMap } = await (supabase.rpc as any)("get_membership_show_passwords");
-          if (pwMap && typeof pwMap === "object") {
-            setMembershipShowCount(Object.keys(pwMap).length);
-          }
-        } catch { /* ignore */ }
-
-        // Cari harga pembelian membership terakhir (sub_orders confirmed atau coin_orders)
-        try {
-          const { data: lastSub } = await supabase
+        // Hitung jumlah show membership + harga pembelian (paralel, non-blocking).
+        // Skeleton kartu Membership akan muncul sampai keduanya resolve.
+        Promise.allSettled([
+          (supabase.rpc as any)("get_membership_show_passwords"),
+          supabase
             .from("subscription_orders")
             .select("payment_method, created_at, shows(price, coin_price)")
             .eq("user_id", u.id)
             .eq("status", "confirmed")
             .order("created_at", { ascending: false })
             .limit(1)
-            .maybeSingle();
-          const showPrice = (lastSub as any)?.shows?.price as string | undefined;
-          const coinPrice = (lastSub as any)?.shows?.coin_price as number | undefined;
-          if (lastSub?.payment_method === "coin" && coinPrice) {
-            setMembershipPrice(`${coinPrice} koin`);
-          } else if (showPrice) {
-            setMembershipPrice(showPrice);
+            .maybeSingle(),
+        ]).then(([pwRes, subRes]) => {
+          if (pwRes.status === "fulfilled") {
+            const pwMap = (pwRes.value as any)?.data;
+            if (pwMap && typeof pwMap === "object") {
+              setMembershipShowCount(Object.keys(pwMap).length);
+            }
           }
-        } catch { /* ignore */ }
+          if (subRes.status === "fulfilled") {
+            const lastSub = (subRes.value as any)?.data;
+            const showPrice = lastSub?.shows?.price as string | undefined;
+            const coinPrice = lastSub?.shows?.coin_price as number | undefined;
+            if (lastSub?.payment_method === "coin" && coinPrice) {
+              setMembershipPrice(`${coinPrice} koin`);
+            } else if (showPrice) {
+              setMembershipPrice(showPrice);
+            }
+          }
+          setMembershipMetaLoading(false);
+        });
       } catch {
         toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
@@ -309,6 +315,7 @@ const ViewerProfile = () => {
                     token={t}
                     showCount={membershipShowCount}
                     purchasePrice={membershipPrice}
+                    metaLoading={membershipMetaLoading}
                     onWatchLive={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
                   />
                 </Suspense>

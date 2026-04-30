@@ -13,13 +13,15 @@ interface MembershipDetailCardProps {
   showCount: number;
   /** Pre-formatted price string (e.g. "Rp 28.000" or "120 koin"). Null = sembunyikan kotak harga. */
   purchasePrice?: string | null;
+  /** Saat true, tampilkan skeleton untuk Akses Show & Harga (data belum siap). */
+  metaLoading?: boolean;
   onWatchLive: () => void;
 }
 
 const fmtDate = (d: Date) =>
   d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
-const MembershipDetailCard = ({ token, showCount, purchasePrice, onWatchLive }: MembershipDetailCardProps) => {
+const MembershipDetailCard = ({ token, showCount, purchasePrice, metaLoading = false, onWatchLive }: MembershipDetailCardProps) => {
   const startedAt = new Date(token.created_at);
   const expiresAt = token.expires_at ? new Date(token.expires_at) : null;
   const now = new Date();
@@ -103,7 +105,11 @@ const MembershipDetailCard = ({ token, showCount, purchasePrice, onWatchLive }: 
           value={isExpired ? "0 hari" : `${daysLeft} hari`}
           accent={isExpired ? "text-destructive" : daysLeft <= 3 ? "text-destructive" : "text-yellow-400"}
         />
-        <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+        {metaLoading ? (
+          <StatTileSkeleton label="Akses Show" />
+        ) : (
+          <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+        )}
         <StatTile
           icon={<ShieldCheck className="h-3.5 w-3.5" />}
           label="Status"
@@ -113,10 +119,14 @@ const MembershipDetailCard = ({ token, showCount, purchasePrice, onWatchLive }: 
       </div>
 
       {/* 3 Detail tanggal & harga */}
-      <div className={`relative grid gap-2 ${purchasePrice ? "grid-cols-3" : "grid-cols-2"}`}>
+      <div className={`relative grid gap-2 ${(purchasePrice || metaLoading) ? "grid-cols-3" : "grid-cols-2"}`}>
         <DetailBox label="Mulai" value={fmtDate(startedAt)} />
         <DetailBox label="Berakhir" value={expiresAt ? fmtDate(expiresAt) : "Tanpa batas"} highlight={isActive && daysLeft <= 3} />
-        {purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />}
+        {metaLoading ? (
+          <DetailBoxSkeleton label="Harga" />
+        ) : (
+          purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />
+        )}
       </div>
 
       {/* Action */}
@@ -173,6 +183,22 @@ const DetailBox = ({
   <div className={`rounded-lg border px-2.5 py-2 ${highlight ? "border-destructive/40 bg-destructive/5" : "border-border/50 bg-background/40"}`}>
     <p className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium">{label}</p>
     <p className={`text-[11px] font-bold leading-tight mt-0.5 ${highlight ? "text-destructive" : accent}`}>{value}</p>
+  </div>
+);
+
+
+const StatTileSkeleton = ({ label }: { label: string }) => (
+  <div className="rounded-xl border border-border/50 bg-background/40 px-2.5 py-2 text-center backdrop-blur-sm">
+    <div className="mx-auto mb-1 h-6 w-6 rounded-md skeleton" />
+    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium">{label}</p>
+    <div className="mx-auto mt-1 h-3 w-12 rounded skeleton" />
+  </div>
+);
+
+const DetailBoxSkeleton = ({ label }: { label: string }) => (
+  <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium">{label}</p>
+    <div className="mt-1 h-3 w-16 rounded skeleton" />
   </div>
 );
 
