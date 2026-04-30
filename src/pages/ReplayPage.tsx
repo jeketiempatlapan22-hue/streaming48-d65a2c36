@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import MobileBottomNav from "@/components/viewer/MobileBottomNav";
+import ShowCardImage from "@/components/viewer/ShowCardImage";
 import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
