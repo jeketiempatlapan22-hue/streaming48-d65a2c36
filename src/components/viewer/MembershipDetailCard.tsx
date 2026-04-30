@@ -13,13 +13,15 @@ interface MembershipDetailCardProps {
   showCount: number;
   /** Pre-formatted price string (e.g. "Rp 28.000" or "120 koin"). Null = sembunyikan kotak harga. */
   purchasePrice?: string | null;
+  /** Saat true, tampilkan skeleton untuk Akses Show & Harga (data belum siap). */
+  metaLoading?: boolean;
   onWatchLive: () => void;
 }
 
 const fmtDate = (d: Date) =>
   d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
-const MembershipDetailCard = ({ token, showCount, purchasePrice, onWatchLive }: MembershipDetailCardProps) => {
+const MembershipDetailCard = ({ token, showCount, purchasePrice, metaLoading = false, onWatchLive }: MembershipDetailCardProps) => {
   const startedAt = new Date(token.created_at);
   const expiresAt = token.expires_at ? new Date(token.expires_at) : null;
   const now = new Date();
