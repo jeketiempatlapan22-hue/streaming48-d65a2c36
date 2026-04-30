@@ -140,7 +140,18 @@ const UserTransactionHistory = ({ userId, isAdmin = false }: Props) => {
           })),
         ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-        if (mounted) setItems(merged);
+        // Defensive dedup: hide legacy duplicate rows that may exist in DB
+        // (e.g. caused by an old trigger that double-logged token redeems).
+        // Key combines kind+amount+title+created_at (truncated to second).
+        const seen = new Set<string>();
+        const deduped = merged.filter((tx) => {
+          const key = `${tx.kind}|${tx.amount ?? ""}|${tx.title}|${new Date(tx.created_at).toISOString().slice(0, 19)}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (mounted) setItems(deduped);
       } catch {
         if (mounted) setItems([]);
       } finally {
