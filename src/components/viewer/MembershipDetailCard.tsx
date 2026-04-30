@@ -119,10 +119,14 @@ const MembershipDetailCard = ({ token, showCount, purchasePrice, metaLoading = f
       </div>
 
       {/* 3 Detail tanggal & harga */}
-      <div className={`relative grid gap-2 ${purchasePrice ? "grid-cols-3" : "grid-cols-2"}`}>
+      <div className={`relative grid gap-2 ${(purchasePrice || metaLoading) ? "grid-cols-3" : "grid-cols-2"}`}>
         <DetailBox label="Mulai" value={fmtDate(startedAt)} />
         <DetailBox label="Berakhir" value={expiresAt ? fmtDate(expiresAt) : "Tanpa batas"} highlight={isActive && daysLeft <= 3} />
-        {purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />}
+        {metaLoading ? (
+          <DetailBoxSkeleton label="Harga" />
+        ) : (
+          purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />
+        )}
       </div>
 
       {/* Action */}
