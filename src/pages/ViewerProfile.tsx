@@ -85,6 +85,33 @@ const ViewerProfile = () => {
             setShowTitles({});
           }
         }
+
+        // Hitung jumlah show yang dapat diakses oleh membership (untuk kartu detail)
+        try {
+          const { data: pwMap } = await (supabase.rpc as any)("get_membership_show_passwords");
+          if (pwMap && typeof pwMap === "object") {
+            setMembershipShowCount(Object.keys(pwMap).length);
+          }
+        } catch { /* ignore */ }
+
+        // Cari harga pembelian membership terakhir (sub_orders confirmed atau coin_orders)
+        try {
+          const { data: lastSub } = await supabase
+            .from("subscription_orders")
+            .select("payment_method, created_at, shows(price, coin_price)")
+            .eq("user_id", u.id)
+            .eq("status", "confirmed")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const showPrice = (lastSub as any)?.shows?.price as string | undefined;
+          const coinPrice = (lastSub as any)?.shows?.coin_price as number | undefined;
+          if (lastSub?.payment_method === "coin" && coinPrice) {
+            setMembershipPrice(`${coinPrice} koin`);
+          } else if (showPrice) {
+            setMembershipPrice(showPrice);
+          }
+        } catch { /* ignore */ }
       } catch {
         toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
