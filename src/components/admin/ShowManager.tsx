@@ -369,8 +369,45 @@ const ShowManager = () => {
     }
 
     const created = ((data as Show[] | null) ?? []).map((s) => normalizeShow(s));
+
+    // Auto-resolve background_image_url berdasarkan judul vs nama file di galeri.
+    // Hanya berlaku untuk show yang dibuat lewat impor (background_image_url=null).
+    let autoMatched = 0;
+    try {
+      const candidates = await fetchGalleryCandidates();
+      if (candidates.length > 0 && created.length > 0) {
+        const updates = await Promise.all(
+          created.map(async (show) => {
+            const best = findBestMediaMatch(show.title, candidates, 0.5);
+            if (!best) return null;
+            const { error: upErr } = await supabase
+              .from("shows")
+              .update({ background_image_url: best.file.url })
+              .eq("id", show.id);
+            if (upErr) return null;
+            return { id: show.id, url: best.file.url };
+          }),
+        );
+        const updateMap = new Map(
+          updates.filter((u): u is { id: string; url: string } => !!u).map((u) => [u.id, u.url]),
+        );
+        autoMatched = updateMap.size;
+        if (autoMatched > 0) {
+          for (const c of created) {
+            const u = updateMap.get(c.id);
+            if (u) c.background_image_url = u;
+          }
+        }
+      }
+    } catch {/* fallback: skip auto-match */}
+
     setShows((current) => [...created, ...current]);
-    toast({ title: `${created.length} show berhasil dibuat`, description: "Lengkapi harga & koin di tiap show." });
+    toast({
+      title: `${created.length} show berhasil dibuat`,
+      description: autoMatched > 0
+        ? `${autoMatched} background otomatis dipilih dari galeri. Lengkapi harga & koin di tiap show.`
+        : "Lengkapi harga & koin di tiap show.",
+    });
     resetImport();
     setImportOpen(false);
   };
