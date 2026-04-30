@@ -954,13 +954,29 @@ TOLAK_RESET <id> - Tolak reset password
 
 async function handleMembershipPauseWa(supabase: any, paused: boolean): Promise<string> {
   try {
+    // Cek state saat ini agar admin tahu kalau tidak ada perubahan
+    const { data: cur } = await supabase
+      .from('site_settings').select('value').eq('key', 'membership_paused').maybeSingle();
+    const currentlyPaused = (cur?.value || 'false') === 'true';
+    if (currentlyPaused === paused) {
+      return paused
+        ? 'ℹ️ *Status Membership: SUDAH DIJEDA*\n\nTidak ada perubahan. Token MBR-/MRD- masih diblokir.\n\n💡 Aktifkan: /resumemember atau /aktifkanmember'
+        : 'ℹ️ *Status Membership: SUDAH AKTIF*\n\nTidak ada perubahan. Token membership masih bisa akses live.\n\n💡 Jeda: /pausemember atau /jedamember';
+    }
+
     const { data, error } = await supabase.rpc('set_membership_pause_bot', { _paused: paused, _source: 'whatsapp' });
-    if (error) return `⚠️ Gagal: ${error.message}`;
+    if (error) {
+      // Tangani error spesifik untuk pesan yang ramah
+      const code = (error as any)?.code;
+      if (code === '42501') return '⚠️ *Gagal*: Bot tidak punya akses (service role required). Hubungi developer.';
+      if (code === '22023') return '⚠️ *Gagal*: Sumber bot belum dikonfigurasi. Hubungi developer.';
+      return `⚠️ *Gagal mengubah status*: ${error.message}`;
+    }
     if (paused) {
       const sessions = (data as any)?.sessions_terminated ?? 0;
-      return `⏸️ *Membership Dijeda*\n\nSemua token MBR-/MRD- diblokir dari halaman live.\n${sessions} sesi aktif diputus.\nKartu show kembali ke mode "Beli" untuk user membership.\n\n💡 Aktifkan lagi: /resumemember`;
+      return `⏸️ *Membership Dijeda*\n\nSemua token MBR-/MRD- diblokir dari halaman live.\n${sessions} sesi aktif diputus.\nKartu show kembali ke mode "Beli" untuk user membership.\n\n💡 Aktifkan lagi: /resumemember atau /aktifkanmember`;
     }
-    return `▶️ *Membership Diaktifkan*\n\nToken membership kembali bisa mengakses live.\n\n💡 Cek status: /memberstatus`;
+    return `▶️ *Membership Diaktifkan*\n\nToken membership kembali bisa mengakses live.\n\n💡 Cek status: /memberstatus atau /statusmember`;
   } catch (e: any) {
     return `⚠️ Error: ${e?.message || 'unknown'}`;
   }
@@ -970,8 +986,8 @@ async function handleMembershipStatusWa(supabase: any): Promise<string> {
   const { data } = await supabase.from('site_settings').select('value').eq('key', 'membership_paused').maybeSingle();
   const paused = (data?.value || 'false') === 'true';
   return paused
-    ? '⏸️ *Status Membership: DIJEDA*\n\nToken membership tidak bisa akses live.\nGunakan /resumemember untuk mengaktifkan.'
-    : '▶️ *Status Membership: AKTIF*\n\nToken membership bisa akses live normal.\nGunakan /pausemember untuk menjeda.';
+    ? '⏸️ *Status Membership: DIJEDA*\n\nToken membership tidak bisa akses live.\nGunakan /resumemember atau /aktifkanmember untuk mengaktifkan.'
+    : '▶️ *Status Membership: AKTIF*\n\nToken membership bisa akses live normal.\nGunakan /pausemember atau /jedamember untuk menjeda.';
 }
 
 async function handleStatus(supabase: any): Promise<string> {
