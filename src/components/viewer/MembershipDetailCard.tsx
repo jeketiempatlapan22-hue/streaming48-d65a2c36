@@ -105,7 +105,11 @@ const MembershipDetailCard = ({ token, showCount, purchasePrice, metaLoading = f
           value={isExpired ? "0 hari" : `${daysLeft} hari`}
           accent={isExpired ? "text-destructive" : daysLeft <= 3 ? "text-destructive" : "text-yellow-400"}
         />
-        <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+        {metaLoading ? (
+          <StatTileSkeleton label="Akses Show" />
+        ) : (
+          <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+        )}
         <StatTile
           icon={<ShieldCheck className="h-3.5 w-3.5" />}
           label="Status"
