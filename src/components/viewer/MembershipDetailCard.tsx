@@ -98,34 +98,47 @@ const MembershipDetailCard = ({ token, showCount, purchasePrice, metaLoading = f
 
       {/* 4 Mini stats */}
       <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <StatTile icon={<Calendar className="h-3.5 w-3.5" />} label="Durasi" value={`${totalDays} hari`} accent="text-foreground" />
-        <StatTile
-          icon={<Clock className="h-3.5 w-3.5" />}
-          label="Sisa"
-          value={isExpired ? "0 hari" : `${daysLeft} hari`}
-          accent={isExpired ? "text-destructive" : daysLeft <= 3 ? "text-destructive" : "text-yellow-400"}
-        />
         {metaLoading ? (
-          <StatTileSkeleton label="Akses Show" />
+          <>
+            <StatTileSkeleton label="Durasi" />
+            <StatTileSkeleton label="Sisa" />
+            <StatTileSkeleton label="Akses Show" />
+            <StatTileSkeleton label="Status" />
+          </>
         ) : (
-          <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+          <>
+            <StatTile icon={<Calendar className="h-3.5 w-3.5" />} label="Durasi" value={`${totalDays} hari`} accent="text-foreground" />
+            <StatTile
+              icon={<Clock className="h-3.5 w-3.5" />}
+              label="Sisa"
+              value={isExpired ? "0 hari" : `${daysLeft} hari`}
+              accent={isExpired ? "text-destructive" : daysLeft <= 3 ? "text-destructive" : "text-yellow-400"}
+            />
+            <StatTile icon={<Film className="h-3.5 w-3.5" />} label="Akses Show" value={`${showCount} show`} accent="text-foreground" />
+            <StatTile
+              icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              label="Status"
+              value={isActive ? "Premium" : "Habis"}
+              accent={isActive ? "text-[hsl(var(--success))]" : "text-muted-foreground"}
+            />
+          </>
         )}
-        <StatTile
-          icon={<ShieldCheck className="h-3.5 w-3.5" />}
-          label="Status"
-          value={isActive ? "Premium" : "Habis"}
-          accent={isActive ? "text-[hsl(var(--success))]" : "text-muted-foreground"}
-        />
       </div>
 
       {/* 3 Detail tanggal & harga */}
       <div className={`relative grid gap-2 ${(purchasePrice || metaLoading) ? "grid-cols-3" : "grid-cols-2"}`}>
-        <DetailBox label="Mulai" value={fmtDate(startedAt)} />
-        <DetailBox label="Berakhir" value={expiresAt ? fmtDate(expiresAt) : "Tanpa batas"} highlight={isActive && daysLeft <= 3} />
         {metaLoading ? (
-          <DetailBoxSkeleton label="Harga" />
+          <>
+            <DetailBoxSkeleton label="Mulai" />
+            <DetailBoxSkeleton label="Berakhir" />
+            <DetailBoxSkeleton label="Harga" />
+          </>
         ) : (
-          purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />
+          <>
+            <DetailBox label="Mulai" value={fmtDate(startedAt)} />
+            <DetailBox label="Berakhir" value={expiresAt ? fmtDate(expiresAt) : "Tanpa batas"} highlight={isActive && daysLeft <= 3} />
+            {purchasePrice && <DetailBox label="Harga" value={purchasePrice} accent="text-yellow-400" />}
+          </>
         )}
       </div>
 
