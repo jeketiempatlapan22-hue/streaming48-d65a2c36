@@ -186,4 +186,20 @@ const DetailBox = ({
   </div>
 );
 
+
+const StatTileSkeleton = ({ label }: { label: string }) => (
+  <div className="rounded-xl border border-border/50 bg-background/40 px-2.5 py-2 text-center backdrop-blur-sm">
+    <div className="mx-auto mb-1 h-6 w-6 rounded-md skeleton" />
+    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium">{label}</p>
+    <div className="mx-auto mt-1 h-3 w-12 rounded skeleton" />
+  </div>
+);
+
+const DetailBoxSkeleton = ({ label }: { label: string }) => (
+  <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+    <p className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium">{label}</p>
+    <div className="mt-1 h-3 w-16 rounded skeleton" />
+  </div>
+);
+
 export default MembershipDetailCard;
