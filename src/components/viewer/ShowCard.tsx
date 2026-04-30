@@ -114,8 +114,9 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
     >
       {/* Compact image area */}
       <div className="relative h-[300px] overflow-hidden">
-        {show.background_image_url ? (
+        {show.background_image_url && !imgError ? (
           <img src={show.background_image_url} alt={show.title} loading="lazy" decoding="async"
+            onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
           <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/10 to-accent/5">
