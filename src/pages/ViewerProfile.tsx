@@ -18,6 +18,7 @@ const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection")
 const UserStatsPanel = lazy(() => import("@/components/viewer/UserStatsPanel"));
 const UserBadges = lazy(() => import("@/components/viewer/UserBadges"));
 const UserTransactionHistory = lazy(() => import("@/components/viewer/UserTransactionHistory"));
+const MembershipDetailCard = lazy(() => import("@/components/viewer/MembershipDetailCard"));
 
 const ViewerProfile = () => {
   const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
@@ -34,6 +35,8 @@ const ViewerProfile = () => {
   const [tab, setTab] = useState<"history" | "orders" | "subscriptions" | "tokens" | "membership" | "stats">("history");
   const [editingPhone, setEditingPhone] = useState<Record<string, string>>({});
   const [savingPhone, setSavingPhone] = useState<string | null>(null);
+  const [membershipShowCount, setMembershipShowCount] = useState(0);
+  const [membershipPrice, setMembershipPrice] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -82,6 +85,33 @@ const ViewerProfile = () => {
             setShowTitles({});
           }
         }
+
+        // Hitung jumlah show yang dapat diakses oleh membership (untuk kartu detail)
+        try {
+          const { data: pwMap } = await (supabase.rpc as any)("get_membership_show_passwords");
+          if (pwMap && typeof pwMap === "object") {
+            setMembershipShowCount(Object.keys(pwMap).length);
+          }
+        } catch { /* ignore */ }
+
+        // Cari harga pembelian membership terakhir (sub_orders confirmed atau coin_orders)
+        try {
+          const { data: lastSub } = await supabase
+            .from("subscription_orders")
+            .select("payment_method, created_at, shows(price, coin_price)")
+            .eq("user_id", u.id)
+            .eq("status", "confirmed")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const showPrice = (lastSub as any)?.shows?.price as string | undefined;
+          const coinPrice = (lastSub as any)?.shows?.coin_price as number | undefined;
+          if (lastSub?.payment_method === "coin" && coinPrice) {
+            setMembershipPrice(`${coinPrice} koin`);
+          } else if (showPrice) {
+            setMembershipPrice(showPrice);
+          }
+        } catch { /* ignore */ }
       } catch {
         toast.error("Gagal memuat data profil, coba muat ulang halaman.");
       } finally {
@@ -254,17 +284,39 @@ const ViewerProfile = () => {
 
         {/* Membership/Bundle Duration Card */}
         {(() => {
-          const membershipTokens = tokens.filter((t: any) => {
+          const allActive = tokens.filter((t: any) => {
             if (t.status !== "active" || !t.expires_at) return false;
             const code = (t.code || "").toUpperCase();
             return code.startsWith("MBR-") || code.startsWith("MRD-") || code.startsWith("BDL-") || code.startsWith("RT48-");
           });
-          if (membershipTokens.length === 0) return null;
+          if (allActive.length === 0) return null;
+
+          const membershipPure = allActive.filter((t: any) => {
+            const c = (t.code || "").toUpperCase();
+            return c.startsWith("MBR-") || c.startsWith("MRD-");
+          });
+          const others = allActive.filter((t: any) => {
+            const c = (t.code || "").toUpperCase();
+            return !(c.startsWith("MBR-") || c.startsWith("MRD-"));
+          });
+
           return (
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }} className="space-y-2">
-              {membershipTokens.map((t: any) => {
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }} className="space-y-3">
+              {/* Kartu detail: hanya untuk membership murni */}
+              {membershipPure.map((t: any) => (
+                <Suspense key={t.id} fallback={<div className="h-72 skeleton rounded-2xl" />}>
+                  <MembershipDetailCard
+                    token={t}
+                    showCount={membershipShowCount}
+                    purchasePrice={membershipPrice}
+                    onWatchLive={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                  />
+                </Suspense>
+              ))}
+
+              {/* Bundle & Custom token: tetap kartu kompak */}
+              {others.map((t: any) => {
                 const code = (t.code || "").toUpperCase();
-                const isMembership = code.startsWith("MBR-") || code.startsWith("MRD-");
                 const isBundle = code.startsWith("BDL-");
                 const isCustom = code.startsWith("RT48-");
                 const expiresAt = new Date(t.expires_at);
@@ -274,9 +326,13 @@ const ViewerProfile = () => {
                 const daysLeft = Math.ceil(diffMs / 86400000);
                 const hoursLeft = Math.ceil(diffMs / 3600000);
 
-                const label = isMembership ? "👑 Membership" : isBundle ? "📦 Bundle" : "🎫 Token Custom";
-                const iconColor = isExpired ? "text-muted-foreground" : isMembership ? "text-yellow-500" : isCustom ? "text-cyan-400" : "text-primary";
-                const borderClass = isExpired ? "border-border bg-muted/30" : isMembership ? "border-yellow-500/30 bg-gradient-to-r from-yellow-500/10 to-primary/5" : isCustom ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5" : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
+                const label = isBundle ? "📦 Bundle" : "🎫 Token Custom";
+                const iconColor = isExpired ? "text-muted-foreground" : isCustom ? "text-cyan-400" : "text-primary";
+                const borderClass = isExpired
+                  ? "border-border bg-muted/30"
+                  : isCustom
+                  ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5"
+                  : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
 
                 const liveUrl = `/live?t=${encodeURIComponent(t.code)}`;
                 return (

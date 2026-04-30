@@ -1,57 +1,82 @@
-# Fitur: Akses Replay via Sandi Langsung di Kartu Show
-
 ## Tujuan
-User dapat memasukkan sandi (yang sudah diatur admin di `access_password` show, atau global password) langsung di kartu replay tanpa harus pergi ke halaman `/replay-play` terlebih dahulu. Fitur ini hanya muncul di kartu replay yang punya media (m3u8 atau YouTube).
 
-## Lokasi UI
-- File: `src/components/viewer/ShowCard.tsx`
-- Posisi: **di bawah tombol "Beli Replay (Koin)" / "Beli via QRIS"** pada bagian action buttons.
-- Kondisi tampil: `isReplayMode === true` **DAN** `show.is_replay === true` **DAN** `show.has_replay_media === true` **DAN** user belum punya token (`!showToken`).
+Mengganti kartu "👑 Membership" sederhana di `ViewerProfile.tsx` dengan kartu detail bergaya seperti gambar referensi — khusus untuk token bertipe **MBR-/MRD-** (membership murni). Kartu Bundle (BDL-) dan Custom (RT48-) tetap pakai tampilan ringkas yang sudah ada.
 
-## Komponen Baru: `ReplayPasswordEntry`
-Sub-komponen kecil di file yang sama (`ShowCard.tsx`) berisi:
+## Tampilan yang akan dibangun
 
-1. Tombol toggle "🔓 Sudah punya sandi? Masuk di sini" (collapsed by default agar tidak crowded).
-2. Saat dibuka:
-   - Input field `password` (type=password, max 50 char, trim).
-   - Tombol **"Tonton Replay"** (loading state saat submit).
-3. Validasi via RPC `validate_replay_access`:
-   ```ts
-   supabase.rpc('validate_replay_access', {
-     _password: pw,
-     _short_id: show.short_id || null,
-     _show_id: show.short_id ? null : show.id,
-   })
-   ```
-4. Jika `success: true` → redirect ke `/replay-play?show={short_id}&password={encoded_pw}` (ReplayPlayPage sudah auto-attempt saat ada `?show=&password=` di URL — sudah dicek di useEffect baris 143-148).
-5. Jika gagal → toast error "Sandi salah atau tidak berlaku untuk show ini".
+```text
+┌─ Membership Aktif ───────────────────[AKTIF]┐
+│ 👑  Nikmati akses premium ke semua show!    │
+│                                              │
+│ Sisa waktu                       29 / 33 hari│
+│ ████████████████████████████░░░░             │
+│                                              │
+│ ┌──────┐ ┌──────┐ ┌──────────┐ ┌──────────┐ │
+│ │📅    │ │⏰    │ │🎬        │ │🛡️        │ │
+│ │Durasi│ │ Sisa │ │Akses Show│ │ Status    │ │
+│ │33 hr │ │29 hr │ │  4 show  │ │ Premium   │ │
+│ └──────┘ └──────┘ └──────────┘ └──────────┘ │
+│                                              │
+│ ┌────────┐ ┌────────┐ ┌──────────┐          │
+│ │ Mulai  │ │Berakhir│ │  Harga   │          │
+│ │26 Apr  │ │28 Mei  │ │Rp 28.000 │          │
+│ └────────┘ └────────┘ └──────────┘          │
+│                                              │
+│ [▶  Tonton Live Sekarang]                    │
+└──────────────────────────────────────────────┘
+```
 
-## Validasi & Keamanan
-- Trim & length check (1-50 char) sebelum submit (zod-style inline check).
-- Tidak menyimpan password di localStorage.
-- Tidak log password ke console.
-- Encoding URL: `encodeURIComponent(pw)` saat redirect.
-- Rate limit sudah di-handle server-side oleh RPC `validate_replay_access`.
+Warna: gradient kuning/emas (mirip yang sudah dipakai untuk membership), glassmorphism, dengan 7 sub-kartu kecil bergaya "stat tile" (border halus + bg gelap).
 
-## Aturan yang DIPATUHI
-- **Tidak muncul di kartu live** (hanya `isReplayMode`).
-- **Tidak muncul di kartu replay tanpa media** (`has_replay_media` filter).
-- **Tidak muncul jika user sudah pegang token** untuk show tersebut (`!showToken`).
-- **Tidak mengubah** flow tombol beli yang sudah ada.
+## Komponen baru
 
-## Testing Checklist (Setelah Implementasi)
-- [ ] Kartu replay dengan media → tombol "Sudah punya sandi?" muncul di bawah tombol beli.
-- [ ] Kartu replay tanpa media → fitur tidak muncul.
-- [ ] Kartu live (regular show) → fitur tidak muncul.
-- [ ] User dengan token aktif → fitur tidak muncul (sudah pakai token).
-- [ ] Password benar → redirect sukses ke ReplayPlayPage dan langsung play.
-- [ ] Password salah → toast error, input tetap terbuka.
+`src/components/viewer/MembershipDetailCard.tsx`
+- Props: `token` (row dari tabel `tokens`), `showCount: number`, `purchasePrice?: string | null`, `onWatchLive: () => void`.
+- Hitung:
+  - `durationDays` = `(expires_at - issued_at)` dalam hari (jatuh balik `created_at` jika `issued_at` kosong)
+  - `daysLeft` = `(expires_at - now)` dalam hari (clamp >= 0)
+  - `progress` = `daysLeft / durationDays` (untuk lebar bar)
+  - Format tanggal Indonesia (`toLocaleDateString("id-ID", ...)`)
+  - Format harga via util yang ada (atau format manual `Rp xx.xxx`)
+- Badge status: hijau "AKTIF" bila `daysLeft > 0`, merah "KEDALUWARSA" bila habis.
+- Bar warna: kuning (`>7 hari`), oranye (`3–7 hari`), merah (`<=3 hari`).
+- Tombol "Tonton Live Sekarang" → memanggil `onWatchLive` (navigate ke `/live?t=<code>`).
 
-## Files yang Dimodifikasi
-- `src/components/viewer/ShowCard.tsx` — tambah sub-komponen `ReplayPasswordEntry` + integrasi ke action buttons.
+## Perubahan di `src/pages/ViewerProfile.tsx`
 
-## Files yang TIDAK Diubah
-- Database (RPC `validate_replay_access` sudah lengkap menerima password).
-- `ReplayPlayPage.tsx` (sudah auto-attempt dari query string).
-- `Show` type (`has_replay_media` & `short_id` sudah ada).
-- `get_public_shows()` RPC (sudah return `has_replay_media`).
+1. **Ambil data tambahan** saat load:
+   - Hitung `membershipShowCount`: jumlah baris dari `get_public_shows()` yang punya `is_subscription = true` DAN `is_active`. Bisa dipakai juga `get_membership_show_passwords()` length untuk hitung "akses show" (lebih akurat karena cocok dgn akses nyata).
+   - Cari `purchasePrice` membership: query `subscription_orders` `(price, coin_amount, payment_method)` paling baru `status='confirmed'` untuk show membership terkait token tsb. Fallback: ambil `coin_orders` baru bila membership dibeli via koin (tampilkan `xxx koin`).
+2. **Refactor blok "Membership/Bundle Duration Card"** (baris 256–322):
+   - Pisahkan token jadi 3 bucket:
+     - Membership murni → render `<MembershipDetailCard />` baru (besar, kaya info).
+     - Bundle (BDL-) → tetap render kartu kompak yang sudah ada.
+     - Custom (RT48-) → tetap render kartu kompak yang sudah ada.
+   - Bila user punya >1 membership aktif, tampilkan semua kartu detail berurutan.
+3. **Pertahankan**:
+   - Logika realtime token (DELETE/UPDATE) yang sudah ada.
+   - Tab `Membership` di TabBar (tidak diubah).
+
+## Detail teknis
+
+- File baru: `src/components/viewer/MembershipDetailCard.tsx` (lazy-load via `React.lazy` agar konsisten dgn pola di profil).
+- Gunakan token yg sudah ada di state `tokens`. Tidak perlu query baru kecuali untuk `purchasePrice` & `showCount` (1 query masing-masing, dijalankan paralel di `Promise.allSettled` yang sudah ada).
+- Data `issued_at` ada di tabel `tokens` (cek; jika tidak, fallback ke `created_at`).
+- Tetap pakai util `framer-motion` + class `glass` agar selaras tema neon/cyberpunk.
+- Tidak perlu migrasi DB.
+- Tidak perlu perubahan di `MembershipPage.tsx`, edge function, atau RPC.
+
+## Yang TIDAK berubah
+
+- Halaman `/membership` (pembelian).
+- Tab navigasi profil & isi tab lain (Riwayat, Order, Token, Statistik).
+- Logika redeem/expiry/notifikasi WhatsApp.
+- Bundle & Custom token tetap kartu kompak.
+
+## QA singkat setelah implementasi
+
+- User tanpa membership → kartu tidak muncul (sama spt sekarang).
+- User dgn membership aktif → kartu detail muncul, progress bar sesuai, tombol tonton live navigasi benar.
+- User dgn membership <=3 hari → progress bar merah + label warning.
+- User dgn membership kedaluwarsa → badge "Kedaluwarsa", tombol disable.
+- User dgn membership + bundle → 1 kartu detail + 1 kartu bundle kompak.
