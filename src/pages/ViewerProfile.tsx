@@ -315,6 +315,7 @@ const ViewerProfile = () => {
                     token={t}
                     showCount={membershipShowCount}
                     purchasePrice={membershipPrice}
+                    metaLoading={membershipMetaLoading}
                     onWatchLive={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
                   />
                 </Suspense>
