@@ -18,6 +18,7 @@ const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection")
 const UserStatsPanel = lazy(() => import("@/components/viewer/UserStatsPanel"));
 const UserBadges = lazy(() => import("@/components/viewer/UserBadges"));
 const UserTransactionHistory = lazy(() => import("@/components/viewer/UserTransactionHistory"));
+const MembershipDetailCard = lazy(() => import("@/components/viewer/MembershipDetailCard"));
 
 const ViewerProfile = () => {
   const { user: authUser, isBanned, banReason, loading: authLoading, signOut: authSignOut } = useProtectedAuth();
