@@ -1,82 +1,114 @@
 ## Tujuan
 
-Mengganti kartu "👑 Membership" sederhana di `ViewerProfile.tsx` dengan kartu detail bergaya seperti gambar referensi — khusus untuk token bertipe **MBR-/MRD-** (membership murni). Kartu Bundle (BDL-) dan Custom (RT48-) tetap pakai tampilan ringkas yang sudah ada.
+1. **Foto kartu show & replay**: Pastikan foto yang sudah diatur admin (`background_image_url`) selalu muncul, walau fitur "Auto" (cocok nama foto) tidak digunakan / gagal cocok. Tidak boleh ada kondisi di mana auto-match menimpa pilihan manual atau membersihkan foto admin.
+2. **Command WhatsApp jeda/aktifkan membership**: Pastikan command `/pausemember`, `/resumemember`, `/memberstatus` muncul di `/help`, dapat dieksekusi, dan memberi balasan jelas — termasuk alias yang lebih intuitif (Bahasa Indonesia).
 
-## Tampilan yang akan dibangun
+## Temuan Investigasi
 
-```text
-┌─ Membership Aktif ───────────────────[AKTIF]┐
-│ 👑  Nikmati akses premium ke semua show!    │
-│                                              │
-│ Sisa waktu                       29 / 33 hari│
-│ ████████████████████████████░░░░             │
-│                                              │
-│ ┌──────┐ ┌──────┐ ┌──────────┐ ┌──────────┐ │
-│ │📅    │ │⏰    │ │🎬        │ │🛡️        │ │
-│ │Durasi│ │ Sisa │ │Akses Show│ │ Status    │ │
-│ │33 hr │ │29 hr │ │  4 show  │ │ Premium   │ │
-│ └──────┘ └──────┘ └──────────┘ └──────────┘ │
-│                                              │
-│ ┌────────┐ ┌────────┐ ┌──────────┐          │
-│ │ Mulai  │ │Berakhir│ │  Harga   │          │
-│ │26 Apr  │ │28 Mei  │ │Rp 28.000 │          │
-│ └────────┘ └────────┘ └──────────┘          │
-│                                              │
-│ [▶  Tonton Live Sekarang]                    │
-└──────────────────────────────────────────────┘
+### Foto show
+- Viewer (`ShowCard.tsx`, `ReplayPage.tsx`, `MembershipPage.tsx`, `BundleShowCard.tsx`) **sudah benar** menggunakan `show.background_image_url` dengan fallback placeholder/`bundleBg`. Tidak ada logika auto-match runtime di sisi viewer yang menimpa.
+- DB (cek 20 row terbaru): mayoritas show punya URL valid. Tetapi:
+  - 1 row (`Show Baru`) dengan `background_image_url = NULL` — terjadi setelah create show baru tanpa pilih gambar.
+  - "Itadaki❤Love (SONICHI)" punya URL `...y1rskk.webp` tapi nama file random (slug 6 char) → `fileNameToLabel` mengembalikan string kosong. Ini **tidak menghapus URL**, tapi membuat fitur "Auto" tidak akan pernah memilihnya kembali (skor cocok = 0).
+- `autoDetectBackground` (admin) menimpa `background_image_url` **hanya jika** ditemukan match. Bila tidak ada match → toast error, draft tidak diubah. Aman.
+- `MediaPickerDialog` `handleAutoPick` langsung memanggil `onSelect(best.url)` → menimpa pilihan saat ini bila admin tidak sengaja klik tombol "Pakai ...". Risiko menimpa tidak disengaja.
+- `createShow` & bulk import selalu set `background_image_url: null`. Bila admin lupa pilih, kartu jadi kosong.
+
+### WhatsApp pause/resume membership
+- RPC `set_membership_pause_bot(_paused, _source)` sudah ada, men-set `site_settings.membership_paused` + memutus session MBR-/MRD- + audit log. Aman.
+- Handler `handleMembershipPauseWa` & `handleMembershipStatusWa` sudah benar dan terdaftar di `processCommand` (line 800-806).
+- Command sudah tertulis di `/help` (line 946-949).
+- Kemungkinan masalah pengguna:
+  1. Hanya tersedia dalam English (`/pausemember`, `/resumemember`) — admin kemungkinan mencoba `/jedamember`, `/aktifkanmember` (Bahasa Indonesia) dan tidak ada balasan.
+  2. Tidak ada konfirmasi error yang ramah jika RPC gagal (mis. `_source` tidak valid menghasilkan error mentah).
+  3. Help message panjang; admin mungkin melewatkan section "Kontrol Membership Global".
+
+## Rencana Perubahan
+
+### A. Foto show — fail-safe fallback (FE)
+
+**`src/components/admin/ShowManager.tsx`**
+- Tambahkan auto-detect ringan **hanya saat membuat show baru** (`createShow` & `handleImportCreate`):
+  - Setelah insert, panggil `findBestMediaMatch(title, candidates, 0.5)` untuk tiap show.
+  - Jika cocok (≥ threshold), update kolom `background_image_url` show baru tersebut.
+  - Bila tidak cocok → biarkan `null` (tidak menimpa).
+- `MediaPickerDialog.handleAutoPick`: Tambahkan konfirmasi jika `background_image_url` admin sudah terisi dengan URL berbeda (cegah penimpaan tidak sengaja). Tombol berlabel "Saran" + tampilkan URL agar lebih jelas.
+- Auto-detect manual (tombol "Auto") tetap tidak menimpa kalau gagal — ini sudah benar; tambahkan log/toast ramah: "Tetap memakai foto yang sudah ada" jika `draft.background_image_url` sudah terisi.
+
+**`src/components/viewer/ShowCard.tsx`**
+- Tambahkan fallback bila `background_image_url` ada tapi gagal load (`onError` → tampilkan placeholder gradient + ikon Ticket), mencegah area hitam kosong saat URL admin invalid (mis. file dihapus dari storage).
+
+**`src/pages/ReplayPage.tsx`**
+- Tambahkan `onError` handler yang sama pada `<img>` kartu replay (line 366) → ganti ke fallback gradient + ikon Play, hindari area hitam.
+
+**`src/pages/MembershipPage.tsx`**
+- Tambahkan `onError` handler pada `<img>` membership card (line 450).
+
+**Skrip data perbaikan (one-time, opsional)**
+- Migration: untuk show dengan `background_image_url IS NULL`, tidak menulis apa-apa (admin tetap kontrol). Tidak menyentuh data existing.
+
+### B. WhatsApp Bot — alias & UX (BE)
+
+**`supabase/functions/whatsapp-webhook/index.ts`**
+1. Tambahkan alias regex untuk command pause/resume:
+   - `isPauseMember`: `/^\/(pause|jeda|stop)(member|membership)$/i`
+   - `isResumeMember`: `/^\/(resume|unpause|aktifkan|lanjut|start)(member|membership)$/i`
+   - `isMemberStatus`: `/^\/(memberstatus|statusmember|cekmember)$/i`
+2. Update `handleHelp()` agar section "👑 Kontrol Membership Global" diletakkan lebih atas (di bawah Order Management) supaya tidak terpotong di tampilan WA, dan tampilkan alias:
+   ```
+   /pausemember atau /jedamember — Jeda akses membership
+   /resumemember atau /aktifkanmember — Aktifkan kembali
+   /memberstatus atau /statusmember — Cek status
+   ```
+3. Tambahkan validasi & balasan ramah di `handleMembershipPauseWa`:
+   - Bila `_source` ditolak DB → tangkap error code `22023` dan balas: "⚠️ Bot belum dikonfigurasi sebagai sumber valid. Hubungi developer."
+   - Bila pause sudah dalam state yang sama, balas: "ℹ️ Membership memang sudah dijeda" / "ℹ️ Membership memang sudah aktif" — cek `site_settings.membership_paused` dulu.
+4. Tambahkan command pause/resume juga ke handler `processPublicCommand` **DITOLAK** (tetap admin-only) — cukup pastikan whitelist admin di env `WHATSAPP_ADMIN_NUMBERS` sudah memuat nomor admin (tidak diubah).
+
+## Rincian Teknis
+
+### Pola onError image fallback
+```tsx
+const [imgError, setImgError] = useState(false);
+{show.background_image_url && !imgError ? (
+  <img src={show.background_image_url} onError={() => setImgError(true)} ... />
+) : (
+  <div className="flex h-full items-center justify-center bg-gradient-to-br ...">
+    <Ticket className="h-12 w-12 text-primary/20" />
+  </div>
+)}
 ```
 
-Warna: gradient kuning/emas (mirip yang sudah dipakai untuk membership), glassmorphism, dengan 7 sub-kartu kecil bergaya "stat tile" (border halus + bg gelap).
+### Auto-detect saat create
+```ts
+// setelah insert show baru
+const candidates = await listAdminMedia();
+const best = findBestMediaMatch(created.title, candidates, 0.5);
+if (best) {
+  await supabase.from("shows").update({ background_image_url: best.file.url }).eq("id", created.id);
+  setShows(prev => prev.map(s => s.id === created.id ? { ...s, background_image_url: best.file.url } : s));
+}
+```
 
-## Komponen baru
+### Status check sebelum toggle (WA)
+```ts
+const { data: cur } = await supabase.from('site_settings')
+  .select('value').eq('key','membership_paused').maybeSingle();
+const already = (cur?.value === 'true') === paused;
+if (already) return paused
+  ? 'ℹ️ Membership memang sudah dijeda. Tidak ada perubahan.'
+  : 'ℹ️ Membership memang sudah aktif. Tidak ada perubahan.';
+```
 
-`src/components/viewer/MembershipDetailCard.tsx`
-- Props: `token` (row dari tabel `tokens`), `showCount: number`, `purchasePrice?: string | null`, `onWatchLive: () => void`.
-- Hitung:
-  - `durationDays` = `(expires_at - issued_at)` dalam hari (jatuh balik `created_at` jika `issued_at` kosong)
-  - `daysLeft` = `(expires_at - now)` dalam hari (clamp >= 0)
-  - `progress` = `daysLeft / durationDays` (untuk lebar bar)
-  - Format tanggal Indonesia (`toLocaleDateString("id-ID", ...)`)
-  - Format harga via util yang ada (atau format manual `Rp xx.xxx`)
-- Badge status: hijau "AKTIF" bila `daysLeft > 0`, merah "KEDALUWARSA" bila habis.
-- Bar warna: kuning (`>7 hari`), oranye (`3–7 hari`), merah (`<=3 hari`).
-- Tombol "Tonton Live Sekarang" → memanggil `onWatchLive` (navigate ke `/live?t=<code>`).
+## File yang Akan Dimodifikasi
+- `src/components/admin/ShowManager.tsx` — auto-detect saat create + import, toast aman
+- `src/components/admin/MediaPickerDialog.tsx` — label tombol "Saran", konfirmasi penimpaan
+- `src/components/viewer/ShowCard.tsx` — `onError` fallback gambar
+- `src/pages/ReplayPage.tsx` — `onError` fallback gambar
+- `src/pages/MembershipPage.tsx` — `onError` fallback gambar
+- `supabase/functions/whatsapp-webhook/index.ts` — alias regex + status-aware response + help reorder
 
-## Perubahan di `src/pages/ViewerProfile.tsx`
-
-1. **Ambil data tambahan** saat load:
-   - Hitung `membershipShowCount`: jumlah baris dari `get_public_shows()` yang punya `is_subscription = true` DAN `is_active`. Bisa dipakai juga `get_membership_show_passwords()` length untuk hitung "akses show" (lebih akurat karena cocok dgn akses nyata).
-   - Cari `purchasePrice` membership: query `subscription_orders` `(price, coin_amount, payment_method)` paling baru `status='confirmed'` untuk show membership terkait token tsb. Fallback: ambil `coin_orders` baru bila membership dibeli via koin (tampilkan `xxx koin`).
-2. **Refactor blok "Membership/Bundle Duration Card"** (baris 256–322):
-   - Pisahkan token jadi 3 bucket:
-     - Membership murni → render `<MembershipDetailCard />` baru (besar, kaya info).
-     - Bundle (BDL-) → tetap render kartu kompak yang sudah ada.
-     - Custom (RT48-) → tetap render kartu kompak yang sudah ada.
-   - Bila user punya >1 membership aktif, tampilkan semua kartu detail berurutan.
-3. **Pertahankan**:
-   - Logika realtime token (DELETE/UPDATE) yang sudah ada.
-   - Tab `Membership` di TabBar (tidak diubah).
-
-## Detail teknis
-
-- File baru: `src/components/viewer/MembershipDetailCard.tsx` (lazy-load via `React.lazy` agar konsisten dgn pola di profil).
-- Gunakan token yg sudah ada di state `tokens`. Tidak perlu query baru kecuali untuk `purchasePrice` & `showCount` (1 query masing-masing, dijalankan paralel di `Promise.allSettled` yang sudah ada).
-- Data `issued_at` ada di tabel `tokens` (cek; jika tidak, fallback ke `created_at`).
-- Tetap pakai util `framer-motion` + class `glass` agar selaras tema neon/cyberpunk.
-- Tidak perlu migrasi DB.
-- Tidak perlu perubahan di `MembershipPage.tsx`, edge function, atau RPC.
-
-## Yang TIDAK berubah
-
-- Halaman `/membership` (pembelian).
-- Tab navigasi profil & isi tab lain (Riwayat, Order, Token, Statistik).
-- Logika redeem/expiry/notifikasi WhatsApp.
-- Bundle & Custom token tetap kartu kompak.
-
-## QA singkat setelah implementasi
-
-- User tanpa membership → kartu tidak muncul (sama spt sekarang).
-- User dgn membership aktif → kartu detail muncul, progress bar sesuai, tombol tonton live navigasi benar.
-- User dgn membership <=3 hari → progress bar merah + label warning.
-- User dgn membership kedaluwarsa → badge "Kedaluwarsa", tombol disable.
-- User dgn membership + bundle → 1 kartu detail + 1 kartu bundle kompak.
+## Hasil Akhir
+- Kartu show & replay tidak akan pernah hitam-kosong: foto admin selalu prioritas, fallback gradient + ikon bila URL admin invalid/null.
+- Show baru otomatis dapat foto bila ada nama file yang cocok di galeri, tanpa menimpa pilihan manual admin di sesi edit.
+- Admin bisa pakai `/jedamember` / `/aktifkanmember` di WhatsApp dan dapat balasan jelas, termasuk peringatan bila state tidak berubah.
