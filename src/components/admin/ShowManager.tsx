@@ -533,6 +533,24 @@ const ShowManager = () => {
     updateDraft({ [galleryTarget === "bg" ? "background_image_url" : "qris_image_url"]: url } as Partial<Show>);
   };
 
+  /**
+   * Ambil daftar foto galeri sekali. Dipakai oleh autoDetectBackground (manual)
+   * dan auto-resolve saat membuat show baru / impor batch.
+   */
+  const fetchGalleryCandidates = async () => {
+    const { data, error } = await supabase.storage.from("admin-media").list("", {
+      limit: 200,
+      sortBy: { column: "created_at", order: "desc" },
+    });
+    if (error || !data) return [];
+    return data
+      .filter((f) => f.name && !f.name.startsWith("."))
+      .map((f) => {
+        const { data: u } = supabase.storage.from("admin-media").getPublicUrl(f.name);
+        return { name: f.name, url: u.publicUrl, label: fileNameToLabel(f.name) };
+      });
+  };
+
   const autoDetectBackground = async () => {
     if (!draft) return;
     const query = draft.title.trim();
@@ -540,26 +558,21 @@ const ShowManager = () => {
       toast({ title: "Isi judul show terlebih dahulu", variant: "destructive" });
       return;
     }
-    const { data, error } = await supabase.storage.from("admin-media").list("", {
-      limit: 200,
-      sortBy: { column: "created_at", order: "desc" },
-    });
-    if (error) {
-      toast({ title: "Gagal memuat galeri", description: error.message, variant: "destructive" });
+    const candidates = await fetchGalleryCandidates();
+    if (candidates.length === 0) {
+      toast({ title: "Galeri kosong", description: "Belum ada foto di galeri admin.", variant: "destructive" });
       return;
     }
-    const candidates = (data || [])
-      .filter((f) => f.name && !f.name.startsWith("."))
-      .map((f) => {
-        const { data: u } = supabase.storage.from("admin-media").getPublicUrl(f.name);
-        return { name: f.name, url: u.publicUrl, label: fileNameToLabel(f.name) };
-      });
     const best = findBestMediaMatch(query, candidates);
     if (!best) {
+      // Tidak menimpa pilihan admin yang sudah ada
+      const keep = !!draft.background_image_url;
       toast({
         title: "Tidak ada foto yang cocok",
-        description: "Coba beri nama foto di galeri agar mirip dengan judul show, atau pilih manual.",
-        variant: "destructive",
+        description: keep
+          ? "Tetap memakai foto yang sudah dipilih admin."
+          : "Coba beri nama foto di galeri agar mirip dengan judul show, atau pilih manual.",
+        variant: keep ? "default" : "destructive",
       });
       return;
     }
