@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS on_token_created_log ON public.tokens;
