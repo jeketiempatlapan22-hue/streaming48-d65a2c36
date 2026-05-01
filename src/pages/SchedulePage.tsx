@@ -231,8 +231,7 @@ const SchedulePage = () => {
     window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !selectedShow) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
