@@ -53,7 +53,7 @@ const ViewerProfile = () => {
           withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", u.id).maybeSingle())(), 8_000, "Balance timeout"),
           withTimeout((async () => await supabase.from("coin_orders").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Orders timeout"),
           withTimeout((async () => await supabase.from("subscription_orders").select("*, shows(title)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Subscriptions timeout"),
-          withTimeout((async () => await supabase.from("tokens").select("*, shows(is_replay)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Tokens timeout"),
+          withTimeout((async () => await supabase.from("tokens").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Tokens timeout"),
         ]);
 
         const name =
@@ -66,10 +66,7 @@ const ViewerProfile = () => {
         setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
         setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
-        const tokenRows = tokensRes.status === "fulfilled"
-          ? ((tokensRes.value.data || []) as any[]).map((t) => ({ ...t, is_replay_show: t.shows?.is_replay === true }))
-          : [];
-        setTokens(tokenRows);
+        let tokenRows = tokensRes.status === "fulfilled" ? ((tokensRes.value.data || []) as any[]) : [];
 
         // Resolve show titles for tokens (RLS on shows is admin-only, so use the
         // public RPC if available; fall back gracefully if any title cannot be
@@ -81,14 +78,18 @@ const ViewerProfile = () => {
           try {
             const { data: rows } = await (supabase as any).rpc("get_public_shows");
             const map: Record<string, string> = {};
+            const replayMap: Record<string, boolean> = {};
             (rows || []).forEach((s: any) => {
               if (s?.id && showIds.includes(s.id)) map[s.id] = s.title;
+              if (s?.id && showIds.includes(s.id)) replayMap[s.id] = s.is_replay === true;
             });
+            tokenRows = tokenRows.map((t) => ({ ...t, is_replay_show: !!(t.show_id && replayMap[t.show_id]) }));
             setShowTitles(map);
           } catch {
             setShowTitles({});
           }
         }
+        setTokens(tokenRows);
 
         // Hitung jumlah show membership + harga pembelian (paralel, non-blocking).
         // Skeleton kartu Membership akan muncul sampai keduanya resolve.
