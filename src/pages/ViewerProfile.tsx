@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
 import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 import { ProfileSkeleton } from "@/components/viewer/SkeletonLoaders";
+import { buildTokenWatchPath, buildTokenWatchUrl } from "@/lib/tokenLinks";
 
 const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
 const UserStatsPanel = lazy(() => import("@/components/viewer/UserStatsPanel"));
@@ -65,8 +66,7 @@ const ViewerProfile = () => {
         setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
         setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
-        const tokenRows = tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : [];
-        setTokens(tokenRows);
+        let tokenRows = tokensRes.status === "fulfilled" ? ((tokensRes.value.data || []) as any[]) : [];
 
         // Resolve show titles for tokens (RLS on shows is admin-only, so use the
         // public RPC if available; fall back gracefully if any title cannot be
@@ -78,14 +78,18 @@ const ViewerProfile = () => {
           try {
             const { data: rows } = await (supabase as any).rpc("get_public_shows");
             const map: Record<string, string> = {};
+            const replayMap: Record<string, boolean> = {};
             (rows || []).forEach((s: any) => {
               if (s?.id && showIds.includes(s.id)) map[s.id] = s.title;
+              if (s?.id && showIds.includes(s.id)) replayMap[s.id] = s.is_replay === true;
             });
+            tokenRows = tokenRows.map((t) => ({ ...t, is_replay_show: !!(t.show_id && replayMap[t.show_id]) }));
             setShowTitles(map);
           } catch {
             setShowTitles({});
           }
         }
+        setTokens(tokenRows);
 
         // Hitung jumlah show membership + harga pembelian (paralel, non-blocking).
         // Skeleton kartu Membership akan muncul sampai keduanya resolve.
@@ -253,7 +257,7 @@ const ViewerProfile = () => {
                     showCount={membershipShowCount}
                     purchasePrice={membershipPrice}
                     metaLoading={membershipMetaLoading}
-                    onWatchLive={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                    onWatchLive={() => navigate(buildTokenWatchPath(t))}
                   />
                 </Suspense>
               ))}
@@ -278,7 +282,7 @@ const ViewerProfile = () => {
                   ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5"
                   : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
 
-                const liveUrl = `/live?t=${encodeURIComponent(t.code)}`;
+                const liveUrl = buildTokenWatchPath(t);
                 return (
                   <div
                     key={t.id}
@@ -353,7 +357,7 @@ const ViewerProfile = () => {
               </p>
               <div className="space-y-2">
                 {liveTokens.map((t: any) => {
-                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const liveLink = buildTokenWatchUrl(t, window.location.origin);
                   const showTitle = (t.show_id && showTitles[t.show_id]) || "Show";
                   return (
                     <div key={`live-${t.id}`} className="rounded-lg bg-background/60 border border-border/50 p-3 space-y-2">
@@ -370,7 +374,7 @@ const ViewerProfile = () => {
                         <Button
                           size="sm"
                           className="flex-1 h-8 gap-1.5 text-xs"
-                          onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                          onClick={() => navigate(buildTokenWatchPath(t))}
                         >
                           <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
                         </Button>
@@ -484,7 +488,8 @@ const ViewerProfile = () => {
             tokens.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada token</p> : (
               <div className="space-y-2">
                 {tokens.map((t) => {
-                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const liveLink = buildTokenWatchUrl(t, window.location.origin);
+                  const watchPath = buildTokenWatchPath(t);
                   const showTitle = (t.show_id && showTitles[t.show_id]) || null;
                   const isLiveActive = t.status === "active" && (!t.expires_at || new Date(t.expires_at).getTime() > Date.now());
                   return (
@@ -514,7 +519,7 @@ const ViewerProfile = () => {
                           <Button
                             size="sm"
                             className="w-full h-8 gap-1.5 text-xs"
-                            onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                            onClick={() => navigate(watchPath)}
                           >
                             <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
                           </Button>
@@ -590,7 +595,7 @@ const ViewerProfile = () => {
                     const typeLabel = isMembership ? "👑 Membership" : isBundle ? "📦 Bundle" : "🎫 Token Custom";
                     const typeColor = isMembership ? "text-yellow-500" : isBundle ? "text-purple-400" : "text-cyan-400";
                     const showTitle = (t.show_id && showTitles[t.show_id]) || null;
-                    const liveLink = `/live?t=${encodeURIComponent(t.code)}`;
+                    const liveLink = buildTokenWatchPath(t);
 
                     return (
                       <div

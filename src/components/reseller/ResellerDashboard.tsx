@@ -16,21 +16,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import ResellerShowCard from "./ResellerShowCard";
 import type { ResellerSession } from "@/pages/ResellerPage";
+import { buildTokenWatchUrl, shouldUseReplayTokenLink } from "@/lib/tokenLinks";
 
 interface Props {
   session: ResellerSession;
   onLogout: () => void;
 }
-
-const LIVE_BASE = "https://realtime48stream.my.id/live";
-const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
-
-const buildTokenLink = (t: { code: string; effective_link_kind?: string; is_replay_show?: boolean; is_archived?: boolean }) => {
-  const isReplay = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
-  return isReplay
-    ? `${REPLAY_BASE}?token=${encodeURIComponent(t.code)}`
-    : `${LIVE_BASE}?t=${encodeURIComponent(t.code)}`;
-};
 
 const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [shows, setShows] = useState<any[]>([]);
@@ -140,7 +131,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
   };
 
   const copyLink = async (t: any) => {
-    const link = buildTokenLink(t);
+    const link = buildTokenWatchUrl(t);
     try {
       await navigator.clipboard.writeText(link);
       toast({ title: "Tersalin!", description: t.code });
@@ -444,7 +435,7 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                 {filteredTokens.map((t) => {
                   const expired = isExpired(t);
                   const blocked = t.status === "blocked";
-                  const isReplayMode = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
+                  const isReplayMode = shouldUseReplayTokenLink(t);
                   const displayExpiry = isReplayMode && t.replay_expires_at ? t.replay_expires_at : t.expires_at;
                   return (
                     <div key={t.id} className={`rounded-lg border p-3 flex items-center gap-3 flex-wrap ${t.is_paid ? "border-emerald-500/30 bg-emerald-500/5" : isReplayMode ? "border-purple-500/30 bg-purple-500/5" : "border-border bg-card"}`}>

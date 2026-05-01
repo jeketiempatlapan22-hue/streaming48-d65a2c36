@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
 import { buildRegularShowMessage, buildMembershipMessage } from "@/lib/showMessageBuilder";
+import { buildTokenWatchUrl } from "@/lib/tokenLinks";
 
 interface Show {
   id: string;
@@ -35,7 +36,6 @@ interface Props {
   onTokenCreated: () => void;
 }
 
-const LIVE_BASE = "https://realtime48stream.my.id/live";
 const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
 
 const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
@@ -97,7 +97,7 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
         toast({ title: "Gagal", description: res?.error || "Tidak dapat membuat token", variant: "destructive" });
         return;
       }
-      const link = `${LIVE_BASE}?t=${res.code}`;
+      const link = buildTokenWatchUrl({ code: res.code, is_replay_show: show.is_replay });
       const message = buildShareMessage({
         code: res.code,
         link,
