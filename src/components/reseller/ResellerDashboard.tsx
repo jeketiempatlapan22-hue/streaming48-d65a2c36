@@ -23,6 +23,14 @@ interface Props {
 }
 
 const LIVE_BASE = "https://realtime48stream.my.id/live";
+const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
+
+const buildTokenLink = (t: { code: string; effective_link_kind?: string; is_replay_show?: boolean; is_archived?: boolean }) => {
+  const isReplay = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
+  return isReplay
+    ? `${REPLAY_BASE}?token=${encodeURIComponent(t.code)}`
+    : `${LIVE_BASE}?t=${encodeURIComponent(t.code)}`;
+};
 
 const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [shows, setShows] = useState<any[]>([]);
