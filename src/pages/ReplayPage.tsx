@@ -195,8 +195,7 @@ const ReplayPage = () => {
     }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !purchaseShow) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
     setUploadingProof(true);
