@@ -487,7 +487,8 @@ const ViewerProfile = () => {
             tokens.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Belum ada token</p> : (
               <div className="space-y-2">
                 {tokens.map((t) => {
-                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const liveLink = buildTokenWatchUrl(t, window.location.origin);
+                  const watchPath = buildTokenWatchPath(t);
                   const showTitle = (t.show_id && showTitles[t.show_id]) || null;
                   const isLiveActive = t.status === "active" && (!t.expires_at || new Date(t.expires_at).getTime() > Date.now());
                   return (
@@ -517,7 +518,7 @@ const ViewerProfile = () => {
                           <Button
                             size="sm"
                             className="w-full h-8 gap-1.5 text-xs"
-                            onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                            onClick={() => navigate(watchPath)}
                           >
                             <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
                           </Button>
