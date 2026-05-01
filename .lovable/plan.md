@@ -1,105 +1,77 @@
-## Masalah Saat Ini
-
-1. **Link `/live?t=...` masih dipakai untuk show yang sudah jadi replay.**
-   Sebenarnya `LivePage` sudah punya auto-redirect ke `/replay-play?token=...`, tapi:
-   - Tombol "Salin Link" di dashboard reseller selalu menyalin URL `/live?t=...` (tanpa cek status replay show).
-   - Saat user buka link `/live?t=...`, redirect baru terjadi setelah `validate_token_access` GAGAL — menambah delay & kadang menampilkan layar error sekejap.
-
-2. **Token reseller HILANG dari riwayat saat show menjadi replay/non-aktif.**
-   - Fungsi `validate_replay_access` melakukan `DELETE FROM public.tokens WHERE id = _live_token.id` lalu memindah row ke tabel `replay_tokens`.
-   - Migrasi backfill `20260426233449_*` juga `DELETE FROM public.tokens` untuk semua token yang menempel ke show `is_replay=true`.
-   - Akibatnya:
-     - `reseller_list_my_tokens` (web) — hanya baca dari `public.tokens`, jadi token hilang dari tab "Token" reseller.
-     - `reseller_list_recent_tokens_by_id` (WhatsApp `/{prefix}mytokens`) — sama, hilang dari riwayat WA bot.
-     - Statistik per-show, hitungan paid/unpaid, dan filter ikut hilang.
-
-3. **`reseller_get_active_shows` memfilter `is_replay = false`** — show replay tidak muncul di tab Show (ini OK karena reseller tidak boleh bikin token baru), tapi kombinasi dengan #2 membuat reseller kehilangan jejak total.
-
-4. **Durasi 14 hari sudah ada** di `validate_replay_access` (auto-upgrade), tapi belum ada jaminan bahwa token yang DIBUAT reseller untuk show yang langsung berstatus replay juga mengikuti aturan yang sama (saat ini direject — bagus untuk penjualan baru, jangan diubah).
+# Migrasi Server IDN ke endpoint `/api/stream/v2/playback` dengan JWT generated di backend
 
 ## Tujuan
+- Pindah endpoint playback dari `https://proxy.mediastream48.workers.dev/api/proxy/playback` → `https://proxy.mediastream48.workers.dev/api/stream/v2/playback` khusus playlist tipe `proxy` (server IDN).
+- Generate `x-api-token` (JWT HS256) **di server kita** sesuai dokumentasi `playback_baru.txt`. Tidak lagi memanggil `https://hanabira48.com/api/stream-token`.
+- `x-token-id` & `x-sec-key` statis (dari dokumentasi).
+- `x-showid` diambil dari `shows.external_show_id` show yang ditandai aktif di Admin Panel (`site_settings.active_show_id`).
+- **Wajib user login & punya akses ke show aktif** sebelum token dibuat. Frontend hanya menerima header lalu inject via `xhr.setRequestHeader` (alur sama seperti sebelumnya).
 
-A. Link token otomatis "tahu" diri saat show flip ke replay → langsung arahkan ke `/replay-play?token=<code>` (tanpa mampir ke `/live`).
-B. Durasi akses replay = **14 hari** (sudah benar; pastikan konsisten di semua jalur).
-C. Riwayat token reseller (web + WhatsApp) tetap kelihatan walau show jadi replay atau non-aktif.
+## Perubahan
 
-## Rencana Perubahan
+### 1. Edge Function baru: `supabase/functions/idn-stream-token/index.ts`
+Membuat & mengembalikan 4 header siap pakai. Alur:
+1. CORS handler.
+2. Validasi JWT user (verify_jwt). Jika tidak login → 401.
+3. (Opsional `show_id` di body) — kalau kosong, ambil `site_settings.active_show_id` lalu `shows.external_show_id`.
+4. Validasi akses show ke user (reuse logic yang sama dengan LivePage: cek `usePurchasedShows`-equivalent di server lewat tabel `tokens`/membership/bundle/coin purchase). Jika tidak punya akses & bukan admin → 403.
+5. Generate JWT:
+   - `secretBase = "{x-sec-key}:{x-token-id}:{PARTNER_SECRET}"`
+   - `jwtSecret = SHA-256(secretBase)` lalu **HEX** string (sesuai dok Langkah A — bukan raw bytes).
+   - Payload: `{ sid: externalShowId, tid: TOKEN_ID, exp: now + 7200 }`.
+   - Sign HS256 menggunakan `jwtSecret` (string HEX) sebagai key — pakai Deno `crypto.subtle` (HMAC-SHA-256) + base64url encode (header + payload + signature).
+6. Response JSON:
+   ```json
+   { "success": true,
+     "headers": {
+       "x-api-token": "...",
+       "x-sec-key": "49c647f3-...",
+       "x-token-id": "114e0e89-...",
+       "x-showid": "<external_show_id>"
+     },
+     "show_id": "<external_show_id>",
+     "expires_at": <unix-seconds>
+   }
+   ```
 
-### 1. Migrasi DB — Pertahankan jejak token di `public.tokens`
+### 2. Secret baru
+- Tambahkan `HANABIRA_PARTNER_SECRET` via tool secret (default ke `Hanabirastream2026` per dokumentasi, tapi tetap disimpan sebagai secret supaya bisa dirotasi).
+- `x-token-id` dan `x-sec-key` hard-coded sebagai konstanta di edge function (sesuai dokumentasi).
 
-Ubah `validate_replay_access` agar **tidak menghapus** row di `tokens`. Cukup:
-- Tambah kolom `tokens.archived_to_replay boolean DEFAULT false` + `tokens.archived_at timestamptz`.
-- Saat upgrade: `UPDATE tokens SET archived_to_replay = true, archived_at = now(), status = 'archived'` (jangan DELETE).
-- Tetap `INSERT/UPSERT` ke `replay_tokens` (sumber kebenaran untuk akses replay & pemain internal).
+### 3. Update `src/hooks/useProxyStream.ts`
+- Hapus call ke `https://hanabira48.com/api/stream-token`.
+- Ganti dengan `supabase.functions.invoke("idn-stream-token", { body: { show_id: externalShowId } })`.
+- `PLAYBACK_URL` → `https://proxy.mediastream48.workers.dev/api/stream/v2/playback`.
+- Refresh tetap ~115 menit (token JWT exp 2 jam = 7200 detik).
+- Handler error: jika 401/403 dari edge → tampilkan pesan "Anda harus login & memiliki akses show untuk menonton stream IDN".
+- Header injection ke HLS (`xhrSetup` via `customHeadersRef`) tidak berubah — VideoPlayer/HLS code sudah pakai ref ini.
 
-Alasan: dua tabel terpisah tetap dipertahankan (RLS replay_tokens dikunci ketat untuk service_role saja), tapi `tokens` jadi **catatan historis** yang aman dibaca reseller via RPC.
+### 4. (Opsional bersih-bersih) `supabase/functions/proxy-token/index.ts` & bagian `stream-proxy` yang fetch `hanabira48.com/api/stream-token`
+- Tetap dibiarkan (untuk fallback/legacy admin preview), TAPI tambahkan komentar bahwa untuk server IDN sudah pindah ke `idn-stream-token`. Tidak menghapus supaya tidak memecah preview admin yang masih memakainya. (Bisa dihapus di langkah lanjutan kalau dikonfirmasi tidak terpakai.)
 
-Tambahkan juga RPC baru / patch yang sudah ada:
+### 5. Verifikasi setelah implementasi
+- Cek edge function logs `idn-stream-token` saat user buka `/live` dengan playlist tipe `proxy`.
+- Pastikan request ke `/api/stream/v2/playback` mengandung 4 header benar (Network tab).
+- Test:
+  - User belum login → toast/error "harus login".
+  - User login tanpa akses show → 403.
+  - User login + token valid → stream play, refresh diam-diam tiap ~115 menit.
 
-- `reseller_list_my_tokens(_session_token, _limit)` — patch:
-  - Tambahkan field `is_replay_show boolean` (cek `s.is_replay`).
-  - Tambahkan field `is_archived boolean` = `tk.archived_to_replay OR tk.status = 'archived'`.
-  - Tambahkan field `effective_link_kind text` ∈ `'live' | 'replay'` (kalau show `is_replay=true` atau token sudah di-archive → `'replay'`, lain `'live'`).
-  - Tambahkan field `replay_expires_at` (lookup `replay_tokens.expires_at` by `code`) — jadi reseller lihat expiry replay 14 hari.
-  - Tetap baca dari `tokens` (bukan replay_tokens), karena row tidak lagi dihapus.
+## Detail Teknis JWT (sesuai dokumentasi)
+```
+Header  = {"alg":"HS256","typ":"JWT"}
+Payload = {"sid": externalShowId, "tid": TOKEN_ID, "exp": nowSec + 7200}
+secret  = hexLower( SHA256( SEC_KEY + ":" + TOKEN_ID + ":" + PARTNER_SECRET ) )
+token   = base64url(header) + "." + base64url(payload) + "." + base64url( HMAC_SHA256(secret, signingInput) )
+```
+- Semua base64url **tanpa padding**.
+- Implementasi pakai `crypto.subtle.digest("SHA-256", ...)` + `crypto.subtle.importKey("raw", new TextEncoder().encode(hexSecret), { name:"HMAC", hash:"SHA-256" }, false, ["sign"])` lalu `crypto.subtle.sign("HMAC", ...)`.
 
-- `reseller_list_recent_tokens_by_id(_reseller_id, _limit)` — patch sama (untuk WA `/mytokens`).
+## File yang akan disentuh
+- **CREATE**: `supabase/functions/idn-stream-token/index.ts`
+- **EDIT**: `src/hooks/useProxyStream.ts`
+- **SECRET**: tambah `HANABIRA_PARTNER_SECRET`
 
-### 2. Backfill data yang sudah terlanjur dihapus
-
-Migrasi backfill 1x: untuk setiap row di `replay_tokens` dengan `created_via IN ('auto_backfill','live_upgrade_validate')`, **re-insert** placeholder ke `tokens`:
-- `code` = `replay_tokens.code`
-- `show_id` = `replay_tokens.show_id`
-- `reseller_id` = lookup via `reseller_token_audit` (cocokkan `token_code`) — kalau ketemu, tulis `reseller_id`.
-- `status = 'archived'`, `archived_to_replay = true`, `archived_at = replay_tokens.created_at`, `expires_at = replay_tokens.expires_at`, `max_devices = 1`.
-- `ON CONFLICT (code) DO NOTHING` (token aktif yang masih hidup tidak ditimpa).
-
-Tujuan: history reseller pre-existing kembali muncul setelah migrasi.
-
-### 3. Frontend — Auto-arahkan link salin & tombol watch ke replay
-
-- `src/components/reseller/ResellerShowCard.tsx`:
-  - Saat membangun `link` untuk pesan WA & tombol salin: kalau `show.is_replay === true`, gunakan `REPLAY_BASE` (`/replay-play?token=...`) — bukan `/live?t=...`. (Saat ini reseller tidak bisa create token baru untuk replay show, jadi efeknya hanya saat menampilkan token yang sudah ada — relevan setelah perubahan #4.)
-- `src/components/reseller/ResellerDashboard.tsx`:
-  - Tombol "Salin" gunakan field baru `effective_link_kind`:
-    - `'replay'` → salin `https://realtime48stream.my.id/replay-play?token=<code>`.
-    - `'live'` → tetap `/live?t=<code>`.
-  - Badge baru "🔁 Replay (14 hari)" untuk token yang `is_archived || is_replay_show`.
-  - Hapus filter yang otomatis menyembunyikan token "expired"-tapi-archived; archived token boleh tampil di tab "Semua".
-  - Update label mentah `expires_at` → tampilkan `replay_expires_at` jika `effective_link_kind = 'replay'`.
-
-### 4. Frontend — Buyer side (ViewerProfile, MembershipDetailCard)
-
-- `src/pages/ViewerProfile.tsx` (3 tempat `/live?t=`) & `MembershipDetailCard onWatchLive`: saat token punya flag (akan ditambah ke RPC `get_my_active_tokens` / `usePurchasedShows`) `is_replay_show=true`, navigate ke `/replay-play?token=...` bukan `/live?t=...`.
-- Patch RPC sumber data di `usePurchasedShows` agar ikut bawa flag yang sama (tidak perlu RPC baru — cukup join sederhana).
-
-### 5. Edge functions — Pesan template
-
-- `supabase/functions/whatsapp-webhook/index.ts` & `telegram-poll/index.ts`:
-  - Pada saat membangun pesan token (bagian `liveLink = ${siteUrl}/live?t=${code}`), tambahkan note default:
-    > "🎬 Setelah show selesai, link yang sama otomatis berlaku sebagai REPLAY selama 14 hari."
-  - Tidak perlu mengubah URL — `LivePage` sudah meng-redirect; tapi kita bisa tambah satu baris untuk URL alternatif `${siteUrl}/replay-play?token=${code}` agar user yang share link manual juga punya rute langsung.
-
-## File Yang Disentuh
-
-- `supabase/migrations/<new>__keep_reseller_history_and_replay_routing.sql` (baru)
-- `src/components/reseller/ResellerDashboard.tsx`
-- `src/components/reseller/ResellerShowCard.tsx`
-- `src/pages/ViewerProfile.tsx`
-- `src/components/viewer/MembershipDetailCard.tsx`
-- `src/hooks/usePurchasedShows.ts` (jika perlu propagate `is_replay_show`)
-- `supabase/functions/whatsapp-webhook/index.ts` (pesan + opsi link replay)
-- `supabase/functions/telegram-poll/index.ts` (pesan + opsi link replay)
-
-## Hal Yang TIDAK Diubah
-
-- Aturan "reseller dilarang membuat token baru untuk show `is_replay=true`" dipertahankan (tetap di `reseller_create_token` & `_by_id`).
-- `reseller_get_active_shows` tetap filter `is_replay=false` (tab "Show" hanya untuk show yang bisa dijual).
-- Skema `replay_tokens` tetap tertutup untuk public/anon (RLS tidak diubah).
-- Durasi default 14 hari di `validate_replay_access` sudah benar — tidak diubah.
-
-## Hasil yang Diharapkan
-
-- Link token (`/live?t=<code>`) untuk show yang sudah jadi replay otomatis dialihkan ke `/replay-play?token=<code>` dengan akses 14 hari.
-- Tombol "Salin" di dashboard reseller langsung memberi link `/replay-play?token=...` untuk show replay (tidak perlu redirect manual).
-- Tab "Token" reseller (web) & command `/{prefix}mytokens` (WA) tetap menampilkan SEMUA token historis — termasuk yang shownya sudah replay/non-aktif — dengan label jelas "🔁 Replay 14 hari" + expiry yang akurat.
+## Catatan
+- Validasi akses pakai pattern yang sudah ada (cek `tokens` aktif untuk show + `redeem_*` membership/bundle, juga admin role). Akan reuse SQL helper / RPC yang ada bila tersedia agar konsisten dengan `LivePage` access control.
+- Jika user mau, alur akses bisa diperketat (mis. perlu token aktif spesifik) atau dilonggarkan (cukup login). Default plan: **harus login DAN punya akses ke show aktif (atau admin)**.
