@@ -1,70 +1,61 @@
-## Ringkasan Masalah
+## Masalah
 
-**1. Duplikasi riwayat transaksi** — Cek DB menunjukkan tiap redeem koin tersimpan **dua baris dengan timestamp & reference_id identik** di `coin_transactions`. Penyebab: trigger `on_token_created_log` pada tabel `tokens` insert otomatis ke `coin_transactions`, sementara RPC redeem (`redeem_show_with_coins`, `redeem_replay_with_coins`, `redeem_membership_with_coins`) juga insert sendiri → 2 baris per transaksi.
+Reseller tidak bisa membuat token (baik via bot WhatsApp `/Otoken` maupun via dashboard web) untuk show yang sebenarnya **sudah memiliki tanggal & jam lengkap**. Contoh nyata di database:
 
-**2. Layout** — Kartu "Membership Aktif" (`MembershipDetailCard`) berada di **bawah** kartu "Akses Live Aktif". Harus dipindah ke atas.
+- `Jumat,  1 Mei 2026` + `19.00 WIB`
+- `Sabtu, 2 Mei 2026` + `19.00 WIB`
+- `Minggu, 3 Mei 2026` + `19.00 WIB`
 
-**3. Visibilitas "Akses Live Aktif"** — Saat ini muncul untuk semua user yang punya token aktif. Aturan baru:
-- User **membership** (punya token `MBR-`/`MRD-` aktif) → kartu "Akses Live Aktif" **disembunyikan**, karena sudah punya `MembershipDetailCard` dengan tombol Tonton Live.
-- User **non-membership** → kartu "Akses Live Aktif" **tetap muncul** seperti sekarang.
-- Untuk semua user, daftar token tetap dapat dilihat di tab **Token**.
+Sistem tetap menolak dengan pesan **"Show belum punya jadwal lengkap (tanggal & jam). Token tidak dapat dibuat."**
 
----
+## Akar Penyebab
 
-## Rencana Implementasi
+Fungsi database `parse_show_datetime(_date, _time)` dipanggil oleh kedua RPC `reseller_create_token` (web) dan `reseller_create_token_by_id` (bot WA). Jika fungsi mengembalikan `NULL`, RPC menolak pembuatan token.
 
-### A. Perbaikan duplikasi transaksi
+Fungsi tersebut hanya mengenali dua format tanggal:
+1. Format ISO `YYYY-MM-DD` (misal `2026-05-01`)
+2. Format Indonesia *tanpa* nama hari, persis 3 token: `DD Bulan YYYY` (misal `1 Mei 2026`)
 
-**Migration baru** — drop trigger penyebab duplikasi:
-```sql
-DROP TRIGGER IF EXISTS on_token_created_log ON public.tokens;
-```
-RPC redeem yang ada sudah mencatat sendiri, sehingga setelah trigger di-drop tiap transaksi baru hanya menghasilkan **1 baris**. Tidak ada perubahan saldo (tabel `coin_balances` dikelola RPC, bukan oleh trigger ini). Data lama tidak diubah.
+Tanggal yang berisi prefix nama hari + koma (format yang dipakai admin di Show Manager: `Jumat, 1 Mei 2026`, `Sabtu, 2 Mei 2026`, dst) **gagal di kedua cabang**:
+- Cabang ISO melempar exception lalu di-swallow → variabel jam/menit tetap NULL
+- Cabang fallback memecah string jadi 4 elemen (`["jumat,","1","mei","2026"]`), bukan 3 → kondisi `array_length = 3` gagal → return NULL
 
-**Dedup defensif di client** — `src/components/viewer/UserTransactionHistory.tsx`:
-Setelah merge ketiga sumber (coin_transactions, subscription_orders, coin_orders), tambahkan filter dedup berdasarkan kombinasi (kind + amount + title + detik created_at) sebelum di-render. Ini menyembunyikan baris kembar **lama** yang sudah terlanjur tercatat di DB tanpa menghapus apapun:
-```ts
-const seen = new Set<string>();
-const deduped = merged.filter(tx => {
-  const key = `${tx.kind}|${tx.amount ?? ""}|${tx.title}|${new Date(tx.created_at).toISOString().slice(0,19)}`;
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
-});
-```
+Hasilnya RPC mengira show tidak punya jadwal, padahal jadwal lengkap.
 
-### B. Layout & visibilitas — `src/pages/ViewerProfile.tsx`
+Bukti dari log audit: 7 penolakan terakhir semua bertipe `show_no_schedule` untuk show yang jadwalnya sudah diisi admin.
 
-1. Tambah satu derivasi:
-   ```ts
-   const hasActiveMembership = tokens.some(t => {
-     const c = (t.code || "").toUpperCase();
-     const notExpired = !t.expires_at || new Date(t.expires_at) > new Date();
-     return t.status === "active" && notExpired && (c.startsWith("MBR-") || c.startsWith("MRD-"));
-   });
-   ```
+Show kedua yang juga gagal — `SPESIAL SHOW JKT48 WITH POCKY` — memang `schedule_time`-nya kosong; itu kasus terpisah dan benar ditolak. Yang harus diperbaiki adalah show dengan jadwal lengkap tapi pakai prefix nama hari.
 
-2. **Pindahkan** blok `MembershipDetailCard` (lines ~291–385) ke posisi **di atas** blok "Akses Live Aktif" (lines ~228–289).
+## Perbaikan
 
-3. **Sembunyikan blok "Akses Live Aktif" untuk user membership** dengan menambah guard:
-   ```ts
-   if (liveTokens.length === 0 || hasActiveMembership) return null;
-   ```
-   - User membership: tidak melihat kartu "Akses Live Aktif" sama sekali (sudah ada CTA Tonton Live di `MembershipDetailCard`).
-   - User non-membership dengan token aktif: kartu tetap tampil seperti sekarang.
-   - Tab **Token** tidak diubah — semua user tetap bisa lihat & masuk live dari sana.
+### 1. Migrasi database — perbaiki `parse_show_datetime`
 
----
+Tulis ulang fungsi agar tahan banting terhadap variasi format tanggal Indonesia:
 
-## File yang Disentuh
+- **Normalisasi input**: lower-case, hapus prefix nama hari Indonesia opsional (`senin/selasa/rabu/kamis/jumat/sabtu/minggu/ahad`) beserta koma di depannya, rapikan whitespace ganda.
+- **Parse jam dulu** (sekali) sebelum mencoba kombinasi format tanggal, supaya nilai `_hour`/`_minute` tersedia di semua cabang.
+- **Coba format ISO** `YYYY-MM-DD`.
+- **Coba format Indonesia 3-token** `D[D] Bulan YYYY` setelah dinormalisasi, dengan map bulan yang sudah ada (`januari`–`desember`). Toleran pada spasi ganda dan zero-pad opsional pada hari.
+- Tetap return `NULL` hanya jika tanggal/jam benar-benar kosong atau tidak bisa dipahami sama sekali.
 
-- **Migration baru** — `DROP TRIGGER on_token_created_log`.
-- `src/pages/ViewerProfile.tsx` — tukar urutan dua kartu + sembunyikan "Akses Live Aktif" jika user membership.
-- `src/components/viewer/UserTransactionHistory.tsx` — dedup defensif di client.
+Karena fungsi ini `IMMUTABLE` dan dipakai banyak RPC lain (`reseller_create_token`, `reseller_create_token_by_id`, kemungkinan logic show aktif), perubahan dilakukan via `CREATE OR REPLACE FUNCTION` tanpa mengubah signature.
 
-## Verifikasi setelah deploy
+### 2. Validasi pasca-migrasi
 
-- Redeem koin baru → cek `coin_transactions`: hanya 1 baris baru per redeem.
-- Riwayat di profil tidak menampilkan baris dobel (data lama disembunyikan dedup).
-- User membership: lihat `MembershipDetailCard` paling atas, tanpa kartu "Akses Live Aktif".
-- User non-membership dengan token: lihat "Akses Live Aktif" seperti biasa (tanpa `MembershipDetailCard`).
+Setelah migrasi:
+- Jalankan `SELECT parse_show_datetime(...)` untuk seluruh sampel: `Jumat, 1 Mei 2026`, `Sabtu, 2 Mei 2026`, `Minggu, 3 Mei 2026` dengan `19.00 WIB` → harus mengembalikan timestamp valid.
+- Pastikan format ISO `2026-05-01` + `19:00` tetap bekerja (regression).
+- Pastikan input kosong tetap mengembalikan `NULL`.
+- Coba simulasikan satu pemanggilan `reseller_create_token_by_id` (read-only via `SELECT` ke RPC) untuk show "Cara Meminum Ramune" → harus sukses, bukan `show_no_schedule`.
+
+### 3. Tidak ada perubahan di sisi UI/edge function
+
+Webhook WhatsApp dan komponen reseller di front-end tidak perlu diubah — mereka sudah meneruskan error apa adanya. Begitu fungsi parse benar, alur `/Otoken` dan tombol "Buat Token Baru" akan langsung berfungsi untuk show-show ini.
+
+## Catatan untuk admin
+
+Untuk show `SPESIAL SHOW JKT48 WITH POCKY` yang `schedule_time`-nya memang masih kosong, admin tetap perlu mengisi jam di Show Manager — itu validasi yang benar dan tidak akan diubah.
+
+## File yang diubah
+
+- Migrasi baru di `supabase/migrations/` yang me-replace fungsi `public.parse_show_datetime(text, text)`.
