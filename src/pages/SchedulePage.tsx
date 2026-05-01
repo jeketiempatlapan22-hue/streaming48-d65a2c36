@@ -3,6 +3,7 @@ import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
 import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2, Coins } from "lucide-react";
