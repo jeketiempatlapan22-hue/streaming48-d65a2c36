@@ -1579,6 +1579,8 @@ export type Database = {
       }
       tokens: {
         Row: {
+          archived_at: string | null
+          archived_to_replay: boolean
           code: string
           created_at: string
           duration_type: string | null
@@ -1593,6 +1595,8 @@ export type Database = {
           valid_from: string | null
         }
         Insert: {
+          archived_at?: string | null
+          archived_to_replay?: boolean
           code: string
           created_at?: string
           duration_type?: string | null
@@ -1607,6 +1611,8 @@ export type Database = {
           valid_from?: string | null
         }
         Update: {
+          archived_at?: string | null
+          archived_to_replay?: boolean
           code?: string
           created_at?: string
           duration_type?: string | null
@@ -1714,6 +1720,8 @@ export type Database = {
       _reseller_find_token: {
         Args: { _input: string; _reseller_id: string }
         Returns: {
+          archived_at: string | null
+          archived_to_replay: boolean
           code: string
           created_at: string
           duration_type: string | null

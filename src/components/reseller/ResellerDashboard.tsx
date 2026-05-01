@@ -23,6 +23,14 @@ interface Props {
 }
 
 const LIVE_BASE = "https://realtime48stream.my.id/live";
+const REPLAY_BASE = "https://realtime48stream.my.id/replay-play";
+
+const buildTokenLink = (t: { code: string; effective_link_kind?: string; is_replay_show?: boolean; is_archived?: boolean }) => {
+  const isReplay = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
+  return isReplay
+    ? `${REPLAY_BASE}?token=${encodeURIComponent(t.code)}`
+    : `${LIVE_BASE}?t=${encodeURIComponent(t.code)}`;
+};
 
 const ResellerDashboard = ({ session, onLogout }: Props) => {
   const [shows, setShows] = useState<any[]>([]);
@@ -131,10 +139,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     onLogout();
   };
 
-  const copyLink = async (code: string) => {
+  const copyLink = async (t: any) => {
+    const link = buildTokenLink(t);
     try {
-      await navigator.clipboard.writeText(`${LIVE_BASE}?t=${code}`);
-      toast({ title: "Tersalin!", description: code });
+      await navigator.clipboard.writeText(link);
+      toast({ title: "Tersalin!", description: t.code });
     } catch {
       toast({ title: "Gagal menyalin", variant: "destructive" });
     }
@@ -435,12 +444,16 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                 {filteredTokens.map((t) => {
                   const expired = isExpired(t);
                   const blocked = t.status === "blocked";
+                  const isReplayMode = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
+                  const displayExpiry = isReplayMode && t.replay_expires_at ? t.replay_expires_at : t.expires_at;
                   return (
-                    <div key={t.id} className={`rounded-lg border p-3 flex items-center gap-3 flex-wrap ${t.is_paid ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card"}`}>
+                    <div key={t.id} className={`rounded-lg border p-3 flex items-center gap-3 flex-wrap ${t.is_paid ? "border-emerald-500/30 bg-emerald-500/5" : isReplayMode ? "border-purple-500/30 bg-purple-500/5" : "border-border bg-card"}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <code className="font-mono text-xs bg-background/60 px-2 py-1 rounded">{t.code}</code>
-                          {expired ? (
+                          {isReplayMode ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">🔁 Replay 14 hari</span>
+                          ) : expired ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/30">Expired</span>
                           ) : blocked ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Blokir</span>
@@ -454,11 +467,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                           )}
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          {t.show_title || "—"} • {t.max_devices} device • exp: {t.expires_at ? new Date(t.expires_at).toLocaleString("id-ID") : "—"}
+                          {t.show_title || "—"} • {t.max_devices} device • exp: {displayExpiry ? new Date(displayExpiry).toLocaleString("id-ID") : "—"}
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => copyLink(t.code)}>
+                        <Button size="sm" variant="outline" onClick={() => copyLink(t)}>
                           <Copy className="h-3.5 w-3.5 mr-1" /> Salin
                         </Button>
                         <Button
