@@ -1,53 +1,105 @@
-## Masalah
+## Masalah Saat Ini
 
-Tombol "Upload Bukti Pembayaran" untuk QRIS statis **tidak merespons sama sekali** di banyak perangkat (terutama mobile/PWA). Akibatnya:
-- File picker tidak terbuka saat tombol diklik.
-- Tidak ada satupun pesanan QRIS statis (`payment_method = 'qris_static'` / `'qris'`) tersimpan di database — semua order yang masuk hanya dari `qris_dynamic`, `coin`, `reseller_bot`, atau `admin_bot`.
-- Tidak ada error log di edge function `upload-payment-proof` karena request tidak pernah terkirim.
+1. **Link `/live?t=...` masih dipakai untuk show yang sudah jadi replay.**
+   Sebenarnya `LivePage` sudah punya auto-redirect ke `/replay-play?token=...`, tapi:
+   - Tombol "Salin Link" di dashboard reseller selalu menyalin URL `/live?t=...` (tanpa cek status replay show).
+   - Saat user buka link `/live?t=...`, redirect baru terjadi setelah `validate_token_access` GAGAL — menambah delay & kadang menampilkan layar error sekejap.
 
-## Akar Penyebab
+2. **Token reseller HILANG dari riwayat saat show menjadi replay/non-aktif.**
+   - Fungsi `validate_replay_access` melakukan `DELETE FROM public.tokens WHERE id = _live_token.id` lalu memindah row ke tabel `replay_tokens`.
+   - Migrasi backfill `20260426233449_*` juga `DELETE FROM public.tokens` untuk semua token yang menempel ke show `is_replay=true`.
+   - Akibatnya:
+     - `reseller_list_my_tokens` (web) — hanya baca dari `public.tokens`, jadi token hilang dari tab "Token" reseller.
+     - `reseller_list_recent_tokens_by_id` (WhatsApp `/{prefix}mytokens`) — sama, hilang dari riwayat WA bot.
+     - Statistik per-show, hitungan paid/unpaid, dan filter ikut hilang.
 
-1. **`MembershipPage.tsx`** memakai pola lama `<label><input type="file" disabled={...} /></label>`. Pada Android Chrome / WebView / iOS PWA, klik pada `<label>` sering **tidak men-trigger file picker** ketika child input pernah berstatus `disabled`. Atribut `disabled` di `<input type="file">` juga memblokir interaksi tap di iOS bahkan setelah berubah ke `false`.
-2. **`Index.tsx`, `SchedulePage.tsx`, `ReplayPage.tsx`, `CoinShop.tsx`** memakai `<button onClick={() => ref.current?.click()}>` + `<input style={{display:"none"}}>`. Pola `display: none` pada `<input type="file">` menyebabkan beberapa engine WebView (terutama Android WebView versi lama dan PWA standalone) **tidak mau membuka native file picker** karena dianggap tidak visible/interactive.
-3. Tidak ada feedback ke user saat tombol gagal — sehingga terlihat "tombol mati".
+3. **`reseller_get_active_shows` memfilter `is_replay = false`** — show replay tidak muncul di tab Show (ini OK karena reseller tidak boleh bikin token baru), tapi kombinasi dengan #2 membuat reseller kehilangan jejak total.
 
-## Rencana Perbaikan
+4. **Durasi 14 hari sudah ada** di `validate_replay_access` (auto-upgrade), tapi belum ada jaminan bahwa token yang DIBUAT reseller untuk show yang langsung berstatus replay juga mengikuti aturan yang sama (saat ini direject — bagus untuk penjualan baru, jangan diubah).
 
-### 1. Buat komponen reusable `PaymentProofUploadButton`
-File baru: `src/components/payment/PaymentProofUploadButton.tsx`
+## Tujuan
 
-- Render `<button type="button">` dengan label & disabled state yang fleksibel.
-- Render `<input type="file" accept="image/*">` **off-screen** (bukan `display:none`):
-  ```css
-  position: absolute; width: 1px; height: 1px;
-  opacity: 0; pointer-events: none;
-  left: -9999px; top: 0;
-  ```
-- `onClick` tombol → `inputRef.current?.click()` di dalam handler synchronous (penting untuk user-gesture context iOS).
-- Jangan pernah set `disabled` pada `<input type="file">`; alih-alih, blokir lewat state pada `<button>`.
-- Reset `input.value = ""` setelah `onChange` agar bisa pilih file yang sama berulang kali.
-- Tambah `aria-label` & `data-testid` untuk QA.
+A. Link token otomatis "tahu" diri saat show flip ke replay → langsung arahkan ke `/replay-play?token=<code>` (tanpa mampir ke `/live`).
+B. Durasi akses replay = **14 hari** (sudah benar; pastikan konsisten di semua jalur).
+C. Riwayat token reseller (web + WhatsApp) tetap kelihatan walau show jadi replay atau non-aktif.
 
-### 2. Ganti semua pemakaian pola lama
-- `src/pages/MembershipPage.tsx` (line 582-585): ganti `<label>...<input disabled.../></label>` dengan komponen baru. Validasi `phone`/`email` dipindah ke `onClick` tombol (tampilkan toast jika belum diisi) bukan via `disabled`.
-- `src/pages/Index.tsx` (line 993, 1095-1102, 1155-1162): hapus pola `galleryInputRef + display:none`, ganti dengan komponen baru yang inputnya off-screen.
-- `src/pages/SchedulePage.tsx` (line 395 + tombol pemicu): sama.
-- `src/pages/ReplayPage.tsx` (line 620 + tombol pemicu): sama.
-- `src/pages/CoinShop.tsx`: cek pola serupa, samakan.
+## Rencana Perubahan
 
-### 3. Tambah error logging client-side
-Di `src/lib/uploadPaymentProof.ts`, tambah `console.warn` saat invoke gagal supaya kita bisa lihat error di console logs jika masalah upload muncul lagi setelah perbaikan UI.
+### 1. Migrasi DB — Pertahankan jejak token di `public.tokens`
 
-### 4. (Opsional) Verifikasi
-Setelah deploy, minta user coba sekali — lalu periksa table `subscription_orders` apakah ada baris dengan `payment_method='qris_static'` & `payment_proof_url IS NOT NULL`.
+Ubah `validate_replay_access` agar **tidak menghapus** row di `tokens`. Cukup:
+- Tambah kolom `tokens.archived_to_replay boolean DEFAULT false` + `tokens.archived_at timestamptz`.
+- Saat upgrade: `UPDATE tokens SET archived_to_replay = true, archived_at = now(), status = 'archived'` (jangan DELETE).
+- Tetap `INSERT/UPSERT` ke `replay_tokens` (sumber kebenaran untuk akses replay & pemain internal).
 
-## Yang TIDAK diubah
+Alasan: dua tabel terpisah tetap dipertahankan (RLS replay_tokens dikunci ketat untuk service_role saja), tapi `tokens` jadi **catatan historis** yang aman dibaca reseller via RPC.
 
-- Edge function `upload-payment-proof` (sudah benar; pakai service role, validasi MIME dengan fallback HEIC, rate limit per user/IP).
-- RPC `create_show_order`.
-- Storage RLS (bucket `payment-proofs` & policy sudah benar).
-- Flow QRIS dinamis.
+Tambahkan juga RPC baru / patch yang sudah ada:
 
-## Hasil Diharapkan
+- `reseller_list_my_tokens(_session_token, _limit)` — patch:
+  - Tambahkan field `is_replay_show boolean` (cek `s.is_replay`).
+  - Tambahkan field `is_archived boolean` = `tk.archived_to_replay OR tk.status = 'archived'`.
+  - Tambahkan field `effective_link_kind text` ∈ `'live' | 'replay'` (kalau show `is_replay=true` atau token sudah di-archive → `'replay'`, lain `'live'`).
+  - Tambahkan field `replay_expires_at` (lookup `replay_tokens.expires_at` by `code`) — jadi reseller lihat expiry replay 14 hari.
+  - Tetap baca dari `tokens` (bukan replay_tokens), karena row tidak lagi dihapus.
 
-Tombol "Upload Bukti Pembayaran" merespons di semua perangkat (Android/iOS/Desktop/PWA), file picker terbuka, bukti tersimpan, dan order QRIS statis kembali masuk ke admin panel.
+- `reseller_list_recent_tokens_by_id(_reseller_id, _limit)` — patch sama (untuk WA `/mytokens`).
+
+### 2. Backfill data yang sudah terlanjur dihapus
+
+Migrasi backfill 1x: untuk setiap row di `replay_tokens` dengan `created_via IN ('auto_backfill','live_upgrade_validate')`, **re-insert** placeholder ke `tokens`:
+- `code` = `replay_tokens.code`
+- `show_id` = `replay_tokens.show_id`
+- `reseller_id` = lookup via `reseller_token_audit` (cocokkan `token_code`) — kalau ketemu, tulis `reseller_id`.
+- `status = 'archived'`, `archived_to_replay = true`, `archived_at = replay_tokens.created_at`, `expires_at = replay_tokens.expires_at`, `max_devices = 1`.
+- `ON CONFLICT (code) DO NOTHING` (token aktif yang masih hidup tidak ditimpa).
+
+Tujuan: history reseller pre-existing kembali muncul setelah migrasi.
+
+### 3. Frontend — Auto-arahkan link salin & tombol watch ke replay
+
+- `src/components/reseller/ResellerShowCard.tsx`:
+  - Saat membangun `link` untuk pesan WA & tombol salin: kalau `show.is_replay === true`, gunakan `REPLAY_BASE` (`/replay-play?token=...`) — bukan `/live?t=...`. (Saat ini reseller tidak bisa create token baru untuk replay show, jadi efeknya hanya saat menampilkan token yang sudah ada — relevan setelah perubahan #4.)
+- `src/components/reseller/ResellerDashboard.tsx`:
+  - Tombol "Salin" gunakan field baru `effective_link_kind`:
+    - `'replay'` → salin `https://realtime48stream.my.id/replay-play?token=<code>`.
+    - `'live'` → tetap `/live?t=<code>`.
+  - Badge baru "🔁 Replay (14 hari)" untuk token yang `is_archived || is_replay_show`.
+  - Hapus filter yang otomatis menyembunyikan token "expired"-tapi-archived; archived token boleh tampil di tab "Semua".
+  - Update label mentah `expires_at` → tampilkan `replay_expires_at` jika `effective_link_kind = 'replay'`.
+
+### 4. Frontend — Buyer side (ViewerProfile, MembershipDetailCard)
+
+- `src/pages/ViewerProfile.tsx` (3 tempat `/live?t=`) & `MembershipDetailCard onWatchLive`: saat token punya flag (akan ditambah ke RPC `get_my_active_tokens` / `usePurchasedShows`) `is_replay_show=true`, navigate ke `/replay-play?token=...` bukan `/live?t=...`.
+- Patch RPC sumber data di `usePurchasedShows` agar ikut bawa flag yang sama (tidak perlu RPC baru — cukup join sederhana).
+
+### 5. Edge functions — Pesan template
+
+- `supabase/functions/whatsapp-webhook/index.ts` & `telegram-poll/index.ts`:
+  - Pada saat membangun pesan token (bagian `liveLink = ${siteUrl}/live?t=${code}`), tambahkan note default:
+    > "🎬 Setelah show selesai, link yang sama otomatis berlaku sebagai REPLAY selama 14 hari."
+  - Tidak perlu mengubah URL — `LivePage` sudah meng-redirect; tapi kita bisa tambah satu baris untuk URL alternatif `${siteUrl}/replay-play?token=${code}` agar user yang share link manual juga punya rute langsung.
+
+## File Yang Disentuh
+
+- `supabase/migrations/<new>__keep_reseller_history_and_replay_routing.sql` (baru)
+- `src/components/reseller/ResellerDashboard.tsx`
+- `src/components/reseller/ResellerShowCard.tsx`
+- `src/pages/ViewerProfile.tsx`
+- `src/components/viewer/MembershipDetailCard.tsx`
+- `src/hooks/usePurchasedShows.ts` (jika perlu propagate `is_replay_show`)
+- `supabase/functions/whatsapp-webhook/index.ts` (pesan + opsi link replay)
+- `supabase/functions/telegram-poll/index.ts` (pesan + opsi link replay)
+
+## Hal Yang TIDAK Diubah
+
+- Aturan "reseller dilarang membuat token baru untuk show `is_replay=true`" dipertahankan (tetap di `reseller_create_token` & `_by_id`).
+- `reseller_get_active_shows` tetap filter `is_replay=false` (tab "Show" hanya untuk show yang bisa dijual).
+- Skema `replay_tokens` tetap tertutup untuk public/anon (RLS tidak diubah).
+- Durasi default 14 hari di `validate_replay_access` sudah benar — tidak diubah.
+
+## Hasil yang Diharapkan
+
+- Link token (`/live?t=<code>`) untuk show yang sudah jadi replay otomatis dialihkan ke `/replay-play?token=<code>` dengan akses 14 hari.
+- Tombol "Salin" di dashboard reseller langsung memberi link `/replay-play?token=...` untuk show replay (tidak perlu redirect manual).
+- Tab "Token" reseller (web) & command `/{prefix}mytokens` (WA) tetap menampilkan SEMUA token historis — termasuk yang shownya sudah replay/non-aktif — dengan label jelas "🔁 Replay 14 hari" + expiry yang akurat.
