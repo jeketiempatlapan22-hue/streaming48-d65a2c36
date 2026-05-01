@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import SharedNavbar from "@/components/SharedNavbar";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { parsePriceToNumber } from "@/lib/parsePrice";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 
 interface Show {
   id: string;
@@ -292,10 +293,13 @@ const MembershipPage = () => {
     setDynamicLoading(false);
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0] || !selectedShow) return;
+  const handleUploadProof = async (file: File) => {
+    if (!file || !selectedShow) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" });
+      return;
+    }
     setUploadingProof(true);
-    const file = e.target.files[0];
     try {
       const { path, signed_url } = await uploadPaymentProof(file, { type: "show", show_id: selectedShow.id });
       setPurchaseStep("upload");
@@ -579,10 +583,16 @@ const MembershipPage = () => {
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
                 </div>
-                <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${!phone || !email ? "bg-muted text-muted-foreground pointer-events-none" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-                  {uploadingProof ? "Mengupload..." : "📷 Upload Bukti Pembayaran"}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} disabled={!phone || !email || uploadingProof} />
-                </label>
+                <PaymentProofUploadButton
+                  onFile={handleUploadProof}
+                  uploading={uploadingProof}
+                  variant="primary"
+                  guard={() => {
+                    if (!phone.trim() || !email.trim()) return "Harap isi nomor WhatsApp dan email terlebih dahulu";
+                    return null;
+                  }}
+                  onGuardFail={(msg) => toast({ title: msg, variant: "destructive" })}
+                />
               </div>
             )}
 

@@ -4,6 +4,7 @@ import ShowCardImage from "@/components/viewer/ShowCardImage";
 import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import SharedNavbar from "@/components/SharedNavbar";
@@ -194,8 +195,7 @@ const ReplayPage = () => {
     }).then(res => { if (res.error) console.warn("Notify WA error:", res.error); }).catch(e => console.warn("Notify WA failed:", e));
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !purchaseShow) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" }); return; }
     setUploadingProof(true);
@@ -617,10 +617,13 @@ const ReplayPage = () => {
                         <p className="text-xs text-muted-foreground">Harga Replay</p>
                         <p className="text-lg font-bold text-foreground">{(purchaseShow as any)?.replay_qris_price > 0 ? `Rp ${((purchaseShow as any).replay_qris_price as number).toLocaleString("id-ID")}` : purchaseShow?.price}</p>
                       </div>
-                      <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e as any); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
-                      <button type="button" className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10" onClick={() => galleryInputRef.current?.click()} disabled={uploadingProof}>
+                      <PaymentProofUploadButton
+                        onFile={handleUploadProof}
+                        uploading={uploadingProof}
+                        variant="dashed"
+                      >
                         <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                      </button>
+                      </PaymentProofUploadButton>
                     </>
                   )}
                 </>

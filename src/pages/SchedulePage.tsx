@@ -3,6 +3,7 @@ import MobileBottomNav from "@/components/viewer/MobileBottomNav";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import SharedNavbar from "@/components/SharedNavbar";
 import CountdownTimer from "@/components/CountdownTimer";
 import { Calendar, Shield, Search, Upload, CheckCircle, Phone, MessageCircle, Loader2, Coins } from "lucide-react";
@@ -230,8 +231,7 @@ const SchedulePage = () => {
     window.open(`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !selectedShow) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast.error("File terlalu besar (max 5MB)"); return; }
     setUploadingProof(true);
@@ -391,8 +391,7 @@ const SchedulePage = () => {
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground">{selectedShow.price}</p>
 
-            {/* Hidden file input for gallery - no capture attribute */}
-            <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
+            {/* Mobile-safe upload trigger via PaymentProofUploadButton (rendered inline below) */}
 
             {/* Dynamic QRIS flow for regular shows */}
             {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "phone" && (
@@ -494,14 +493,13 @@ const SchedulePage = () => {
                     <CheckCircle className="h-4 w-4" /> Bukti pembayaran berhasil diupload
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/10 px-5 py-5 text-base font-semibold text-primary transition hover:border-primary hover:bg-primary/20"
-                    onClick={() => galleryInputRef.current?.click()}
-                    disabled={uploadingProof}
+                  <PaymentProofUploadButton
+                    onFile={handleUploadProof}
+                    uploading={uploadingProof}
+                    variant="dashed"
                   >
                     <Upload className="h-5 w-5" /> {uploadingProof ? "Mengupload..." : "📷 Upload Bukti Pembayaran (opsional)"}
-                  </button>
+                  </PaymentProofUploadButton>
                 )}
                 <div className="rounded-xl border border-border bg-card p-4">
                   <p className="mb-2 text-xs font-semibold text-foreground">📋 Ringkasan Pesanan</p>
@@ -550,14 +548,13 @@ const SchedulePage = () => {
                 ) : (
                   <div className="rounded-lg border border-border bg-secondary/50 p-8 text-center text-sm text-muted-foreground">QRIS belum tersedia</div>
                 )}
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 px-4 py-4 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary/10"
-                  onClick={() => galleryInputRef.current?.click()}
-                  disabled={uploadingProof}
+                <PaymentProofUploadButton
+                  onFile={handleUploadProof}
+                  uploading={uploadingProof}
+                  variant="dashed"
                 >
                   <Upload className="h-4 w-4" /> {uploadingProof ? "Mengupload..." : "Upload Bukti Pembayaran"}
-                </button>
+                </PaymentProofUploadButton>
               </div>
             )}
 

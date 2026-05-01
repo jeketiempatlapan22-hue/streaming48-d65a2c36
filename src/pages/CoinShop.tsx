@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 import SharedNavbar from "@/components/SharedNavbar";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import BannedScreen from "@/components/viewer/BannedScreen";
 import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 
@@ -285,8 +286,7 @@ const CoinShop = () => {
     const ss = (s % 60).toString().padStart(2, "0");
     return `${mm}:${ss}`;
   };
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !selectedPkg || !user) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "Maksimal 5 MB", variant: "destructive" }); return; }
     setUploading(true);
@@ -579,11 +579,14 @@ const CoinShop = () => {
 
           {purchaseStep === "upload" && (
             <div className="space-y-3">
-              <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e: any) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
-              <button type="button" className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 hover:border-primary transition-colors" onClick={() => galleryInputRef.current?.click()} disabled={uploading}>
+              <PaymentProofUploadButton
+                onFile={handleUploadProof}
+                uploading={uploading}
+                className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 hover:border-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 <Upload className={`h-8 w-8 ${uploading ? "animate-pulse text-primary" : "text-muted-foreground"}`} />
                 <span className="text-sm text-muted-foreground">{uploading ? "Mengupload..." : "Upload Bukti Pembayaran"}</span>
-              </button>
+              </PaymentProofUploadButton>
             </div>
           )}
         </DialogContent>
