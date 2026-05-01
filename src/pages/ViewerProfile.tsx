@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import BannedScreen from "@/components/viewer/BannedScreen";
 import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 import { ProfileSkeleton } from "@/components/viewer/SkeletonLoaders";
+import { buildTokenWatchPath, buildTokenWatchUrl } from "@/lib/tokenLinks";
 
 const ReferralSection = lazy(() => import("@/components/viewer/ReferralSection"));
 const UserStatsPanel = lazy(() => import("@/components/viewer/UserStatsPanel"));
@@ -52,7 +53,7 @@ const ViewerProfile = () => {
           withTimeout((async () => await supabase.from("coin_balances").select("balance").eq("user_id", u.id).maybeSingle())(), 8_000, "Balance timeout"),
           withTimeout((async () => await supabase.from("coin_orders").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Orders timeout"),
           withTimeout((async () => await supabase.from("subscription_orders").select("*, shows(title)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Subscriptions timeout"),
-          withTimeout((async () => await supabase.from("tokens").select("*").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Tokens timeout"),
+          withTimeout((async () => await supabase.from("tokens").select("*, shows(is_replay)").eq("user_id", u.id).order("created_at", { ascending: false }).limit(30))(), 8_000, "Tokens timeout"),
         ]);
 
         const name =
@@ -65,7 +66,9 @@ const ViewerProfile = () => {
         setBalance(balRes.status === "fulfilled" ? (balRes.value.data?.balance || 0) : 0);
         setOrders(ordersRes.status === "fulfilled" ? (ordersRes.value.data || []) : []);
         setSubOrders(subRes.status === "fulfilled" ? (subRes.value.data || []) : []);
-        const tokenRows = tokensRes.status === "fulfilled" ? (tokensRes.value.data || []) : [];
+        const tokenRows = tokensRes.status === "fulfilled"
+          ? ((tokensRes.value.data || []) as any[]).map((t) => ({ ...t, is_replay_show: t.shows?.is_replay === true }))
+          : [];
         setTokens(tokenRows);
 
         // Resolve show titles for tokens (RLS on shows is admin-only, so use the
