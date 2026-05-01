@@ -583,10 +583,16 @@ const MembershipPage = () => {
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Email *</label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@contoh.com" />
                 </div>
-                <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${!phone || !email ? "bg-muted text-muted-foreground pointer-events-none" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
-                  {uploadingProof ? "Mengupload..." : "📷 Upload Bukti Pembayaran"}
-                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadProof} disabled={!phone || !email || uploadingProof} />
-                </label>
+                <PaymentProofUploadButton
+                  onFile={handleUploadProof}
+                  uploading={uploadingProof}
+                  variant="primary"
+                  guard={() => {
+                    if (!phone.trim() || !email.trim()) return "Harap isi nomor WhatsApp dan email terlebih dahulu";
+                    return null;
+                  }}
+                  onGuardFail={(msg) => toast({ title: msg, variant: "destructive" })}
+                />
               </div>
             )}
 
