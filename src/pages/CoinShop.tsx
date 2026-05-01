@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 import SharedNavbar from "@/components/SharedNavbar";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import BannedScreen from "@/components/viewer/BannedScreen";
 import { useProtectedAuth } from "@/hooks/useProtectedAuth";
 
