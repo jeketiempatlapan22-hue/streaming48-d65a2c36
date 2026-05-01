@@ -1,61 +1,47 @@
-## Masalah
+## Hasil investigasi
 
-Reseller tidak bisa membuat token (baik via bot WhatsApp `/Otoken` maupun via dashboard web) untuk show yang sebenarnya **sudah memiliki tanggal & jam lengkap**. Contoh nyata di database:
+Saya periksa seluruh alur pembuatan token membership oleh reseller (DB → RPC → bot WA → web) dan data nyata di tabel `tokens`. Hasilnya:
 
-- `Jumat,  1 Mei 2026` + `19.00 WIB`
-- `Sabtu, 2 Mei 2026` + `19.00 WIB`
-- `Minggu, 3 Mei 2026` + `19.00 WIB`
+**Logika di database sudah benar.** Kedua RPC `reseller_create_token` (web) dan `reseller_create_token_by_id` (bot WhatsApp) memang **selalu mengabaikan** `_duration_days` dari pemanggil bila show adalah membership, dan memakai `_show.membership_duration_days` dari Show Manager:
 
-Sistem tetap menolak dengan pesan **"Show belum punya jadwal lengkap (tanggal & jam). Token tidak dapat dibuat."**
+```
+IF _is_membership THEN
+  _final_duration := GREATEST(1, COALESCE(_show.membership_duration_days, 30));
+```
 
-## Akar Penyebab
+Saya verifikasi 6 token MBR- terbaru milik reseller di DB: semuanya memang `expires_at - created_at = 35 hari`, sesuai `membership_duration_days = 35` yang diatur admin. Token yang tersimpan **sudah betul mengikuti admin**.
 
-Fungsi database `parse_show_datetime(_date, _time)` dipanggil oleh kedua RPC `reseller_create_token` (web) dan `reseller_create_token_by_id` (bot WA). Jika fungsi mengembalikan `NULL`, RPC menolak pembuatan token.
+**Yang salah adalah tampilan pesan WhatsApp balasan ke reseller**, sehingga reseller mengira durasi tidak ikut admin. Lokasi bug:
 
-Fungsi tersebut hanya mengenali dua format tanggal:
-1. Format ISO `YYYY-MM-DD` (misal `2026-05-01`)
-2. Format Indonesia *tanpa* nama hari, persis 3 token: `DD Bulan YYYY` (misal `1 Mei 2026`)
+- `supabase/functions/whatsapp-webhook/index.ts` baris 446-489, fungsi `handleResellerToken`. Variabel `safeDays` diisi dari input reseller (`requestedDays`), lalu pesan WA menampilkan `⏰ Durasi: *${safeDays} hari*`. RPC sebenarnya mengembalikan `duration_days` (nilai admin yang dipakai di DB), tapi pesan tidak memakainya.
+  - Akibat: kalau reseller tidak menyertakan durasi (default 1) atau menyertakan durasi berbeda dari admin, pesan WA menampilkan angka yang tidak match isi DB. Reseller mengira sistem tidak mengikuti admin.
 
-Tanggal yang berisi prefix nama hari + koma (format yang dipakai admin di Show Manager: `Jumat, 1 Mei 2026`, `Sabtu, 2 Mei 2026`, dst) **gagal di kedua cabang**:
-- Cabang ISO melempar exception lalu di-swallow → variabel jam/menit tetap NULL
-- Cabang fallback memecah string jadi 4 elemen (`["jumat,","1","mei","2026"]`), bukan 3 → kondisi `array_length = 3` gagal → return NULL
+Tidak ada masalah di alur web reseller (`ResellerShowCard.tsx` sudah membaca `show.membership_duration_days` dan menampilkannya konsisten). Tidak ada masalah di pembelian membership user (sudah pakai admin value). Bot Telegram tidak punya command reseller membership.
 
-Hasilnya RPC mengira show tidak punya jadwal, padahal jadwal lengkap.
+## Perubahan yang dilakukan
 
-Bukti dari log audit: 7 penolakan terakhir semua bertipe `show_no_schedule` untuk show yang jadwalnya sudah diisi admin.
+### 1. `supabase/functions/whatsapp-webhook/index.ts` — fungsi `handleResellerToken`
 
-Show kedua yang juga gagal — `SPESIAL SHOW JKT48 WITH POCKY` — memang `schedule_time`-nya kosong; itu kasus terpisah dan benar ditolak. Yang harus diperbaiki adalah show dengan jadwal lengkap tapi pakai prefix nama hari.
+- Setelah RPC sukses, ambil durasi efektif dari respons RPC: `effectiveDays = res.duration_days ?? safeDays`.
+- Untuk show membership, paksa label dari `show.membership_duration_days` (sumber admin) sebagai sumber kebenaran tampilan, sehingga konsisten dengan `expires_at` dari RPC.
+- Update baris pesan menjadi:
+  - `⏰ Durasi: *${effectiveDays} hari*` (untuk regular)
+  - `⏰ Durasi Membership: *${effectiveDays} hari* _(diatur admin)_` (untuk membership)
+- Hapus / sesuaikan `durationNote` yang membandingkan `days` input dengan 1 hari, agar tidak menyesatkan. Untuk membership, kalau reseller mengirim durasi berbeda, tampilkan catatan ringan: `_Catatan: durasi membership selalu mengikuti pengaturan admin (X hari)._`
 
-## Perbaikan
+### 2. (Opsional, agar konsisten) `src/components/reseller/ResellerShowCard.tsx`
 
-### 1. Migrasi database — perbaiki `parse_show_datetime`
+Sudah benar memakai `membership_duration_days`. Saya hanya perlu memastikan `buildRegularShowMessage` tidak dipanggil untuk membership — jika ya, swap ke `buildMembershipMessage` agar pesan share yang disalin reseller juga menampilkan label "Membership" + durasi admin. Ini perubahan kecil di fungsi `buildShareMessage` di file tersebut.
 
-Tulis ulang fungsi agar tahan banting terhadap variasi format tanggal Indonesia:
+## Tidak perlu diubah
 
-- **Normalisasi input**: lower-case, hapus prefix nama hari Indonesia opsional (`senin/selasa/rabu/kamis/jumat/sabtu/minggu/ahad`) beserta koma di depannya, rapikan whitespace ganda.
-- **Parse jam dulu** (sekali) sebelum mencoba kombinasi format tanggal, supaya nilai `_hour`/`_minute` tersedia di semua cabang.
-- **Coba format ISO** `YYYY-MM-DD`.
-- **Coba format Indonesia 3-token** `D[D] Bulan YYYY` setelah dinormalisasi, dengan map bulan yang sudah ada (`januari`–`desember`). Toleran pada spasi ganda dan zero-pad opsional pada hari.
-- Tetap return `NULL` hanya jika tanggal/jam benar-benar kosong atau tidak bisa dipahami sama sekali.
+- RPC `reseller_create_token` & `reseller_create_token_by_id`: sudah benar.
+- Skema tabel `shows` / `tokens`: tidak ada migrasi schema.
+- Alur QRIS / koin / bot Telegram: sudah memakai `membership_duration_days` dengan benar.
 
-Karena fungsi ini `IMMUTABLE` dan dipakai banyak RPC lain (`reseller_create_token`, `reseller_create_token_by_id`, kemungkinan logic show aktif), perubahan dilakukan via `CREATE OR REPLACE FUNCTION` tanpa mengubah signature.
+## Verifikasi setelah implementasi
 
-### 2. Validasi pasca-migrasi
-
-Setelah migrasi:
-- Jalankan `SELECT parse_show_datetime(...)` untuk seluruh sampel: `Jumat, 1 Mei 2026`, `Sabtu, 2 Mei 2026`, `Minggu, 3 Mei 2026` dengan `19.00 WIB` → harus mengembalikan timestamp valid.
-- Pastikan format ISO `2026-05-01` + `19:00` tetap bekerja (regression).
-- Pastikan input kosong tetap mengembalikan `NULL`.
-- Coba simulasikan satu pemanggilan `reseller_create_token_by_id` (read-only via `SELECT` ke RPC) untuk show "Cara Meminum Ramune" → harus sukses, bukan `show_no_schedule`.
-
-### 3. Tidak ada perubahan di sisi UI/edge function
-
-Webhook WhatsApp dan komponen reseller di front-end tidak perlu diubah — mereka sudah meneruskan error apa adanya. Begitu fungsi parse benar, alur `/Otoken` dan tombol "Buat Token Baru" akan langsung berfungsi untuk show-show ini.
-
-## Catatan untuk admin
-
-Untuk show `SPESIAL SHOW JKT48 WITH POCKY` yang `schedule_time`-nya memang masih kosong, admin tetap perlu mengisi jam di Show Manager — itu validasi yang benar dan tidak akan diubah.
-
-## File yang diubah
-
-- Migrasi baru di `supabase/migrations/` yang me-replace fungsi `public.parse_show_datetime(text, text)`.
+1. Reseller mengirim `/<prefix>token <show membership>` tanpa durasi → pesan balasan WA harus menampilkan durasi sesuai `membership_duration_days` admin (mis. 35 hari), dan `expires_at` di DB juga 35 hari sejak sekarang.
+2. Reseller mengirim `/<prefix>token <show membership> 7hari 1` → pesan WA tetap menampilkan durasi admin (mis. 35 hari) plus catatan "durasi membership selalu mengikuti admin", token DB tetap 35 hari.
+3. Reseller membuat token membership via dashboard web → kartu hasil dan tombol "Salin Pesan" menampilkan durasi membership admin.
+4. Reseller membuat token regular (non-membership) → tetap 1 hari otomatis (tidak berubah).

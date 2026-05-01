@@ -466,10 +466,21 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
       day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit",
     });
 
-    // Note: If user requested custom duration on a non-membership show, inform them
-    const durationNote = (!isMembership && days > 1)
-      ? `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`
-      : "";
+    // Durasi efektif: untuk membership, SELALU pakai membership_duration_days admin
+    // (RPC sudah menerapkannya di DB). Untuk regular, otomatis 1 hari.
+    const adminMembershipDays = Number(show.membership_duration_days) > 0
+      ? Number(show.membership_duration_days)
+      : 30;
+    const effectiveDays = isMembership
+      ? adminMembershipDays
+      : (Number(res.duration_days) > 0 ? Number(res.duration_days) : safeDays);
+
+    let durationNote = "";
+    if (!isMembership && days > 1) {
+      durationNote = `\n⚠️ _Catatan: durasi dipaksa 1 hari karena bukan show membership._`;
+    } else if (isMembership && days > 1 && days !== adminMembershipDays) {
+      durationNote = `\n⚠️ _Catatan: durasi membership selalu mengikuti pengaturan admin (${adminMembershipDays} hari)._`;
+    }
 
     // Tentukan link replay (internal vs fallback) berdasar media show
     const hasReplayMedia = !!(show.replay_m3u8_url || show.replay_youtube_url);
