@@ -497,7 +497,9 @@ async function handleResellerToken(supabase: any, reseller: any, showInput: stri
 🎬 Show: *${res.show_title}*
 🔑 Token: \`${res.code}\`
 📱 Max Device: *${safeMax}*
-⏰ Durasi: *${safeDays} hari*${isMembership ? " _(membership)_" : ""}
+${isMembership
+  ? `⏰ Durasi Membership: *${effectiveDays} hari* _(diatur admin)_`
+  : `⏰ Durasi: *${effectiveDays} hari*`}
 📅 Kedaluwarsa: ${expDate}${durationNote}
 
 📺 *Link Nonton:*
