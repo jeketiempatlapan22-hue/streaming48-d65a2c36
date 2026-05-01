@@ -293,10 +293,13 @@ const MembershipPage = () => {
     setDynamicLoading(false);
   };
 
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0] || !selectedShow) return;
+  const handleUploadProof = async (file: File) => {
+    if (!file || !selectedShow) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File terlalu besar (max 5MB)", variant: "destructive" });
+      return;
+    }
     setUploadingProof(true);
-    const file = e.target.files[0];
     try {
       const { path, signed_url } = await uploadPaymentProof(file, { type: "show", show_id: selectedShow.id });
       setPurchaseStep("upload");
