@@ -630,15 +630,21 @@ async function handleResellerMyTokens(supabase: any, reseller: any): Promise<str
     }
     let msg = `📋 *20 Token Terakhir*\n👤 ${reseller.name}\n`;
     for (const t of list) {
-      const status = t.is_expired
-        ? "🔴 Expired"
-        : t.status === "blocked"
-          ? "⛔ Blokir"
-          : "🟢 Aktif";
+      const isReplayMode = t.effective_link_kind === "replay" || t.is_replay_show || t.is_archived;
+      const status = isReplayMode
+        ? "🔁 Replay (14 hari)"
+        : t.is_expired
+          ? "🔴 Expired"
+          : t.status === "blocked"
+            ? "⛔ Blokir"
+            : "🟢 Aktif";
       const exp = t.expires_at
         ? new Date(t.expires_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
         : "—";
-      msg += `\n• \`${t.last4}\` ${status}\n  ${t.show_title || "—"} • exp ${exp}`;
+      const linkPath = isReplayMode
+        ? `realtime48stream.my.id/replay-play?token=${t.code}`
+        : `realtime48stream.my.id/live?t=${t.code}`;
+      msg += `\n• \`${t.last4}\` ${status}\n  ${t.show_title || "—"} • exp ${exp}\n  🔗 ${linkPath}`;
     }
     msg += `\n\nℹ️ Reset sesi: /${p}reset <4digit>`;
     return msg;
