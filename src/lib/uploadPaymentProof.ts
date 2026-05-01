@@ -53,6 +53,7 @@ export async function uploadPaymentProof(
       if (ctx?.json) serverMsg = (await ctx.json())?.error || null;
       else if (ctx?.text) serverMsg = await ctx.text();
     } catch { /* ignore */ }
+    console.warn("[uploadPaymentProof] invoke failed:", { message: error.message, serverMsg, ctx });
     throw new Error(serverMsg || error.message || "Upload gagal");
   }
 
