@@ -989,8 +989,7 @@ const Index = () => {
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground">{selectedShow.price}</p>
 
-            {/* Hidden file input for gallery */}
-            <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e as any); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
+            {/* Mobile-safe upload trigger is provided by PaymentProofUploadButton (see below) */}
 
             {/* Dynamic QRIS flow for regular shows */}
             {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "phone" && (
