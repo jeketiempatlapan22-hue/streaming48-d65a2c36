@@ -59,6 +59,15 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
+    if (isMembership) {
+      return buildMembershipMessage({
+        showTitle: show.title,
+        tokenCode: params.code,
+        liveLink: params.link,
+        durationLabel: `${membershipDuration} hari (diatur admin)`,
+        replayPassword: show.access_password,
+      });
+    }
     return buildRegularShowMessage({
       showTitle: show.title,
       scheduleDate: show.schedule_date,
