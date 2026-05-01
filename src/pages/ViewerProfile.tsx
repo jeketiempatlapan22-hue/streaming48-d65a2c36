@@ -256,7 +256,7 @@ const ViewerProfile = () => {
                     showCount={membershipShowCount}
                     purchasePrice={membershipPrice}
                     metaLoading={membershipMetaLoading}
-                    onWatchLive={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                    onWatchLive={() => navigate(buildTokenWatchPath(t))}
                   />
                 </Suspense>
               ))}
@@ -281,7 +281,7 @@ const ViewerProfile = () => {
                   ? "border-cyan-400/30 bg-gradient-to-r from-cyan-400/10 to-primary/5"
                   : "border-primary/30 bg-gradient-to-r from-primary/10 to-accent/5";
 
-                const liveUrl = `/live?t=${encodeURIComponent(t.code)}`;
+                const liveUrl = buildTokenWatchPath(t);
                 return (
                   <div
                     key={t.id}
@@ -356,7 +356,7 @@ const ViewerProfile = () => {
               </p>
               <div className="space-y-2">
                 {liveTokens.map((t: any) => {
-                  const liveLink = `${window.location.origin}/live?t=${encodeURIComponent(t.code)}`;
+                  const liveLink = buildTokenWatchUrl(t, window.location.origin);
                   const showTitle = (t.show_id && showTitles[t.show_id]) || "Show";
                   return (
                     <div key={`live-${t.id}`} className="rounded-lg bg-background/60 border border-border/50 p-3 space-y-2">
@@ -373,7 +373,7 @@ const ViewerProfile = () => {
                         <Button
                           size="sm"
                           className="flex-1 h-8 gap-1.5 text-xs"
-                          onClick={() => navigate(`/live?t=${encodeURIComponent(t.code)}`)}
+                          onClick={() => navigate(buildTokenWatchPath(t))}
                         >
                           <PlayCircle className="h-3.5 w-3.5" /> Tonton Live
                         </Button>
