@@ -4,6 +4,7 @@ import ShowCardImage from "@/components/viewer/ShowCardImage";
 import { useActiveLiveAccess } from "@/hooks/useActiveLiveAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
+import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import SharedNavbar from "@/components/SharedNavbar";
