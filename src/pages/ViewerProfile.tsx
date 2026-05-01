@@ -593,7 +593,7 @@ const ViewerProfile = () => {
                     const typeLabel = isMembership ? "👑 Membership" : isBundle ? "📦 Bundle" : "🎫 Token Custom";
                     const typeColor = isMembership ? "text-yellow-500" : isBundle ? "text-purple-400" : "text-cyan-400";
                     const showTitle = (t.show_id && showTitles[t.show_id]) || null;
-                    const liveLink = `/live?t=${encodeURIComponent(t.code)}`;
+                    const liveLink = buildTokenWatchPath(t);
 
                     return (
                       <div
