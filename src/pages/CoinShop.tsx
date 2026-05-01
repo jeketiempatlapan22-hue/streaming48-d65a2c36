@@ -579,11 +579,14 @@ const CoinShop = () => {
 
           {purchaseStep === "upload" && (
             <div className="space-y-3">
-              <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e: any) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
-              <button type="button" className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 hover:border-primary transition-colors" onClick={() => galleryInputRef.current?.click()} disabled={uploading}>
+              <PaymentProofUploadButton
+                onFile={handleUploadProof}
+                uploading={uploading}
+                className="flex w-full cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border p-8 hover:border-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 <Upload className={`h-8 w-8 ${uploading ? "animate-pulse text-primary" : "text-muted-foreground"}`} />
                 <span className="text-sm text-muted-foreground">{uploading ? "Mengupload..." : "Upload Bukti Pembayaran"}</span>
-              </button>
+              </PaymentProofUploadButton>
             </div>
           )}
         </DialogContent>
