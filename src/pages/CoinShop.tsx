@@ -285,8 +285,7 @@ const CoinShop = () => {
     const ss = (s % 60).toString().padStart(2, "0");
     return `${mm}:${ss}`;
   };
-  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFile = e.target.files?.[0];
+  const handleUploadProof = async (rawFile: File) => {
     if (!rawFile || !selectedPkg || !user) return;
     if (rawFile.size > 5 * 1024 * 1024) { toast({ title: "Maksimal 5 MB", variant: "destructive" }); return; }
     setUploading(true);
