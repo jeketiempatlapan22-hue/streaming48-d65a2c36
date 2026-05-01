@@ -139,10 +139,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
     onLogout();
   };
 
-  const copyLink = async (code: string) => {
+  const copyLink = async (t: any) => {
+    const link = buildTokenLink(t);
     try {
-      await navigator.clipboard.writeText(`${LIVE_BASE}?t=${code}`);
-      toast({ title: "Tersalin!", description: code });
+      await navigator.clipboard.writeText(link);
+      toast({ title: "Tersalin!", description: t.code });
     } catch {
       toast({ title: "Gagal menyalin", variant: "destructive" });
     }
