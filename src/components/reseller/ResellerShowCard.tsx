@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
-import { buildRegularShowMessage } from "@/lib/showMessageBuilder";
+import { buildRegularShowMessage, buildMembershipMessage } from "@/lib/showMessageBuilder";
 
 interface Show {
   id: string;
@@ -59,6 +59,15 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     durationDays: number;
     expiresAt: string | null;
   }) => {
+    if (isMembership) {
+      return buildMembershipMessage({
+        showTitle: show.title,
+        tokenCode: params.code,
+        liveLink: params.link,
+        durationLabel: `${membershipDuration} hari (diatur admin)`,
+        replayPassword: show.access_password,
+      });
+    }
     return buildRegularShowMessage({
       showTitle: show.title,
       scheduleDate: show.schedule_date,
