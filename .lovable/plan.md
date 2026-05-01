@@ -1,47 +1,53 @@
-## Hasil investigasi
+## Masalah
 
-Saya periksa seluruh alur pembuatan token membership oleh reseller (DB → RPC → bot WA → web) dan data nyata di tabel `tokens`. Hasilnya:
+Tombol "Upload Bukti Pembayaran" untuk QRIS statis **tidak merespons sama sekali** di banyak perangkat (terutama mobile/PWA). Akibatnya:
+- File picker tidak terbuka saat tombol diklik.
+- Tidak ada satupun pesanan QRIS statis (`payment_method = 'qris_static'` / `'qris'`) tersimpan di database — semua order yang masuk hanya dari `qris_dynamic`, `coin`, `reseller_bot`, atau `admin_bot`.
+- Tidak ada error log di edge function `upload-payment-proof` karena request tidak pernah terkirim.
 
-**Logika di database sudah benar.** Kedua RPC `reseller_create_token` (web) dan `reseller_create_token_by_id` (bot WhatsApp) memang **selalu mengabaikan** `_duration_days` dari pemanggil bila show adalah membership, dan memakai `_show.membership_duration_days` dari Show Manager:
+## Akar Penyebab
 
-```
-IF _is_membership THEN
-  _final_duration := GREATEST(1, COALESCE(_show.membership_duration_days, 30));
-```
+1. **`MembershipPage.tsx`** memakai pola lama `<label><input type="file" disabled={...} /></label>`. Pada Android Chrome / WebView / iOS PWA, klik pada `<label>` sering **tidak men-trigger file picker** ketika child input pernah berstatus `disabled`. Atribut `disabled` di `<input type="file">` juga memblokir interaksi tap di iOS bahkan setelah berubah ke `false`.
+2. **`Index.tsx`, `SchedulePage.tsx`, `ReplayPage.tsx`, `CoinShop.tsx`** memakai `<button onClick={() => ref.current?.click()}>` + `<input style={{display:"none"}}>`. Pola `display: none` pada `<input type="file">` menyebabkan beberapa engine WebView (terutama Android WebView versi lama dan PWA standalone) **tidak mau membuka native file picker** karena dianggap tidak visible/interactive.
+3. Tidak ada feedback ke user saat tombol gagal — sehingga terlihat "tombol mati".
 
-Saya verifikasi 6 token MBR- terbaru milik reseller di DB: semuanya memang `expires_at - created_at = 35 hari`, sesuai `membership_duration_days = 35` yang diatur admin. Token yang tersimpan **sudah betul mengikuti admin**.
+## Rencana Perbaikan
 
-**Yang salah adalah tampilan pesan WhatsApp balasan ke reseller**, sehingga reseller mengira durasi tidak ikut admin. Lokasi bug:
+### 1. Buat komponen reusable `PaymentProofUploadButton`
+File baru: `src/components/payment/PaymentProofUploadButton.tsx`
 
-- `supabase/functions/whatsapp-webhook/index.ts` baris 446-489, fungsi `handleResellerToken`. Variabel `safeDays` diisi dari input reseller (`requestedDays`), lalu pesan WA menampilkan `⏰ Durasi: *${safeDays} hari*`. RPC sebenarnya mengembalikan `duration_days` (nilai admin yang dipakai di DB), tapi pesan tidak memakainya.
-  - Akibat: kalau reseller tidak menyertakan durasi (default 1) atau menyertakan durasi berbeda dari admin, pesan WA menampilkan angka yang tidak match isi DB. Reseller mengira sistem tidak mengikuti admin.
+- Render `<button type="button">` dengan label & disabled state yang fleksibel.
+- Render `<input type="file" accept="image/*">` **off-screen** (bukan `display:none`):
+  ```css
+  position: absolute; width: 1px; height: 1px;
+  opacity: 0; pointer-events: none;
+  left: -9999px; top: 0;
+  ```
+- `onClick` tombol → `inputRef.current?.click()` di dalam handler synchronous (penting untuk user-gesture context iOS).
+- Jangan pernah set `disabled` pada `<input type="file">`; alih-alih, blokir lewat state pada `<button>`.
+- Reset `input.value = ""` setelah `onChange` agar bisa pilih file yang sama berulang kali.
+- Tambah `aria-label` & `data-testid` untuk QA.
 
-Tidak ada masalah di alur web reseller (`ResellerShowCard.tsx` sudah membaca `show.membership_duration_days` dan menampilkannya konsisten). Tidak ada masalah di pembelian membership user (sudah pakai admin value). Bot Telegram tidak punya command reseller membership.
+### 2. Ganti semua pemakaian pola lama
+- `src/pages/MembershipPage.tsx` (line 582-585): ganti `<label>...<input disabled.../></label>` dengan komponen baru. Validasi `phone`/`email` dipindah ke `onClick` tombol (tampilkan toast jika belum diisi) bukan via `disabled`.
+- `src/pages/Index.tsx` (line 993, 1095-1102, 1155-1162): hapus pola `galleryInputRef + display:none`, ganti dengan komponen baru yang inputnya off-screen.
+- `src/pages/SchedulePage.tsx` (line 395 + tombol pemicu): sama.
+- `src/pages/ReplayPage.tsx` (line 620 + tombol pemicu): sama.
+- `src/pages/CoinShop.tsx`: cek pola serupa, samakan.
 
-## Perubahan yang dilakukan
+### 3. Tambah error logging client-side
+Di `src/lib/uploadPaymentProof.ts`, tambah `console.warn` saat invoke gagal supaya kita bisa lihat error di console logs jika masalah upload muncul lagi setelah perbaikan UI.
 
-### 1. `supabase/functions/whatsapp-webhook/index.ts` — fungsi `handleResellerToken`
+### 4. (Opsional) Verifikasi
+Setelah deploy, minta user coba sekali — lalu periksa table `subscription_orders` apakah ada baris dengan `payment_method='qris_static'` & `payment_proof_url IS NOT NULL`.
 
-- Setelah RPC sukses, ambil durasi efektif dari respons RPC: `effectiveDays = res.duration_days ?? safeDays`.
-- Untuk show membership, paksa label dari `show.membership_duration_days` (sumber admin) sebagai sumber kebenaran tampilan, sehingga konsisten dengan `expires_at` dari RPC.
-- Update baris pesan menjadi:
-  - `⏰ Durasi: *${effectiveDays} hari*` (untuk regular)
-  - `⏰ Durasi Membership: *${effectiveDays} hari* _(diatur admin)_` (untuk membership)
-- Hapus / sesuaikan `durationNote` yang membandingkan `days` input dengan 1 hari, agar tidak menyesatkan. Untuk membership, kalau reseller mengirim durasi berbeda, tampilkan catatan ringan: `_Catatan: durasi membership selalu mengikuti pengaturan admin (X hari)._`
+## Yang TIDAK diubah
 
-### 2. (Opsional, agar konsisten) `src/components/reseller/ResellerShowCard.tsx`
+- Edge function `upload-payment-proof` (sudah benar; pakai service role, validasi MIME dengan fallback HEIC, rate limit per user/IP).
+- RPC `create_show_order`.
+- Storage RLS (bucket `payment-proofs` & policy sudah benar).
+- Flow QRIS dinamis.
 
-Sudah benar memakai `membership_duration_days`. Saya hanya perlu memastikan `buildRegularShowMessage` tidak dipanggil untuk membership — jika ya, swap ke `buildMembershipMessage` agar pesan share yang disalin reseller juga menampilkan label "Membership" + durasi admin. Ini perubahan kecil di fungsi `buildShareMessage` di file tersebut.
+## Hasil Diharapkan
 
-## Tidak perlu diubah
-
-- RPC `reseller_create_token` & `reseller_create_token_by_id`: sudah benar.
-- Skema tabel `shows` / `tokens`: tidak ada migrasi schema.
-- Alur QRIS / koin / bot Telegram: sudah memakai `membership_duration_days` dengan benar.
-
-## Verifikasi setelah implementasi
-
-1. Reseller mengirim `/<prefix>token <show membership>` tanpa durasi → pesan balasan WA harus menampilkan durasi sesuai `membership_duration_days` admin (mis. 35 hari), dan `expires_at` di DB juga 35 hari sejak sekarang.
-2. Reseller mengirim `/<prefix>token <show membership> 7hari 1` → pesan WA tetap menampilkan durasi admin (mis. 35 hari) plus catatan "durasi membership selalu mengikuti admin", token DB tetap 35 hari.
-3. Reseller membuat token membership via dashboard web → kartu hasil dan tombol "Salin Pesan" menampilkan durasi membership admin.
-4. Reseller membuat token regular (non-membership) → tetap 1 hari otomatis (tidak berubah).
+Tombol "Upload Bukti Pembayaran" merespons di semua perangkat (Android/iOS/Desktop/PWA), file picker terbuka, bukti tersimpan, dan order QRIS statis kembali masuk ke admin panel.
