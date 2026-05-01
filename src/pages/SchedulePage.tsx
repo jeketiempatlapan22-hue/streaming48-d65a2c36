@@ -391,8 +391,7 @@ const SchedulePage = () => {
             <h3 className="mb-1 text-lg font-bold text-foreground">{selectedShow.title}</h3>
             <p className="mb-4 text-sm text-muted-foreground">{selectedShow.price}</p>
 
-            {/* Hidden file input for gallery - no capture attribute */}
-            <input ref={galleryInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handleUploadProof(e); if (galleryInputRef.current) galleryInputRef.current.value = ""; }} />
+            {/* Mobile-safe upload trigger via PaymentProofUploadButton (rendered inline below) */}
 
             {/* Dynamic QRIS flow for regular shows */}
             {useDynamicQris && !selectedShow.is_subscription && dynamicQrisStep === "phone" && (
