@@ -102,11 +102,16 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 }
 
 // --- CACHES ---
-const M3U8_CACHE_TTL_MS = 2000; // 2s (tighter)
+// 4s TTL: live HLS target-duration is typically 4-6s, so this lets multiple
+// viewers (and HLS.js polls every ~target/2) share a single upstream fetch
+// without serving stale content. Sub-playlist cache key omits ipH so all
+// viewers benefit from the same cached rewrite.
+const M3U8_CACHE_TTL_MS = 4000;
+const SUB_M3U8_CACHE_TTL_MS = 3000;
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 const PROXY_TOKEN_CACHE_TTL_MS = 300000; // 5 min cache for hanabira48 tokens
 
-interface CacheEntry { content: string; cachedAt: number }
+interface CacheEntry { content: string; cachedAt: number; ttl?: number }
 type FetchM3u8Result = { content: string | null; inactive?: boolean; status?: number; errorBody?: string };
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
@@ -114,19 +119,21 @@ const proxyTokenCache = new Map<string, { headers: Record<string, string>; cache
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
-  if (!entry || Date.now() - entry.cachedAt > M3U8_CACHE_TTL_MS) {
+  const ttl = entry?.ttl ?? M3U8_CACHE_TTL_MS;
+  if (!entry || Date.now() - entry.cachedAt > ttl) {
     if (entry) m3u8Cache.delete(key);
     return null;
   }
   return entry.content;
 }
 
-function setCachedM3u8(key: string, content: string): void {
-  m3u8Cache.set(key, { content, cachedAt: Date.now() });
+function setCachedM3u8(key: string, content: string, ttl?: number): void {
+  m3u8Cache.set(key, { content, cachedAt: Date.now(), ttl });
   if (m3u8Cache.size > 200) {
     const now = Date.now();
     for (const [k, v] of m3u8Cache) {
-      if (now - v.cachedAt > M3U8_CACHE_TTL_MS) m3u8Cache.delete(k);
+      const t = v.ttl ?? M3U8_CACHE_TTL_MS;
+      if (now - v.cachedAt > t) m3u8Cache.delete(k);
     }
   }
 }
@@ -375,10 +382,20 @@ async function generateCloudflareSignedUrl(playlistId: string, functionUrl: stri
 
 // --- M3U8 REWRITING ---
 // Only proxy sub-playlists (.m3u8), leave segment URLs as direct CDN URLs
-// This avoids CORS issues with 302 redirects to CDNs that don't have CORS headers
+// This avoids CORS issues with 302 redirects to CDNs that don't have CORS headers.
+// Per-request memoization avoids HMAC-signing the same URL twice in one rewrite.
 async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: string, ipHash: string): Promise<string> {
   const lines = content.split("\n");
   const result: string[] = [];
+  const signedCache = new Map<string, string>();
+
+  const signSub = async (absUrl: string): Promise<string> => {
+    const cached = signedCache.get(absUrl);
+    if (cached) return cached;
+    const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl, ipHash);
+    signedCache.set(absUrl, signed);
+    return signed;
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -390,8 +407,7 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
         if (match) {
           const absUrl = resolveUrl(match[1], baseUrl);
           if (isM3u8Url(absUrl)) {
-            // Proxy sub-playlists through signed URL
-            const signed = await generateSubPlaylistSignedUrl(absUrl, functionUrl, ipHash);
+            const signed = await signSub(absUrl);
             result.push(trimmed.replace(`URI="${match[1]}"`, `URI="${signed}"`));
           } else {
             // Keys and other non-m3u8 URIs: resolve to absolute CDN URL directly
@@ -405,8 +421,7 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
     // Non-comment, non-empty lines are URLs
     const absoluteUrl = resolveUrl(trimmed, baseUrl);
     if (isM3u8Url(absoluteUrl)) {
-      // Sub-playlists: proxy through signed URL
-      result.push(await generateSubPlaylistSignedUrl(absoluteUrl, functionUrl, ipHash));
+      result.push(await signSub(absoluteUrl));
     } else {
       // Segments (.ts): use direct CDN URL to avoid CORS issues with 302 redirects
       result.push(absoluteUrl);
@@ -415,8 +430,18 @@ async function rewriteM3u8Hybrid(content: string, baseUrl: string, functionUrl: 
   return result.join("\n");
 }
 
-async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, functionUrl: string, ipHash: string): Promise<FetchM3u8Result> {
-  const fullCacheKey = `${cacheKey}:${ipHash}`;
+async function fetchAndRewriteM3u8(
+  originUrl: string,
+  cacheKey: string,
+  functionUrl: string,
+  ipHash: string,
+  opts?: { sharedCache?: boolean; ttlMs?: number },
+): Promise<FetchM3u8Result> {
+  // For sub-playlists we share the cache across viewers (no ipHash) — segment
+  // URLs inside are signed and bound to TTL only, not IP. This dramatically
+  // reduces upstream load and avoids per-viewer rewrite latency.
+  const fullCacheKey = opts?.sharedCache ? cacheKey : `${cacheKey}:${ipHash}`;
+  const ttl = opts?.ttlMs;
   const cached = getCachedM3u8(fullCacheKey);
   if (cached) return { content: cached };
 
@@ -453,7 +478,7 @@ async function fetchAndRewriteM3u8(originUrl: string, cacheKey: string, function
       const baseUrl = getBaseUrl(originUrl);
       const rewritten = await rewriteM3u8Hybrid(content, baseUrl, functionUrl, ipHash);
 
-      setCachedM3u8(fullCacheKey, rewritten);
+      setCachedM3u8(fullCacheKey, rewritten, ttl);
       return { content: rewritten };
     } catch (err: any) {
       if (timeout) clearTimeout(timeout);
@@ -1050,7 +1075,15 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const actualUrl = base64UrlDecode(encoded);
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewrittenResult = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl, ipH);
+      // Sub-playlists: share cache across viewers (signed segment URLs are
+      // bound to TTL, not IP) and use a slightly longer 3s TTL to coalesce polls.
+      const rewrittenResult = await fetchAndRewriteM3u8(
+        actualUrl,
+        `sub:${encoded.slice(0, 40)}`,
+        functionUrl,
+        ipH,
+        { sharedCache: true, ttlMs: SUB_M3U8_CACHE_TTL_MS },
+      );
 
       if (rewrittenResult.inactive) {
         return new Response(
