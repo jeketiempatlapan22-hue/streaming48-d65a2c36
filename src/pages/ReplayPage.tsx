@@ -62,9 +62,48 @@ const ReplayPage = () => {
   const [replayModal, setReplayModal] = useState<{ showId: string; password: string } | null>(null);
 
   const {
-    coinUser, coinBalance, replayPasswords,
+    coinUser, coinBalance, replayPasswords, redeemedTokens,
     addReplayPassword, setCoinBalance, loading: purchaseLoading,
   } = usePurchasedShows();
+
+  // Per-card password input state ("Sudah punya sandi?")
+  const [pwInput, setPwInput] = useState<Record<string, string>>({});
+  const [pwSubmitting, setPwSubmitting] = useState<Record<string, boolean>>({});
+
+  const submitReplayPassword = async (show: Show) => {
+    const raw = (pwInput[show.id] || "").trim();
+    if (!raw) {
+      toast({ title: "Masukkan sandi terlebih dahulu", variant: "destructive" });
+      return;
+    }
+    setPwSubmitting((s) => ({ ...s, [show.id]: true }));
+    try {
+      const { data, error } = await supabase.rpc("validate_replay_access" as any, {
+        _token: null,
+        _password: raw,
+        _show_id: show.id,
+        _short_id: null,
+      });
+      const d = data as any;
+      if (error || !d?.success) {
+        toast({
+          title: "Sandi salah",
+          description: d?.error || error?.message || "Tidak dapat memverifikasi sandi",
+          variant: "destructive",
+        });
+        return;
+      }
+      addReplayPassword(show.id, raw);
+      toast({ title: "Sandi valid! Membuka replay..." });
+      const target = buildReplayTarget(show, raw);
+      setTimeout(() => {
+        if (target.startsWith("/")) window.location.href = target;
+        else window.open(target, "_blank");
+      }, 300);
+    } finally {
+      setPwSubmitting((s) => ({ ...s, [show.id]: false }));
+    }
+  };
 
   // Purchase flow state
   const [purchaseShow, setPurchaseShow] = useState<Show | null>(null);
