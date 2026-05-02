@@ -207,6 +207,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Helper: only show "connecting" if buffer is truly exhausted (no future data)
+    const hasUsableBuffer = () => {
+      if (video.readyState >= 3) return true; // HAVE_FUTURE_DATA or better
+      if (video.buffered.length === 0) return false;
+      const t = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        const end = video.buffered.end(i);
+        const start = video.buffered.start(i);
+        if (t >= start - 0.5 && end - t > 1.5) return true;
+      }
+      return false;
+    };
+
     const onPlay = () => { if (!destroyed) { setIsPlaying(true); setIsLoading(false); } };
     const onPause = () => { if (!destroyed) setIsPlaying(false); };
     const onPlaying = () => { if (!destroyed) { setIsLoading(false); if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } } };
@@ -214,7 +227,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const onWaiting = () => {
       if (!destroyed) {
         if (waitingTimer) clearTimeout(waitingTimer);
-        waitingTimer = setTimeout(() => { if (!destroyed) setIsLoading(true); }, 800);
+        // Only show overlay if stall persists AND buffer is genuinely empty
+        waitingTimer = setTimeout(() => {
+          if (!destroyed && !hasUsableBuffer()) setIsLoading(true);
+        }, 2500);
       }
     };
     const onError = () => {
