@@ -106,6 +106,9 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         const data = JSON.parse(e.data);
 
         if (data.event === "infoDelivery" && data.info) {
+          // Player aktif & merespons → tidak perlu fallback
+          playerReadyRef.current = true;
+          if (showFallback) setShowFallback(false);
           if (typeof data.info.muted === "boolean") setMuted(data.info.muted);
 
           if (typeof data.info.playerState === "number") {
