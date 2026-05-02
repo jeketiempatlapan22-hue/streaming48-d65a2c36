@@ -33,6 +33,8 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [adaptive, setAdaptive] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showFallback, setShowFallback] = useState(false);
+  const playerReadyRef = useRef(false);
 
   const switchingTimerRef = useRef<number | null>(null);
   const bufferingSinceRef = useRef<number | null>(null);
@@ -42,8 +44,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const id = parseYoutubeId(url);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // Bersihkan parameter bermasalah (widgetid, vq, showinfo, fs, disablekb) yang
+  // memicu YouTube Error 153 ("Terjadi error pada konfigurasi pemutar video").
+  // Hanya gunakan parameter resmi yang didukung IFrame API.
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&origin=${encodeURIComponent(origin)}&widgetid=1`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&origin=${encodeURIComponent(origin)}`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -79,8 +84,18 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   // Loading overlay maksimum 1.5 detik di awal mount — tidak menggantung iframe
   useEffect(() => {
     setLoading(true);
+    setShowFallback(false);
+    playerReadyRef.current = false;
     const t = window.setTimeout(() => setLoading(false), 1500);
-    return () => window.clearTimeout(t);
+    // Safety net: jika setelah 8 detik player belum mengirim infoDelivery (Error 153 / restricted),
+    // tampilkan fallback link "Tonton di YouTube".
+    const fb = window.setTimeout(() => {
+      if (!playerReadyRef.current) setShowFallback(true);
+    }, 8000);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(fb);
+    };
   }, [src]);
 
   // YT IFrame API bridge — sinkronisasi state, BUKAN syarat tampil iframe
@@ -91,6 +106,9 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         const data = JSON.parse(e.data);
 
         if (data.event === "infoDelivery" && data.info) {
+          // Player aktif & merespons → tidak perlu fallback
+          playerReadyRef.current = true;
+          if (showFallback) setShowFallback(false);
           if (typeof data.info.muted === "boolean") setMuted(data.info.muted);
 
           if (typeof data.info.playerState === "number") {
@@ -233,6 +251,46 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
             <span className="text-[11px] font-semibold tracking-wide">
               Memuat YouTube…
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Fallback "Tonton di YouTube" jika player tidak ready dalam 8 detik
+          (mis. video restricted / Error 153 yang masih kebal terhadap parameter).
+          z-[18] di atas click-blocker (z-10) dan loading (z-[16]) supaya bisa diklik. */}
+      {showFallback && id && (
+        <div className="absolute inset-0 z-[18] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/60 px-6 py-5 text-white">
+            <span className="text-xs font-semibold tracking-wide opacity-80">
+              Player YouTube belum dapat memuat video ini
+            </span>
+            <a
+              href={`https://www.youtube.com/watch?v=${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+            >
+              ▶ Tonton di YouTube
+            </a>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFallback(false);
+                setLoading(true);
+                playerReadyRef.current = false;
+                if (iframeRef.current) {
+                  const cur = iframeRef.current.src;
+                  iframeRef.current.src = "about:blank";
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = cur;
+                  }, 100);
+                }
+                window.setTimeout(() => setLoading(false), 1500);
+              }}
+              className="text-[11px] font-semibold text-white/70 underline"
+            >
+              Coba muat ulang player
+            </button>
           </div>
         </div>
       )}
