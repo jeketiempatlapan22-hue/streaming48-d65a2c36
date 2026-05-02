@@ -27,6 +27,8 @@ const corsHeaders = {
 // Constants per playback_baru.txt
 const TOKEN_ID = "114e0e89-f8b4-44ee-9354-bb06805cc02f";
 const SEC_KEY = "49c647f3-c84b-4b93-9b84-9d1ad158428e";
+// Partner Secret per playback_baru.txt. Dapat dioverride via env HANABIRA_PARTNER_SECRET bila dirotasi.
+const DEFAULT_PARTNER_SECRET = "Hanabirastream2026";
 const JWT_TTL_SECONDS = 7200; // 2 hours
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -91,11 +93,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const partnerSecret = Deno.env.get("HANABIRA_PARTNER_SECRET");
-    if (!partnerSecret) {
-      console.error("[idn-stream-token] HANABIRA_PARTNER_SECRET tidak terkonfigurasi");
-      return jsonResponse({ success: false, error: "Server belum dikonfigurasi" }, 500);
-    }
+    const partnerSecret = Deno.env.get("HANABIRA_PARTNER_SECRET") || DEFAULT_PARTNER_SECRET;
 
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
