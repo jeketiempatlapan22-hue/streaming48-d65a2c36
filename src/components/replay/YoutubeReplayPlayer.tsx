@@ -44,11 +44,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const id = parseYoutubeId(url);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  // Bersihkan parameter bermasalah (widgetid, vq, showinfo, fs, disablekb) yang
-  // memicu YouTube Error 153 ("Terjadi error pada konfigurasi pemutar video").
-  // Hanya gunakan parameter resmi yang didukung IFrame API.
+  // Gunakan host youtube-nocookie.com (privacy-enhanced) — lebih jarang ditolak
+  // domain restriction dibanding youtube.com/embed.
+  // autoplay=1 + mute=1 wajib agar video langsung tampil & memicu infoDelivery
+  // (sehingga fallback 8 detik tidak salah trigger).
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&origin=${encodeURIComponent(origin)}`
+    ? `https://www.youtube-nocookie.com/embed/${id}?enablejsapi=1&autoplay=1&mute=1&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&origin=${encodeURIComponent(origin)}`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -228,7 +229,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           src={src}
           title="Replay"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-          allowFullScreen={false}
+          allowFullScreen
           className="relative z-[1] h-full w-full"
         />
       </div>
