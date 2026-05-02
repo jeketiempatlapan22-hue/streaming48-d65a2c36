@@ -182,6 +182,8 @@ const ReplayPlayPage = () => {
       case "show_password": return "Sandi Show";
       case "live_token_upgrade": return "Token Live → Replay";
       case "replay_token": return "Token Replay";
+      case "purchased_live_token": return "Akses dari Pembelian Live";
+      case "universal_token": return "Akses Membership/Bundle";
       default: return "Akses Replay";
     }
   }, [access?.access_via]);
