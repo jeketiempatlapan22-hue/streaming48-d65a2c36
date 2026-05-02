@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProxyStreamResult {
   playbackUrl: string | null;
@@ -8,19 +9,23 @@ interface ProxyStreamResult {
   error: string | null;
 }
 
-const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min
-const PLAYBACK_URL = "https://proxy.mediastream48.workers.dev/api/proxy/playback";
-const TOKEN_TO_PLAYBACK_DELAY_MS = 1500; // 1.5s delay after token fetch before starting playback
+const TOKEN_REFRESH_MS = 115 * 60 * 1000; // 1 h 55 min (JWT exp = 2 h)
+const PLAYBACK_URL = "https://proxy.mediastream48.workers.dev/api/stream/v2/playback";
+const TOKEN_TO_PLAYBACK_DELAY_MS = 1500; // 1.5s buffer setelah token siap
 
 /**
- * Hook: fetch token dari hanabira48.com/api/stream-token setiap ~1h55m,
- * lalu inject header auth langsung ke HLS.js xhr requests menuju
- * https://proxy.mediastream48.workers.dev/api/proxy/playback via setRequestHeader.
+ * Hook: minta header auth ke edge function `idn-stream-token` (server-side JWT
+ * generator) lalu inject langsung ke HLS.js xhr requests menuju
+ * `/api/stream/v2/playback` via setRequestHeader.
+ *
+ * Persyaratan akses ditegakkan di edge function — caller harus login (Bearer JWT)
+ * atau melampirkan token_code aktif. Frontend tinggal kirim show_id (opsional).
  */
 export function useProxyStream(
   isProxy: boolean,
   externalShowId: string | null,
-  refreshKey = 0
+  refreshKey = 0,
+  tokenCode?: string | null,
 ): ProxyStreamResult {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const customHeadersRef = useRef<Record<string, string> | null>(null);
@@ -37,29 +42,34 @@ export function useProxyStream(
       if (isInitial) setLoading(true);
       setError(null);
 
-      const tokenUrl = `https://hanabira48.com/api/stream-token?showId=${encodeURIComponent(externalShowId)}`;
-      console.log("[ProxyStream] Fetching token:", tokenUrl);
-      const res = await fetch(tokenUrl);
+      console.log("[ProxyStream] Requesting IDN token via edge function:", externalShowId);
+      const { data, error: invokeErr } = await supabase.functions.invoke("idn-stream-token", {
+        body: {
+          show_id: externalShowId,
+          ...(tokenCode ? { token_code: tokenCode } : {}),
+        },
+      });
 
-      if (!res.ok) throw new Error(`Token API ${res.status}`);
-
-      const data = await res.json();
+      if (invokeErr) throw new Error(invokeErr.message || "Edge function error");
+      if (!data?.success || !data?.headers) {
+        throw new Error(data?.error || "Token response tidak valid");
+      }
       if (!isMounted.current) return;
 
-      console.log("[ProxyStream] Token response:", JSON.stringify(data));
-
-      const headers = extractHeaders(data);
-      if (!headers) throw new Error("Token response tidak valid");
-
-      console.log("[ProxyStream] Headers extracted:", Object.keys(headers).join(", "));
+      const headers = data.headers as Record<string, string>;
+      console.log("[ProxyStream] Headers received:", Object.keys(headers).join(", "));
 
       // Update headers ref (read by xhrSetup on every HLS request)
-      customHeadersRef.current = headers;
+      customHeadersRef.current = {
+        "x-api-token": String(headers["x-api-token"] || ""),
+        "x-sec-key": String(headers["x-sec-key"] || ""),
+        "x-token-id": String(headers["x-token-id"] || ""),
+        "x-showid": String(headers["x-showid"] || ""),
+      };
 
       if (isInitial) {
-        // Delay sebelum set playback URL agar token siap di server proxy
-        console.log(`[ProxyStream] Waiting ${TOKEN_TO_PLAYBACK_DELAY_MS}ms before playback...`);
-        await new Promise(r => setTimeout(r, TOKEN_TO_PLAYBACK_DELAY_MS));
+        // Buffer kecil agar token sudah ter-propagate di sisi proxy
+        await new Promise((r) => setTimeout(r, TOKEN_TO_PLAYBACK_DELAY_MS));
         if (!isMounted.current) return;
 
         setPlaybackUrl(PLAYBACK_URL);
@@ -91,7 +101,7 @@ export function useProxyStream(
         if (isMounted.current) fetchToken();
       }, 10_000);
     }
-  }, [isProxy, externalShowId, refreshKey]);
+  }, [isProxy, externalShowId, refreshKey, tokenCode]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -109,55 +119,4 @@ export function useProxyStream(
   }, [fetchToken]);
 
   return { playbackUrl, customHeadersRef, loading, error };
-}
-
-/**
- * Extract auth headers dari berbagai format response stream-token.
- * Header ini akan di-inject langsung via xhr.setRequestHeader ke proxy playback.
- */
-function extractHeaders(data: any): Record<string, string> | null {
-  if (!data) return null;
-
-  let apiToken: string | null = null;
-  let secKey: string | null = null;
-  let showId: string | null = null;
-  let tokenId: string | null = null;
-
-  // Shape 1: flat { apiToken, secKey, ... }
-  if (data.apiToken && data.secKey) {
-    apiToken = data.apiToken;
-    secKey = data.secKey;
-    showId = data.showId ?? "";
-    tokenId = data.tokenId ?? "";
-  }
-  // Shape 2: { token: { ... } }
-  else if (data.token?.apiToken && data.token?.secKey) {
-    apiToken = data.token.apiToken;
-    secKey = data.token.secKey;
-    showId = data.token.showId ?? "";
-    tokenId = data.token.tokenId ?? "";
-  }
-  // Shape 3: { data: { ... } }
-  else if (data.data?.apiToken && data.data?.secKey) {
-    apiToken = data.data.apiToken;
-    secKey = data.data.secKey;
-    showId = data.data.showId ?? "";
-    tokenId = data.data.tokenId ?? "";
-  }
-  // Shape 4: x-header format
-  else {
-    apiToken = data["x-api-token"] ?? data.xapi ?? null;
-    secKey = data["x-sec-key"] ?? data.xsec ?? null;
-    showId = data["x-showid"] ?? data.xshowid ?? "";
-    tokenId = data["x-token-id"] ?? data.xtoken ?? "";
-  }
-
-  if (!apiToken || !secKey) return null;
-
-  return {
-    "x-api-token": String(apiToken),
-    "x-sec-key": String(secKey),
-    "x-showid": String(showId),
-    "x-token-id": String(tokenId),
-  };
 }
