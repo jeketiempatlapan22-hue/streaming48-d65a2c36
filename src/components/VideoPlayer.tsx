@@ -556,12 +556,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             setIsLoading(false);
           }
         } else if (data.details === "bufferStalledError" || data.details === "bufferNudgeOnStall") {
-          // Aggressive recovery: jump to near live edge or buffer end
-          if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 3) {
-            video.currentTime = hls.liveSyncPosition - 1;
-          } else if (video.buffered.length > 0) {
+          // Gentle recovery: prefer continuing from existing buffer over disruptive seeks
+          if (video.buffered.length > 0) {
             const end = video.buffered.end(video.buffered.length - 1);
-            if (end - video.currentTime > 0.3) video.currentTime = end - 0.2;
+            const gap = end - video.currentTime;
+            if (gap > 0.5) {
+              // We have buffer ahead — just nudge slightly forward, no big jump
+              if (gap < 0.8) video.currentTime = video.currentTime + 0.1;
+            } else if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 8) {
+              // Only seek to live edge if significantly behind
+              video.currentTime = hls.liveSyncPosition - 2;
+            }
+          } else if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 8) {
+            video.currentTime = hls.liveSyncPosition - 2;
           }
           if (video.paused) video.play().catch(() => {});
         }
