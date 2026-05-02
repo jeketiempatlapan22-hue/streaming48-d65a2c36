@@ -76,6 +76,7 @@ const ResellerAuditLog = () => {
     return entries.filter((e) => {
       if (statusFilter !== "all" && e.status !== statusFilter) return false;
       if (sourceFilter !== "all" && e.source !== sourceFilter) return false;
+      if (resellerFilter !== "all" && (e.reseller_id || "none") !== resellerFilter) return false;
       if (!q) return true;
       return (
         (e.reseller_name || "").toLowerCase().includes(q) ||
@@ -86,7 +87,20 @@ const ResellerAuditLog = () => {
         (e.rejection_reason || "").toLowerCase().includes(q)
       );
     });
-  }, [entries, search, statusFilter, sourceFilter]);
+  }, [entries, search, statusFilter, sourceFilter, resellerFilter]);
+
+  // Daftar reseller unik dengan jumlah entries
+  const resellerList = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    entries.forEach((e) => {
+      const id = e.reseller_id || "none";
+      const name = e.reseller_name || "(Tanpa Nama)";
+      const cur = map.get(id) || { id, name, count: 0 };
+      cur.count += 1;
+      map.set(id, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [entries]);
 
   const stats = useMemo(() => ({
     total: entries.length,
