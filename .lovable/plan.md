@@ -1,79 +1,72 @@
+# Perbaiki Embed YouTube di Halaman Replay Play
+
 ## Masalah
 
-1. **Tidak ada input sandi di kartu replay.** Di `src/pages/ReplayPage.tsx`, jika user belum punya tokens/sandi tersimpan, satu-satunya tombol adalah "Beli Replay". User yang sudah punya sandi (dari WhatsApp, dari teman, atau dari pembelian sebelumnya tapi tidak login) tidak bisa langsung memakainya — mereka harus copy sandi lalu pergi ke `/replay-play`.
+Pada halaman `/replay-play`, ketika sumber YouTube dipilih, area player tampak hitam atau menampilkan teks error "Link YouTube tidak valid" / overlay "Menghubungkan ke YouTube…" yang tidak pernah hilang. Embed YouTube tidak benar-benar muncul.
 
-2. **User yang sudah beli show saat live, harus beli ulang ketika show jadi replay.** Penyebabnya:
-   - `validate_replay_access` (RPC) hanya menerima:
-     - kode `replay_tokens` (RT-…), atau
-     - sandi global situs.
-   - Kode tersebut **tidak memeriksa** `tokens` aktif (RT48-show, MBR-, BDL-) milik user yang sudah membeli show saat live.
-   - `get_purchased_show_passwords` sudah benar mengambil sandi show yang dibeli (lewat `coin_transactions` + `tokens`), tapi sandi itu adalah `shows.access_password` (sandi live), **bukan** `replay_password`. Setelah show jadi replay, sandi live tidak otomatis valid di endpoint replay karena `validate_replay_access` tidak men-cross-check `tokens`.
-   - Akibatnya user yang sudah punya token live untuk show tersebut tidak bisa login replay tanpa membeli lagi.
+Penyebab di `src/components/replay/YoutubeReplayPlayer.tsx`:
+
+1. **Overlay loading tidak pernah ditutup.** `setLoading(false)` hanya dipanggil setelah event `onReady`/`infoDelivery` dari YouTube IFrame API. Pada banyak kondisi (mobile, autoplay diblok, latensi tinggi), event ini telat atau tidak terkirim, sehingga overlay z-[16] menutupi iframe selamanya.
+2. **Watchdog 8 detik me-reload iframe terus-menerus** lewat `setReloadKey`, sehingga thumbnail YouTube selalu di-reset sebelum sempat tampil dan event `onReady` tidak pernah selesai.
+3. **Validasi ID terlalu ketat.** Jika `youtube_url` kosong / format aneh, langsung tampil teks "Link YouTube tidak valid" tanpa pesan yang jelas atau fallback.
+
+User minta perbaikan yang **mempertahankan**:
+- Overlay click-blocker (mencegah klik tembus ke kontrol asli YouTube / link "Watch on YouTube").
+- Custom controls (play, pause, mute, fullscreen, quality) tetap berfungsi.
 
 ## Solusi
 
-### 1. Tambah panel "Punya sandi? Masukkan di sini" di kartu replay
-Di `src/pages/ReplayPage.tsx`, untuk setiap kartu show yang **belum** punya `replayPasswords[show.id]` dan **belum** `hasPurchased`, tampilkan di bawah tombol "Beli Replay":
+Refactor `YoutubeReplayPlayer` agar embed pasti tampil, sambil menjaga proteksi & custom controls:
 
+1. **Iframe selalu render dan terlihat sejak awal** — hapus dependensi tampilan iframe pada event `onReady`. Loading hanya ditampilkan **maksimum 1.5 detik** sebagai transisi visual; setelah itu otomatis disembunyikan walaupun event API belum diterima.
+2. **Hapus watchdog reload 8 detik** yang me-reset iframe. Iframe YouTube pasti load sendiri jika ID valid; reload otomatis justru menyebabkan loop.
+3. **Pertahankan overlay click-blocker** (z-10) untuk mencegah user mengklik link YouTube di dalam iframe — overlay tetap menjadi target klik untuk tombol play/pause via tap, persis seperti perilaku saat ini.
+4. **Pertahankan custom controls bottom bar** (z-20): play/pause, mute/unmute, AUTO/MAX quality, fullscreen — semuanya tetap mengirim postMessage ke iframe seperti sebelumnya.
+5. **Perbaiki UX validasi ID**: ID 11 karakter dari DB (mis. `aP2MdnWW4Do`) maupun URL penuh sama-sama jalan via `parseYoutubeId` yang sudah ada. Jika benar-benar invalid, tampilkan pesan yang lebih jelas: "URL/ID YouTube belum dikonfigurasi untuk show ini" — bukan generic.
+6. **Mute=true pada parameter awal iframe** dihilangkan; tetap pakai default unmuted, tapi tombol play custom akan memanggil `playVideo` setelah user-gesture (klik overlay) — ini kondisi yang diizinkan browser.
+
+Tidak ada perubahan di:
+- `src/pages/ReplayPlayPage.tsx` — logika selektor sumber, RPC, dan rendering tetap.
+- `src/lib/youtubeUrl.ts` — parser ID sudah benar.
+- RPC `validate_replay_access` — sudah mengembalikan `youtube_url` & `has_media` dengan benar.
+- Komponen / halaman lain di luar replay play.
+
+## Detail Teknis
+
+File yang diubah: **`src/components/replay/YoutubeReplayPlayer.tsx`** (rewrite ~260 baris → lebih ringkas, ~200 baris).
+
+Perubahan kunci:
+
+```text
+- iframe src: tetap https://www.youtube.com/embed/{id}?enablejsapi=1&controls=0&modestbranding=1
+            &rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1
+            &origin={window.location.origin}
+            (controls=0 wajib karena kita pakai custom controls)
+- HAPUS: useEffect watchdog readyTimeoutRef + setReloadKey
+- HAPUS: ketergantungan setLoading(false) hanya pada onReady
+- TAMBAH: setTimeout 1500ms di mount → setLoading(false) sebagai fallback
+- TETAP: overlay click-blocker z-10 (transparent, capture click → togglePlay)
+- TETAP: bottom controls z-20 (play/pause/mute/quality/fullscreen)
+- TETAP: adaptive quality watcher (downgrade saat buffering >3s)
+- TETAP: postMessage bridge untuk infoDelivery (sinkron status playing/muted/quality)
 ```
-┌──────────────────────────────┐
-│  Beli Replay                 │  ← tombol existing
-├──────────────────────────────┤
-│  Sudah punya sandi?          │
-│  [_________] [Tonton]        │
-└──────────────────────────────┘
+
+Struktur layering tetap:
+```text
+z-0  : <iframe> (visible sejak load, kontrol native disembunyikan via controls=0)
+z-10 : click-blocker overlay (transparent, mencegah klik ke iframe + capture togglePlay)
+z-15 : overlay "Menyesuaikan kualitas" (muncul hanya saat switching quality)
+z-16 : overlay loading (HANYA muncul ≤1.5 detik di awal mount)
+z-20 : custom controls bar (play, pause, mute, AUTO/MAX, fullscreen)
 ```
 
-- Input controlled per-show (state `Record<showId, string>`).
-- Tombol "Tonton" memanggil `validate_replay_access({ _password, _show_id: show.id })`. Jika sukses:
-  - simpan sandi via `addReplayPassword(show.id, sandi)` agar persist,
-  - redirect ke `buildReplayTarget(show, sandi)`.
-- Jika gagal: tampilkan toast error "Sandi salah".
-- Tampilkan juga panel ini di `BundleShowCard` versi replay (opsional, bila user request).
+CSP di `index.html` sudah mengizinkan `frame-src https://www.youtube.com` — tidak perlu diubah.
 
-### 2. Akses replay otomatis untuk user yang sudah beli show live
+## Verifikasi
 
-Update RPC `validate_replay_access` agar mengenali user authenticated yang sudah punya:
-- `tokens` aktif untuk `show_id` (per-show token), ATAU
-- token universal aktif (`MBR-`, `MRD-`, `BDL-`, `RT48-`) yang berlaku untuk show tersebut, ATAU
-- `coin_transactions` dengan `type IN ('redeem','replay_redeem')` dan `reference_id = show.id`.
-
-Ketika `_show_id`/`_short_id` diberikan dan `auth.uid()` punya salah satu hak akses di atas → return `success: true` dengan `access_via='purchased_live_token'` dan `m3u8_url`/`youtube_url` show. Tidak perlu beli ulang.
-
-Tambahkan juga di `ReplayPlayPage.tsx` (`tryAccess`): jika user login dan `_show_id`/`_short_id` ada di URL, cukup panggil RPC tanpa password — RPC otomatis cek token milik user.
-
-### 3. Auto-detect saat membuka kartu di ReplayPage
-Saat `usePurchasedShows` sudah load, jika `redeemedTokens[show.id]` ada (artinya user pernah beli show tersebut) tapi `replayPasswords[show.id]` belum, ubah tombol kartu jadi langsung **"Tonton Replay"** (mode `hasPurchased`) yang akan membuka `/replay-play?show=<short_id>` — RPC baru akan menerima akses berdasarkan token aktif user.
-
-## Perubahan File
-
-- `src/pages/ReplayPage.tsx` — tambah panel input sandi di kartu (state per-show, handler validate→redirect); tambah cabang tampilkan "Tonton Replay" bila `redeemedTokens[show.id]` ada.
-- `src/pages/ReplayPlayPage.tsx` — saat user login + `show`/`token` di URL kosong-password, panggil RPC tanpa password (RPC akan auto-grant via token aktif).
-- `supabase/migrations/<timestamp>_replay_access_recognize_live_purchases.sql` — `CREATE OR REPLACE FUNCTION validate_replay_access` yang memperluas logika: cek `tokens` milik `auth.uid()` (per-show + universal) dan `coin_transactions` (redeem/replay_redeem) untuk show terkait.
-
-## Verifikasi & Checklist
-
-Setelah build, jalankan checklist manual berikut (akan saya tuliskan di komentar PR / chat):
-
-1. **Input sandi di kartu**
-   - [ ] Buka `/replay`, kartu show belum dibeli menampilkan field "Sudah punya sandi?"
-   - [ ] Masukkan sandi salah → toast error, tetap di halaman.
-   - [ ] Masukkan sandi benar → redirect ke `/replay-play` dan video play.
-
-2. **Akses otomatis untuk pembeli live**
-   - [ ] User A beli show via koin saat live (token RT48-, dapat sandi access).
-   - [ ] Show ditandai `is_replay=true` admin.
-   - [ ] User A buka `/replay`, kartu show muncul tombol "Tonton Replay" (bukan "Beli Replay").
-   - [ ] Klik → langsung play tanpa minta sandi/beli ulang.
-
-3. **Akses untuk membership/bundle**
-   - [ ] User dengan `MBR-` aktif, buka kartu replay → langsung "Tonton Replay" (bila show tidak `exclude_from_membership`).
-   - [ ] User dengan `BDL-` aktif untuk show bundle → sama.
-
-4. **Replay token tetap berfungsi**
-   - [ ] Token `RT-` lama via link `?token=…` tetap bisa play.
-   - [ ] Sandi global tetap berlaku untuk show lain.
-
-5. **Build & test**
-   - [ ] `bun run build` sukses tanpa error baru.
-   - [ ] `bunx vitest run` hijau (tidak ada test baru yang gagal).
+1. Buka `/replay-play?show={short_id}` untuk show yang punya `replay_youtube_url` (mis. "Passion 200%" → ID `aP2MdnWW4Do`).
+2. Pilih tab **YouTube** atau biarkan **Auto** (jika hanya YouTube tersedia).
+3. Embed YouTube langsung tampil dalam ≤1.5 detik dengan thumbnail/poster.
+4. Klik area video → video play (custom button). Klik lagi → pause.
+5. Tombol mute, AUTO/MAX quality, dan fullscreen semua tetap berfungsi.
+6. Coba klik logo YouTube atau judul di dalam iframe → tetap tertahan oleh overlay (klik di-capture untuk play/pause), user tidak bisa berpindah ke youtube.com.

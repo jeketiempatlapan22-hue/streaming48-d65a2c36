@@ -3,15 +3,14 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2 } from "lucide-r
 import { parseYoutubeId as parseYoutubeIdShared } from "@/lib/youtubeUrl";
 
 interface Props {
-  url: string; // YouTube URL or ID
+  url: string; // YouTube URL or 11-char ID
   poster?: string | null;
 }
 
-// Quality ladder (highest -> lowest) — mulai dari 1080p
+// Quality ladder (highest -> lowest)
 const QUALITY_LADDER = ["hd1080", "hd720", "large", "medium", "small"];
 const MAX_QUALITY = "hd1080";
 
-// Wrapper to keep existing call signature (returns "" when invalid)
 const parseYoutubeId = (url: string): string => parseYoutubeIdShared(url) ?? "";
 
 const qualityLabel = (q: string): string => {
@@ -34,23 +33,17 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [adaptive, setAdaptive] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stalled, setStalled] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
 
   const switchingTimerRef = useRef<number | null>(null);
   const bufferingSinceRef = useRef<number | null>(null);
   const qualityIndexRef = useRef<number>(0);
   const lastDowngradeRef = useRef<number>(0);
-  const readyRef = useRef<boolean>(false);
-  const readyTimeoutRef = useRef<number | null>(null);
 
   const id = parseYoutubeId(url);
 
-  // Build iframe src. `origin` is REQUIRED for the YT IFrame API postMessage
-  // bridge to work reliably across browsers.
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&autoplay=0&origin=${encodeURIComponent(origin)}&widgetid=1`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&origin=${encodeURIComponent(origin)}&widgetid=1`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -83,47 +76,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     }, 1200);
   }, [setQuality, post]);
 
-  // Reset loading state on reload / src change
+  // Loading overlay maksimum 1.5 detik di awal mount — tidak menggantung iframe
   useEffect(() => {
     setLoading(true);
-    setStalled(false);
-    readyRef.current = false;
-  }, [src, reloadKey]);
+    const t = window.setTimeout(() => setLoading(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [src]);
 
-  // Watchdog: kalau iframe tidak siap dalam 8 detik, anggap stuck dan reload sekali
-  useEffect(() => {
-    if (readyTimeoutRef.current) window.clearTimeout(readyTimeoutRef.current);
-    readyTimeoutRef.current = window.setTimeout(() => {
-      if (!readyRef.current) {
-        setStalled(true);
-        // Soft reload iframe via key bump
-        setReloadKey((k) => k + 1);
-      }
-    }, 8000);
-    return () => {
-      if (readyTimeoutRef.current) window.clearTimeout(readyTimeoutRef.current);
-    };
-  }, [src, reloadKey]);
-
-  // YT IFrame API bridge
+  // YT IFrame API bridge — sinkronisasi state, BUKAN syarat tampil iframe
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      // Hanya proses pesan dari domain YouTube
-      if (typeof e.origin === "string" && !/youtube(-nocookie)?\.com$/.test(new URL(e.origin).hostname)) {
-        // continue silently — beberapa browser tidak set origin dengan rapi
-      }
       if (typeof e.data !== "string") return;
       try {
         const data = JSON.parse(e.data);
-
-        // Tanda iframe API hidup → matikan loading
-        if (data.event === "onReady" || data.event === "initialDelivery" || data.event === "infoDelivery") {
-          if (!readyRef.current) {
-            readyRef.current = true;
-            setLoading(false);
-            setStalled(false);
-          }
-        }
 
         if (data.event === "infoDelivery" && data.info) {
           if (typeof data.info.muted === "boolean") setMuted(data.info.muted);
@@ -134,12 +99,10 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
             setPlaying(state === 1);
 
             if (state === 3) {
-              setLoading(true);
               if (bufferingSinceRef.current == null) {
                 bufferingSinceRef.current = Date.now();
               }
             } else {
-              setLoading(false);
               bufferingSinceRef.current = null;
             }
           }
@@ -159,7 +122,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     };
     window.addEventListener("message", onMessage);
 
-    // Subscribe ke event YT secepat mungkin & polling sampai ready
+    // Subscribe ke event YT — best-effort, tidak menghalangi tampilan
     let attempts = 0;
     const subscribe = () => {
       const w = iframeRef.current?.contentWindow;
@@ -185,10 +148,10 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     const sub = setInterval(() => {
       attempts += 1;
       subscribe();
-      if (readyRef.current || attempts > 20) clearInterval(sub);
+      if (attempts > 20) clearInterval(sub);
     }, 500);
 
-    // Adaptive watcher: every 1s, if buffering >3s and adaptive on, downgrade
+    // Adaptive watcher: tiap 1s, jika buffering >3s & adaptive on → downgrade
     const watcher = setInterval(() => {
       if (!adaptive) return;
       if (switchingTimerRef.current) return;
@@ -204,12 +167,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       clearInterval(watcher);
       if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
-  }, [src, reloadKey, adaptive, downgradeOneStep]);
+  }, [src, adaptive, downgradeOneStep]);
 
   if (!id) {
     return (
-      <div className="aspect-video w-full flex items-center justify-center rounded-xl bg-black text-sm text-muted-foreground">
-        Link YouTube tidak valid
+      <div className="aspect-video w-full flex items-center justify-center rounded-xl bg-black px-4 text-center text-sm text-muted-foreground">
+        URL/ID YouTube belum dikonfigurasi untuk show ini
       </div>
     );
   }
@@ -231,22 +194,29 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
 
   return (
     <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-black">
+      {/* Poster di belakang sebagai background sementara iframe load */}
+      {poster && loading && (
+        <img
+          src={poster}
+          alt=""
+          className="absolute inset-0 z-0 h-full w-full object-cover opacity-60"
+          aria-hidden
+        />
+      )}
+
       <div className="aspect-video w-full">
         <iframe
-          key={reloadKey}
           ref={iframeRef}
           src={src}
           title="Replay"
-          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
           allowFullScreen={false}
-          className="h-full w-full"
-          onLoad={() => {
-            // Iframe document loaded — biarkan watchdog yang verifikasi API ready
-          }}
+          className="relative z-[1] h-full w-full"
         />
       </div>
 
-      {/* Click-blocking overlay so users cannot click through into youtube.com */}
+      {/* Click-blocker overlay — mencegah klik tembus ke link/tombol native YouTube,
+          sekaligus menjadi target tap untuk play/pause */}
       <div
         className="absolute inset-0 z-10"
         style={{ background: "transparent" }}
@@ -255,13 +225,13 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         aria-hidden
       />
 
-      {/* Loading / connecting overlay */}
+      {/* Loading overlay singkat (≤1.5s) */}
       {loading && (
-        <div className="pointer-events-none absolute inset-0 z-[16] flex items-center justify-center bg-black/55 backdrop-blur-[1px] animate-in fade-in duration-200">
+        <div className="pointer-events-none absolute inset-0 z-[16] flex items-center justify-center bg-black/45 backdrop-blur-[1px] animate-in fade-in duration-200">
           <div className="flex flex-col items-center gap-2 rounded-2xl bg-black/65 px-5 py-4 text-white">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
             <span className="text-[11px] font-semibold tracking-wide">
-              {stalled ? "Memulihkan koneksi…" : "Menghubungkan ke YouTube…"}
+              Memuat YouTube…
             </span>
           </div>
         </div>
@@ -280,7 +250,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         </div>
       </div>
 
-      {/* Custom controls (z-20) */}
+      {/* Custom controls (z-20) — selalu di atas overlay click-blocker */}
       <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 flex items-center justify-between text-white">
         <div className="flex items-center gap-3">
           <button onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
