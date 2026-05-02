@@ -119,19 +119,21 @@ const proxyTokenCache = new Map<string, { headers: Record<string, string>; cache
 
 function getCachedM3u8(key: string): string | null {
   const entry = m3u8Cache.get(key);
-  if (!entry || Date.now() - entry.cachedAt > M3U8_CACHE_TTL_MS) {
+  const ttl = entry?.ttl ?? M3U8_CACHE_TTL_MS;
+  if (!entry || Date.now() - entry.cachedAt > ttl) {
     if (entry) m3u8Cache.delete(key);
     return null;
   }
   return entry.content;
 }
 
-function setCachedM3u8(key: string, content: string): void {
-  m3u8Cache.set(key, { content, cachedAt: Date.now() });
+function setCachedM3u8(key: string, content: string, ttl?: number): void {
+  m3u8Cache.set(key, { content, cachedAt: Date.now(), ttl });
   if (m3u8Cache.size > 200) {
     const now = Date.now();
     for (const [k, v] of m3u8Cache) {
-      if (now - v.cachedAt > M3U8_CACHE_TTL_MS) m3u8Cache.delete(k);
+      const t = v.ttl ?? M3U8_CACHE_TTL_MS;
+      if (now - v.cachedAt > t) m3u8Cache.delete(k);
     }
   }
 }
