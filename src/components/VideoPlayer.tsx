@@ -421,11 +421,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
         setStreamInactive(false);
         networkRetryCount = 0;
-        // Fallback: if no fragment loads within 6s, treat as inactive
+        // Fallback: if no fragment loads within 10s, treat as inactive
         if (inactiveFallbackTimer) clearTimeout(inactiveFallbackTimer);
         inactiveFallbackTimer = setTimeout(() => {
           if (destroyed || fragLoaded) return;
-          console.warn("[HLS] No fragments loaded after 6s — stream inactive");
+          console.warn("[HLS] No fragments loaded after 10s — stream inactive");
           setStreamInactive(true);
           setIsLoading(false);
           if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
@@ -437,7 +437,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               hls.loadSource(getSourceUrl());
             }
           }, 10000);
-        }, 6000);
+        }, 10000);
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
           const label = l.height ? `${l.height}p` : `Level ${i}`;
