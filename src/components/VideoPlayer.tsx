@@ -349,11 +349,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         maxBufferHole: 1.0,
         nudgeOffset: 0.2,
         nudgeMaxRetry: 8,
-        // Stay further from live edge so a single slow segment doesn't stall us
-        liveSyncDurationCount: 4,
-        liveMaxLatencyDurationCount: 12,
-        // Allow slight speed-up to catch back to live instead of seeking
-        maxLiveSyncPlaybackRate: 1.1,
+        // Stay further from live edge so transient slow segments don't stall us
+        liveSyncDurationCount: 5,
+        liveMaxLatencyDurationCount: 15,
+        // Catch back to live via mild speed-up rather than disruptive seeks
+        maxLiveSyncPlaybackRate: 1.08,
         liveBackBufferLength: backBuffer,
         liveDurationInfinity: true,
         capLevelToPlayerSize: true,
