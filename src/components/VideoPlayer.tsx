@@ -655,7 +655,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     setPlayerError(null);
     setStreamInactive(false);
-    setIsLoading(true);
+    // Only show loading if we genuinely have nothing to play right now.
+    // Refreshing a signed URL while buffer is healthy should be invisible.
+    const hasBuffer = !!(video && video.readyState >= 3 && video.buffered.length > 0
+      && video.buffered.end(video.buffered.length - 1) - video.currentTime > 2);
+    if (!hasBuffer) setIsLoading(true);
 
     if (hls) {
       const shouldResume = Boolean(autoPlay || (video && !video.paused));
