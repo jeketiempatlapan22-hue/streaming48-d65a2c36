@@ -525,12 +525,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               setIsLoading(false);
             }
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            if (!mediaRecoveryAttempted) {
-              mediaRecoveryAttempted = true;
+            // Try recoverMediaError twice (per hls.js docs) before audio codec swap
+            const attempts = (hls as any).__mediaRecoverAttempts || 0;
+            if (attempts < 2) {
+              (hls as any).__mediaRecoverAttempts = attempts + 1;
               hls.recoverMediaError();
             } else {
               hls.swapAudioCodec();
               hls.recoverMediaError();
+              (hls as any).__mediaRecoverAttempts = 0;
             }
           } else {
             setPlayerError("Stream error. Coba refresh halaman.");
