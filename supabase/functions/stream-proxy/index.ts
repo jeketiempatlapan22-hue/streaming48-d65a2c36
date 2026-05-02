@@ -102,11 +102,16 @@ function getRateLimitResponse(isStreamRequest = false): Response {
 }
 
 // --- CACHES ---
-const M3U8_CACHE_TTL_MS = 2000; // 2s (tighter)
+// 4s TTL: live HLS target-duration is typically 4-6s, so this lets multiple
+// viewers (and HLS.js polls every ~target/2) share a single upstream fetch
+// without serving stale content. Sub-playlist cache key omits ipH so all
+// viewers benefit from the same cached rewrite.
+const M3U8_CACHE_TTL_MS = 4000;
+const SUB_M3U8_CACHE_TTL_MS = 3000;
 const PLAYLIST_URL_CACHE_TTL_MS = 60000;
 const PROXY_TOKEN_CACHE_TTL_MS = 300000; // 5 min cache for hanabira48 tokens
 
-interface CacheEntry { content: string; cachedAt: number }
+interface CacheEntry { content: string; cachedAt: number; ttl?: number }
 type FetchM3u8Result = { content: string | null; inactive?: boolean; status?: number; errorBody?: string };
 const m3u8Cache = new Map<string, CacheEntry>();
 const playlistUrlCache = new Map<string, { url: string; type: string; cachedAt: number }>();
