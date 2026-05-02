@@ -583,38 +583,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const liveCheckId = setInterval(() => {
         if (destroyed || document.hidden || video.paused || !hls.liveSyncPosition) return;
         const lag = hls.liveSyncPosition - video.currentTime;
-        const behindLive = lag > 4;
+        const behindLive = lag > 6;
         if (isBehindLiveRef.current !== behindLive) {
           isBehindLiveRef.current = behindLive;
           setIsBehindLive(behindLive);
         }
-        // Auto-recover: if drifted too far behind, jump to near live edge
-        if (lag > 8 && !video.paused) {
-          video.currentTime = hls.liveSyncPosition - 0.5;
+        // Auto-recover: only seek if drifted way too far (let playbackRate handle small lag)
+        if (lag > 15 && !video.paused) {
+          video.currentTime = hls.liveSyncPosition - 1;
         }
-      }, 2500);
+      }, 3000);
 
       const onVisible = () => {
         if (destroyed || document.hidden || !hlsRef.current) return;
         hlsRef.current.startLoad();
         if (video.paused) video.play().catch(() => {});
-        if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
-          video.currentTime = hlsRef.current.liveSyncPosition;
+        if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 10) {
+          video.currentTime = hlsRef.current.liveSyncPosition - 1;
         }
       };
       document.addEventListener("visibilitychange", onVisible);
 
       const healthId = setInterval(() => {
         if (destroyed || document.hidden || video.paused || !hlsRef.current) return;
-        // If video stalled (readyState < HAVE_FUTURE_DATA), restart loading
-        if (video.readyState < 3) {
+        // Only restart loading if truly stalled with no usable buffer
+        if (video.readyState < 3 && !hasUsableBuffer()) {
           hlsRef.current.startLoad();
-          // If really stuck and live, jump to live edge
-          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 3) {
-            video.currentTime = hlsRef.current.liveSyncPosition - 0.5;
+          // If really stuck and significantly behind live, jump to near live
+          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 8) {
+            video.currentTime = hlsRef.current.liveSyncPosition - 1;
           }
         }
-      }, 8000);
+      }, 10000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
