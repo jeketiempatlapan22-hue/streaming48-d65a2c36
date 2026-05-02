@@ -84,8 +84,18 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   // Loading overlay maksimum 1.5 detik di awal mount — tidak menggantung iframe
   useEffect(() => {
     setLoading(true);
+    setShowFallback(false);
+    playerReadyRef.current = false;
     const t = window.setTimeout(() => setLoading(false), 1500);
-    return () => window.clearTimeout(t);
+    // Safety net: jika setelah 8 detik player belum mengirim infoDelivery (Error 153 / restricted),
+    // tampilkan fallback link "Tonton di YouTube".
+    const fb = window.setTimeout(() => {
+      if (!playerReadyRef.current) setShowFallback(true);
+    }, 8000);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(fb);
+    };
   }, [src]);
 
   // YT IFrame API bridge — sinkronisasi state, BUKAN syarat tampil iframe
