@@ -397,7 +397,7 @@ const ReplayPage = () => {
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {showsInMonth.map((show, i) => {
               const hasRealPassword = replayPasswords[show.id] && replayPasswords[show.id] !== "__purchased__";
-              const hasPurchased = !!replayPasswords[show.id];
+              const hasPurchased = !!replayPasswords[show.id] || !!redeemedTokens[show.id];
               return (
                 <motion.div key={show.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.08 }}
                   className="group relative overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5">
@@ -471,23 +471,57 @@ const ReplayPage = () => {
                         const target = buildReplayTarget(show);
                         const isInternal = target.startsWith("/");
                         return (
-                          <a
-                            href={target}
-                            target={isInternal ? "_self" : "_blank"}
-                            rel="noopener noreferrer"
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
-                          >
-                            <Play className="h-4 w-4" /> Tonton Replay
-                          </a>
+                          <div className="space-y-1.5">
+                            <div className="rounded-lg border border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5 px-3 py-2 text-center">
+                              <p className="text-[11px] font-medium text-[hsl(var(--success))]">
+                                ✓ Anda sudah memiliki akses show ini
+                              </p>
+                            </div>
+                            <a
+                              href={target}
+                              target={isInternal ? "_self" : "_blank"}
+                              rel="noopener noreferrer"
+                              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-semibold text-accent-foreground transition-all hover:bg-accent/90 active:scale-[0.97]"
+                            >
+                              <Play className="h-4 w-4" /> Tonton Replay
+                            </a>
+                          </div>
                         );
                       })()
                     ) : (
-                      <button
-                        onClick={() => openPurchase(show)}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.97]"
-                      >
-                        <Ticket className="h-4 w-4" /> Beli Replay
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => openPurchase(show)}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-all hover:bg-primary/90 active:scale-[0.97]"
+                        >
+                          <Ticket className="h-4 w-4" /> Beli Replay
+                        </button>
+                        {/* Sudah punya sandi? */}
+                        <div className="rounded-xl border border-border/60 bg-secondary/30 p-2.5 space-y-1.5">
+                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                            <Lock className="h-3 w-3 text-primary/70" />
+                            Sudah punya sandi replay?
+                          </div>
+                          <div className="flex gap-1.5">
+                            <Input
+                              value={pwInput[show.id] || ""}
+                              onChange={(e) => setPwInput((s) => ({ ...s, [show.id]: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === "Enter") submitReplayPassword(show); }}
+                              placeholder="Masukkan sandi"
+                              className="h-9 text-xs bg-background"
+                              maxLength={64}
+                            />
+                            <Button
+                              onClick={() => submitReplayPassword(show)}
+                              disabled={pwSubmitting[show.id]}
+                              size="sm"
+                              className="h-9 shrink-0 px-3 text-xs"
+                            >
+                              {pwSubmitting[show.id] ? "..." : "Tonton"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </motion.div>
