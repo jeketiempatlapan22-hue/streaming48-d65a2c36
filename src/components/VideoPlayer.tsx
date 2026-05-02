@@ -207,6 +207,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // Helper: only show "connecting" if buffer is truly exhausted (no future data)
+    const hasUsableBuffer = () => {
+      if (video.readyState >= 3) return true; // HAVE_FUTURE_DATA or better
+      if (video.buffered.length === 0) return false;
+      const t = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        const end = video.buffered.end(i);
+        const start = video.buffered.start(i);
+        if (t >= start - 0.5 && end - t > 1.5) return true;
+      }
+      return false;
+    };
+
     const onPlay = () => { if (!destroyed) { setIsPlaying(true); setIsLoading(false); } };
     const onPause = () => { if (!destroyed) setIsPlaying(false); };
     const onPlaying = () => { if (!destroyed) { setIsLoading(false); if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; } } };
@@ -214,7 +227,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
     const onWaiting = () => {
       if (!destroyed) {
         if (waitingTimer) clearTimeout(waitingTimer);
-        waitingTimer = setTimeout(() => { if (!destroyed) setIsLoading(true); }, 800);
+        // Only show overlay if stall persists AND buffer is genuinely empty
+        waitingTimer = setTimeout(() => {
+          if (!destroyed && !hasUsableBuffer()) setIsLoading(true);
+        }, 2500);
       }
     };
     const onError = () => {
@@ -233,7 +249,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     const loadingTimeout = setTimeout(() => {
       if (!destroyed && !fragLoadedRef.current) {
-        console.warn("[HLS] No playback after 8s — stream inactive");
+        console.warn("[HLS] No playback after 12s — stream inactive");
         setIsLoading(false);
         setStreamInactive(true);
         setPlayerError(null);
@@ -247,7 +263,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           }
         }, 10000);
       }
-    }, 8000);
+    }, 12000);
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
@@ -333,11 +349,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         maxBufferHole: 1.0,
         nudgeOffset: 0.2,
         nudgeMaxRetry: 8,
-        // Stay further from live edge so a single slow segment doesn't stall us
-        liveSyncDurationCount: 4,
-        liveMaxLatencyDurationCount: 12,
-        // Allow slight speed-up to catch back to live instead of seeking
-        maxLiveSyncPlaybackRate: 1.1,
+        // Stay further from live edge so transient slow segments don't stall us
+        liveSyncDurationCount: 5,
+        liveMaxLatencyDurationCount: 15,
+        // Catch back to live via mild speed-up rather than disruptive seeks
+        maxLiveSyncPlaybackRate: 1.08,
         liveBackBufferLength: backBuffer,
         liveDurationInfinity: true,
         capLevelToPlayerSize: true,
@@ -405,11 +421,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
         }
         setStreamInactive(false);
         networkRetryCount = 0;
-        // Fallback: if no fragment loads within 6s, treat as inactive
+        // Fallback: if no fragment loads within 10s, treat as inactive
         if (inactiveFallbackTimer) clearTimeout(inactiveFallbackTimer);
         inactiveFallbackTimer = setTimeout(() => {
           if (destroyed || fragLoaded) return;
-          console.warn("[HLS] No fragments loaded after 6s — stream inactive");
+          console.warn("[HLS] No fragments loaded after 10s — stream inactive");
           setStreamInactive(true);
           setIsLoading(false);
           if (inactiveRetryRef.current) clearTimeout(inactiveRetryRef.current);
@@ -421,7 +437,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
               hls.loadSource(getSourceUrl());
             }
           }, 10000);
-        }, 6000);
+        }, 10000);
         const seen = new Map<string, { label: string; value: number; bitrate: number }>();
         (data.levels || []).forEach((l: any, i: number) => {
           const label = l.height ? `${l.height}p` : `Level ${i}`;
@@ -540,12 +556,19 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
             setIsLoading(false);
           }
         } else if (data.details === "bufferStalledError" || data.details === "bufferNudgeOnStall") {
-          // Aggressive recovery: jump to near live edge or buffer end
-          if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 3) {
-            video.currentTime = hls.liveSyncPosition - 1;
-          } else if (video.buffered.length > 0) {
+          // Gentle recovery: prefer continuing from existing buffer over disruptive seeks
+          if (video.buffered.length > 0) {
             const end = video.buffered.end(video.buffered.length - 1);
-            if (end - video.currentTime > 0.3) video.currentTime = end - 0.2;
+            const gap = end - video.currentTime;
+            if (gap > 0.5) {
+              // We have buffer ahead — just nudge slightly forward, no big jump
+              if (gap < 0.8) video.currentTime = video.currentTime + 0.1;
+            } else if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 8) {
+              // Only seek to live edge if significantly behind
+              video.currentTime = hls.liveSyncPosition - 2;
+            }
+          } else if (hls.liveSyncPosition && hls.liveSyncPosition - video.currentTime > 8) {
+            video.currentTime = hls.liveSyncPosition - 2;
           }
           if (video.paused) video.play().catch(() => {});
         }
@@ -560,38 +583,38 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       const liveCheckId = setInterval(() => {
         if (destroyed || document.hidden || video.paused || !hls.liveSyncPosition) return;
         const lag = hls.liveSyncPosition - video.currentTime;
-        const behindLive = lag > 4;
+        const behindLive = lag > 6;
         if (isBehindLiveRef.current !== behindLive) {
           isBehindLiveRef.current = behindLive;
           setIsBehindLive(behindLive);
         }
-        // Auto-recover: if drifted too far behind, jump to near live edge
-        if (lag > 8 && !video.paused) {
-          video.currentTime = hls.liveSyncPosition - 0.5;
+        // Auto-recover: only seek if drifted way too far (let playbackRate handle small lag)
+        if (lag > 15 && !video.paused) {
+          video.currentTime = hls.liveSyncPosition - 1;
         }
-      }, 2500);
+      }, 3000);
 
       const onVisible = () => {
         if (destroyed || document.hidden || !hlsRef.current) return;
         hlsRef.current.startLoad();
         if (video.paused) video.play().catch(() => {});
-        if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 5) {
-          video.currentTime = hlsRef.current.liveSyncPosition;
+        if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 10) {
+          video.currentTime = hlsRef.current.liveSyncPosition - 1;
         }
       };
       document.addEventListener("visibilitychange", onVisible);
 
       const healthId = setInterval(() => {
         if (destroyed || document.hidden || video.paused || !hlsRef.current) return;
-        // If video stalled (readyState < HAVE_FUTURE_DATA), restart loading
-        if (video.readyState < 3) {
+        // Only restart loading if truly stalled with no usable buffer
+        if (video.readyState < 3 && !hasUsableBuffer()) {
           hlsRef.current.startLoad();
-          // If really stuck and live, jump to live edge
-          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 3) {
-            video.currentTime = hlsRef.current.liveSyncPosition - 0.5;
+          // If really stuck and significantly behind live, jump to near live
+          if (hlsRef.current.liveSyncPosition && hlsRef.current.liveSyncPosition - video.currentTime > 8) {
+            video.currentTime = hlsRef.current.liveSyncPosition - 1;
           }
         }
-      }, 8000);
+      }, 10000);
 
       const origDestroy = hls.destroy.bind(hls);
       hls.destroy = () => {
@@ -632,7 +655,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     setPlayerError(null);
     setStreamInactive(false);
-    setIsLoading(true);
+    // Only show loading if we genuinely have nothing to play right now.
+    // Refreshing a signed URL while buffer is healthy should be invisible.
+    const hasBuffer = !!(video && video.readyState >= 3 && video.buffered.length > 0
+      && video.buffered.end(video.buffered.length - 1) - video.currentTime > 2);
+    if (!hasBuffer) setIsLoading(true);
 
     if (hls) {
       const shouldResume = Boolean(autoPlay || (video && !video.paused));
