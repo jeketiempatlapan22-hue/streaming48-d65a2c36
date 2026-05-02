@@ -45,6 +45,7 @@ const ResellerAuditLog = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "rejected" | "error">("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "web" | "whatsapp">("all");
+  const [resellerFilter, setResellerFilter] = useState<string>("all");
   const [detail, setDetail] = useState<AuditEntry | null>(null);
 
   const fetchEntries = useCallback(async () => {
