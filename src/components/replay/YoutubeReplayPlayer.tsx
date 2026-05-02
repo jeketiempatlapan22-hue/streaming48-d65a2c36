@@ -255,6 +255,46 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         </div>
       )}
 
+      {/* Fallback "Tonton di YouTube" jika player tidak ready dalam 8 detik
+          (mis. video restricted / Error 153 yang masih kebal terhadap parameter).
+          z-[18] di atas click-blocker (z-10) dan loading (z-[16]) supaya bisa diklik. */}
+      {showFallback && id && (
+        <div className="absolute inset-0 z-[18] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-black/60 px-6 py-5 text-white">
+            <span className="text-xs font-semibold tracking-wide opacity-80">
+              Player YouTube belum dapat memuat video ini
+            </span>
+            <a
+              href={`https://www.youtube.com/watch?v=${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+            >
+              ▶ Tonton di YouTube
+            </a>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowFallback(false);
+                setLoading(true);
+                playerReadyRef.current = false;
+                if (iframeRef.current) {
+                  const cur = iframeRef.current.src;
+                  iframeRef.current.src = "about:blank";
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = cur;
+                  }, 100);
+                }
+                window.setTimeout(() => setLoading(false), 1500);
+              }}
+              className="text-[11px] font-semibold text-white/70 underline"
+            >
+              Coba muat ulang player
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Smooth transition overlay saat menurunkan resolusi */}
       <div
         className={`pointer-events-none absolute inset-0 z-[15] flex items-center justify-center bg-black/55 backdrop-blur-sm transition-opacity duration-500 ${
