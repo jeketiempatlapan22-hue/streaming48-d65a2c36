@@ -1,77 +1,65 @@
-# Perbaikan Player m3u8 Patah-Patah / Stuttering
+## Akar Masalah
 
-## Masalah
+### Masalah 1 — YouTube Error 153 di halaman Replay
+`src/components/replay/YoutubeReplayPlayer.tsx` membangun URL embed dengan parameter bermasalah:
+```
+?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0
+&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080
+&origin=...&widgetid=1
+```
+- `widgetid=1` bukan parameter resmi YouTube IFrame API → memicu validasi konfigurasi yang gagal pada beberapa video.
+- `vq=hd1080` sudah deprecated sejak 2018 (kualitas dipilih otomatis oleh YT).
+- `showinfo` & `fs=0` tertentu menyebabkan rejection pada video tertentu (terutama yang sumbernya restricted).
+- Kombinasi parameter ini → **YouTube Player Error 153** ("Terjadi error pada konfigurasi pemutar video").
 
-Pada halaman `/live`, stream m3u8 sering patah-patah (stalling, buffering berulang). Setelah investigasi `VideoPlayer.tsx`, `useSignedStreamUrl.ts`, dan edge function `stream-proxy`, ditemukan beberapa penyebab gabungan yang memperburuk satu sama lain:
+### Masalah 2 — Token replay ditolak, tidak otomatis dialihkan ke replay
+Saat show dijadikan replay (`is_replay=true`), trigger `migrate_tokens_on_replay_flip` seharusnya menyalin token aktif dari tabel `tokens` → `replay_tokens`. Tetapi pada beberapa kasus (mis. token dibuat **setelah** show flip, atau show dibuat sebagai replay sejak awal), token tetap tertinggal di `tokens` saja.
 
-### Akar Masalah
+Konsekuensi: ketika user membuka `/live?t=RT48-XXXXX`:
+1. `validate_active_live_token` mengembalikan `replay_redirect: true` + error "Show ini sudah menjadi replay…"
+2. Frontend `LivePage.tsx` (baris 598-606) mencoba `validate_replay_access({ _token: tokenCode })` untuk auto-redirect.
+3. RPC `validate_replay_access` **hanya** mengecek tabel `replay_tokens` untuk path token. Token live (`RT48-...`) tidak ditemukan → return `success: false`.
+4. Frontend gagal redirect → tampil layar merah "Akses Ditolak" dengan teks "Show ini sudah menjadi replay. Mengalihkan ke halaman replay." (yang ironisnya tidak benar-benar mengalihkan).
 
-1. **Sub-playlist proxy terlalu sering hit upstream**
-   - `M3U8_CACHE_TTL_MS = 2000ms` di edge function. Live segment biasanya 4–6 detik, jadi setiap poll dari HLS.js (tiap ~target-duration / 2) selalu meleset cache → fetch ulang ke origin + rewrite + HMAC sign per URI.
-   - Cache key memakai `ipH`, sehingga viewer dengan IP berbeda tidak berbagi cache → beban origin berlipat saat banyak viewer.
+Verifikasi langsung di DB: token `RT48-642D6A1C52F5` (dari screenshot) ada di `tokens` (active, expires hari ini) tapi **tidak ada** di `replay_tokens`.
 
-2. **`lowLatencyMode: true` dipaksa untuk Chrome/Edge**
-   - Upstream m3u8 yang dipakai adalah HLS standar (bukan LL-HLS / CMAF). Dengan lowLatencyMode aktif, HLS.js terus mencoba mengejar live edge → seek mundur/maju → stall.
-   - Ditambah latency proxy ~300–800 ms per refresh, viewer hampir selalu "behind live" → trigger nudge berulang.
+## Perubahan
 
-3. **`progressive: true` pada Chromium**
-   - Beberapa response dari edge function tidak set `Content-Length` dan dilayani dengan caching headers ketat. Mode progressive di HLS.js kadang menutup stream sebelum selesai → fragment parse error → flicker.
+### A. Perbaiki Player YouTube — `src/components/replay/YoutubeReplayPlayer.tsx`
+1. Buang parameter bermasalah dari URL embed:
+   - Hapus `widgetid=1` (non-standar).
+   - Hapus `vq=hd1080` (deprecated, diabaikan YT).
+   - Hapus `showinfo=0`, `fs=0`, `disablekb=1` yang menjadi penyebab umum Error 153.
+2. Pertahankan parameter yang valid: `enablejsapi=1`, `controls=0`, `modestbranding=1`, `rel=0`, `iv_load_policy=3`, `playsinline=1`, `origin=...`.
+3. Tambahkan `<iframe>` attribute `allowFullScreen` dan `allow="autoplay; encrypted-media; fullscreen; picture-in-picture"` (sudah ada).
+4. Tetap kontrol kualitas via postMessage `setPlaybackQuality` setelah `onReady`.
+5. Tambahkan **fallback link "Tonton di YouTube"** jika player tetap menolak setelah 8 detik (sebagai safety net untuk video restricted).
 
-4. **Buffer terlalu kecil dibanding latency proxy**
-   - `maxBufferLength: 30 / 60` dengan TTFB proxy yang variabel menyebabkan buffer cepat habis kalau ada satu segment lambat.
-   - `liveSyncDurationCount: 3` membuat player tetap di ujung live tanpa toleransi, langsung stall begitu 1 segment terlambat.
+### B. Perbaiki RPC `validate_replay_access` — Migration baru
+Tambahkan path baru: terima **token live** (`RT48-`/`MR-`/`RPL-`/dll) yang masih ada di tabel `tokens` ketika show-nya sudah `is_replay=true`. Logikanya:
+1. Cek `tokens` table untuk `_token` dengan `status='active'` dan `expires_at > now()`.
+2. Jika ditemukan dan `shows.is_replay = true`:
+   - **Auto-migrate**: insert ke `replay_tokens` (mirroring trigger), set `expires_at = now() + 14 days`.
+   - Hapus dari `tokens`.
+   - Return `success: true` dengan akses replay.
+3. Ini menyelamatkan kasus token yatim yang tertinggal di `tokens`.
 
-5. **Sub-playlist tidak di-cache lebih panjang**
-   - Sub-playlist (rendition) di-rewrite tiap poll, tapi konten biasanya hanya berubah tiap ~target-duration. Cache 2 dt menyia-nyiakan CPU edge function dan memperlambat respons.
+Tidak mengubah logika RPC lainnya, hanya menambahkan branch baru di awal sebelum return error.
 
-6. **Edge function selalu re-sign URL segment tiap poll**
-   - `generateSubPlaylistSignedUrl` dipanggil per baris URI tiap rewrite. HMAC SHA-256 dilakukan puluhan kali per request. Saat traffic naik, ini menyebabkan respons sub-playlist melebihi 1 detik → HLS.js timeout/retry.
+### C. Frontend redirect lebih robust — `src/pages/LivePage.tsx`
+1. Setelah validate_replay_access, jika **gagal** TAPI server mengembalikan `replay_redirect: true`, tetap redirect user ke `/replay-play?token=...` agar form replay terisi otomatis & user bisa coba kombinasi sandi show.
+2. Tambahkan auto-redirect timer (1.5 detik) untuk pesan "Mengalihkan ke halaman replay" sehingga benar-benar mengalihkan, bukan hanya menampilkan teks.
 
-## Rencana Perbaikan
-
-### A. Edge function `stream-proxy`
-
-1. Naikkan `M3U8_CACHE_TTL_MS` untuk **manifest utama & sub-playlist** menjadi adaptif:
-   - Default 4 detik (dari 2 dt) untuk shared cache lebih efektif.
-   - Khusus mode `sub` (rendition): cache 3 dt dengan kunci tanpa `ipH` (signed URL segment kadaluarsanya 30 menit, jadi aman dishare antar viewer).
-2. Pisahkan kunci cache `play` (master) dari `sub` (rendition) supaya tidak overlap.
-3. Tambah header `Cache-Control: public, max-age=2` pada respons sub-playlist agar CDN/edge bisa ikut menyimpan.
-4. Skip HMAC sign berulang untuk URI segment yang sama dalam satu request (memo lokal `Map<encoded, signed>` per request).
-
-### B. `src/components/VideoPlayer.tsx` — tuning HLS.js
-
-1. **Matikan `lowLatencyMode` total** (`false`) — tidak ada manifest LL-HLS upstream, jadi mode ini hanya merugikan.
-2. **Set `progressive: false`** untuk semua browser ketika sumber adalah proxy m3u8 (deteksi via URL `/stream-proxy?mode=play`).
-3. **Naikkan toleransi live edge**:
-   - `liveSyncDurationCount: 4` (dari 3)
-   - `liveMaxLatencyDurationCount: 12` (dari 8)
-   - `maxLiveSyncPlaybackRate: 1.1` agar player bisa percepat sedikit jika tertinggal alih-alih seek.
-4. **Perbesar buffer minimum**:
-   - `maxBufferLength: 40` (dari 30) untuk desktop, tetap 20 untuk low-end.
-   - `maxMaxBufferLength: 90` (dari 60).
-   - `highBufferWatchdogPeriod: 3` (dari 2) supaya tidak terlalu agresif menandai stall.
-5. **Toleransi buffer hole lebih besar** untuk segment yang datang sedikit telat:
-   - `maxBufferHole: 1.0` (dari 0.5)
-   - `nudgeOffset: 0.2` (dari 0.1)
-6. **Naikkan retry/back-off jaringan**:
-   - `fragLoadingMaxRetry: 10`
-   - `manifestLoadingRetryDelay: 1000`
-   - `fragLoadingTimeOut: 20000`
-7. **Auto-recover yang lebih halus** — di handler `Hls.Events.ERROR` untuk fatal media error, lakukan `recoverMediaError()` dua kali sebelum `swapAudioCodec()`+`recover` (saat ini langsung destroy).
-
-### C. Verifikasi
-
-1. Deploy ulang `stream-proxy`.
-2. Cek `/live` di preview: stream harus mulai < 4 dt dan tidak ada loading spinner berulang dalam 60 dt.
-3. Cek edge function logs: tidak ada timeout `fetch m3u8` dan rata-rata response sub-playlist < 600 ms.
-4. Cek network tab: respons `mode=sub` mendapat status 200 konsisten dan content `.m3u8` valid.
+### D. Tambahan kecil — `src/pages/ReplayPlayPage.tsx`
+Pastikan ketika datang dari `/replay-play?token=RT48-...` (token live yang sudah dimigrasikan oleh RPC), tampilan loading muncul rapi & error message lebih informatif jika tetap gagal.
 
 ## File yang Diubah
+- `src/components/replay/YoutubeReplayPlayer.tsx`
+- `src/pages/LivePage.tsx`
+- `src/pages/ReplayPlayPage.tsx` (penyesuaian kecil)
+- 1 migration baru: update fungsi `validate_replay_access`
 
-- `supabase/functions/stream-proxy/index.ts` — adjust cache TTL, dedupe HMAC per request, kunci cache.
-- `src/components/VideoPlayer.tsx` — tuning konfigurasi HLS.js dan recovery handler.
-
-## Catatan
-
-- Tidak menyentuh halaman lain (replay, restream, admin preview) selain efek tuning HLS.js yang berlaku global; perubahan ini bersifat konservatif (hanya naikkan toleransi, tidak ubah logic auth/security).
-- Tidak ada perubahan skema database atau RPC.
+## Hasil yang Diharapkan
+- **YouTube Error 153 hilang** — video replay tampil normal dengan kontrol kustom.
+- **Token live yatim** (`RT48-...` di show is_replay=true) otomatis diterima dan dimigrasikan saat user mengaksesnya, lalu dialihkan ke `/replay-play` dan langsung memutar replay.
+- Tidak ada lagi layar "Akses Ditolak — Mengalihkan ke halaman replay" yang menyesatkan.
