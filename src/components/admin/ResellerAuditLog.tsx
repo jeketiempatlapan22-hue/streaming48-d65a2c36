@@ -210,8 +210,15 @@ const ResellerAuditLog = () => {
                   {e.reseller_prefix && <Badge variant="secondary" className="font-mono">/{e.reseller_prefix.toUpperCase()}token</Badge>}
                   {e.max_devices && e.max_devices > 1 && <Badge className="bg-destructive/15 text-destructive border border-destructive/30">{e.max_devices} device</Badge>}
                 </div>
-                <div className="mt-2 text-sm">
-                  <span className="font-medium">{e.reseller_name || "Unknown"}</span>
+                <div className="mt-2 text-sm flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setResellerFilter(e.reseller_id || "none")}
+                    className="font-medium underline-offset-2 hover:underline hover:text-primary transition-colors"
+                    title="Lihat semua riwayat dari reseller ini"
+                  >
+                    {e.reseller_name || "Unknown"}
+                  </button>
                   {e.show_title && <> • <span className="text-muted-foreground">{e.show_title}</span></>}
                   {e.show_input && !e.show_title && <> • <span className="text-muted-foreground italic">"{e.show_input}"</span></>}
                 </div>
