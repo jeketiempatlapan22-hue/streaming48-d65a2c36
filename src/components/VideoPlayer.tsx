@@ -310,44 +310,56 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
       // DVR back-buffer: 30 min on capable desktop, scaled down elsewhere
       const backBuffer = isLowEnd || saveData || slowNet ? 120 :
                          isMobile || isFirefox || isSafari ? 600 : 1800;
-      // Front buffer: smaller on weak browsers to avoid memory pressure
-      const fwdMax = isLowEnd ? 30 : 60;
-      const fwd = isLowEnd ? 15 : 30;
+      // Front buffer: larger to absorb proxy latency variance and avoid stalls
+      const fwdMax = isLowEnd ? 45 : 90;
+      const fwd = isLowEnd ? 20 : 40;
+
+      // Detect if source is our edge-function HLS proxy (mode=play). If so we
+      // need extra tolerance because each segment/manifest hop adds latency.
+      const sourceUrl = getSourceUrl();
+      const isEdgeProxy = /\/functions\/v1\/stream-proxy\?mode=(play|sub|proxyplay|proxyseg)/.test(sourceUrl);
 
       const hlsConfig: any = {
         enableWorker: true,
-        // lowLatencyMode breaks Firefox/Safari live playback frequently — disable there
-        lowLatencyMode: !isFirefox && !isSafari && !isLowEnd,
+        // Upstream is plain HLS (not LL-HLS/CMAF). lowLatencyMode forces hls.js
+        // to constantly chase live edge → seeks → stalls. Disable for all.
+        lowLatencyMode: false,
         backBufferLength: backBuffer,
         maxBufferLength: fwd,
         maxMaxBufferLength: fwdMax,
         // Cap buffer memory so long sessions don't OOM the tab
         maxBufferSize: (isLowEnd ? 30 : 60) * 1000 * 1000,
-        maxBufferHole: 0.5,
-        nudgeOffset: 0.1,
+        // Larger hole tolerance — accept small gaps between segments without nudging
+        maxBufferHole: 1.0,
+        nudgeOffset: 0.2,
         nudgeMaxRetry: 8,
-        liveSyncDurationCount: isFirefox || isSafari ? 4 : 3,
-        liveMaxLatencyDurationCount: 8,
+        // Stay further from live edge so a single slow segment doesn't stall us
+        liveSyncDurationCount: 4,
+        liveMaxLatencyDurationCount: 12,
+        // Allow slight speed-up to catch back to live instead of seeking
+        maxLiveSyncPlaybackRate: 1.1,
         liveBackBufferLength: backBuffer,
         liveDurationInfinity: true,
         capLevelToPlayerSize: true,
         startLevel: -1,
         startFragPrefetch: true,
-        // progressive=true upsets Firefox & Safari on some streams
-        progressive: usesNativeHeaderInjection ? false : !isFirefox && !isSafari,
-        fragLoadingMaxRetry: 8,
+        // progressive mode breaks edge-proxy streams that lack Content-Length;
+        // disable for proxy & weak browsers
+        progressive: usesNativeHeaderInjection || isEdgeProxy ? false : !isFirefox && !isSafari,
+        fragLoadingMaxRetry: 10,
         manifestLoadingMaxRetry: 6,
         levelLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        manifestLoadingTimeOut: 12000,
-        fragLoadingTimeOut: 15000,
-        levelLoadingTimeOut: 12000,
+        manifestLoadingRetryDelay: 1000,
+        manifestLoadingTimeOut: 15000,
+        fragLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 15000,
         testBandwidth: !isLowEnd,
         abrEwmaDefaultEstimate: isLowEnd ? 800000 : 2000000,
         abrEwmaDefaultEstimateMax: 5000000,
-        maxStarvationDelay: 4,
-        maxLoadingDelay: 4,
-        highBufferWatchdogPeriod: 2,
+        maxStarvationDelay: 6,
+        maxLoadingDelay: 6,
+        highBufferWatchdogPeriod: 3,
         ...(usesNativeHeaderInjection ? { loader: HeaderInjectingLoader } : {}),
       };
 
