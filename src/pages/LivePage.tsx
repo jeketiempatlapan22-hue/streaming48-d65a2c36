@@ -605,6 +605,15 @@ const LivePage = () => {
             }
           } catch { /* abaikan, lanjut tampilkan error normal */ }
 
+          // Server menandakan show sudah jadi replay (replay_redirect: true) tapi RPC
+          // validate_replay_access tidak berhasil otomatis. Tetap alihkan ke halaman
+          // replay agar user bisa coba sandi show / global, dan token live ter-sync.
+          if (result?.replay_redirect === true && tokenCode) {
+            setRedirecting(true);
+            try { window.location.replace(`/replay-play?token=${encodeURIComponent(tokenCode)}`); } catch {}
+            return;
+          }
+
           setError(result?.error || "Server sedang sibuk, coba muat ulang.");
           return;
         }
