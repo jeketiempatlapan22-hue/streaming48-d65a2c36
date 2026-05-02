@@ -141,7 +141,11 @@ const ReplayPlayPage = () => {
   };
 
   useEffect(() => {
-    if (initialToken || (initialShort && initialPw)) {
+    // Auto-attempt when:
+    // - replay token in URL, OR
+    // - short_id in URL (RPC will auto-grant via user's active token / coin redeem if logged in;
+    //   otherwise it will fail silently and the user can enter a password)
+    if (initialToken || initialShort) {
       tryAccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,6 +182,8 @@ const ReplayPlayPage = () => {
       case "show_password": return "Sandi Show";
       case "live_token_upgrade": return "Token Live → Replay";
       case "replay_token": return "Token Replay";
+      case "purchased_live_token": return "Akses dari Pembelian Live";
+      case "universal_token": return "Akses Membership/Bundle";
       default: return "Akses Replay";
     }
   }, [access?.access_via]);
