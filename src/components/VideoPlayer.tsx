@@ -249,7 +249,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
 
     const loadingTimeout = setTimeout(() => {
       if (!destroyed && !fragLoadedRef.current) {
-        console.warn("[HLS] No playback after 8s — stream inactive");
+        console.warn("[HLS] No playback after 12s — stream inactive");
         setIsLoading(false);
         setStreamInactive(true);
         setPlayerError(null);
@@ -263,7 +263,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(({ playlist,
           }
         }, 10000);
       }
-    }, 8000);
+    }, 12000);
 
     const initHls = async () => {
       const HlsModule = await import("hls.js");
