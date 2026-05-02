@@ -1075,7 +1075,15 @@ document.addEventListener('keydown',function(e){if(e.key==='F12'||(e.ctrlKey&&e.
       const actualUrl = base64UrlDecode(encoded);
 
       const functionUrl = `${SUPABASE_URL}/functions/v1`;
-      const rewrittenResult = await fetchAndRewriteM3u8(actualUrl, `sub:${encoded.slice(0, 40)}`, functionUrl, ipH);
+      // Sub-playlists: share cache across viewers (signed segment URLs are
+      // bound to TTL, not IP) and use a slightly longer 3s TTL to coalesce polls.
+      const rewrittenResult = await fetchAndRewriteM3u8(
+        actualUrl,
+        `sub:${encoded.slice(0, 40)}`,
+        functionUrl,
+        ipH,
+        { sharedCache: true, ttlMs: SUB_M3U8_CACHE_TTL_MS },
+      );
 
       if (rewrittenResult.inactive) {
         return new Response(
