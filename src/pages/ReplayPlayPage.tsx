@@ -141,7 +141,11 @@ const ReplayPlayPage = () => {
   };
 
   useEffect(() => {
-    if (initialToken || (initialShort && initialPw)) {
+    // Auto-attempt when:
+    // - replay token in URL, OR
+    // - short_id in URL (RPC will auto-grant via user's active token / coin redeem if logged in;
+    //   otherwise it will fail silently and the user can enter a password)
+    if (initialToken || initialShort) {
       tryAccess();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
