@@ -45,6 +45,7 @@ const ResellerAuditLog = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "success" | "rejected" | "error">("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "web" | "whatsapp">("all");
+  const [resellerFilter, setResellerFilter] = useState<string>("all");
   const [detail, setDetail] = useState<AuditEntry | null>(null);
 
   const fetchEntries = useCallback(async () => {
@@ -75,6 +76,7 @@ const ResellerAuditLog = () => {
     return entries.filter((e) => {
       if (statusFilter !== "all" && e.status !== statusFilter) return false;
       if (sourceFilter !== "all" && e.source !== sourceFilter) return false;
+      if (resellerFilter !== "all" && (e.reseller_id || "none") !== resellerFilter) return false;
       if (!q) return true;
       return (
         (e.reseller_name || "").toLowerCase().includes(q) ||
@@ -85,7 +87,20 @@ const ResellerAuditLog = () => {
         (e.rejection_reason || "").toLowerCase().includes(q)
       );
     });
-  }, [entries, search, statusFilter, sourceFilter]);
+  }, [entries, search, statusFilter, sourceFilter, resellerFilter]);
+
+  // Daftar reseller unik dengan jumlah entries
+  const resellerList = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    entries.forEach((e) => {
+      const id = e.reseller_id || "none";
+      const name = e.reseller_name || "(Tanpa Nama)";
+      const cur = map.get(id) || { id, name, count: 0 };
+      cur.count += 1;
+      map.set(id, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [entries]);
 
   const stats = useMemo(() => ({
     total: entries.length,
@@ -140,6 +155,19 @@ const ResellerAuditLog = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari reseller, show, token..." className="pl-9" />
         </div>
+        <select
+          value={resellerFilter}
+          onChange={(e) => setResellerFilter(e.target.value)}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm h-9 min-w-[180px]"
+          aria-label="Filter Reseller"
+        >
+          <option value="all">Semua Reseller ({entries.length})</option>
+          {resellerList.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.count})
+            </option>
+          ))}
+        </select>
         <div className="flex gap-1">
           {(["all", "success", "rejected", "error"] as const).map((s) => (
             <Button key={s} size="sm" variant={statusFilter === s ? "default" : "outline"} onClick={() => setStatusFilter(s)}>
@@ -156,6 +184,17 @@ const ResellerAuditLog = () => {
         </div>
       </div>
 
+      {resellerFilter !== "all" && (
+        <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+          <span>
+            Menampilkan riwayat: <strong>{resellerList.find((r) => r.id === resellerFilter)?.name}</strong>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setResellerFilter("all")}>
+            Reset filter
+          </Button>
+        </div>
+      )}
+
       {/* List */}
       <div className="space-y-2">
         {filtered.length === 0 && !loading && (
@@ -171,8 +210,15 @@ const ResellerAuditLog = () => {
                   {e.reseller_prefix && <Badge variant="secondary" className="font-mono">/{e.reseller_prefix.toUpperCase()}token</Badge>}
                   {e.max_devices && e.max_devices > 1 && <Badge className="bg-destructive/15 text-destructive border border-destructive/30">{e.max_devices} device</Badge>}
                 </div>
-                <div className="mt-2 text-sm">
-                  <span className="font-medium">{e.reseller_name || "Unknown"}</span>
+                <div className="mt-2 text-sm flex items-center gap-1 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setResellerFilter(e.reseller_id || "none")}
+                    className="font-medium underline-offset-2 hover:underline hover:text-primary transition-colors"
+                    title="Lihat semua riwayat dari reseller ini"
+                  >
+                    {e.reseller_name || "Unknown"}
+                  </button>
                   {e.show_title && <> • <span className="text-muted-foreground">{e.show_title}</span></>}
                   {e.show_input && !e.show_title && <> • <span className="text-muted-foreground italic">"{e.show_input}"</span></>}
                 </div>

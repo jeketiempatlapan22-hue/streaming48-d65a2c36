@@ -456,6 +456,11 @@ const ResellerDashboard = ({ session, onLogout }: Props) => {
                               <CheckCircle2 className="h-2.5 w-2.5" /> LUNAS
                             </span>
                           )}
+                          {t.is_show_deleted && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/15 text-slate-300 border border-slate-500/30">
+                              📦 Show Dihapus
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                           {t.show_title || "—"} • {t.max_devices} device • exp: {displayExpiry ? new Date(displayExpiry).toLocaleString("id-ID") : "—"}

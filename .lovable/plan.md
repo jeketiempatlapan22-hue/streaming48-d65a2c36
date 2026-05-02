@@ -1,65 +1,53 @@
 ## Akar Masalah
 
-### Masalah 1 — YouTube Error 153 di halaman Replay
-`src/components/replay/YoutubeReplayPlayer.tsx` membangun URL embed dengan parameter bermasalah:
-```
-?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0
-&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080
-&origin=...&widgetid=1
-```
-- `widgetid=1` bukan parameter resmi YouTube IFrame API → memicu validasi konfigurasi yang gagal pada beberapa video.
-- `vq=hd1080` sudah deprecated sejak 2018 (kualitas dipilih otomatis oleh YT).
-- `showinfo` & `fs=0` tertentu menyebabkan rejection pada video tertentu (terutama yang sumbernya restricted).
-- Kombinasi parameter ini → **YouTube Player Error 153** ("Terjadi error pada konfigurasi pemutar video").
+### Verifikasi DB Langsung
+- Show **Pajama Drive** versi replay (`a2f90d9c…`) memang ada dan `is_replay=true`, tapi **tidak ada token reseller** untuk show tersebut di tabel `tokens`.
+- Riwayat audit (`reseller_token_audit`) untuk Pajama Drive masih utuh: **28 entry sukses**.
+- Token reseller untuk show **Pajama Drive lama** (yang sudah dihapus admin) **terhapus permanen** karena trigger `cascade_delete_tokens_on_show_delete` melakukan `DELETE FROM tokens WHERE show_id = OLD.id`.
 
-### Masalah 2 — Token replay ditolak, tidak otomatis dialihkan ke replay
-Saat show dijadikan replay (`is_replay=true`), trigger `migrate_tokens_on_replay_flip` seharusnya menyalin token aktif dari tabel `tokens` → `replay_tokens`. Tetapi pada beberapa kasus (mis. token dibuat **setelah** show flip, atau show dibuat sebagai replay sejak awal), token tetap tertinggal di `tokens` saja.
+### Penyebab Utama
+1. **Trigger cascade-delete pada show**: ketika admin menghapus show (atau merefresh menjadi show baru), semua token (termasuk token reseller) dihapus permanen → tampil hilang di:
+   - Dashboard reseller (`reseller_list_my_tokens`)
+   - Bot WhatsApp `/cektoken` (`reseller_list_recent_tokens_by_id`)
+   - Tetapi **audit log admin tetap ada** (tabel `reseller_token_audit` independen).
+2. **Tidak ada perlindungan**: tidak ada batasan eksplisit yang mencegah penghapusan riwayat reseller di tabel `tokens` selain RLS policy admin (yang memang bisa DELETE).
+3. **RPC bot/dashboard** hanya membaca dari tabel `tokens` — tidak fallback ke `reseller_token_audit` ketika token aslinya sudah hilang.
 
-Konsekuensi: ketika user membuka `/live?t=RT48-XXXXX`:
-1. `validate_active_live_token` mengembalikan `replay_redirect: true` + error "Show ini sudah menjadi replay…"
-2. Frontend `LivePage.tsx` (baris 598-606) mencoba `validate_replay_access({ _token: tokenCode })` untuk auto-redirect.
-3. RPC `validate_replay_access` **hanya** mengecek tabel `replay_tokens` untuk path token. Token live (`RT48-...`) tidak ditemukan → return `success: false`.
-4. Frontend gagal redirect → tampil layar merah "Akses Ditolak" dengan teks "Show ini sudah menjadi replay. Mengalihkan ke halaman replay." (yang ironisnya tidak benar-benar mengalihkan).
-
-Verifikasi langsung di DB: token `RT48-642D6A1C52F5` (dari screenshot) ada di `tokens` (active, expires hari ini) tapi **tidak ada** di `replay_tokens`.
+### Audit Panel
+Komponen `ResellerAuditLog.tsx` **sudah memiliki** search box yang mencari berdasarkan `reseller_name`, `reseller_prefix`, `show_title`, `token_code`, dll (baris 73-88). Yang masih kurang: filter dropdown khusus per-reseller untuk navigasi lebih cepat saat melihat riwayat satu reseller tertentu.
 
 ## Perubahan
 
-### A. Perbaiki Player YouTube — `src/components/replay/YoutubeReplayPlayer.tsx`
-1. Buang parameter bermasalah dari URL embed:
-   - Hapus `widgetid=1` (non-standar).
-   - Hapus `vq=hd1080` (deprecated, diabaikan YT).
-   - Hapus `showinfo=0`, `fs=0`, `disablekb=1` yang menjadi penyebab umum Error 153.
-2. Pertahankan parameter yang valid: `enablejsapi=1`, `controls=0`, `modestbranding=1`, `rel=0`, `iv_load_policy=3`, `playsinline=1`, `origin=...`.
-3. Tambahkan `<iframe>` attribute `allowFullScreen` dan `allow="autoplay; encrypted-media; fullscreen; picture-in-picture"` (sudah ada).
-4. Tetap kontrol kualitas via postMessage `setPlaybackQuality` setelah `onReady`.
-5. Tambahkan **fallback link "Tonton di YouTube"** jika player tetap menolak setelah 8 detik (sebagai safety net untuk video restricted).
+### A. Migration — Lindungi Riwayat Token Reseller
+1. **Ubah trigger `cascade_delete_tokens_on_show_delete`** agar tidak menghapus token reseller. Sebagai gantinya:
+   - Untuk token reseller (`reseller_id IS NOT NULL`) → **archive saja** (`status='archived'`, `archived_to_replay=true`) dan set `show_id = NULL` (karena show-nya sudah dihapus). Simpan judul show terakhir di kolom yang sudah ada (atau via metadata di audit).
+   - Untuk token non-reseller → tetap dihapus seperti semula.
+2. **Tambah kolom `archived_show_title TEXT`** di `tokens` (nullable) untuk menyimpan judul show terakhir saat show-nya dihapus, agar reseller dan bot tetap bisa melihat token milik show mana.
+3. **Update RPC `reseller_list_my_tokens`** & `reseller_list_recent_tokens_by_id` agar:
+   - `COALESCE(s.title, t.archived_show_title, '(Show dihapus)')` sebagai `show_title`.
+   - Tetap menampilkan token dengan `show_id IS NULL`.
+4. **Tambah RLS policy eksplisit di `reseller_token_audit`**:
+   - `DELETE` hanya boleh oleh admin (sudah implisit via "Admins manage reseller audit", tapi tambahkan policy `Block non-admin delete` agar jelas).
+   - Bahkan admin **tidak boleh** menghapus audit lewat client SDK kecuali via RPC khusus (opsional — saya pilih: tambah policy yang block `DELETE` untuk semua role kecuali admin yang akan punya RPC `admin_delete_reseller_audit_entry` — tapi ini overkill; RLS admin saat ini sudah cukup. Saya akan **tetap fokus pada bagian yang user minta secara eksplisit**: hanya admin yang boleh delete riwayat).
+   - Verifikasi & dokumentasikan policy DELETE untuk `tokens` reseller — hanya admin atau service_role yang bisa hard-delete.
 
-### B. Perbaiki RPC `validate_replay_access` — Migration baru
-Tambahkan path baru: terima **token live** (`RT48-`/`MR-`/`RPL-`/dll) yang masih ada di tabel `tokens` ketika show-nya sudah `is_replay=true`. Logikanya:
-1. Cek `tokens` table untuk `_token` dengan `status='active'` dan `expires_at > now()`.
-2. Jika ditemukan dan `shows.is_replay = true`:
-   - **Auto-migrate**: insert ke `replay_tokens` (mirroring trigger), set `expires_at = now() + 14 days`.
-   - Hapus dari `tokens`.
-   - Return `success: true` dengan akses replay.
-3. Ini menyelamatkan kasus token yatim yang tertinggal di `tokens`.
+### B. Frontend — Audit Panel `ResellerAuditLog.tsx`
+1. Tambah dropdown **"Filter Reseller"** yang menampilkan daftar reseller unik dari entries; saat dipilih, list otomatis terfilter ke reseller tersebut.
+2. Tambah tombol kecil di setiap row untuk "Lihat Semua dari Reseller Ini" (klik → set filter).
+3. Tampilkan **counter per reseller** dalam dropdown (mis. "Andi (24 entries)") supaya admin tahu siapa yang paling aktif.
+4. Tetap pertahankan search box bebas yang sudah ada.
 
-Tidak mengubah logika RPC lainnya, hanya menambahkan branch baru di awal sebelum return error.
-
-### C. Frontend redirect lebih robust — `src/pages/LivePage.tsx`
-1. Setelah validate_replay_access, jika **gagal** TAPI server mengembalikan `replay_redirect: true`, tetap redirect user ke `/replay-play?token=...` agar form replay terisi otomatis & user bisa coba kombinasi sandi show.
-2. Tambahkan auto-redirect timer (1.5 detik) untuk pesan "Mengalihkan ke halaman replay" sehingga benar-benar mengalihkan, bukan hanya menampilkan teks.
-
-### D. Tambahan kecil — `src/pages/ReplayPlayPage.tsx`
-Pastikan ketika datang dari `/replay-play?token=RT48-...` (token live yang sudah dimigrasikan oleh RPC), tampilan loading muncul rapi & error message lebih informatif jika tetap gagal.
+### C. Frontend — Dashboard Reseller `ResellerDashboard.tsx`
+1. Tampilkan token archived (status='archived') dengan badge khusus "Show Telah Berakhir/Dihapus" + judul fallback.
+2. Tetap tampilkan link replay jika token punya pasangan di `replay_tokens` (sudah ada `replay_expires_at`).
 
 ## File yang Diubah
-- `src/components/replay/YoutubeReplayPlayer.tsx`
-- `src/pages/LivePage.tsx`
-- `src/pages/ReplayPlayPage.tsx` (penyesuaian kecil)
-- 1 migration baru: update fungsi `validate_replay_access`
+- 1 migration baru: ubah trigger `cascade_delete_tokens_on_show_delete` (soft-archive untuk reseller token), tambah kolom `tokens.archived_show_title`, update 2 RPC reseller list, perketat policy.
+- `src/components/admin/ResellerAuditLog.tsx` — tambah filter reseller dropdown.
+- `src/components/reseller/ResellerDashboard.tsx` — tampilkan token archived dengan judul fallback.
 
 ## Hasil yang Diharapkan
-- **YouTube Error 153 hilang** — video replay tampil normal dengan kontrol kustom.
-- **Token live yatim** (`RT48-...` di show is_replay=true) otomatis diterima dan dimigrasikan saat user mengaksesnya, lalu dialihkan ke `/replay-play` dan langsung memutar replay.
-- Tidak ada lagi layar "Akses Ditolak — Mengalihkan ke halaman replay" yang menyesatkan.
+- Saat admin menghapus show, **riwayat token reseller tetap aman** (di-archive, tidak dihapus). Reseller masih lihat token-nya di dashboard & bot WA dengan label "Show telah dihapus" + judul terakhir.
+- **Tidak ada lagi riwayat hilang otomatis** karena flow show flip atau show delete.
+- Admin dapat mencari/memfilter audit log per-reseller dengan dropdown khusus, sangat mudah melacak siapa membuat token apa.
+- RLS dipastikan: hanya admin yang bisa DELETE audit & token reseller secara langsung.
