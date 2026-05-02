@@ -1,72 +1,58 @@
-# Perbaiki Embed YouTube di Halaman Replay Play
+# Token Reseller Mengikuti Jadwal Show + 14 Hari Replay
 
-## Masalah
+## Masalah Saat Ini
+Pada `reseller_create_token` (DB function), untuk show reguler:
+- `_final_duration` dipaksa **1 hari**
+- Jika jadwal show di masa depan → `expires_at = schedule_ts + 1 hari`
+- Jika jadwal show sudah lewat → `expires_at = now() + 1 hari`
 
-Pada halaman `/replay-play`, ketika sumber YouTube dipilih, area player tampak hitam atau menampilkan teks error "Link YouTube tidak valid" / overlay "Menghubungkan ke YouTube…" yang tidak pernah hilang. Embed YouTube tidak benar-benar muncul.
+Akibatnya: jika reseller membuat token hari ini untuk show lusa, token **kedaluwarsa hanya 1 hari setelah show mulai**, sehingga user tidak bisa menonton replay yang otomatis tersedia setelah show selesai.
 
-Penyebab di `src/components/replay/YoutubeReplayPlayer.tsx`:
+UI card di `ResellerShowCard.tsx` juga sudah salah info ("Berlaku: jadwal show + 1 hari"), padahal seharusnya mencakup window replay.
 
-1. **Overlay loading tidak pernah ditutup.** `setLoading(false)` hanya dipanggil setelah event `onReady`/`infoDelivery` dari YouTube IFrame API. Pada banyak kondisi (mobile, autoplay diblok, latensi tinggi), event ini telat atau tidak terkirim, sehingga overlay z-[16] menutupi iframe selamanya.
-2. **Watchdog 8 detik me-reload iframe terus-menerus** lewat `setReloadKey`, sehingga thumbnail YouTube selalu di-reset sebelum sempat tampil dan event `onReady` tidak pernah selesai.
-3. **Validasi ID terlalu ketat.** Jika `youtube_url` kosong / format aneh, langsung tampil teks "Link YouTube tidak valid" tanpa pesan yang jelas atau fallback.
+## Tujuan
+Token reseller (non-membership, non-bundle, non-replay show) harus:
+1. Bisa dipakai sejak dibuat sampai jadwal live tiba (tetap pakai `valid_from = schedule_ts` agar tidak bisa dipakai lebih awal — sesuai perilaku saat ini).
+2. Tetap valid saat show live.
+3. **Tetap valid 14 hari setelah jadwal show**, sehingga ketika show diarsipkan menjadi replay, user yang sudah punya token tidak perlu beli lagi.
 
-User minta perbaikan yang **mempertahankan**:
-- Overlay click-blocker (mencegah klik tembus ke kontrol asli YouTube / link "Watch on YouTube").
-- Custom controls (play, pause, mute, fullscreen, quality) tetap berfungsi.
+Link otomatis berpindah dari `/live?t=` ke `/replay-play?token=` karena `buildTokenWatchUrl` sudah membaca flag `is_replay_show`/`archived_to_replay` (sudah berfungsi, tidak perlu diubah).
 
-## Solusi
+## Perubahan
 
-Refactor `YoutubeReplayPlayer` agar embed pasti tampil, sambil menjaga proteksi & custom controls:
+### 1. Migrasi DB — perbarui `reseller_create_token`
+Untuk cabang non-membership:
+- Ganti `_final_duration := 1` menjadi `_final_duration := 14`
+- Perhitungan `_expires`:
+  - Jika `_schedule_ts > now()`:  
+    `_valid_from := _schedule_ts`  
+    `_expires := _schedule_ts + INTERVAL '14 days'`
+  - Jika jadwal sudah lewat:  
+    `_valid_from := NULL`  
+    `_expires := GREATEST(now(), _schedule_ts) + INTERVAL '14 days'` (memastikan tetap dapat 14 hari window replay terhitung dari jadwal show, bukan dari pembuatan)
+- `duration_type` diset `'replay_window'` agar mudah dilacak di audit/list.
+- Membership & bundle tidak berubah.
 
-1. **Iframe selalu render dan terlihat sejak awal** — hapus dependensi tampilan iframe pada event `onReady`. Loading hanya ditampilkan **maksimum 1.5 detik** sebagai transisi visual; setelah itu otomatis disembunyikan walaupun event API belum diterima.
-2. **Hapus watchdog reload 8 detik** yang me-reset iframe. Iframe YouTube pasti load sendiri jika ID valid; reload otomatis justru menyebabkan loop.
-3. **Pertahankan overlay click-blocker** (z-10) untuk mencegah user mengklik link YouTube di dalam iframe — overlay tetap menjadi target klik untuk tombol play/pause via tap, persis seperti perilaku saat ini.
-4. **Pertahankan custom controls bottom bar** (z-20): play/pause, mute/unmute, AUTO/MAX quality, fullscreen — semuanya tetap mengirim postMessage ke iframe seperti sebelumnya.
-5. **Perbaiki UX validasi ID**: ID 11 karakter dari DB (mis. `aP2MdnWW4Do`) maupun URL penuh sama-sama jalan via `parseYoutubeId` yang sudah ada. Jika benar-benar invalid, tampilkan pesan yang lebih jelas: "URL/ID YouTube belum dikonfigurasi untuk show ini" — bukan generic.
-6. **Mute=true pada parameter awal iframe** dihilangkan; tetap pakai default unmuted, tapi tombol play custom akan memanggil `playVideo` setelah user-gesture (klik overlay) — ini kondisi yang diizinkan browser.
+Catatan: validasi `_duration_days <= 90` tetap aman karena 14 ≤ 90, dan parameter input dari client sudah diabaikan untuk non-membership.
 
-Tidak ada perubahan di:
-- `src/pages/ReplayPlayPage.tsx` — logika selektor sumber, RPC, dan rendering tetap.
-- `src/lib/youtubeUrl.ts` — parser ID sudah benar.
-- RPC `validate_replay_access` — sudah mengembalikan `youtube_url` & `has_media` dengan benar.
-- Komponen / halaman lain di luar replay play.
+### 2. `src/components/reseller/ResellerShowCard.tsx`
+- Update label durasi non-membership dari **"1 hari (otomatis)"** menjadi **"jadwal show + 14 hari replay"**.
+- Update keterangan box biru:
+  - "Berlaku: sejak jadwal show, sampai **14 hari setelah show** (otomatis berlanjut sebagai akses replay)."
+  - Sertakan tanggal & jam jadwal jika ada.
+- Tidak ada perubahan pada pemanggilan RPC; `_duration_days` boleh tetap dikirim 1 (server abaikan untuk non-membership).
 
-## Detail Teknis
+### 3. Pesan WhatsApp — `src/lib/showMessageBuilder.ts` → `buildRegularShowMessage`
+- Tambahkan baris ringkas: "Token tetap berlaku sebagai replay sampai 14 hari setelah show." agar reseller bisa menjelaskan ke pembeli.
+- Jika show punya `access_password` (sandi replay), pesan existing sudah menampilkan info replay; tidak perlu duplikasi.
 
-File yang diubah: **`src/components/replay/YoutubeReplayPlayer.tsx`** (rewrite ~260 baris → lebih ringkas, ~200 baris).
-
-Perubahan kunci:
-
-```text
-- iframe src: tetap https://www.youtube.com/embed/{id}?enablejsapi=1&controls=0&modestbranding=1
-            &rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1
-            &origin={window.location.origin}
-            (controls=0 wajib karena kita pakai custom controls)
-- HAPUS: useEffect watchdog readyTimeoutRef + setReloadKey
-- HAPUS: ketergantungan setLoading(false) hanya pada onReady
-- TAMBAH: setTimeout 1500ms di mount → setLoading(false) sebagai fallback
-- TETAP: overlay click-blocker z-10 (transparent, capture click → togglePlay)
-- TETAP: bottom controls z-20 (play/pause/mute/quality/fullscreen)
-- TETAP: adaptive quality watcher (downgrade saat buffering >3s)
-- TETAP: postMessage bridge untuk infoDelivery (sinkron status playing/muted/quality)
-```
-
-Struktur layering tetap:
-```text
-z-0  : <iframe> (visible sejak load, kontrol native disembunyikan via controls=0)
-z-10 : click-blocker overlay (transparent, mencegah klik ke iframe + capture togglePlay)
-z-15 : overlay "Menyesuaikan kualitas" (muncul hanya saat switching quality)
-z-16 : overlay loading (HANYA muncul ≤1.5 detik di awal mount)
-z-20 : custom controls bar (play, pause, mute, AUTO/MAX, fullscreen)
-```
-
-CSP di `index.html` sudah mengizinkan `frame-src https://www.youtube.com` — tidak perlu diubah.
+## Yang TIDAK Berubah
+- Membership (MBR-) tetap pakai `membership_duration_days` admin.
+- Bundle dilarang dibuat reseller.
+- Token replay langsung dilarang.
+- Endpoint admin `ManualTokenGenerator` dan flow pembelian QRIS tidak disentuh — hanya alur reseller.
+- `valid_from` tetap mencegah penonton login sebelum jadwal live.
 
 ## Verifikasi
-
-1. Buka `/replay-play?show={short_id}` untuk show yang punya `replay_youtube_url` (mis. "Passion 200%" → ID `aP2MdnWW4Do`).
-2. Pilih tab **YouTube** atau biarkan **Auto** (jika hanya YouTube tersedia).
-3. Embed YouTube langsung tampil dalam ≤1.5 detik dengan thumbnail/poster.
-4. Klik area video → video play (custom button). Klik lagi → pause.
-5. Tombol mute, AUTO/MAX quality, dan fullscreen semua tetap berfungsi.
-6. Coba klik logo YouTube atau judul di dalam iframe → tetap tertahan oleh overlay (klik di-capture untuk play/pause), user tidak bisa berpindah ke youtube.com.
+- Buat ulang token reseller untuk show dengan jadwal lusa → cek di DB: `valid_from = schedule_ts`, `expires_at = schedule_ts + 14 hari`.
+- Setelah show diarsipkan jadi replay (`archived_to_replay = true`), buka `/live?t=...` → otomatis redirect / `buildTokenWatchUrl` mengarah ke `/replay-play?token=...` dan token tetap aktif sampai 14 hari pasca jadwal.

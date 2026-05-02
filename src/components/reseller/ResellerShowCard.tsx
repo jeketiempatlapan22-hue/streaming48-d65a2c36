@@ -183,7 +183,7 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
           ) : (
             <div className="text-[10px] text-muted-foreground bg-muted/30 border border-border rounded-md px-2 py-1.5 flex items-center gap-1.5">
               <Clock className="h-3 w-3" />
-              Durasi token: <span className="font-semibold text-foreground">1 hari</span> (otomatis)
+              Durasi token: <span className="font-semibold text-foreground">jadwal show + 14 hari replay</span>
             </div>
           )}
         </div>
@@ -195,7 +195,7 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
               <>Token <span className="font-semibold text-foreground">MBR-</span> berlaku <span className="font-semibold text-foreground">{membershipDuration} hari</span> sejak dibuat</>
             ) : (
               <>
-                Berlaku: <span className="font-semibold text-foreground">jadwal show + 1 hari</span>
+                Berlaku sejak jadwal show sampai <span className="font-semibold text-foreground">14 hari setelah show</span> — otomatis berlanjut sebagai akses replay tanpa beli ulang
                 {(show.schedule_date || show.schedule_time) && (
                   <> (mulai {[show.schedule_date, show.schedule_time].filter(Boolean).join(" • ")} WIB)</>
                 )}
