@@ -42,8 +42,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const id = parseYoutubeId(url);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  // Bersihkan parameter bermasalah (widgetid, vq, showinfo, fs, disablekb) yang
+  // memicu YouTube Error 153 ("Terjadi error pada konfigurasi pemutar video").
+  // Hanya gunakan parameter resmi yang didukung IFrame API.
   const src = id
-    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&showinfo=0&fs=0&iv_load_policy=3&disablekb=1&playsinline=1&vq=hd1080&origin=${encodeURIComponent(origin)}&widgetid=1`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1&origin=${encodeURIComponent(origin)}`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
