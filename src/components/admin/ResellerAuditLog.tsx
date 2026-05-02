@@ -155,6 +155,19 @@ const ResellerAuditLog = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari reseller, show, token..." className="pl-9" />
         </div>
+        <select
+          value={resellerFilter}
+          onChange={(e) => setResellerFilter(e.target.value)}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm h-9 min-w-[180px]"
+          aria-label="Filter Reseller"
+        >
+          <option value="all">Semua Reseller ({entries.length})</option>
+          {resellerList.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name} ({r.count})
+            </option>
+          ))}
+        </select>
         <div className="flex gap-1">
           {(["all", "success", "rejected", "error"] as const).map((s) => (
             <Button key={s} size="sm" variant={statusFilter === s ? "default" : "outline"} onClick={() => setStatusFilter(s)}>
@@ -170,6 +183,17 @@ const ResellerAuditLog = () => {
           ))}
         </div>
       </div>
+
+      {resellerFilter !== "all" && (
+        <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+          <span>
+            Menampilkan riwayat: <strong>{resellerList.find((r) => r.id === resellerFilter)?.name}</strong>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => setResellerFilter("all")}>
+            Reset filter
+          </Button>
+        </div>
+      )}
 
       {/* List */}
       <div className="space-y-2">
