@@ -1,77 +1,79 @@
-# Migrasi Server IDN ke endpoint `/api/stream/v2/playback` dengan JWT generated di backend
+## Masalah
 
-## Tujuan
-- Pindah endpoint playback dari `https://proxy.mediastream48.workers.dev/api/proxy/playback` → `https://proxy.mediastream48.workers.dev/api/stream/v2/playback` khusus playlist tipe `proxy` (server IDN).
-- Generate `x-api-token` (JWT HS256) **di server kita** sesuai dokumentasi `playback_baru.txt`. Tidak lagi memanggil `https://hanabira48.com/api/stream-token`.
-- `x-token-id` & `x-sec-key` statis (dari dokumentasi).
-- `x-showid` diambil dari `shows.external_show_id` show yang ditandai aktif di Admin Panel (`site_settings.active_show_id`).
-- **Wajib user login & punya akses ke show aktif** sebelum token dibuat. Frontend hanya menerima header lalu inject via `xhr.setRequestHeader` (alur sama seperti sebelumnya).
+1. **Tidak ada input sandi di kartu replay.** Di `src/pages/ReplayPage.tsx`, jika user belum punya tokens/sandi tersimpan, satu-satunya tombol adalah "Beli Replay". User yang sudah punya sandi (dari WhatsApp, dari teman, atau dari pembelian sebelumnya tapi tidak login) tidak bisa langsung memakainya — mereka harus copy sandi lalu pergi ke `/replay-play`.
 
-## Perubahan
+2. **User yang sudah beli show saat live, harus beli ulang ketika show jadi replay.** Penyebabnya:
+   - `validate_replay_access` (RPC) hanya menerima:
+     - kode `replay_tokens` (RT-…), atau
+     - sandi global situs.
+   - Kode tersebut **tidak memeriksa** `tokens` aktif (RT48-show, MBR-, BDL-) milik user yang sudah membeli show saat live.
+   - `get_purchased_show_passwords` sudah benar mengambil sandi show yang dibeli (lewat `coin_transactions` + `tokens`), tapi sandi itu adalah `shows.access_password` (sandi live), **bukan** `replay_password`. Setelah show jadi replay, sandi live tidak otomatis valid di endpoint replay karena `validate_replay_access` tidak men-cross-check `tokens`.
+   - Akibatnya user yang sudah punya token live untuk show tersebut tidak bisa login replay tanpa membeli lagi.
 
-### 1. Edge Function baru: `supabase/functions/idn-stream-token/index.ts`
-Membuat & mengembalikan 4 header siap pakai. Alur:
-1. CORS handler.
-2. Validasi JWT user (verify_jwt). Jika tidak login → 401.
-3. (Opsional `show_id` di body) — kalau kosong, ambil `site_settings.active_show_id` lalu `shows.external_show_id`.
-4. Validasi akses show ke user (reuse logic yang sama dengan LivePage: cek `usePurchasedShows`-equivalent di server lewat tabel `tokens`/membership/bundle/coin purchase). Jika tidak punya akses & bukan admin → 403.
-5. Generate JWT:
-   - `secretBase = "{x-sec-key}:{x-token-id}:{PARTNER_SECRET}"`
-   - `jwtSecret = SHA-256(secretBase)` lalu **HEX** string (sesuai dok Langkah A — bukan raw bytes).
-   - Payload: `{ sid: externalShowId, tid: TOKEN_ID, exp: now + 7200 }`.
-   - Sign HS256 menggunakan `jwtSecret` (string HEX) sebagai key — pakai Deno `crypto.subtle` (HMAC-SHA-256) + base64url encode (header + payload + signature).
-6. Response JSON:
-   ```json
-   { "success": true,
-     "headers": {
-       "x-api-token": "...",
-       "x-sec-key": "49c647f3-...",
-       "x-token-id": "114e0e89-...",
-       "x-showid": "<external_show_id>"
-     },
-     "show_id": "<external_show_id>",
-     "expires_at": <unix-seconds>
-   }
-   ```
+## Solusi
 
-### 2. Secret baru
-- Tambahkan `HANABIRA_PARTNER_SECRET` via tool secret (default ke `Hanabirastream2026` per dokumentasi, tapi tetap disimpan sebagai secret supaya bisa dirotasi).
-- `x-token-id` dan `x-sec-key` hard-coded sebagai konstanta di edge function (sesuai dokumentasi).
+### 1. Tambah panel "Punya sandi? Masukkan di sini" di kartu replay
+Di `src/pages/ReplayPage.tsx`, untuk setiap kartu show yang **belum** punya `replayPasswords[show.id]` dan **belum** `hasPurchased`, tampilkan di bawah tombol "Beli Replay":
 
-### 3. Update `src/hooks/useProxyStream.ts`
-- Hapus call ke `https://hanabira48.com/api/stream-token`.
-- Ganti dengan `supabase.functions.invoke("idn-stream-token", { body: { show_id: externalShowId } })`.
-- `PLAYBACK_URL` → `https://proxy.mediastream48.workers.dev/api/stream/v2/playback`.
-- Refresh tetap ~115 menit (token JWT exp 2 jam = 7200 detik).
-- Handler error: jika 401/403 dari edge → tampilkan pesan "Anda harus login & memiliki akses show untuk menonton stream IDN".
-- Header injection ke HLS (`xhrSetup` via `customHeadersRef`) tidak berubah — VideoPlayer/HLS code sudah pakai ref ini.
-
-### 4. (Opsional bersih-bersih) `supabase/functions/proxy-token/index.ts` & bagian `stream-proxy` yang fetch `hanabira48.com/api/stream-token`
-- Tetap dibiarkan (untuk fallback/legacy admin preview), TAPI tambahkan komentar bahwa untuk server IDN sudah pindah ke `idn-stream-token`. Tidak menghapus supaya tidak memecah preview admin yang masih memakainya. (Bisa dihapus di langkah lanjutan kalau dikonfirmasi tidak terpakai.)
-
-### 5. Verifikasi setelah implementasi
-- Cek edge function logs `idn-stream-token` saat user buka `/live` dengan playlist tipe `proxy`.
-- Pastikan request ke `/api/stream/v2/playback` mengandung 4 header benar (Network tab).
-- Test:
-  - User belum login → toast/error "harus login".
-  - User login tanpa akses show → 403.
-  - User login + token valid → stream play, refresh diam-diam tiap ~115 menit.
-
-## Detail Teknis JWT (sesuai dokumentasi)
 ```
-Header  = {"alg":"HS256","typ":"JWT"}
-Payload = {"sid": externalShowId, "tid": TOKEN_ID, "exp": nowSec + 7200}
-secret  = hexLower( SHA256( SEC_KEY + ":" + TOKEN_ID + ":" + PARTNER_SECRET ) )
-token   = base64url(header) + "." + base64url(payload) + "." + base64url( HMAC_SHA256(secret, signingInput) )
+┌──────────────────────────────┐
+│  Beli Replay                 │  ← tombol existing
+├──────────────────────────────┤
+│  Sudah punya sandi?          │
+│  [_________] [Tonton]        │
+└──────────────────────────────┘
 ```
-- Semua base64url **tanpa padding**.
-- Implementasi pakai `crypto.subtle.digest("SHA-256", ...)` + `crypto.subtle.importKey("raw", new TextEncoder().encode(hexSecret), { name:"HMAC", hash:"SHA-256" }, false, ["sign"])` lalu `crypto.subtle.sign("HMAC", ...)`.
 
-## File yang akan disentuh
-- **CREATE**: `supabase/functions/idn-stream-token/index.ts`
-- **EDIT**: `src/hooks/useProxyStream.ts`
-- **SECRET**: tambah `HANABIRA_PARTNER_SECRET`
+- Input controlled per-show (state `Record<showId, string>`).
+- Tombol "Tonton" memanggil `validate_replay_access({ _password, _show_id: show.id })`. Jika sukses:
+  - simpan sandi via `addReplayPassword(show.id, sandi)` agar persist,
+  - redirect ke `buildReplayTarget(show, sandi)`.
+- Jika gagal: tampilkan toast error "Sandi salah".
+- Tampilkan juga panel ini di `BundleShowCard` versi replay (opsional, bila user request).
 
-## Catatan
-- Validasi akses pakai pattern yang sudah ada (cek `tokens` aktif untuk show + `redeem_*` membership/bundle, juga admin role). Akan reuse SQL helper / RPC yang ada bila tersedia agar konsisten dengan `LivePage` access control.
-- Jika user mau, alur akses bisa diperketat (mis. perlu token aktif spesifik) atau dilonggarkan (cukup login). Default plan: **harus login DAN punya akses ke show aktif (atau admin)**.
+### 2. Akses replay otomatis untuk user yang sudah beli show live
+
+Update RPC `validate_replay_access` agar mengenali user authenticated yang sudah punya:
+- `tokens` aktif untuk `show_id` (per-show token), ATAU
+- token universal aktif (`MBR-`, `MRD-`, `BDL-`, `RT48-`) yang berlaku untuk show tersebut, ATAU
+- `coin_transactions` dengan `type IN ('redeem','replay_redeem')` dan `reference_id = show.id`.
+
+Ketika `_show_id`/`_short_id` diberikan dan `auth.uid()` punya salah satu hak akses di atas → return `success: true` dengan `access_via='purchased_live_token'` dan `m3u8_url`/`youtube_url` show. Tidak perlu beli ulang.
+
+Tambahkan juga di `ReplayPlayPage.tsx` (`tryAccess`): jika user login dan `_show_id`/`_short_id` ada di URL, cukup panggil RPC tanpa password — RPC otomatis cek token milik user.
+
+### 3. Auto-detect saat membuka kartu di ReplayPage
+Saat `usePurchasedShows` sudah load, jika `redeemedTokens[show.id]` ada (artinya user pernah beli show tersebut) tapi `replayPasswords[show.id]` belum, ubah tombol kartu jadi langsung **"Tonton Replay"** (mode `hasPurchased`) yang akan membuka `/replay-play?show=<short_id>` — RPC baru akan menerima akses berdasarkan token aktif user.
+
+## Perubahan File
+
+- `src/pages/ReplayPage.tsx` — tambah panel input sandi di kartu (state per-show, handler validate→redirect); tambah cabang tampilkan "Tonton Replay" bila `redeemedTokens[show.id]` ada.
+- `src/pages/ReplayPlayPage.tsx` — saat user login + `show`/`token` di URL kosong-password, panggil RPC tanpa password (RPC akan auto-grant via token aktif).
+- `supabase/migrations/<timestamp>_replay_access_recognize_live_purchases.sql` — `CREATE OR REPLACE FUNCTION validate_replay_access` yang memperluas logika: cek `tokens` milik `auth.uid()` (per-show + universal) dan `coin_transactions` (redeem/replay_redeem) untuk show terkait.
+
+## Verifikasi & Checklist
+
+Setelah build, jalankan checklist manual berikut (akan saya tuliskan di komentar PR / chat):
+
+1. **Input sandi di kartu**
+   - [ ] Buka `/replay`, kartu show belum dibeli menampilkan field "Sudah punya sandi?"
+   - [ ] Masukkan sandi salah → toast error, tetap di halaman.
+   - [ ] Masukkan sandi benar → redirect ke `/replay-play` dan video play.
+
+2. **Akses otomatis untuk pembeli live**
+   - [ ] User A beli show via koin saat live (token RT48-, dapat sandi access).
+   - [ ] Show ditandai `is_replay=true` admin.
+   - [ ] User A buka `/replay`, kartu show muncul tombol "Tonton Replay" (bukan "Beli Replay").
+   - [ ] Klik → langsung play tanpa minta sandi/beli ulang.
+
+3. **Akses untuk membership/bundle**
+   - [ ] User dengan `MBR-` aktif, buka kartu replay → langsung "Tonton Replay" (bila show tidak `exclude_from_membership`).
+   - [ ] User dengan `BDL-` aktif untuk show bundle → sama.
+
+4. **Replay token tetap berfungsi**
+   - [ ] Token `RT-` lama via link `?token=…` tetap bisa play.
+   - [ ] Sandi global tetap berlaku untuk show lain.
+
+5. **Build & test**
+   - [ ] `bun run build` sukses tanpa error baru.
+   - [ ] `bunx vitest run` hijau (tidak ada test baru yang gagal).
