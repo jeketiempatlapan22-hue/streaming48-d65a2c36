@@ -1580,6 +1580,7 @@ export type Database = {
       tokens: {
         Row: {
           archived_at: string | null
+          archived_show_title: string | null
           archived_to_replay: boolean
           code: string
           created_at: string
@@ -1596,6 +1597,7 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          archived_show_title?: string | null
           archived_to_replay?: boolean
           code: string
           created_at?: string
@@ -1612,6 +1614,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          archived_show_title?: string | null
           archived_to_replay?: boolean
           code?: string
           created_at?: string
@@ -1721,6 +1724,7 @@ export type Database = {
         Args: { _input: string; _reseller_id: string }
         Returns: {
           archived_at: string | null
+          archived_show_title: string | null
           archived_to_replay: boolean
           code: string
           created_at: string
