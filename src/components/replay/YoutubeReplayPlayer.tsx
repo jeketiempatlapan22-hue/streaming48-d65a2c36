@@ -229,7 +229,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           src={src}
           title="Replay"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
-          allowFullScreen={false}
+          allowFullScreen
           className="relative z-[1] h-full w-full"
         />
       </div>
