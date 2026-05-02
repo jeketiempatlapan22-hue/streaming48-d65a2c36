@@ -33,6 +33,8 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [adaptive, setAdaptive] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showFallback, setShowFallback] = useState(false);
+  const playerReadyRef = useRef(false);
 
   const switchingTimerRef = useRef<number | null>(null);
   const bufferingSinceRef = useRef<number | null>(null);
