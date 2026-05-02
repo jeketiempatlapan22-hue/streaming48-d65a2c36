@@ -422,10 +422,12 @@ const LivePage = () => {
     fp
   );
 
-  // For proxy: call hanabira48 API directly (domain whitelisted, no CORS)
+  // For proxy: header auth diminta ke edge function `idn-stream-token` (server-side JWT)
   const { playbackUrl: proxyUrl, customHeadersRef: proxyHeadersRef, loading: proxyLoading } = useProxyStream(
     isProxyPlaylist && !loading && !error && !showMismatch && !showReplayBlocked && !blocked,
-    externalShowId
+    externalShowId,
+    0,
+    tokenCode,
   );
 
   // Unified URL, loading, and type for VideoPlayer
