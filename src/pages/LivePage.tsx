@@ -965,6 +965,7 @@ const LivePage = () => {
   useEffect(() => {
     if (!tokenData?.id) return;
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       refreshPlaylists();
     }, 15_000); // every 15s
     return () => clearInterval(interval);
@@ -975,6 +976,7 @@ const LivePage = () => {
   useEffect(() => {
     if (!tokenData?.id) return;
     const poll = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const { data } = await (supabase.rpc as any)("get_stream_status");
         if (data?.length) {
