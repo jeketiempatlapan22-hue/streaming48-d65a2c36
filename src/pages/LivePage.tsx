@@ -1525,8 +1525,11 @@ const LivePage = () => {
                 return bgUrl ? (
                   <>
                     <img
-                      src={bgUrl}
+                      src={optimizedImage(bgUrl, { width: 960, quality: 65 })}
+                      srcSet={buildSrcSet(bgUrl, [480, 768, 1280])}
+                      sizes="100vw"
                       alt={activeShowTitle || "Show"}
+                      decoding="async"
                       className="absolute inset-0 h-full w-full object-cover scale-110 opacity-85"
                       style={{ filter: "blur(10px)" }}
                     />
