@@ -231,6 +231,23 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     setQuality("hd1080");
   };
 
+  const seekTo = (sec: number) => {
+    const v = Math.max(0, Math.min(duration || sec, sec));
+    post("seekTo", [v, true]);
+    setCurrentTime(v);
+    setSeekValue(v);
+  };
+  const skip = (delta: number) => seekTo((currentTime || 0) + delta);
+  const formatTime = (s: number) => {
+    if (!isFinite(s) || s < 0) s = 0;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    const mm = String(m).padStart(2, "0");
+    const ss = String(sec).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  };
+
   return (
     <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl bg-black">
       {/* Poster di belakang sebagai background sementara iframe load */}
