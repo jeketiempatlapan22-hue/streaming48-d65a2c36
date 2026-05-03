@@ -51,14 +51,15 @@ const LandingStats = () => {
     fetchData();
   }, []);
 
-  // Poll viewer count from DB instead of presence (much lighter for 1000+ users)
+  // Poll viewer count from DB instead of presence (skip saat tab hidden agar lebih ringan)
   useEffect(() => {
     const fetchCount = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setStats(prev => ({ ...prev, viewers: data }));
     };
     fetchCount();
-    const interval = setInterval(fetchCount, 20_000);
+    const interval = setInterval(fetchCount, 30_000);
     return () => clearInterval(interval);
   }, []);
 
