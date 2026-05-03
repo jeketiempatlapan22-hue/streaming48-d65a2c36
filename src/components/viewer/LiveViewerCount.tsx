@@ -12,6 +12,9 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
   useEffect(() => {
     if (!isLive) { setCount(0); return; }
 
+    const isHidden = () => typeof document !== "undefined" && document.hidden;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
     // Only send heartbeats if not readOnly (i.e., only on the live page)
     if (!readOnly) {
       // Persist viewer key in sessionStorage to survive page refreshes
@@ -26,41 +29,77 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
       }
       const key = viewerKeyRef.current;
 
-      // Send initial heartbeat
+      // Send initial heartbeat + count
       supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
+      supabase.rpc("get_viewer_count").then(({ data }) => {
+        if (typeof data === "number") setCount(data);
+      });
 
-      // Poll viewer count every 30s + send heartbeat every 60s
-      // Optimized for 1000+ concurrent viewers (reduces DB load by 50%)
       let tick = 0;
-      const interval = setInterval(async () => {
-        if (typeof document !== "undefined" && document.hidden) return;
+      const tickFn = async () => {
+        if (isHidden()) return;
         tick++;
         if (tick % 2 === 0) {
           supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
         }
         const { data } = await supabase.rpc("get_viewer_count");
         if (typeof data === "number") setCount(data);
-      }, 30_000);
+      };
 
-      supabase.rpc("get_viewer_count").then(({ data }) => {
-        if (typeof data === "number") setCount(data);
-      });
+      const startInterval = () => {
+        if (intervalId == null) intervalId = setInterval(tickFn, 30_000);
+      };
+      const stopInterval = () => {
+        if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+      };
+
+      const onVisibility = () => {
+        if (isHidden()) {
+          stopInterval();
+        } else {
+          // Refresh immediately on resume + restart polling
+          tickFn();
+          startInterval();
+        }
+      };
+
+      if (!isHidden()) startInterval();
+      document.addEventListener("visibilitychange", onVisibility);
 
       return () => {
-        clearInterval(interval);
+        stopInterval();
+        document.removeEventListener("visibilitychange", onVisibility);
         supabase.rpc("viewer_leave", { _key: key }).then(() => {});
       };
     }
 
     // readOnly mode: only poll the count, no heartbeats
     const fetchCount = async () => {
-      if (typeof document !== "undefined" && document.hidden) return;
+      if (isHidden()) return;
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setCount(data);
     };
+    const startRO = () => {
+      if (intervalId == null) intervalId = setInterval(fetchCount, 30_000);
+    };
+    const stopRO = () => {
+      if (intervalId != null) { clearInterval(intervalId); intervalId = null; }
+    };
+    const onVisibilityRO = () => {
+      if (isHidden()) {
+        stopRO();
+      } else {
+        fetchCount();
+        startRO();
+      }
+    };
     fetchCount();
-    const interval = setInterval(fetchCount, 30_000);
-    return () => clearInterval(interval);
+    if (!isHidden()) startRO();
+    document.addEventListener("visibilitychange", onVisibilityRO);
+    return () => {
+      stopRO();
+      document.removeEventListener("visibilitychange", onVisibilityRO);
+    };
   }, [isLive, readOnly]);
 
   // Also leave on page unload — use fetch with keepalive + Authorization header
