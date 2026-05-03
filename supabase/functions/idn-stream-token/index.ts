@@ -134,9 +134,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (!authorized && restreamCode) {
+      if (restreamCode.length > 200) {
+        return jsonResponse({ success: false, error: "Restream code format invalid" }, 400);
+      }
+      const { data: rsValidation, error: rsErr } = await sb.rpc("validate_restream_code", { _code: restreamCode });
+      if (!rsErr && (rsValidation as any)?.valid) {
+        authorized = true;
+        authMode = "restream";
+        // Best-effort touch usage timestamp
+        try { await sb.rpc("touch_restream_code_usage", { _code: restreamCode }); } catch { /* silent */ }
+      }
+    }
+
     if (!authorized) {
       return jsonResponse(
-        { success: false, error: "Anda harus login atau memiliki token akses untuk menonton stream IDN" },
+        { success: false, error: "Anda harus login, memiliki token akses, atau kode restream yang valid" },
         401,
       );
     }
