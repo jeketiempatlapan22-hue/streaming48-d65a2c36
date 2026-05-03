@@ -104,12 +104,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const requestedShowId = typeof body?.show_id === "string" && body.show_id.trim() ? body.show_id.trim() : null;
     const tokenCode = typeof body?.token_code === "string" && body.token_code.trim() ? body.token_code.trim() : null;
+    const restreamCode = typeof body?.restream_code === "string" && body.restream_code.trim() ? body.restream_code.trim() : null;
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // ---- Auth: logged-in user OR valid token_code ----
+    // ---- Auth: logged-in user OR valid token_code OR valid restream_code ----
     let authorized = false;
-    let authMode: "user" | "token" | null = null;
+    let authMode: "user" | "token" | "restream" | null = null;
 
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
