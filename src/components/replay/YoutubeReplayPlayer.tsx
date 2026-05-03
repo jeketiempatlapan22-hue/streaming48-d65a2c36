@@ -238,6 +238,38 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     setSeekValue(v);
   };
   const skip = (delta: number) => seekTo((currentTime || 0) + delta);
+
+  const seekToClientX = (clientX: number, rect: DOMRect) => {
+    if (!duration) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const v = ratio * duration;
+    setSeekValue(v);
+    setCurrentTime(v);
+  };
+  const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!duration) return;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const rect = target.getBoundingClientRect();
+    seekingRef.current = true;
+    seekToClientX(e.clientX, rect);
+    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    const up = (ev: PointerEvent) => {
+      try { target.releasePointerCapture(e.pointerId); } catch {}
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
+      const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+      seekTo(ratio * duration);
+      setTimeout(() => { seekingRef.current = false; }, 200);
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
+  };
+  const progressPct = duration > 0 ? Math.min(100, (seekValue / duration) * 100) : 0;
   const formatTime = (s: number) => {
     if (!isFinite(s) || s < 0) s = 0;
     const h = Math.floor(s / 3600);
