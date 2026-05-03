@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 import { motion, AnimatePresence } from "framer-motion";
 import { cachedQuery, invalidateCache, preloadLandingData, fetchCachedEndpoint } from "@/lib/queryCache";
 import {
