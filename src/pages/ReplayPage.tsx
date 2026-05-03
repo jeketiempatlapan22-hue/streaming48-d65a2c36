@@ -549,7 +549,7 @@ const ReplayPage = () => {
                               value={pwInput[show.id] || ""}
                               onChange={(e) => setPwInput((s) => ({ ...s, [show.id]: e.target.value }))}
                               onKeyDown={(e) => { if (e.key === "Enter") submitReplayPassword(show); }}
-                              placeholder="Masukkan sandi"
+                              placeholder="Sandi show / bulanan / master"
                               className="h-9 text-xs bg-background"
                               maxLength={64}
                             />
@@ -562,6 +562,9 @@ const ReplayPage = () => {
                               {pwSubmitting[show.id] ? "..." : "Tonton"}
                             </Button>
                           </div>
+                          <p className="text-[9px] text-muted-foreground/80">
+                            Sandi global/bulanan akan langsung membuka semua replay sesuai periodenya.
+                          </p>
                         </div>
                       </div>
                     )}
