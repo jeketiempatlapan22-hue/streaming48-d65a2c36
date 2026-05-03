@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeLiveBus } from "@/lib/liveRealtimeBus";
 import { toast } from "sonner";
 
 export interface ActiveQuiz {
