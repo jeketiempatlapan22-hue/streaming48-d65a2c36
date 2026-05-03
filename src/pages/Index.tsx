@@ -192,14 +192,15 @@ const Index = () => {
       })
       .subscribe();
 
-    // Poll for settings/descriptions changes every 60s; pause saat tab hidden
+    // Poll for settings/descriptions changes; settings rarely change so 3 min is plenty.
+    // Server cache TTL is 2 min, so this hits cache most of the time.
     const settingsPoll = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       fetchCachedEndpoint("landing").then((data) => {
         if (data?.descriptions) setDescriptions(data.descriptions);
         if (data?.settings) setSettings((prev: any) => ({ ...prev, ...data.settings }));
       }).catch(() => {});
-    }, 60_000);
+    }, 180_000);
 
     window.addEventListener("appinstalled", handleInstalled);
 

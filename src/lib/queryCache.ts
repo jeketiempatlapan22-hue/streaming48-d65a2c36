@@ -125,6 +125,12 @@ export async function fetchCachedEndpoint(
       clearTimeout(timer);
     }
   };
+  // Per-type client cache TTL — settings/stats are slow-moving, shows are mid.
+  const clientTtl =
+    type === "landing" ? 90_000 :
+    type === "stats" ? 90_000 :
+    type === "shows" ? 25_000 :
+    25_000; // "all"
   return cachedQuery(cacheKey, async () => {
     try {
       let res = await doFetch(4000);
@@ -138,7 +144,7 @@ export async function fetchCachedEndpoint(
     } catch {
       return null;
     }
-  }, 25_000).catch(() => null);
+  }, clientTtl).catch(() => null);
 }
 
 // Preload landing data as early as possible (module-level, fires on import)

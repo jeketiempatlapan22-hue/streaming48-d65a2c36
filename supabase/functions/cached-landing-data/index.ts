@@ -10,9 +10,10 @@ const corsHeaders = {
 let landingCache: { data: any; ts: number } | null = null;
 let showsCache: { data: any; ts: number } | null = null;
 let statsCache: { data: any; ts: number } | null = null;
-const LANDING_TTL = 30_000;
-const SHOWS_TTL = 20_000;
-const STATS_TTL = 60_000;
+// Split TTLs: settings/descriptions rarely change → long cache. Shows mid. Stats long.
+const LANDING_TTL = 120_000;  // 2 min
+const SHOWS_TTL = 30_000;     // 30s
+const STATS_TTL = 120_000;    // 2 min
 
 // In-memory rate limiter
 const rlMap = new Map<string, { count: number; resetAt: number }>();
