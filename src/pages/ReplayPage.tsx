@@ -378,9 +378,10 @@ const ReplayPage = () => {
   const monthKeyForShow = (s: Show): string => {
     const explicit = (s as any).replay_month as string | undefined;
     if (explicit && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
-    if (s.schedule_date) {
-      const d = new Date(s.schedule_date);
-      if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const t = parseShowDate(s);
+    if (t > 0) {
+      const d = new Date(t);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     }
     return "0000-00";
   };
@@ -395,6 +396,10 @@ const ReplayPage = () => {
       const k = monthKeyForShow(s);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
+    }
+    // Sort shows within each group newest-first
+    for (const [, arr] of map) {
+      arr.sort((a, b) => parseShowDate(b) - parseShowDate(a));
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
   })();
