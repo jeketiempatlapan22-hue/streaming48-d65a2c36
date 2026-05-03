@@ -194,9 +194,9 @@ const ReplayPage = () => {
           return false;
         });
         pastShows.sort((a, b) => {
-          const dateA = a.schedule_date ? new Date(a.schedule_date).getTime() : 0;
-          const dateB = b.schedule_date ? new Date(b.schedule_date).getTime() : 0;
-          return dateB - dateA;
+          const tA = parseShowDate(a);
+          const tB = parseShowDate(b);
+          return tB - tA;
         });
         setShows(pastShows as Show[]);
       }
