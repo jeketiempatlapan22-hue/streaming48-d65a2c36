@@ -156,7 +156,7 @@ const RestreamPage = () => {
     customHeadersRef: proxyHeadersRef,
     loading: proxyLoading,
     error: proxyError,
-  } = useProxyStream(isProxy, externalShowId, refreshKey);
+  } = useProxyStream(isProxy, externalShowId, refreshKey, undefined, code || null);
 
   const effectiveUrl = isDirect
     ? activePlaylist?.url

@@ -104,12 +104,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const requestedShowId = typeof body?.show_id === "string" && body.show_id.trim() ? body.show_id.trim() : null;
     const tokenCode = typeof body?.token_code === "string" && body.token_code.trim() ? body.token_code.trim() : null;
+    const restreamCode = typeof body?.restream_code === "string" && body.restream_code.trim() ? body.restream_code.trim() : null;
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // ---- Auth: logged-in user OR valid token_code ----
+    // ---- Auth: logged-in user OR valid token_code OR valid restream_code ----
     let authorized = false;
-    let authMode: "user" | "token" | null = null;
+    let authMode: "user" | "token" | "restream" | null = null;
 
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
@@ -133,9 +134,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (!authorized && restreamCode) {
+      if (restreamCode.length > 200) {
+        return jsonResponse({ success: false, error: "Restream code format invalid" }, 400);
+      }
+      const { data: rsValidation, error: rsErr } = await sb.rpc("validate_restream_code", { _code: restreamCode });
+      if (!rsErr && (rsValidation as any)?.valid) {
+        authorized = true;
+        authMode = "restream";
+        // Best-effort touch usage timestamp
+        try { await sb.rpc("touch_restream_code_usage", { _code: restreamCode }); } catch { /* silent */ }
+      }
+    }
+
     if (!authorized) {
       return jsonResponse(
-        { success: false, error: "Anda harus login atau memiliki token akses untuk menonton stream IDN" },
+        { success: false, error: "Anda harus login, memiliki token akses, atau kode restream yang valid" },
         401,
       );
     }

@@ -26,6 +26,7 @@ export function useProxyStream(
   externalShowId: string | null,
   refreshKey = 0,
   tokenCode?: string | null,
+  restreamCode?: string | null,
 ): ProxyStreamResult {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const customHeadersRef = useRef<Record<string, string> | null>(null);
@@ -47,6 +48,7 @@ export function useProxyStream(
         body: {
           show_id: externalShowId,
           ...(tokenCode ? { token_code: tokenCode } : {}),
+          ...(restreamCode ? { restream_code: restreamCode } : {}),
         },
       });
 
@@ -101,7 +103,7 @@ export function useProxyStream(
         if (isMounted.current) fetchToken();
       }, 10_000);
     }
-  }, [isProxy, externalShowId, refreshKey, tokenCode]);
+  }, [isProxy, externalShowId, refreshKey, tokenCode, restreamCode]);
 
   useEffect(() => {
     isMounted.current = true;
