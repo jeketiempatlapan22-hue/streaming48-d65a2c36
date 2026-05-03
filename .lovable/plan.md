@@ -1,59 +1,68 @@
-## Masalah & Rencana Perbaikan
+## Masalah
 
-### 1) Halaman Restream tidak menampilkan player IDN/Hanabira (proxy)
+Form sandi pada kartu replay (di bawah tombol beli) tidak benar-benar membuka kartu lain ketika user mengetik sandi **bulanan / global / master** yang sudah diatur admin. Akar masalahnya ada di **database**, bukan di frontend.
 
-**Akar masalah:**
-- `RestreamPage` memanggil `useProxyStream(isProxy, externalShowId, refreshKey)` untuk playlist tipe `proxy`.
-- `useProxyStream` memanggil edge function `idn-stream-token`, yang **mewajibkan**: user login (Bearer JWT) ATAU `token_code` viewer aktif. Halaman restream publik tidak punya keduanya → respon 401, header tidak pernah didapat → player blank.
-- Selain itu, untuk tipe `m3u8`/`youtube` di restream page sudah berjalan via `stream-proxy` + `restream_code`. Tapi pada player IDN belum ada jalur autentikasi via restream code.
+### Akar masalah
 
-**Perbaikan:**
-1. **Edge function `idn-stream-token`**: tambah jalur autentikasi via `restream_code`.
-   - Jika body berisi `restream_code`, validasi via RPC `validate_restream_code`.
-   - Jika valid → `authorized = true`, `authMode = "restream"`. Tetap pakai logic resolve `external_show_id` yang sama (dari `site_settings.active_show_id` → `shows.external_show_id`).
-   - Best-effort `touch_restream_code_usage`.
-2. **Hook `useProxyStream`**: tambah parameter opsional `restreamCode`. Jika ada, kirim ke body request (`restream_code`).
-3. **`RestreamPage.tsx`**: teruskan `code` (kode restream) ke `useProxyStream(isProxy, externalShowId, refreshKey, undefined, code)`.
-4. Tambah log/error handling agar `proxyShowError` menampilkan pesan jelas saat 401/404.
+- Admin panel (`ReplayGlobalPasswordManager.tsx`) menyimpan sandi global di `site_settings` dengan key berpola:
+  - `replay_global_password__all` (master)
+  - `replay_global_password__YYYY-MM` (bulanan)
+  - `replay_global_password__YYYY-MM-DD` (harian)
+- Tetapi RPC `validate_replay_access` **hanya mengecek satu key lama** `replay_global_password` (tanpa suffix). Akibatnya:
+  - Sandi bulanan/master/harian dari admin panel **tidak pernah terdeteksi** sebagai global → response `success:false`.
+  - Frontend menampilkan toast "Sandi salah", padahal sandi benar.
+  - Logika bulk-unlock di `submitReplayPassword` (yang sudah ada) tidak pernah dieksekusi karena RPC menolak sandi.
 
-**Verifikasi:**
-- Test ketiga tipe playlist di /restream: m3u8 (signed), youtube (encrypted), proxy/IDN (xhr header injection).
-- Cek Network: request ke `idn-stream-token` harus 200 dengan headers `x-api-token` dll, lalu request ke `proxy.mediastream48.workers.dev/api/stream/v2/playback` mendapat 200.
+Frontend `ReplayPage.submitReplayPassword` sebenarnya sudah benar: jika RPC mengembalikan `access_via='global_password'` dengan `global_scope` master/monthly/daily, ia memanggil `addReplayPassword` ke semua show yang cocok scope-nya. Yang perlu diperbaiki hanyalah **RPC** agar mengenali key-key baru.
 
 ---
 
-### 2) Kartu replay: input sandi master/bulanan/global membuka semua replay sesuai bulannya
+## Rencana Perbaikan
 
-**Saat ini:** input "Sudah punya sandi replay?" pada `ReplayPage.tsx` memanggil `validate_replay_access` dengan `_show_id` spesifik. Walau RPC sudah mendukung `global_password` (master/monthly/daily), efeknya hanya membuka **satu show** saja.
+### 1) Migration: perluas RPC `validate_replay_access`
 
-**Perilaku baru yang diinginkan:**
-Jika sandi yang dimasukkan terbukti valid sebagai `global_password` (scope `master` atau `monthly`), maka **semua replay show** yang masuk dalam scope tersebut harus terbuka otomatis (tidak perlu input ulang per kartu).
+Tambah block baru sebelum block "global password" lama, urutan pengecekan sandi global:
 
-**Perbaikan:**
-1. **`ReplayPage.tsx` → `submitReplayPassword(show)`:**
-   - Setelah menerima respons sukses dari `validate_replay_access`, periksa `access_via === "global_password"`:
-     - `global_scope === "master"` → loop semua replay shows yang dimuat (yang punya `has_replay_media`/m3u8/yt) dan `addReplayPassword(s.id, raw)` untuk semuanya.
-     - `global_scope === "monthly"` → tentukan target month: gunakan `_show.replay_month` jika ada, kalau tidak gunakan `YYYY-MM` dari `schedule_date` show terkait. Filter shows yang `replay_month === target` ATAU bila `replay_month` kosong, fallback ke bulan dari `schedule_date`. Terapkan `addReplayPassword` ke semua yang cocok.
-     - `global_scope === "daily"` → buka semua show yang `schedule_date` = hari ini.
-   - Tampilkan toast: "Sandi global aktif — N replay terbuka untuk bulan/periode ini."
-   - Tetap navigasi ke show yang user klik (perilaku sekarang dipertahankan).
-2. UI kartu: tambahkan helper text kecil di bawah input: "Bisa juga diisi sandi global/bulanan" agar user tahu fitur ini.
-3. Tidak perlu mengubah RPC (`validate_replay_access`) — sudah mengembalikan `global_scope`. Kita hanya panggil RPC sekali untuk cek validitas, lalu kreditkan ke localStorage via `addReplayPassword` untuk semua show yang cocok.
+1. **Master** — ambil `site_settings.value` untuk key `replay_global_password__all`. Jika cocok dengan `_password`, return `access_via='global_password'`, `global_scope='master'`.
+2. **Daily** — hitung `day_key = to_char(schedule_date::date, 'YYYY-MM-DD')` dari `_show`. Cek key `replay_global_password__{day_key}`. Jika cocok → `global_scope='daily'`.
+3. **Monthly** — hitung `month_key`:
+   - Pakai `_show.replay_month` jika sudah berformat `YYYY-MM`, else turunkan dari `schedule_date`.
+   - Cek key `replay_global_password__{month_key}`. Jika cocok → `global_scope='monthly'`.
+4. Block lama (`replay_global_password` tanpa suffix) tetap dipertahankan sebagai fallback `global_scope='default'` agar kompatibel.
 
-**Edge case:**
-- Jika user belum login (anonim), `addReplayPassword` mungkin no-op untuk persist di DB; minimal di-cache pada state lokal session sehingga klik "Tonton Replay" pada kartu lain langsung membuka via `/replay-play?password=...` tanpa harus mengetik ulang.
-- Pastikan tidak menambah password ke show yang `is_replay=false` atau yang belum punya `has_replay_media`.
+Semua hasil mengembalikan field yang sama (`show_id`, `show_title`, `m3u8_url`, `youtube_url`, `has_media`, `global_scope`) sehingga frontend tidak perlu diubah.
+
+Catatan keamanan: masih `SECURITY DEFINER`, `search_path = public`. Tetap mensyaratkan `_show.id IS NOT NULL` (sandi global divalidasi dalam konteks satu show, tetapi frontend lalu menyebarkan ke shows lain di scope yang sama).
+
+### 2) Tidak perlu mengubah frontend
+
+`src/pages/ReplayPage.tsx` sudah memiliki:
+- Field input sandi per kartu di bawah tombol beli.
+- Logika bulk-unlock `monthly` / `master` / `daily` setelah RPC sukses.
+- Toast "Sandi global aktif — N replay terbuka...".
+- Redirect ke `/replay-play?show=...&password=...` untuk show yang diklik.
+
+Setelah RPC diperbaiki, alur ini langsung berfungsi: input sandi bulanan di kartu A → RPC return `monthly` → semua kartu di bulan yang sama tersimpan password-nya di `replayPasswords` (localStorage) → tombol "Tonton Replay" muncul tanpa perlu input ulang.
+
+### 3) (Opsional) Hint UI lebih jelas
+
+Jika perlu, perjelas placeholder pada input sandi: "Sandi show / bulanan / master" — sebagian sudah ada. Tidak wajib untuk perbaikan ini.
 
 ---
 
-### File yang akan diubah
-- `supabase/functions/idn-stream-token/index.ts` — tambah jalur `restream_code`.
-- `src/hooks/useProxyStream.ts` — tambah param `restreamCode`.
-- `src/pages/RestreamPage.tsx` — kirim `code` ke `useProxyStream`.
-- `src/pages/ReplayPage.tsx` — perluas `submitReplayPassword` untuk membuka semua replay sesuai scope; perbarui copy UI input sandi.
+## File yang akan diubah
 
-### Test plan
-- /restream: input kode aktif → switcher menampilkan IDN; pilih IDN → video play.
-- /replay: input sandi bulanan pada satu kartu → semua kartu bulan tsb. menampilkan tombol "Tonton Replay" tanpa input ulang.
-- /replay: input sandi master → semua kartu replay terbuka.
-- Sandi salah → toast tetap "Sandi salah".
+- **Migration baru** — `ALTER FUNCTION public.validate_replay_access(...)` (CREATE OR REPLACE) untuk mendeteksi tiga pola key baru.
+
+Tidak ada perubahan TypeScript yang diperlukan.
+
+---
+
+## Verifikasi
+
+1. Admin → ReplayGlobalPasswordManager: buat sandi bulanan untuk bulan show "Pajama Drive" (mis. `2026-04` = `RT48-APR`).
+2. Halaman `/replay`: pada kartu Pajama Drive, input `RT48-APR` → submit.
+3. Toast "Sandi global aktif — N replay terbuka untuk bulan ini." muncul.
+4. Kartu lain di bulan yang sama langsung menampilkan tombol **Tonton Replay** (tanpa input ulang) dan membuka `/replay-play` dengan password tersebut.
+5. Test sandi master (key `__all`) → semua kartu replay terbuka.
+6. Sandi salah → tetap menampilkan toast "Sandi salah".
