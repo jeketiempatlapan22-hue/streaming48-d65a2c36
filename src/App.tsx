@@ -29,7 +29,17 @@ const RestreamPage = lazy(() => import("./pages/RestreamPage"));
 
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+    },
+  },
+});
 
 const MaintenancePage = ({ message }: { message?: string }) => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 text-center gap-6">
