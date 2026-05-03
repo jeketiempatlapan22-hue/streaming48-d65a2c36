@@ -230,6 +230,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
           allowFullScreen
           referrerPolicy="origin-when-cross-origin"
+          onLoad={() => {
+            playerReadyRef.current = true;
+            setLoading(false);
+            setShowFallback(false);
+            window.setTimeout(() => post("playVideo"), 250);
+          }}
           className="relative z-[1] h-full w-full"
         />
       </div>
