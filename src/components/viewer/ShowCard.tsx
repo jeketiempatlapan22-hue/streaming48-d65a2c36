@@ -12,6 +12,7 @@ import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
 import { parseWIBDateTime, getUserZoneLabel, isUserOutsideWIB, formatLocal, getDeviceZoneCode } from "@/lib/timeFormat";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface ShowCardProps {
   show: Show;
