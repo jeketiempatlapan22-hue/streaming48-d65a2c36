@@ -739,7 +739,7 @@ const Index = () => {
                 {descriptions.map((desc: any, i: number) => (
                   <motion.div key={desc.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }}
                     className={`group relative overflow-hidden rounded-2xl glass p-6 md:p-8 transition-all duration-300 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10 ${desc.text_align === "right" ? "text-right" : desc.text_align === "center" ? "text-center" : desc.text_align === "justify" ? "text-justify" : "text-left"}`}>
-                    {desc.image_url && <img src={desc.image_url} alt={desc.title} className="mb-4 h-40 w-full rounded-xl object-cover" />}
+                    {desc.image_url && <img src={optimizedImage(desc.image_url, { width: 640, quality: 70 })} srcSet={buildSrcSet(desc.image_url, [320, 480, 640, 960])} sizes={SIZES.showCard} alt={desc.title} loading="lazy" decoding="async" className="mb-4 h-40 w-full rounded-xl object-cover" />}
                     <span className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-2xl ${desc.text_align === "center" ? "mx-auto" : desc.text_align === "right" ? "ml-auto" : ""}`}>{desc.icon}</span>
                     <h3 className="mb-3 text-lg font-bold text-foreground md:text-xl">{desc.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{desc.content}</p>
