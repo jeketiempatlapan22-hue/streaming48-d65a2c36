@@ -10,6 +10,7 @@ import SharedNavbar from "@/components/SharedNavbar";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { parsePriceToNumber } from "@/lib/parsePrice";
 import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface Show {
   id: string;
