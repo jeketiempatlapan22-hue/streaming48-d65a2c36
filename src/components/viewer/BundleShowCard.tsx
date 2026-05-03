@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Coins, CreditCard, Package, Play, Timer, Infinity as InfinityIcon, Radio } from "lucide-react";
 import type { Show } from "@/types/show";
 import bundleBg from "@/assets/bundle-bg.jpg";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface BundleShowCardProps {
   show: Show;
