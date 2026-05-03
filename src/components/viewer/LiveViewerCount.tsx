@@ -54,6 +54,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
 
     // readOnly mode: only poll the count, no heartbeats
     const fetchCount = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setCount(data);
     };
