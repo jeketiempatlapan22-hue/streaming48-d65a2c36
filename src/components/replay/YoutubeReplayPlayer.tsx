@@ -137,6 +137,14 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
               if (idx >= 0) qualityIndexRef.current = idx;
             }
           }
+
+          if (typeof data.info.currentTime === "number" && !seekingRef.current) {
+            setCurrentTime(data.info.currentTime);
+            setSeekValue(data.info.currentTime);
+          }
+          if (typeof data.info.duration === "number" && data.info.duration > 0) {
+            setDuration(data.info.duration);
+          }
         }
       } catch {
         /* noop */
