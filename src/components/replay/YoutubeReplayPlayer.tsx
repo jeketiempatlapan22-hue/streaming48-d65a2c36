@@ -153,7 +153,9 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     };
     window.addEventListener("message", onMessage);
 
-    // Subscribe ke event YT — best-effort, tidak menghalangi tampilan
+    // Subscribe ke event YT — best-effort, tidak menghalangi tampilan.
+    // Dengan listening channel "widget", player otomatis push infoDelivery
+    // (currentTime, duration, playerState, dll) tanpa perlu polling.
     let attempts = 0;
     const subscribe = () => {
       const w = iframeRef.current?.contentWindow;
@@ -175,6 +177,9 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         JSON.stringify({ event: "command", func: "setPlaybackQuality", args: ["hd1080"] }),
         "*",
       );
+      // One-shot: minta duration sekali agar seekbar terisi cepat sebelum
+      // infoDelivery pertama yang membawa duration tiba.
+      w.postMessage(JSON.stringify({ event: "command", func: "getDuration", args: [] }), "*");
     };
     const sub = setInterval(() => {
       attempts += 1;
@@ -192,21 +197,10 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       }
     }, 1000);
 
-    // Poll currentTime & duration (lebih ringan: 1s + skip saat tab hidden / sedang seek)
-    const timePoll = setInterval(() => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      if (seekingRef.current) return;
-      const w = iframeRef.current?.contentWindow;
-      if (!w) return;
-      w.postMessage(JSON.stringify({ event: "command", func: "getCurrentTime", args: [] }), "*");
-      w.postMessage(JSON.stringify({ event: "command", func: "getDuration", args: [] }), "*");
-    }, 1000);
-
     return () => {
       window.removeEventListener("message", onMessage);
       clearInterval(sub);
       clearInterval(watcher);
-      clearInterval(timePoll);
       if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
   }, [src, adaptive, downgradeOneStep]);
