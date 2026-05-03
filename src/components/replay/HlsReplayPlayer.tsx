@@ -33,6 +33,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   const [seekIndicator, setSeekIndicator] = useState<{ side: "left" | "right"; amount: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [stalled, setStalled] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState<{ time: number; pct: number } | null>(null);
 
   // Tap tracking refs (one per side to avoid cross-side interference)
   const lastTapRef = useRef<{ side: "left" | "right" | null; time: number }>({ side: null, time: 0 });
