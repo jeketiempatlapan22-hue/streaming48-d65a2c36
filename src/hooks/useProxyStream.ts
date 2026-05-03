@@ -103,7 +103,7 @@ export function useProxyStream(
         if (isMounted.current) fetchToken();
       }, 10_000);
     }
-  }, [isProxy, externalShowId, refreshKey, tokenCode]);
+  }, [isProxy, externalShowId, refreshKey, tokenCode, restreamCode]);
 
   useEffect(() => {
     isMounted.current = true;
