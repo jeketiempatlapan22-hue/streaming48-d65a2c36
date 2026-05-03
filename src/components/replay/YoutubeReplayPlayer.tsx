@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2 } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { parseYoutubeId as parseYoutubeIdShared } from "@/lib/youtubeUrl";
 
 interface Props {
@@ -34,6 +34,10 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [switching, setSwitching] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFallback, setShowFallback] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const seekingRef = useRef(false);
+  const [seekValue, setSeekValue] = useState(0);
   const playerReadyRef = useRef(false);
 
   const switchingTimerRef = useRef<number | null>(null);
@@ -133,6 +137,14 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
               if (idx >= 0) qualityIndexRef.current = idx;
             }
           }
+
+          if (typeof data.info.currentTime === "number" && !seekingRef.current) {
+            setCurrentTime(data.info.currentTime);
+            setSeekValue(data.info.currentTime);
+          }
+          if (typeof data.info.duration === "number" && data.info.duration > 0) {
+            setDuration(data.info.duration);
+          }
         }
       } catch {
         /* noop */
@@ -179,10 +191,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       }
     }, 1000);
 
+    // Poll currentTime & duration via YT IFrame API
+    const timePoll = setInterval(() => {
+      const w = iframeRef.current?.contentWindow;
+      if (!w) return;
+      w.postMessage(JSON.stringify({ event: "command", func: "getCurrentTime", args: [] }), "*");
+      w.postMessage(JSON.stringify({ event: "command", func: "getDuration", args: [] }), "*");
+    }, 500);
+
     return () => {
       window.removeEventListener("message", onMessage);
       clearInterval(sub);
       clearInterval(watcher);
+      clearInterval(timePoll);
       if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
   }, [src, adaptive, downgradeOneStep]);
@@ -208,6 +229,23 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     lastDowngradeRef.current = 0;
     bufferingSinceRef.current = null;
     setQuality("hd1080");
+  };
+
+  const seekTo = (sec: number) => {
+    const v = Math.max(0, Math.min(duration || sec, sec));
+    post("seekTo", [v, true]);
+    setCurrentTime(v);
+    setSeekValue(v);
+  };
+  const skip = (delta: number) => seekTo((currentTime || 0) + delta);
+  const formatTime = (s: number) => {
+    if (!isFinite(s) || s < 0) s = 0;
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    const mm = String(m).padStart(2, "0");
+    const ss = String(sec).padStart(2, "0");
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
   };
 
   return (
@@ -316,39 +354,85 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       </div>
 
       {/* Custom controls (z-20) — selalu di atas overlay click-blocker */}
-      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 flex items-center justify-between text-white">
-        <div className="flex items-center gap-3">
-          <button onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-            {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-          </button>
-          <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"}>
-            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-          </button>
-          <span className="text-[10px] uppercase tracking-wide opacity-70">
-            YouTube • {qualityLabel(currentQuality)}
+      <div
+        className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Seek bar */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="w-10 text-[10px] font-mono tabular-nums opacity-80">
+            {formatTime(currentTime)}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={seekValue}
+            onMouseDown={() => { seekingRef.current = true; }}
+            onTouchStart={() => { seekingRef.current = true; }}
+            onChange={(e) => {
+              seekingRef.current = true;
+              setSeekValue(parseFloat(e.target.value));
+            }}
+            onMouseUp={(e) => {
+              const v = parseFloat((e.target as HTMLInputElement).value);
+              seekTo(v);
+              setTimeout(() => { seekingRef.current = false; }, 200);
+            }}
+            onTouchEnd={(e) => {
+              const v = parseFloat((e.target as HTMLInputElement).value);
+              seekTo(v);
+              setTimeout(() => { seekingRef.current = false; }, 200);
+            }}
+            className="h-1 flex-1 cursor-pointer accent-primary"
+            aria-label="Seek"
+          />
+          <span className="w-10 text-right text-[10px] font-mono tabular-nums opacity-80">
+            {formatTime(duration)}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setAdaptive((a) => !a)}
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
-              adaptive ? "bg-primary/30 text-primary-foreground" : "bg-white/10"
-            }`}
-            title="Adaptive quality (turunkan otomatis saat buffering >3s)"
-          >
-            <Wifi className="h-3 w-3" /> {adaptive ? "AUTO" : "MAX"}
-          </button>
-          {!adaptive && currentQuality !== MAX_QUALITY && (
-            <button
-              onClick={resetToMaxQuality}
-              className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold transition hover:bg-white/20"
-            >
-              1080p
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+              {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
             </button>
-          )}
-          <button onClick={enterFullscreen} aria-label="Fullscreen">
-            <Maximize className="h-5 w-5" />
-          </button>
+            <button onClick={() => skip(-10)} aria-label="Mundur 10 detik" title="-10s">
+              <RotateCcw className="h-4 w-4" />
+            </button>
+            <button onClick={() => skip(10)} aria-label="Maju 10 detik" title="+10s">
+              <RotateCw className="h-4 w-4" />
+            </button>
+            <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"}>
+              {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+            </button>
+            <span className="text-[10px] uppercase tracking-wide opacity-70">
+              YouTube • {qualityLabel(currentQuality)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setAdaptive((a) => !a)}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold ${
+                adaptive ? "bg-primary/30 text-primary-foreground" : "bg-white/10"
+              }`}
+              title="Adaptive quality (turunkan otomatis saat buffering >3s)"
+            >
+              <Wifi className="h-3 w-3" /> {adaptive ? "AUTO" : "MAX"}
+            </button>
+            {!adaptive && currentQuality !== MAX_QUALITY && (
+              <button
+                onClick={resetToMaxQuality}
+                className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-semibold transition hover:bg-white/20"
+              >
+                1080p
+              </button>
+            )}
+            <button onClick={enterFullscreen} aria-label="Fullscreen">
+              <Maximize className="h-5 w-5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
