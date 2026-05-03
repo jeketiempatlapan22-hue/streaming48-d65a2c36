@@ -289,19 +289,32 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     } catch {}
   };
 
+  const updateHoverPreview = (clientX: number, rect: DOMRect) => {
+    const dur = getEffectiveDuration();
+    if (!dur) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setHoverPreview({ time: ratio * dur, pct: ratio * 100 });
+  };
+
   const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const rect = target.getBoundingClientRect();
     seekToClientX(e.clientX, rect);
+    updateHoverPreview(e.clientX, rect);
 
-    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    const move = (ev: PointerEvent) => {
+      seekToClientX(ev.clientX, rect);
+      updateHoverPreview(ev.clientX, rect);
+    };
     const up = (ev: PointerEvent) => {
       target.releasePointerCapture(e.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
       target.removeEventListener("pointercancel", up);
+      // Hide preview shortly after release on touch
+      if (e.pointerType !== "mouse") setHoverPreview(null);
     };
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", up);
