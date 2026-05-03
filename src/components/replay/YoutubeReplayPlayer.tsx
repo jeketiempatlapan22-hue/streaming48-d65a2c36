@@ -38,6 +38,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const [duration, setDuration] = useState(0);
   const seekingRef = useRef(false);
   const [seekValue, setSeekValue] = useState(0);
+  const [hoverPreview, setHoverPreview] = useState<{ time: number; pct: number } | null>(null);
   const playerReadyRef = useRef(false);
 
   const switchingTimerRef = useRef<number | null>(null);
@@ -248,6 +249,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     setSeekValue(v);
     setCurrentTime(v);
   };
+  const updateHoverPreview = (clientX: number, rect: DOMRect) => {
+    if (!duration) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setHoverPreview({ time: ratio * duration, pct: ratio * 100 });
+  };
   const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -257,7 +263,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     const rect = target.getBoundingClientRect();
     seekingRef.current = true;
     seekToClientX(e.clientX, rect);
-    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    updateHoverPreview(e.clientX, rect);
+    const isMouse = e.pointerType === "mouse";
+    const move = (ev: PointerEvent) => {
+      seekToClientX(ev.clientX, rect);
+      updateHoverPreview(ev.clientX, rect);
+    };
     const up = (ev: PointerEvent) => {
       try { target.releasePointerCapture(e.pointerId); } catch {}
       target.removeEventListener("pointermove", move);
@@ -265,6 +276,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       target.removeEventListener("pointercancel", up);
       const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
       seekTo(ratio * duration);
+      if (!isMouse) setHoverPreview(null);
       setTimeout(() => { seekingRef.current = false; }, 200);
     };
     target.addEventListener("pointermove", move);
@@ -396,6 +408,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
         <div
           className="group relative h-4 w-full cursor-pointer touch-none"
           onPointerDown={handleSeekbarPointerDown}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "mouse") return;
+            updateHoverPreview(e.clientX, e.currentTarget.getBoundingClientRect());
+          }}
+          onPointerLeave={() => setHoverPreview(null)}
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
@@ -412,6 +429,14 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
             className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
             style={{ left: `${progressPct}%` }}
           />
+          {hoverPreview && (
+            <div
+              className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-md bg-black/85 px-2 py-0.5 text-[10px] font-mono tabular-nums text-white shadow-md ring-1 ring-white/10"
+              style={{ left: `${hoverPreview.pct}%` }}
+            >
+              {formatTime(hoverPreview.time)}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between">

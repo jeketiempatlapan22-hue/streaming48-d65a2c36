@@ -33,6 +33,7 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
   const [seekIndicator, setSeekIndicator] = useState<{ side: "left" | "right"; amount: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [stalled, setStalled] = useState(false);
+  const [hoverPreview, setHoverPreview] = useState<{ time: number; pct: number } | null>(null);
 
   // Tap tracking refs (one per side to avoid cross-side interference)
   const lastTapRef = useRef<{ side: "left" | "right" | null; time: number }>({ side: null, time: 0 });
@@ -288,19 +289,32 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
     } catch {}
   };
 
+  const updateHoverPreview = (clientX: number, rect: DOMRect) => {
+    const dur = getEffectiveDuration();
+    if (!dur) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setHoverPreview({ time: ratio * dur, pct: ratio * 100 });
+  };
+
   const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const rect = target.getBoundingClientRect();
     seekToClientX(e.clientX, rect);
+    updateHoverPreview(e.clientX, rect);
 
-    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    const move = (ev: PointerEvent) => {
+      seekToClientX(ev.clientX, rect);
+      updateHoverPreview(ev.clientX, rect);
+    };
     const up = (ev: PointerEvent) => {
       target.releasePointerCapture(e.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
       target.removeEventListener("pointercancel", up);
+      // Hide preview shortly after release on touch
+      if (e.pointerType !== "mouse") setHoverPreview(null);
     };
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", up);
@@ -422,6 +436,11 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
         <div
           className="group relative h-4 w-full cursor-pointer touch-none"
           onPointerDown={handleSeekbarPointerDown}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "mouse") return;
+            updateHoverPreview(e.clientX, e.currentTarget.getBoundingClientRect());
+          }}
+          onPointerLeave={() => setHoverPreview(null)}
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
@@ -438,6 +457,14 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
             className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow opacity-0 transition-opacity group-hover:opacity-100"
             style={{ left: `${progress}%` }}
           />
+          {hoverPreview && (
+            <div
+              className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-md bg-black/85 px-2 py-0.5 text-[10px] font-mono tabular-nums text-white shadow-md ring-1 ring-white/10"
+              style={{ left: `${hoverPreview.pct}%` }}
+            >
+              {fmt(hoverPreview.time)}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-white">
