@@ -38,6 +38,35 @@ const isShowPastSchedule = (show: Show) => {
   } catch { return false; }
 };
 
+const ID_MONTHS: Record<string, number> = {
+  januari:0, februari:1, maret:2, april:3, mei:4, juni:5, juli:6,
+  agustus:7, september:8, oktober:9, november:10, desember:11,
+  jan:0, feb:1, mar:2, apr:3, jun:5, jul:6, agu:7, ags:7, sep:8, okt:9, nov:10, des:11,
+};
+
+/** Parse tanggal show (mendukung "Sabtu, 2 Mei 2026", "26 April 2026", ISO, dll). */
+const parseShowDate = (s: { schedule_date?: string | null; replay_month?: string | null }): number => {
+  const raw = (s.schedule_date || "").trim();
+  if (raw) {
+    const m = raw.match(/(\d{1,2})\s+([A-Za-zÀ-ÿ]+)\s+(\d{4})/);
+    if (m) {
+      const day = parseInt(m[1], 10);
+      const monIdx = ID_MONTHS[m[2].toLowerCase()];
+      const year = parseInt(m[3], 10);
+      if (Number.isFinite(day) && monIdx !== undefined && Number.isFinite(year)) {
+        return new Date(year, monIdx, day).getTime();
+      }
+    }
+    const t = new Date(raw).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (s.replay_month && /^\d{4}-\d{2}$/.test(s.replay_month)) {
+    const [y, mo] = s.replay_month.split("-").map(Number);
+    return new Date(y, mo - 1, 1).getTime();
+  }
+  return 0;
+};
+
 /**
  * Hitung target URL replay untuk sebuah show.
  * - Jika show punya M3U8/YouTube internal (has_replay_media), pakai pemutar internal /replay-play.
@@ -194,9 +223,9 @@ const ReplayPage = () => {
           return false;
         });
         pastShows.sort((a, b) => {
-          const dateA = a.schedule_date ? new Date(a.schedule_date).getTime() : 0;
-          const dateB = b.schedule_date ? new Date(b.schedule_date).getTime() : 0;
-          return dateB - dateA;
+          const tA = parseShowDate(a);
+          const tB = parseShowDate(b);
+          return tB - tA;
         });
         setShows(pastShows as Show[]);
       }
@@ -349,9 +378,10 @@ const ReplayPage = () => {
   const monthKeyForShow = (s: Show): string => {
     const explicit = (s as any).replay_month as string | undefined;
     if (explicit && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
-    if (s.schedule_date) {
-      const d = new Date(s.schedule_date);
-      if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const t = parseShowDate(s);
+    if (t > 0) {
+      const d = new Date(t);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     }
     return "0000-00";
   };
@@ -366,6 +396,10 @@ const ReplayPage = () => {
       const k = monthKeyForShow(s);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(s);
+    }
+    // Sort shows within each group newest-first
+    for (const [, arr] of map) {
+      arr.sort((a, b) => parseShowDate(b) - parseShowDate(a));
     }
     return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a));
   })();
