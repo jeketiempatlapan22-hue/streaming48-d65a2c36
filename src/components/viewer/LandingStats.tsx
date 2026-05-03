@@ -52,17 +52,11 @@ const LandingStats = () => {
     fetchData();
   }, []);
 
-  // Poll viewer count from DB instead of presence (skip saat tab hidden agar lebih ringan)
+  // Single source of truth for viewer count (shared global poller, watchdog-protected)
+  const liveViewers = useViewerCount();
   useEffect(() => {
-    const fetchCount = async () => {
-      if (typeof document !== "undefined" && document.hidden) return;
-      const { data } = await supabase.rpc("get_viewer_count");
-      if (typeof data === "number") setStats(prev => ({ ...prev, viewers: data }));
-    };
-    fetchCount();
-    const interval = setInterval(fetchCount, 30_000);
-    return () => clearInterval(interval);
-  }, []);
+    setStats(prev => (prev.viewers === liveViewers ? prev : { ...prev, viewers: liveViewers }));
+  }, [liveViewers]);
 
   const cards = [
     { label: "Sedang Menonton", value: stats.viewers, icon: Users, color: "text-destructive" },
