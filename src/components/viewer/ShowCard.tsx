@@ -12,6 +12,7 @@ import {
   requestNotificationPermission, addShowReminder, removeShowReminder, hasReminder,
 } from "@/lib/notifications";
 import { parseWIBDateTime, getUserZoneLabel, isUserOutsideWIB, formatLocal, getDeviceZoneCode } from "@/lib/timeFormat";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface ShowCardProps {
   show: Show;
@@ -115,7 +116,13 @@ const ShowCard = forwardRef<HTMLDivElement, ShowCardProps>(({
       {/* Compact image area */}
       <div className="relative h-[300px] overflow-hidden">
         {show.background_image_url && !imgError ? (
-          <img src={show.background_image_url} alt={show.title} loading="lazy" decoding="async"
+          <img
+            src={optimizedImage(show.background_image_url, { width: 640, quality: 70 })}
+            srcSet={buildSrcSet(show.background_image_url, [320, 480, 640, 960])}
+            sizes={SIZES.showCard}
+            alt={show.title}
+            loading="lazy"
+            decoding="async"
             onError={() => setImgError(true)}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (

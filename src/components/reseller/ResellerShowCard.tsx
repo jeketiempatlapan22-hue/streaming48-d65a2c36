@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
 import { buildRegularShowMessage, buildMembershipMessage } from "@/lib/showMessageBuilder";
 import { buildTokenWatchUrl } from "@/lib/tokenLinks";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface Show {
   id: string;
@@ -139,7 +140,15 @@ const ResellerShowCard = ({ show, sessionToken, onTokenCreated }: Props) => {
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {show.background_image_url && (
         <div className="aspect-[16/7] w-full bg-muted overflow-hidden">
-          <img src={show.background_image_url} alt={show.title} className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={optimizedImage(show.background_image_url, { width: 640, quality: 70 })}
+            srcSet={buildSrcSet(show.background_image_url, [320, 480, 640, 960])}
+            sizes={SIZES.showCard}
+            alt={show.title}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       )}
       <div className="p-4 space-y-3">

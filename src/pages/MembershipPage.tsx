@@ -10,6 +10,7 @@ import SharedNavbar from "@/components/SharedNavbar";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { parsePriceToNumber } from "@/lib/parsePrice";
 import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface Show {
   id: string;
@@ -452,9 +453,12 @@ const MembershipPage = () => {
                 <div className="relative h-48 overflow-hidden">
                   {show.background_image_url ? (
                     <img
-                      src={show.background_image_url}
+                      src={optimizedImage(show.background_image_url, { width: 640, quality: 70 })}
+                      srcSet={buildSrcSet(show.background_image_url, [320, 480, 640, 960])}
+                      sizes={SIZES.showCard}
                       alt={show.title}
                       loading="lazy"
+                      decoding="async"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadPaymentProof } from "@/lib/uploadPaymentProof";
 import { PaymentProofUploadButton } from "@/components/payment/PaymentProofUploadButton";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 import { motion, AnimatePresence } from "framer-motion";
 import { cachedQuery, invalidateCache, preloadLandingData, fetchCachedEndpoint } from "@/lib/queryCache";
 import {
@@ -738,7 +739,7 @@ const Index = () => {
                 {descriptions.map((desc: any, i: number) => (
                   <motion.div key={desc.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }}
                     className={`group relative overflow-hidden rounded-2xl glass p-6 md:p-8 transition-all duration-300 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10 ${desc.text_align === "right" ? "text-right" : desc.text_align === "center" ? "text-center" : desc.text_align === "justify" ? "text-justify" : "text-left"}`}>
-                    {desc.image_url && <img src={desc.image_url} alt={desc.title} className="mb-4 h-40 w-full rounded-xl object-cover" />}
+                    {desc.image_url && <img src={optimizedImage(desc.image_url, { width: 640, quality: 70 })} srcSet={buildSrcSet(desc.image_url, [320, 480, 640, 960])} sizes={SIZES.showCard} alt={desc.title} loading="lazy" decoding="async" className="mb-4 h-40 w-full rounded-xl object-cover" />}
                     <span className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/15 text-2xl ${desc.text_align === "center" ? "mx-auto" : desc.text_align === "right" ? "ml-auto" : ""}`}>{desc.icon}</span>
                     <h3 className="mb-3 text-lg font-bold text-foreground md:text-xl">{desc.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{desc.content}</p>
@@ -750,7 +751,7 @@ const Index = () => {
                 {descriptions.map((desc: any, i: number) => (
                   <motion.div key={desc.id} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.1 }}
                     className={`group overflow-hidden rounded-2xl border border-border bg-card/80 p-6 transition-all hover:border-primary/40 hover:shadow-xl ${desc.text_align === "right" ? "text-right" : desc.text_align === "center" ? "text-center" : desc.text_align === "justify" ? "text-justify" : "text-left"}`}>
-                    {desc.image_url && <img src={desc.image_url} alt={desc.title} className="mb-4 h-40 w-full rounded-xl object-cover" />}
+                    {desc.image_url && <img src={optimizedImage(desc.image_url, { width: 640, quality: 70 })} srcSet={buildSrcSet(desc.image_url, [320, 480, 640, 960])} sizes={SIZES.showCard} alt={desc.title} loading="lazy" decoding="async" className="mb-4 h-40 w-full rounded-xl object-cover" />}
                     <span className="mb-3 inline-block text-3xl">{desc.icon}</span>
                     <h3 className="mb-3 text-xl font-bold text-foreground">{desc.title}</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{desc.content}</p>
@@ -765,7 +766,7 @@ const Index = () => {
                     {desc.image_url ? (
                       <div className="md:flex">
                         <div className="relative h-52 overflow-hidden md:h-auto md:w-2/5 lg:w-1/3">
-                          <img src={desc.image_url} alt={desc.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <img src={optimizedImage(desc.image_url, { width: 800, quality: 70 })} srcSet={buildSrcSet(desc.image_url, [480, 800, 1200])} sizes="(max-width: 768px) 100vw, 40vw" alt={desc.title} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         </div>
                         <div className="flex flex-1 flex-col justify-center p-6 md:p-8">
                           <span className="mb-3 inline-block text-3xl">{desc.icon}</span>

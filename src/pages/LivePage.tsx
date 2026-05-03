@@ -5,6 +5,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { VideoPlayerHandle } from "@/components/VideoPlayer";
 import logo from "@/assets/logo.png";
+import { optimizedImage, buildSrcSet } from "@/lib/imageOptimization";
 import ConnectionStatus from "@/components/viewer/ConnectionStatus";
 import PipButton from "@/components/viewer/PipButton";
 import SecurityAlert from "@/components/viewer/SecurityAlert";
@@ -1524,8 +1525,11 @@ const LivePage = () => {
                 return bgUrl ? (
                   <>
                     <img
-                      src={bgUrl}
+                      src={optimizedImage(bgUrl, { width: 960, quality: 65 })}
+                      srcSet={buildSrcSet(bgUrl, [480, 768, 1280])}
+                      sizes="100vw"
                       alt={activeShowTitle || "Show"}
+                      decoding="async"
                       className="absolute inset-0 h-full w-full object-cover scale-110 opacity-85"
                       style={{ filter: "blur(10px)" }}
                     />

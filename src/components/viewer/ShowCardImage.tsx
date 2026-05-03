@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Play, Ticket } from "lucide-react";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface ShowCardImageProps {
   src?: string | null;
@@ -7,11 +8,18 @@ interface ShowCardImageProps {
   className?: string;
   fallbackIcon?: "ticket" | "play";
   fallbackClassName?: string;
+  /** Target rendered width (px) for default 1x src. Default 640. */
+  width?: number;
+  /** Sizes attribute. Default = card layout. */
+  sizes?: string;
 }
 
 /**
  * Render show/replay card image dengan auto-fallback bila URL invalid (404, dihapus, dst).
  * Pastikan kartu tidak pernah hitam-kosong saat foto admin tidak bisa dimuat.
+ *
+ * Otomatis menggunakan Supabase image transform (WebP + width) bila URL berasal
+ * dari Supabase Storage public bucket, lengkap dengan responsive `srcset`.
  */
 export default function ShowCardImage({
   src,
@@ -19,6 +27,8 @@ export default function ShowCardImage({
   className,
   fallbackIcon = "ticket",
   fallbackClassName,
+  width = 640,
+  sizes = SIZES.showCard,
 }: ShowCardImageProps) {
   const [errored, setErrored] = useState(false);
   const Icon = fallbackIcon === "play" ? Play : Ticket;
@@ -36,9 +46,14 @@ export default function ShowCardImage({
     );
   }
 
+  const optimizedSrc = optimizedImage(src, { width, quality: 70 });
+  const srcSet = buildSrcSet(src, [320, 480, 640, 960]);
+
   return (
     <img
-      src={src}
+      src={optimizedSrc}
+      srcSet={srcSet || undefined}
+      sizes={srcSet ? sizes : undefined}
       alt={alt}
       loading="lazy"
       decoding="async"

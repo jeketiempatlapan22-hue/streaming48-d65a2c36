@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Coins, CreditCard, Package, Play, Timer, Infinity as InfinityIcon, Radio } from "lucide-react";
 import type { Show } from "@/types/show";
 import bundleBg from "@/assets/bundle-bg.jpg";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface BundleShowCardProps {
   show: Show;
@@ -30,9 +31,12 @@ const BundleShowCard = forwardRef<HTMLDivElement, BundleShowCardProps>(
         {/* Image header */}
         <div className="relative h-44 overflow-hidden">
           <img
-            src={show.background_image_url || bundleBg}
+            src={optimizedImage(show.background_image_url || bundleBg, { width: 640, quality: 70 })}
+            srcSet={buildSrcSet(show.background_image_url || undefined, [320, 480, 640, 960])}
+            sizes={SIZES.showCard}
             alt={show.title}
             loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
