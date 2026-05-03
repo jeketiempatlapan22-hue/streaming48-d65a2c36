@@ -48,6 +48,7 @@ export function useProxyStream(
         body: {
           show_id: externalShowId,
           ...(tokenCode ? { token_code: tokenCode } : {}),
+          ...(restreamCode ? { restream_code: restreamCode } : {}),
         },
       });
 
