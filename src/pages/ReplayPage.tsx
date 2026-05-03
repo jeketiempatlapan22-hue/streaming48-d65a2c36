@@ -70,6 +70,24 @@ const ReplayPage = () => {
   const [pwInput, setPwInput] = useState<Record<string, string>>({});
   const [pwSubmitting, setPwSubmitting] = useState<Record<string, boolean>>({});
 
+  const monthKeyOf = (s: Show): string | null => {
+    const explicit = (s as any).replay_month as string | undefined;
+    if (explicit && /^\d{4}-\d{2}$/.test(explicit)) return explicit;
+    if (s.schedule_date) {
+      const d = new Date(s.schedule_date);
+      if (!isNaN(d.getTime())) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
+    return null;
+  };
+  const dayKeyOf = (s: Show): string | null => {
+    if (!s.schedule_date) return null;
+    const d = new Date(s.schedule_date);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const showHasReplayMedia = (s: Show): boolean =>
+    (s as any).has_replay_media === true || !!((s as any).replay_m3u8_url || (s as any).replay_youtube_url);
+
   const submitReplayPassword = async (show: Show) => {
     const raw = (pwInput[show.id] || "").trim();
     if (!raw) {
@@ -93,8 +111,32 @@ const ReplayPage = () => {
         });
         return;
       }
-      addReplayPassword(show.id, raw);
-      toast({ title: "Sandi valid! Membuka replay..." });
+
+      // If password is global → unlock multiple replays in scope
+      if (d?.access_via === "global_password") {
+        const scope = d?.global_scope as string | undefined;
+        let matches: Show[] = [];
+        if (scope === "master" || scope === "default") {
+          matches = shows.filter((s) => !s.is_bundle && showHasReplayMedia(s));
+        } else if (scope === "monthly") {
+          const target = monthKeyOf(show);
+          matches = shows.filter((s) => !s.is_bundle && showHasReplayMedia(s) && monthKeyOf(s) === target);
+        } else if (scope === "daily") {
+          const target = dayKeyOf(show);
+          matches = shows.filter((s) => !s.is_bundle && showHasReplayMedia(s) && dayKeyOf(s) === target);
+        } else {
+          matches = [show];
+        }
+        for (const s of matches) addReplayPassword(s.id, raw);
+        toast({
+          title: "Sandi global aktif",
+          description: `${matches.length} replay terbuka${scope === "monthly" ? " untuk bulan ini" : scope === "daily" ? " untuk tanggal ini" : ""}.`,
+        });
+      } else {
+        addReplayPassword(show.id, raw);
+        toast({ title: "Sandi valid! Membuka replay..." });
+      }
+
       const target = buildReplayTarget(show, raw);
       setTimeout(() => {
         if (target.startsWith("/")) window.location.href = target;
