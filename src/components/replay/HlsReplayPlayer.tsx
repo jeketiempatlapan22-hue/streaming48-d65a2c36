@@ -436,6 +436,11 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
         <div
           className="group relative h-4 w-full cursor-pointer touch-none"
           onPointerDown={handleSeekbarPointerDown}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "mouse") return;
+            updateHoverPreview(e.clientX, e.currentTarget.getBoundingClientRect());
+          }}
+          onPointerLeave={() => setHoverPreview(null)}
           role="slider"
           aria-label="Seek"
           aria-valuemin={0}
@@ -452,6 +457,14 @@ const HlsReplayPlayer = ({ src, poster, onError }: Props) => {
             className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow opacity-0 transition-opacity group-hover:opacity-100"
             style={{ left: `${progress}%` }}
           />
+          {hoverPreview && (
+            <div
+              className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-md bg-black/85 px-2 py-0.5 text-[10px] font-mono tabular-nums text-white shadow-md ring-1 ring-white/10"
+              style={{ left: `${hoverPreview.pct}%` }}
+            >
+              {fmt(hoverPreview.time)}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-between text-white">
