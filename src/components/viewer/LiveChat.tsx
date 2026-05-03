@@ -6,6 +6,7 @@ import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX, R
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 import { formatTimeWIB, getUserZoneLabel, isUserOutsideWIB } from "@/lib/timeFormat";
 import { useLiveQuiz, isLikelyQuizAnswer } from "@/hooks/useLiveQuiz";
+import { subscribeLiveBus } from "@/lib/liveRealtimeBus";
 import { toast } from "sonner";
 
 
