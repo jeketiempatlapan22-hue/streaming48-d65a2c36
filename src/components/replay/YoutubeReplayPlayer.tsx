@@ -248,6 +248,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     setSeekValue(v);
     setCurrentTime(v);
   };
+  const updateHoverPreview = (clientX: number, rect: DOMRect) => {
+    if (!duration) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    setHoverPreview({ time: ratio * duration, pct: ratio * 100 });
+  };
   const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -257,7 +262,12 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     const rect = target.getBoundingClientRect();
     seekingRef.current = true;
     seekToClientX(e.clientX, rect);
-    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    updateHoverPreview(e.clientX, rect);
+    const isMouse = e.pointerType === "mouse";
+    const move = (ev: PointerEvent) => {
+      seekToClientX(ev.clientX, rect);
+      updateHoverPreview(ev.clientX, rect);
+    };
     const up = (ev: PointerEvent) => {
       try { target.releasePointerCapture(e.pointerId); } catch {}
       target.removeEventListener("pointermove", move);
@@ -265,6 +275,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       target.removeEventListener("pointercancel", up);
       const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
       seekTo(ratio * duration);
+      if (!isMouse) setHoverPreview(null);
       setTimeout(() => { seekingRef.current = false; }, 200);
     };
     target.addEventListener("pointermove", move);
