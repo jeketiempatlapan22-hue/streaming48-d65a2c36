@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeLiveBus } from "@/lib/liveRealtimeBus";
 import { BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -64,9 +65,7 @@ const LivePoll = ({ voterId }: LivePollProps) => {
     };
     fetchPoll();
 
-    const pollChannel = supabase
-      .channel("live-poll-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_polls" }, (payload) => {
+    const offPoll = subscribeLiveBus("live_polls", (payload: any) => {
         if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
           const p = payload.new as any;
           if (p.is_active) {
@@ -81,17 +80,16 @@ const LivePoll = ({ voterId }: LivePollProps) => {
         } else if (payload.eventType === "DELETE") {
           if (pollIdRef.current === payload.old?.id) setPoll(null);
         }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "poll_votes" }, () => {
+    });
+    const offVotes = subscribeLiveBus("poll_votes", () => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
           const currentPollId = pollIdRef.current;
           if (currentPollId) fetchVotes(currentPollId);
         }, 300);
-      })
-      .subscribe();
+    });
 
-    return () => { supabase.removeChannel(pollChannel); };
+    return () => { offPoll(); offVotes(); };
   }, [voterId, processVotes, fetchVotes]);
 
   const handleVote = async (optionIndex: number) => {

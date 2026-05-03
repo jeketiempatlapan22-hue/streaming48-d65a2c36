@@ -6,6 +6,7 @@ import { Send, Pin, Trash2, ShieldBan, ShieldPlus, ShieldMinus, Trophy, UserX, R
 import ChatLeaderboard from "@/components/viewer/ChatLeaderboard";
 import { formatTimeWIB, getUserZoneLabel, isUserOutsideWIB } from "@/lib/timeFormat";
 import { useLiveQuiz, isLikelyQuizAnswer } from "@/hooks/useLiveQuiz";
+import { subscribeLiveBus } from "@/lib/liveRealtimeBus";
 import { toast } from "sonner";
 
 
@@ -305,23 +306,18 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
     };
     init();
 
-    // Realtime channel with auto-reconnect on error
-    const channel = supabase
-      .channel(`chat-main-${reconnectKey}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages" }, (payload) => {
+    // Realtime via consolidated bus (1 WS channel for chat + polls + quiz + settings)
+    const onInsert = (payload: any) => {
         if (!isMounted) return;
         const newMsg = payload.new as ChatMessage;
         if (newMsg.is_deleted) return;
-        // Skip if already seen (from syncMessages)
         if (seenIdsRef.current.has(newMsg.id)) return;
         seenIdsRef.current.add(newMsg.id);
 
         startTransition(() => {
           setMessages((prev) => {
-            // Check if this real message matches any optimistic message
             const contentKey = `${newMsg.username}::${newMsg.message}`;
             let filtered = prev;
-            // Find and remove matching optimistic message
             for (const [optId, optKey] of optimisticRef.current.entries()) {
               if (optKey === contentKey) {
                 filtered = prev.filter((m) => m.id !== optId);
@@ -329,22 +325,21 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
                 break;
               }
             }
-            // Don't add if already exists by ID
             if (filtered.some((m) => m.id === newMsg.id)) return filtered;
             const next = [...filtered, newMsg];
             return next.length > 20 ? next.slice(-20) : next;
           });
           if (newMsg.is_pinned) setPinnedMessages((prev) => [...prev, newMsg]);
         });
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "chat_messages" }, (payload) => {
+    };
+    const onDelete = (payload: any) => {
         if (!isMounted) return;
         startTransition(() => {
           setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
           setPinnedMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
         });
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "chat_messages" }, (payload) => {
+    };
+    const onUpdate = (payload: any) => {
         if (!isMounted) return;
         startTransition(() => {
           const updated = payload.new as ChatMessage;
@@ -363,28 +358,30 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
             setPinnedMessages((prev) => prev.filter((m) => m.id !== updated.id));
           }
         });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings", filter: "key=eq.chat_enabled" }, (payload: any) => {
+    };
+    const onSettings = (payload: any) => {
         if (!isMounted) return;
-        if (payload.new?.value !== undefined) {
+        // bus filters by key=eq.chat_enabled, but double-check just in case
+        if (payload.new?.key === "chat_enabled" && payload.new?.value !== undefined) {
           setChatEnabled(payload.new.value !== "false");
         }
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED" && isMounted) {
-          void syncMessages();
-        }
-        if (status === "CHANNEL_ERROR" && isMounted) {
-          console.warn("[LiveChat] Realtime error, will reconnect in 5s...");
-          setTimeout(() => {
-            if (isMounted) forceReconnect();
-          }, 5000);
-        }
-      });
+    };
+
+    const offs = [
+      subscribeLiveBus("chat_messages", (p: any) => {
+        if (p.eventType === "INSERT") onInsert(p);
+        else if (p.eventType === "UPDATE") onUpdate(p);
+        else if (p.eventType === "DELETE") onDelete(p);
+      }),
+      subscribeLiveBus("site_settings:chat_enabled", onSettings),
+    ];
+
+    // Initial sync after subscription is ensured
+    void syncMessages();
 
     return () => {
       isMounted = false;
-      supabase.removeChannel(channel);
+      offs.forEach((off) => off());
     };
   }, [reconnectKey, syncChatEnabled, syncChatModerators, syncMessages, startTransition]);
 
