@@ -1,68 +1,37 @@
-## Masalah
+## Tujuan
+Menambahkan bar seek (progress bar) pada `YoutubeReplayPlayer` agar user dapat maju/mundur replay YouTube, mirip dengan kontrol pada `HlsReplayPlayer`.
 
-Form sandi pada kartu replay (di bawah tombol beli) tidak benar-benar membuka kartu lain ketika user mengetik sandi **bulanan / global / master** yang sudah diatur admin. Akar masalahnya ada di **database**, bukan di frontend.
+## Perubahan
+File: `src/components/replay/YoutubeReplayPlayer.tsx`
 
-### Akar masalah
+### 1. Tambah state waktu
+- `currentTime: number`, `duration: number`, `seeking: boolean`
 
-- Admin panel (`ReplayGlobalPasswordManager.tsx`) menyimpan sandi global di `site_settings` dengan key berpola:
-  - `replay_global_password__all` (master)
-  - `replay_global_password__YYYY-MM` (bulanan)
-  - `replay_global_password__YYYY-MM-DD` (harian)
-- Tetapi RPC `validate_replay_access` **hanya mengecek satu key lama** `replay_global_password` (tanpa suffix). Akibatnya:
-  - Sandi bulanan/master/harian dari admin panel **tidak pernah terdeteksi** sebagai global → response `success:false`.
-  - Frontend menampilkan toast "Sandi salah", padahal sandi benar.
-  - Logika bulk-unlock di `submitReplayPassword` (yang sudah ada) tidak pernah dieksekusi karena RPC menolak sandi.
+### 2. Polling waktu via YT IFrame API
+Karena `infoDelivery` tidak otomatis mengirim `currentTime`/`duration`, gunakan `setInterval` 500ms yang memanggil:
+- `getCurrentTime` → via postMessage `{event:"command", func:"getCurrentTime"}`
+- `getDuration` → via postMessage `{event:"command", func:"getDuration"}`
 
-Frontend `ReplayPage.submitReplayPassword` sebenarnya sudah benar: jika RPC mengembalikan `access_via='global_password'` dengan `global_scope` master/monthly/daily, ia memanggil `addReplayPassword` ke semua show yang cocok scope-nya. Yang perlu diperbaiki hanyalah **RPC** agar mengenali key-key baru.
+YT membalas via `infoDelivery` dengan field `currentTime` dan `duration` setelah kita subscribe ke `listening` channel (sudah dilakukan). Tangkap field tersebut di handler `onMessage` yang sudah ada dan update state (skip update saat `seeking=true` untuk hindari jitter).
 
----
+### 3. UI seek bar
+Tambahkan baris baru di atas baris kontrol bawah (di dalam div `bottom-0 z-20`):
+- `<input type="range" min=0 max={duration} step={0.1} value={currentTime}>` dengan styling tipis (h-1, accent primary).
+- `onChange` → update `currentTime` lokal + set `seeking=true`.
+- `onMouseDown/onTouchStart` → `seeking=true`.
+- `onMouseUp/onTouchEnd/onChange commit` → `post("seekTo", [value, true])` lalu `seeking=false`.
+- Tampilkan label waktu kiri (`mm:ss`) dan kanan (`mm:ss / mm:ss`) menggunakan helper `formatTime`.
 
-## Rencana Perbaikan
+### 4. Tombol skip ±10 detik (opsional kecil)
+Di toolbar kontrol kiri, tambah dua tombol:
+- ⟲ 10s: `post("seekTo", [Math.max(0, currentTime - 10), true])`
+- ⟳ 10s: `post("seekTo", [Math.min(duration, currentTime + 10), true])`
 
-### 1) Migration: perluas RPC `validate_replay_access`
+### 5. Cleanup
+Bersihkan interval polling pada unmount.
 
-Tambah block baru sebelum block "global password" lama, urutan pengecekan sandi global:
-
-1. **Master** — ambil `site_settings.value` untuk key `replay_global_password__all`. Jika cocok dengan `_password`, return `access_via='global_password'`, `global_scope='master'`.
-2. **Daily** — hitung `day_key = to_char(schedule_date::date, 'YYYY-MM-DD')` dari `_show`. Cek key `replay_global_password__{day_key}`. Jika cocok → `global_scope='daily'`.
-3. **Monthly** — hitung `month_key`:
-   - Pakai `_show.replay_month` jika sudah berformat `YYYY-MM`, else turunkan dari `schedule_date`.
-   - Cek key `replay_global_password__{month_key}`. Jika cocok → `global_scope='monthly'`.
-4. Block lama (`replay_global_password` tanpa suffix) tetap dipertahankan sebagai fallback `global_scope='default'` agar kompatibel.
-
-Semua hasil mengembalikan field yang sama (`show_id`, `show_title`, `m3u8_url`, `youtube_url`, `has_media`, `global_scope`) sehingga frontend tidak perlu diubah.
-
-Catatan keamanan: masih `SECURITY DEFINER`, `search_path = public`. Tetap mensyaratkan `_show.id IS NOT NULL` (sandi global divalidasi dalam konteks satu show, tetapi frontend lalu menyebarkan ke shows lain di scope yang sama).
-
-### 2) Tidak perlu mengubah frontend
-
-`src/pages/ReplayPage.tsx` sudah memiliki:
-- Field input sandi per kartu di bawah tombol beli.
-- Logika bulk-unlock `monthly` / `master` / `daily` setelah RPC sukses.
-- Toast "Sandi global aktif — N replay terbuka...".
-- Redirect ke `/replay-play?show=...&password=...` untuk show yang diklik.
-
-Setelah RPC diperbaiki, alur ini langsung berfungsi: input sandi bulanan di kartu A → RPC return `monthly` → semua kartu di bulan yang sama tersimpan password-nya di `replayPasswords` (localStorage) → tombol "Tonton Replay" muncul tanpa perlu input ulang.
-
-### 3) (Opsional) Hint UI lebih jelas
-
-Jika perlu, perjelas placeholder pada input sandi: "Sandi show / bulanan / master" — sebagian sudah ada. Tidak wajib untuk perbaikan ini.
-
----
-
-## File yang akan diubah
-
-- **Migration baru** — `ALTER FUNCTION public.validate_replay_access(...)` (CREATE OR REPLACE) untuk mendeteksi tiga pola key baru.
-
-Tidak ada perubahan TypeScript yang diperlukan.
-
----
-
-## Verifikasi
-
-1. Admin → ReplayGlobalPasswordManager: buat sandi bulanan untuk bulan show "Pajama Drive" (mis. `2026-04` = `RT48-APR`).
-2. Halaman `/replay`: pada kartu Pajama Drive, input `RT48-APR` → submit.
-3. Toast "Sandi global aktif — N replay terbuka untuk bulan ini." muncul.
-4. Kartu lain di bulan yang sama langsung menampilkan tombol **Tonton Replay** (tanpa input ulang) dan membuka `/replay-play` dengan password tersebut.
-5. Test sandi master (key `__all`) → semua kartu replay terbuka.
-6. Sandi salah → tetap menampilkan toast "Sandi salah".
+## Catatan teknis
+- YT IFrame API mengirim `currentTime` & `duration` di `infoDelivery` setelah pesan `listening` dikirim (sudah di-subscribe).
+- `seekTo(seconds, allowSeekAhead=true)` adalah fungsi standar YT IFrame.
+- Click-blocker overlay (z-10) tidak perlu diubah; seek bar berada di z-20 sehingga tetap interaktif.
+- Tidak ada perubahan database/edge function.

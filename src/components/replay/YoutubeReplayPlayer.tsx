@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2 } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, Maximize, Wifi, Loader2, RotateCcw, RotateCw } from "lucide-react";
 import { parseYoutubeId as parseYoutubeIdShared } from "@/lib/youtubeUrl";
 
 interface Props {
