@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { motion, useInView } from "framer-motion";
 import { Users, Ticket, Coins, Film } from "lucide-react";
 import { fetchCachedEndpoint, cachedQuery } from "@/lib/queryCache";
+import { useViewerCount } from "@/hooks/useViewerCount";
 
 const useCountUp = (target: number, duration: number, inView: boolean) => {
   const [current, setCurrent] = useState(0);
