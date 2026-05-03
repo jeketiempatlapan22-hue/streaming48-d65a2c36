@@ -44,12 +44,11 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
   const id = parseYoutubeId(url);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  // Gunakan host youtube-nocookie.com (privacy-enhanced) — lebih jarang ditolak
-  // domain restriction dibanding youtube.com/embed.
-  // autoplay=1 + mute=1 wajib agar video langsung tampil & memicu infoDelivery
-  // (sehingga fallback 8 detik tidak salah trigger).
+  // Pakai host www.youtube.com karena CSP aplikasi sudah mengizinkan domain ini.
+  // youtube-nocookie.com sebelumnya bisa terblokir oleh CSP sehingga iframe kosong
+  // lalu fallback muncul walaupun ID video valid.
   const src = id
-    ? `https://www.youtube-nocookie.com/embed/${id}?enablejsapi=1&autoplay=1&mute=1&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&origin=${encodeURIComponent(origin)}`
+    ? `https://www.youtube.com/embed/${id}?enablejsapi=1&autoplay=1&mute=1&playsinline=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&origin=${encodeURIComponent(origin)}&widget_referrer=${encodeURIComponent(origin)}`
     : "";
 
   const post = useCallback((func: string, args: any[] = []) => {
@@ -230,6 +229,7 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
           title="Replay"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; gyroscope"
           allowFullScreen
+          referrerPolicy="origin-when-cross-origin"
           className="relative z-[1] h-full w-full"
         />
       </div>
