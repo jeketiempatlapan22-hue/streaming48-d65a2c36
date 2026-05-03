@@ -191,10 +191,19 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       }
     }, 1000);
 
+    // Poll currentTime & duration via YT IFrame API
+    const timePoll = setInterval(() => {
+      const w = iframeRef.current?.contentWindow;
+      if (!w) return;
+      w.postMessage(JSON.stringify({ event: "command", func: "getCurrentTime", args: [] }), "*");
+      w.postMessage(JSON.stringify({ event: "command", func: "getDuration", args: [] }), "*");
+    }, 500);
+
     return () => {
       window.removeEventListener("message", onMessage);
       clearInterval(sub);
       clearInterval(watcher);
+      clearInterval(timePoll);
       if (switchingTimerRef.current) window.clearTimeout(switchingTimerRef.current);
     };
   }, [src, adaptive, downgradeOneStep]);
