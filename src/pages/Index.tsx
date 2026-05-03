@@ -766,7 +766,7 @@ const Index = () => {
                     {desc.image_url ? (
                       <div className="md:flex">
                         <div className="relative h-52 overflow-hidden md:h-auto md:w-2/5 lg:w-1/3">
-                          <img src={desc.image_url} alt={desc.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                          <img src={optimizedImage(desc.image_url, { width: 800, quality: 70 })} srcSet={buildSrcSet(desc.image_url, [480, 800, 1200])} sizes="(max-width: 768px) 100vw, 40vw" alt={desc.title} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                         </div>
                         <div className="flex flex-1 flex-col justify-center p-6 md:p-8">
                           <span className="mb-3 inline-block text-3xl">{desc.icon}</span>
