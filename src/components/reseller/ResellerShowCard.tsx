@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Copy, Plus, Calendar, Clock, KeyRound, Film, CheckCircle2 } from "lucide-react";
 import { buildRegularShowMessage, buildMembershipMessage } from "@/lib/showMessageBuilder";
 import { buildTokenWatchUrl } from "@/lib/tokenLinks";
+import { optimizedImage, buildSrcSet, SIZES } from "@/lib/imageOptimization";
 
 interface Show {
   id: string;
