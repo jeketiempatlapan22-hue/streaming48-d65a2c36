@@ -191,13 +191,15 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
       }
     }, 1000);
 
-    // Poll currentTime & duration via YT IFrame API
+    // Poll currentTime & duration (lebih ringan: 1s + skip saat tab hidden / sedang seek)
     const timePoll = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (seekingRef.current) return;
       const w = iframeRef.current?.contentWindow;
       if (!w) return;
       w.postMessage(JSON.stringify({ event: "command", func: "getCurrentTime", args: [] }), "*");
       w.postMessage(JSON.stringify({ event: "command", func: "getDuration", args: [] }), "*");
-    }, 500);
+    }, 1000);
 
     return () => {
       window.removeEventListener("message", onMessage);

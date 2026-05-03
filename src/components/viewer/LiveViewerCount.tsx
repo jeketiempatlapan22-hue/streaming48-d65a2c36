@@ -33,6 +33,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
       // Optimized for 1000+ concurrent viewers (reduces DB load by 50%)
       let tick = 0;
       const interval = setInterval(async () => {
+        if (typeof document !== "undefined" && document.hidden) return;
         tick++;
         if (tick % 2 === 0) {
           supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
@@ -53,6 +54,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
 
     // readOnly mode: only poll the count, no heartbeats
     const fetchCount = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const { data } = await supabase.rpc("get_viewer_count");
       if (typeof data === "number") setCount(data);
     };

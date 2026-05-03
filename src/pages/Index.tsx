@@ -192,8 +192,9 @@ const Index = () => {
       })
       .subscribe();
 
-    // Poll for settings/descriptions changes every 60s instead of realtime (less DB pressure)
+    // Poll for settings/descriptions changes every 60s; pause saat tab hidden
     const settingsPoll = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       fetchCachedEndpoint("landing").then((data) => {
         if (data?.descriptions) setDescriptions(data.descriptions);
         if (data?.settings) setSettings((prev: any) => ({ ...prev, ...data.settings }));
