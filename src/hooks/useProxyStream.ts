@@ -26,6 +26,7 @@ export function useProxyStream(
   externalShowId: string | null,
   refreshKey = 0,
   tokenCode?: string | null,
+  restreamCode?: string | null,
 ): ProxyStreamResult {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const customHeadersRef = useRef<Record<string, string> | null>(null);
