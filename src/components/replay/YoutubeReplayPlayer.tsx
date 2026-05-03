@@ -238,6 +238,38 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
     setSeekValue(v);
   };
   const skip = (delta: number) => seekTo((currentTime || 0) + delta);
+
+  const seekToClientX = (clientX: number, rect: DOMRect) => {
+    if (!duration) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const v = ratio * duration;
+    setSeekValue(v);
+    setCurrentTime(v);
+  };
+  const handleSeekbarPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!duration) return;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const rect = target.getBoundingClientRect();
+    seekingRef.current = true;
+    seekToClientX(e.clientX, rect);
+    const move = (ev: PointerEvent) => seekToClientX(ev.clientX, rect);
+    const up = (ev: PointerEvent) => {
+      try { target.releasePointerCapture(e.pointerId); } catch {}
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
+      const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+      seekTo(ratio * duration);
+      setTimeout(() => { seekingRef.current = false; }, 200);
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
+  };
+  const progressPct = duration > 0 ? Math.min(100, (seekValue / duration) * 100) : 0;
   const formatTime = (s: number) => {
     if (!isFinite(s) || s < 0) s = 0;
     const h = Math.floor(s / 3600);
@@ -355,42 +387,29 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
 
       {/* Custom controls (z-20) — selalu di atas overlay click-blocker */}
       <div
-        className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 text-white"
+        className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 to-transparent p-3 text-white space-y-2"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Seek bar */}
-        <div className="mb-2 flex items-center gap-2">
-          <span className="w-10 text-[10px] font-mono tabular-nums opacity-80">
-            {formatTime(currentTime)}
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            step={0.1}
-            value={seekValue}
-            onMouseDown={() => { seekingRef.current = true; }}
-            onTouchStart={() => { seekingRef.current = true; }}
-            onChange={(e) => {
-              seekingRef.current = true;
-              setSeekValue(parseFloat(e.target.value));
-            }}
-            onMouseUp={(e) => {
-              const v = parseFloat((e.target as HTMLInputElement).value);
-              seekTo(v);
-              setTimeout(() => { seekingRef.current = false; }, 200);
-            }}
-            onTouchEnd={(e) => {
-              const v = parseFloat((e.target as HTMLInputElement).value);
-              seekTo(v);
-              setTimeout(() => { seekingRef.current = false; }, 200);
-            }}
-            className="h-1 flex-1 cursor-pointer accent-primary"
-            aria-label="Seek"
+        {/* Seekbar with draggable thumb (gaya HLS) */}
+        <div
+          className="group relative h-4 w-full cursor-pointer touch-none"
+          onPointerDown={handleSeekbarPointerDown}
+          role="slider"
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={duration || 0}
+          aria-valuenow={currentTime}
+        >
+          <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-white/20">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div
+            className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary shadow opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
+            style={{ left: `${progressPct}%` }}
           />
-          <span className="w-10 text-right text-[10px] font-mono tabular-nums opacity-80">
-            {formatTime(duration)}
-          </span>
         </div>
 
         <div className="flex items-center justify-between">
@@ -407,8 +426,8 @@ const YoutubeReplayPlayer = ({ url, poster }: Props) => {
             <button onClick={toggleMute} aria-label={muted ? "Unmute" : "Mute"}>
               {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
             </button>
-            <span className="text-[10px] uppercase tracking-wide opacity-70">
-              YouTube • {qualityLabel(currentQuality)}
+            <span className="text-[10px] font-mono tabular-nums opacity-80">
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
           <div className="flex items-center gap-3">
