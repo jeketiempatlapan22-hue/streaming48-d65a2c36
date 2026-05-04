@@ -154,7 +154,7 @@ const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, on
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+      <nav className="flex-1 space-y-1 overflow-y-auto overscroll-contain p-2 pb-[env(safe-area-inset-bottom)]">
         {sectionGroups.map((group, idx) => {
           const GroupIcon = group.icon;
           const isOpen = openGroups[group.id] ?? true;
