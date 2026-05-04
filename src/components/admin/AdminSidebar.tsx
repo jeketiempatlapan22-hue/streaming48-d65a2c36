@@ -223,8 +223,12 @@ const AdminSidebar = ({ activeSection, onSectionChange, onLogout, mobileOpen, on
     <>
       <aside className="hidden w-56 flex-col border-r border-border bg-card md:flex lg:w-64 2xl:w-72">{sidebarContent}</aside>
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
-        <SheetContent side="left" className="flex w-72 flex-col p-0">
-          <SheetHeader className="sr-only"><SheetTitle>Menu</SheetTitle></SheetHeader>
+        <SheetContent
+          side="left"
+          className="flex h-[100dvh] max-h-[100dvh] w-[85vw] max-w-xs flex-col gap-0 overflow-hidden p-0 [&>button]:z-10"
+          style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+        >
+          <SheetHeader className="sr-only"><SheetTitle>Menu Admin</SheetTitle></SheetHeader>
           {sidebarContent}
         </SheetContent>
       </Sheet>
