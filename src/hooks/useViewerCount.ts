@@ -59,7 +59,7 @@ function startPolling() {
       if (Date.now() - lastSuccessAt > WATCHDOG_MS) {
         fetchOnce();
       }
-    }, 15_000);
+    }, 30_000);
   }
 }
 
