@@ -422,8 +422,10 @@ const Index = () => {
       januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
       juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
     };
-    const parts = s.schedule_date.trim().toLowerCase().split(/\s+/);
-    if (parts.length === 3) {
+    // Strip optional weekday prefix like "Sabtu, " then split.
+    const cleaned = s.schedule_date.trim().toLowerCase().replace(/^[a-z]+,\s*/i, "");
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length >= 3) {
       const day = parseInt(parts[0]);
       const month = months[parts[1]];
       const year = parseInt(parts[2]);
