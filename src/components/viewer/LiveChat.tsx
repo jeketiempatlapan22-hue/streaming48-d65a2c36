@@ -390,7 +390,7 @@ const LiveChat = ({ username, tokenId, isLive, isAdmin, onPinMessage, onDeleteMe
 
     const startPolling = () => {
       if (intervalId) window.clearInterval(intervalId);
-      const intervalMs = document.visibilityState === "visible" ? 6000 : 15000;
+      const intervalMs = document.visibilityState === "visible" ? 20000 : 60000;
       intervalId = window.setInterval(() => {
         void syncMessages();
       }, intervalMs);
