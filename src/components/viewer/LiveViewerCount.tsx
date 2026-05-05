@@ -35,7 +35,7 @@ const LiveViewerCount = ({ isLive, readOnly = false }: { isLive: boolean; readOn
       if (isHidden()) return;
       supabase.rpc("viewer_heartbeat", { _key: key }).then(() => {});
     };
-    const start = () => { if (intervalId == null) intervalId = setInterval(beat, 60_000); };
+    const start = () => { if (intervalId == null) intervalId = setInterval(beat, 120_000); };
     const stop = () => { if (intervalId != null) { clearInterval(intervalId); intervalId = null; } };
     const onVis = () => { if (isHidden()) stop(); else { beat(); start(); } };
 

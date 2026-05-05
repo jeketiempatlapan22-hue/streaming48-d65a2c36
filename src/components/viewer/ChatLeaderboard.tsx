@@ -15,11 +15,12 @@ const ChatLeaderboard = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
     if (!isOpen) return;
     setLoading(true);
     const fetchData = async () => {
-      const { data } = await supabase.from("chat_messages").select("username");
+      const { data } = await supabase.rpc("get_chat_leaderboard", { _limit: 10 });
       if (data) {
-        const counts: Record<string, number> = {};
-        data.forEach((m: any) => { counts[m.username] = (counts[m.username] || 0) + 1; });
-        const sorted = Object.entries(counts).map(([username, count]) => ({ username, count })).sort((a, b) => b.count - a.count).slice(0, 10);
+        const sorted = (data as Array<{ username: string; message_count: number }>).map((r) => ({
+          username: r.username,
+          count: Number(r.message_count) || 0,
+        }));
         setLeaders(sorted);
       }
       setLoading(false);

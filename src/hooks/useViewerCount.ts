@@ -13,8 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Listener = (n: number) => void;
 
-const POLL_MS = 30_000;
-const WATCHDOG_MS = 90_000;
+const POLL_MS = 60_000;
+const WATCHDOG_MS = 180_000;
 
 let currentCount = 0;
 let lastSuccessAt = 0;
@@ -59,7 +59,7 @@ function startPolling() {
       if (Date.now() - lastSuccessAt > WATCHDOG_MS) {
         fetchOnce();
       }
-    }, 15_000);
+    }, 30_000);
   }
 }
 
