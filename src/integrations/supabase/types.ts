@@ -1849,6 +1849,13 @@ export type Database = {
         }[]
       }
       get_ban_info: { Args: { _user_id: string }; Returns: Json }
+      get_chat_leaderboard: {
+        Args: { _limit?: number }
+        Returns: {
+          message_count: number
+          username: string
+        }[]
+      }
       get_chat_messages: {
         Args: { _limit?: number }
         Returns: {
