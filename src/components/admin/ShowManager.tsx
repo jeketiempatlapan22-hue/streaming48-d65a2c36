@@ -691,7 +691,7 @@ const ShowManager = () => {
         </div>
 
         {draft ? (
-          <div className="max-h-[80vh] space-y-4 overflow-y-auto rounded-xl border border-border bg-card p-5">
+          <div className="max-h-[80vh] min-w-0 space-y-4 overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-card p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-foreground">Edit Show</h3>
