@@ -648,7 +648,7 @@ const ShowManager = () => {
         </TabsList>
       </Tabs>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
         <div className="space-y-2">
           {loading ? (
             <div className="flex items-center justify-center rounded-xl border border-border bg-card py-10">
